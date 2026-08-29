@@ -9,18 +9,20 @@ export interface SideNavProps {
   onTabClick?: (id: ViewId) => void;
   scannedJobsCount?: number;
   scanningProgress?: ScanProgress | null;
+  isLocked?: boolean;
 }
 
-export function SideNav({ activeView, onTabClick, scannedJobsCount = 0, scanningProgress }: SideNavProps) {
+export function SideNav({ activeView, onTabClick, scannedJobsCount = 0, scanningProgress, isLocked }: SideNavProps) {
   return (
     <nav className="h-full w-20 flex flex-col items-center py-4 bg-surface-container-low border-r border-outline-variant/20 shrink-0">
       <div className="flex flex-col gap-6">
         {NAV_TABS.map((tab) => {
           const isActive = activeView === tab.id;
+          const showLock = isLocked && tab.id === 'match';
           return (
             <button
               key={tab.id}
-              title={tab.title}
+              title={showLock ? `${tab.title} (locked — scam detected)` : tab.title}
               onClick={() => onTabClick?.(tab.id)}
               className={`flex flex-col items-center justify-center rounded-xl p-3 cursor-pointer transition-all active:translate-y-[1px] ${
                 isActive
@@ -28,7 +30,15 @@ export function SideNav({ activeView, onTabClick, scannedJobsCount = 0, scanning
                   : 'text-on-surface-variant opacity-70 hover:bg-surface-container-high'
               }`}
             >
-              <Icon name={tab.icon} filled={isActive} />
+              <div className="relative">
+                <Icon name={tab.icon} filled={isActive} />
+                {showLock && (
+                  <Icon
+                    name="lock"
+                    className="absolute -bottom-1 -right-1 text-[10px] text-error bg-background rounded-full"
+                  />
+                )}
+              </div>
               <span
                 className={`text-[10px] mt-1 font-label ${
                   isActive ? 'font-bold' : ''

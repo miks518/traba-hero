@@ -41,7 +41,8 @@ export type IconName =
   | 'database'
   | 'shield_person'
   | 'timer'
-  | 'calendar_month';
+  | 'calendar_month'
+  | 'lock';
 
 export interface NavTab {
   id: ViewId;
@@ -69,7 +70,7 @@ export interface MatchKeyword {
 }
 
 export interface ScanResult {
-  status: 'high-risk' | 'medium-risk' | 'low-risk';
+  status: 'scam' | 'suspicious' | 'legitimate';
   statusTitle: string;
   scanningTarget: string;
   riskScore: number;

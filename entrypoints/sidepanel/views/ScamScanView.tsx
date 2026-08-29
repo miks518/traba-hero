@@ -24,17 +24,17 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
   let status: ScanResult['status'];
   let statusTitle: string;
   if (!isJobPosting) {
-    status = 'low-risk';
+    status = 'legitimate';
     statusTitle = 'Not a Job Posting';
   } else if (score >= 70) {
-    status = 'high-risk';
-    statusTitle = 'High Risk Detected';
+    status = 'scam';
+    statusTitle = 'Scam';
   } else if (score >= 40) {
-    status = 'medium-risk';
-    statusTitle = 'Medium Risk';
+    status = 'suspicious';
+    statusTitle = 'Suspicious';
   } else {
-    status = 'low-risk';
-    statusTitle = 'Low Risk';
+    status = 'legitimate';
+    statusTitle = 'Legitimate';
   }
   return {
     status,

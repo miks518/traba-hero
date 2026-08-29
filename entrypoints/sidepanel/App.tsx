@@ -48,6 +48,9 @@ export default function App() {
     setResumeData(null);
   }, []);
 
+  const hasHighRisk = scannedJobs.some((j) => j.scanResult.status === 'scam');
+  const hasMediumRisk = scannedJobs.some((j) => j.scanResult.status === 'suspicious');
+
   return (
     <div className="w-full h-screen bg-background text-on-surface flex flex-col overflow-hidden font-body text-body-md">
       <TopAppBar onClose={() => window.close()} theme={theme} onToggleTheme={handleToggleTheme} />
@@ -57,6 +60,7 @@ export default function App() {
           onTabClick={setActiveView}
           scannedJobsCount={scannedJobsCount}
           scanningProgress={scanProgress}
+          isLocked={hasHighRisk}
         />
         <main className="flex-1 flex flex-col overflow-y-auto custom-scroll bg-background">
           <div className={`h-full flex-col ${activeView === 'scan' ? 'flex' : 'hidden'}`}>
@@ -69,6 +73,8 @@ export default function App() {
               onResumeData={handleResumeData}
               onClearResume={handleClearResume}
               onClearJobs={handleClearJobs}
+              isLocked={hasHighRisk}
+              hasWarnings={hasMediumRisk}
             />
           </div>
           <div className={`h-full flex-col ${activeView === 'test' ? 'flex' : 'hidden'}`}>

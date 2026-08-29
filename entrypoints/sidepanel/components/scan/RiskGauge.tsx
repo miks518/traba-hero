@@ -12,9 +12,9 @@ function scoreColor(score: number): string {
 }
 
 function scoreLabel(score: number): string {
-  if (score >= 70) return 'High Risk';
-  if (score >= 40) return 'Medium Risk';
-  return 'Low Risk';
+  if (score >= 70) return 'Scam';
+  if (score >= 40) return 'Suspicious';
+  return 'Legitimate';
 }
 
 export function RiskGauge({ score, description, maxScore = 100 }: RiskGaugeProps) {

@@ -11,6 +11,8 @@ export interface ResumeMatchViewProps {
   onResumeData: (data: ResumeData) => void;
   onClearResume: () => void;
   onClearJobs: () => void;
+  isLocked?: boolean;
+  hasWarnings?: boolean;
 }
 
 const JOB_ICONS: IconName[] = ['work', 'architecture', 'database', 'shield_person', 'search', 'handshake'];
@@ -39,9 +41,9 @@ function riskColor(score: number): string {
 }
 
 function riskLabel(score: number): string {
-  if (score >= 70) return 'High Risk';
-  if (score >= 40) return 'Medium Risk';
-  return 'Low Risk';
+  if (score >= 70) return 'Scam';
+  if (score >= 40) return 'Suspicious';
+  return 'Legitimate';
 }
 
 function matchBadgeStyle(score: number): string {
@@ -56,6 +58,8 @@ export function ResumeMatchView({
   onResumeData,
   onClearResume,
   onClearJobs,
+  isLocked = false,
+  hasWarnings = false,
 }: ResumeMatchViewProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [matching, setMatching] = useState(false);
@@ -108,6 +112,68 @@ export function ResumeMatchView({
 
   const hasResume = resumeData !== null;
   const hasJobs = scannedJobs.length > 0;
+  const highRiskJobs = scannedJobs.filter((j) => j.scanResult.status === 'scam');
+  const mediumRiskJobs = scannedJobs.filter((j) => j.scanResult.status === 'suspicious');
+
+  if (isLocked) {
+    return (
+      <div className="p-container-padding bg-background flex flex-col gap-stack-md relative">
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+        <div className="flex items-start gap-3 p-3 rounded-xl bg-error-container/15 border border-error/30">
+          <Icon name="lock" className="text-error mt-0.5 shrink-0" />
+          <div className="flex flex-col gap-1">
+            <p className="text-label-md font-bold text-error">Resume upload locked</p>
+            <p className="text-body-xs text-on-surface-variant">
+              {highRiskJobs.length} scanned job{highRiskJobs.length !== 1 ? 's' : ''} flagged as <span className="font-bold text-error">scam</span>. Uploading your resume to suspicious employers puts your personal data at risk.
+            </p>
+            <p className="text-body-xs text-on-surface-variant">
+              Clear the flagged jobs or scan safer postings to unlock resume matching.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <h2 className="text-headline-sm font-headline text-on-surface">Resume Match</h2>
+          <p className="text-body-sm text-on-surface-variant">
+            Resume matching is disabled while scam jobs are in your scan list.
+          </p>
+
+          <div className="flex flex-col gap-2 mt-2">
+            <p className="text-label-md text-on-surface-variant font-bold">Flagged jobs:</p>
+            {highRiskJobs.map((job) => (
+              <div key={job.id} className="flex items-center gap-2 p-2 rounded-lg bg-error-container/10 border border-error/20">
+                <Icon name="warning" className="text-error text-sm shrink-0" />
+                <span className="text-body-sm text-on-surface truncate">{job.title}</span>
+                <span className="text-body-xs text-error ml-auto shrink-0">{job.scanResult.riskScore}%</span>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setShowClearConfirm(true)}
+            className="mt-2 px-3 py-1.5 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-error hover:border-error/50 transition-colors text-label-md flex items-center gap-1 self-start"
+          >
+            <Icon name="delete" className="text-sm" />
+            Clear Flagged Jobs
+          </button>
+        </div>
+
+        <ConfirmDialog
+          open={showClearConfirm}
+          title="Clear All Jobs"
+          message="This will delete all scanned jobs and unlock resume matching. Are you sure?"
+          confirmLabel="Clear All"
+          onConfirm={() => {
+            onClearJobs();
+            setMatches([]);
+            setShowClearConfirm(false);
+          }}
+          onCancel={() => setShowClearConfirm(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-container-padding bg-background flex flex-col gap-stack-md relative">
@@ -115,6 +181,18 @@ export function ResumeMatchView({
       {(analyzing || matching) && (
         <div className="absolute top-0 left-0 w-full h-1 bg-surface-container-highest overflow-hidden rounded-full z-10">
           <div className="w-full h-full bg-secondary animate-loading-bar rounded-full" />
+        </div>
+      )}
+
+      {hasWarnings && (
+        <div className="flex items-start gap-3 p-3 rounded-xl bg-secondary-container/15 border border-secondary/30">
+          <Icon name="warning" className="text-secondary mt-0.5 shrink-0" />
+          <div className="flex flex-col gap-1">
+            <p className="text-label-md font-bold text-secondary">Suspicious jobs detected</p>
+            <p className="text-body-xs text-on-surface-variant">
+              {mediumRiskJobs.length} scanned job{mediumRiskJobs.length !== 1 ? 's' : ''} flagged as <span className="font-bold text-secondary">suspicious</span>. Review these carefully before sharing your resume.
+            </p>
+          </div>
         </div>
       )}
 

@@ -9,8 +9,8 @@ export const NAV_TABS: NavTab[] = [
 export const BOTTOM_NAV_ICONS = ['close', 'contact_support'] as const;
 
 export const SCAN_RESULT_DEMO: ScanResult = {
-  status: 'high-risk',
-  statusTitle: 'High Risk Detected',
+  status: 'scam',
+  statusTitle: 'Scam',
   scanningTarget: 'Senior Frontend Dev at \"Global-Tech\"',
   riskScore: 75,
   riskDescription: 'This listing matches high-frequency scam patterns observed in the last 48 hours.',
