@@ -185,7 +185,10 @@ async def _scan_event_stream(messages: list, max_tokens: int = 2048) -> str:
         return
 
     message_content = "".join(pieces).strip()
+    message_content = re.sub(r"<\|tool_call\|>.*?(?=<\|tool_call\|>|$)", "", message_content, flags=re.DOTALL).strip()
+    log.info("Raw model output (first 500 chars): %s", message_content[:500])
     result = _parse_custom(message_content) if message_content else None
+    log.info("Parsed custom result: %s", result)
     if isinstance(result, dict):
         yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
         yield _sse({"type": "result", "data": _scan_response(result).model_dump()})

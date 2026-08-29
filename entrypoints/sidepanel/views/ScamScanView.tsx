@@ -74,7 +74,6 @@ export function ScamScanView({
   const [isLoading, setIsLoading] = useState(false);
   const [hasScanned, setHasScanned] = useState(false);
   const [isValidJob, setIsValidJob] = useState(false);
-  const [language, setLanguage] = useState<'english' | 'tagalog'>('english');
   const abortRef = useRef<AbortController | null>(null);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
   const progressPercent = progress?.percent ?? 0;
@@ -175,7 +174,6 @@ export function ScamScanView({
     try {
       const result = await scanScreenshotStream(
         screenshots[0].split(',')[1],
-        language,
         controller.signal,
         (p) => {
           setProgress(p);
@@ -221,7 +219,7 @@ export function ScamScanView({
     } finally {
       setIsLoading(false);
     }
-  }, [screenshots, language, showToast, onScanComplete, onScanProgressChange]);
+  }, [screenshots, showToast, onScanComplete, onScanProgressChange]);
 
   function friendlyError(e: unknown): string {
     if (e instanceof DOMException && e.name === 'AbortError') return 'The scan took too long. Check that the backend is running and try again.';
@@ -254,40 +252,6 @@ export function ScamScanView({
           </p>
         </div>
       )}
-
-      <fieldset className="flex items-center gap-2" disabled={isLoading}>
-        <legend className="sr-only">Scan language</legend>
-        {(
-          [
-            { value: 'english', label: 'English' },
-            { value: 'tagalog', label: 'Tagalog' },
-          ] as const
-        ).map((opt) => (
-          <label
-            key={opt.value}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border cursor-pointer transition-all font-label-md ${
-              isLoading ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''
-            } ${
-              language === opt.value
-                ? 'bg-secondary/15 text-secondary border-secondary/40'
-                : 'bg-surface-container text-on-surface-variant border-outline-variant/30 hover:bg-surface-container-high'
-            }`}
-          >
-            <input
-              type="radio"
-              name="scan-language"
-              value={opt.value}
-              checked={language === opt.value}
-              onChange={() => setLanguage(opt.value)}
-              className="sr-only"
-            />
-            <span
-              className={`w-2 h-2 rounded-full border-2 ${language === opt.value ? 'bg-secondary border-secondary' : 'border-on-surface-variant'}`}
-            />
-            {opt.label}
-          </label>
-        ))}
-      </fieldset>
 
       {hasScanned && scanResult && isValidJob && (
         <>

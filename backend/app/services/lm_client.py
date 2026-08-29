@@ -41,7 +41,7 @@ def _parse_json(raw: str) -> dict | list | None:
 _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "critical", "severe", "info"}
 
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|VERDICT\s*PERCENTAGE|RED\s*FLAG|ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANALYSIS|JOB\s*SUMMARY))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|VERDICT[\s_]*PERCENTAGE|RED\s*FLAG|ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANALYSIS|JOB\s*SUMMARY))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 

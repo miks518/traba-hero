@@ -104,7 +104,6 @@ export interface ScanStreamResult {
 
 export async function scanScreenshotStream(
   imageBase64: string,
-  language: string,
   externalSignal: AbortSignal,
   onProgress: (progress: ScanProgress) => void,
   timeoutMs = 240000,
@@ -120,7 +119,7 @@ export async function scanScreenshotStream(
     const res = await fetch(`${API_BASE}/api/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_base64: imageBase64, language }),
+      body: JSON.stringify({ image_base64: imageBase64 }),
       signal: controller.signal,
     });
 
@@ -144,7 +143,6 @@ export async function scanScreenshotStream(
 
 export async function scanTextStream(
   text: string,
-  language: string,
   externalSignal: AbortSignal,
   onProgress: (progress: ScanProgress) => void,
   timeoutMs = 240000,
@@ -160,7 +158,7 @@ export async function scanTextStream(
     const res = await fetch(`${API_BASE}/api/scan-text`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, language }),
+      body: JSON.stringify({ text }),
       signal: controller.signal,
     });
 
