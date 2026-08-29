@@ -1,0 +1,8 @@
+fastapi==0.139.0
+uvicorn[standard]==0.50.2
+openai==2.44.0
+python-multipart==0.0.32
+pydantic-settings==2.14.2
+slowapi==0.1.10
+pypdf==6.15.0
+duckduckgo-search==8.1.1

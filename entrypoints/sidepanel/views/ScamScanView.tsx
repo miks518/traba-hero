@@ -1,0 +1,435 @@
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError } from '../components/scan';
+import { Icon, ToastContainer, useToastManager } from '../components/common';
+import { scanScreenshotStream, ApiRequestError, type ScanProgress } from '../lib/api';
+import type { ScanResult, IconName, ScannedJob, ApiScanResponse } from '../types';
+
+export interface ScamScanViewProps {
+  onScanComplete?: (job: ScannedJob) => void;
+  onScanProgressChange?: (progress: ScanProgress | null) => void;
+}
+
+const SEVERITY_ICONS: Record<string, IconName> = {
+  low: 'info',
+  mid: 'warning',
+  high: 'warning',
+};
+
+let jobIdCounter = 0;
+
+function mapApiResponse(data: ApiScanResponse): ScanResult {
+  const isJobPosting = data.valid;
+  const score = data.verdict_percentage ?? 50;
+  const hasCritical = (data.red_flags ?? []).some((f) => f.severity === 'high');
+  let status: ScanResult['status'];
+  let statusTitle: string;
+  if (!isJobPosting) {
+    status = 'low-risk';
+    statusTitle = 'Not a Job Posting';
+  } else if (score >= 70) {
+    status = 'high-risk';
+    statusTitle = 'High Risk Detected';
+  } else if (score >= 40) {
+    status = 'medium-risk';
+    statusTitle = 'Medium Risk';
+  } else {
+    status = 'low-risk';
+    statusTitle = 'Low Risk';
+  }
+  return {
+    status,
+    statusTitle,
+    scanningTarget: 'Scanned Element',
+    riskScore: score,
+    riskDescription: data.analysis || 'Analysis completed.',
+    redFlags: (data.red_flags ?? []).map((f, i) => ({
+      id: `flag-${i}`,
+      title: f.flag,
+      description: f.reasoning,
+      icon: SEVERITY_ICONS[f.severity] || 'warning',
+    })),
+    flagsCritical: hasCritical,
+    isJobPosting,
+  };
+}
+
+export function ScamScanView({
+  onScanComplete,
+  onScanProgressChange,
+}: ScamScanViewProps) {
+  const [pickerPhase, setPickerPhase] = useState(0);
+  const [pickerCancelPhase, setPickerCancelPhase] = useState(0);
+  const [pickerActive, setPickerActive] = useState(false);
+  const [pickerActivating, setPickerActivating] = useState(false);
+
+  const [cropPhase, setCropPhase] = useState(0);
+  const [cropCancelPhase, setCropCancelPhase] = useState(0);
+  const [cropActive, setCropActive] = useState(false);
+  const [cropActivating, setCropActivating] = useState(false);
+
+  const MAX_SCREENSHOTS = 4;
+
+  const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [hasSelection, setHasSelection] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasScanned, setHasScanned] = useState(false);
+  const [isValidJob, setIsValidJob] = useState(false);
+  const [language, setLanguage] = useState<'english' | 'tagalog'>('english');
+  const abortRef = useRef<AbortController | null>(null);
+  const [progress, setProgress] = useState<ScanProgress | null>(null);
+  const progressPercent = progress?.percent ?? 0;
+
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const { toasts, showToast, removeToast } = useToastManager();
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (lightboxIndex !== null) {
+        setLightboxIndex(null);
+        return;
+      }
+      if (pickerActive) {
+        setPickerCancelPhase((p) => p + 1);
+      } else if (cropActive) {
+        setCropCancelPhase((p) => p + 1);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      abortRef.current?.abort();
+    };
+  }, [pickerActive, cropActive, lightboxIndex]);
+
+  const handleScreenshotReady = useCallback((dataUrl: string) => {
+    setScreenshots((prev) => {
+      if (prev.length >= MAX_SCREENSHOTS) {
+        showToast(`You can select up to ${MAX_SCREENSHOTS} images only. Remove one to add another.`, 'error');
+        return prev;
+      }
+      return [...prev, dataUrl];
+    });
+  }, [showToast]);
+
+  const removeScreenshot = useCallback((index: number) => {
+    setScreenshots((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 0) {
+        setHasSelection(false);
+        setHasScanned(false);
+        setScanResult(null);
+        setProgress(null);
+        onScanProgressChange?.(null);
+      }
+      return next;
+    });
+  }, [onScanProgressChange]);
+
+  const resetAll = useCallback(() => {
+    setScreenshots([]);
+    setHasScanned(false);
+    setIsLoading(false);
+    setHasSelection(false);
+    setScanResult(null);
+    setIsValidJob(false);
+    setProgress(null);
+    onScanProgressChange?.(null);
+    setPickerCancelPhase((p) => p + 1);
+  }, [onScanProgressChange]);
+
+  const handlePickElement = useCallback(() => {
+    if (hasScanned) {
+      resetAll();
+    } else if (pickerActive) {
+      setPickerCancelPhase((p) => p + 1);
+    } else {
+      setPickerPhase((p) => p + 1);
+    }
+  }, [hasScanned, pickerActive, resetAll]);
+
+  const handleSelectionChange = useCallback((selected: boolean) => {
+    if (screenshots.length === 0) {
+      setHasSelection(selected);
+    }
+    if (!selected) {
+      setHasScanned(false);
+      setIsLoading(false);
+      setScanResult(null);
+      setIsValidJob(false);
+      setProgress(null);
+      onScanProgressChange?.(null);
+    }
+  }, [screenshots.length, onScanProgressChange]);
+
+  const handleScan = useCallback(async () => {
+    if (screenshots.length === 0) return;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setIsLoading(true);
+    setProgress({ percent: 5, stage: 'Preparing request' });
+    onScanProgressChange?.({ percent: 5, stage: 'Preparing request' });
+    try {
+      const result = await scanScreenshotStream(
+        screenshots[0].split(',')[1],
+        language,
+        controller.signal,
+        (p) => {
+          setProgress(p);
+          onScanProgressChange?.(p);
+        },
+      );
+      if (result.timedOut) {
+        showToast('The scan took too long. Check that the AI service is running.', 'error');
+        setProgress(null);
+        onScanProgressChange?.(null);
+        return;
+      }
+      if (!result.response) {
+        showToast('Scan ended before returning a result. Please try again.', 'error');
+        setProgress(null);
+        onScanProgressChange?.(null);
+        return;
+      }
+      const data = result.response;
+      const mapped = mapApiResponse(data);
+      setScanResult(mapped);
+      setHasScanned(true);
+      setIsValidJob(mapped.isJobPosting);
+      setProgress(null);
+      onScanProgressChange?.(null);
+      if (mapped.isJobPosting) {
+        const jobTitle = data.job_summary
+          ? data.job_summary.slice(0, 60).replace(/\s+\S*$/, '')
+          : mapped.scanningTarget;
+        onScanComplete?.({
+          id: `job-${++jobIdCounter}`,
+          title: jobTitle,
+          summary: data.job_summary,
+          timestamp: new Date().toISOString(),
+          scanResult: mapped,
+        });
+      }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      setProgress(null);
+      onScanProgressChange?.(null);
+      showToast(friendlyError(e), 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [screenshots, language, showToast, onScanComplete, onScanProgressChange]);
+
+  function friendlyError(e: unknown): string {
+    if (e instanceof DOMException && e.name === 'AbortError') return 'The scan took too long. Check that the backend is running and try again.';
+    if (e instanceof TypeError) return 'Could not connect to the AI service. Make sure the backend is running.';
+    if (e instanceof ApiRequestError) {
+      if (e.status === 502) return 'Hmm, I can\'t scan at the moment. Please try again.';
+      if (e.status === 504) return 'The scan took too long. Check that the AI service is running.';
+      if (e.status === 429) return 'Too many requests. Please wait a moment and try again.';
+      if (e.status === 422) return 'The image could not be processed. Try selecting a different area.';
+      if (e.status >= 500) return 'The AI service encountered an error. Please try again later.';
+    }
+    return 'Something went wrong during the scan. Please try again.';
+  }
+
+  return (
+    <div className="p-container-padding bg-background flex flex-col gap-stack-md relative">
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      {isLoading && (
+        <div className="absolute top-0 left-0 w-full h-1 bg-surface-container-highest overflow-hidden rounded-full">
+          <div className="w-full h-full bg-secondary animate-loading-bar rounded-full" />
+        </div>
+      )}
+
+      {!hasScanned && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-headline-sm font-headline text-on-surface">Scam Scan</h2>
+          <p className="text-body-sm text-on-surface-variant">
+            Pick a job post from the page to check for scam indicators.
+          </p>
+        </div>
+      )}
+
+      <fieldset className="flex items-center gap-2" disabled={isLoading}>
+        <legend className="sr-only">Scan language</legend>
+        {(
+          [
+            { value: 'english', label: 'English' },
+            { value: 'tagalog', label: 'Tagalog' },
+          ] as const
+        ).map((opt) => (
+          <label
+            key={opt.value}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border cursor-pointer transition-all font-label-md ${
+              isLoading ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''
+            } ${
+              language === opt.value
+                ? 'bg-secondary/15 text-secondary border-secondary/40'
+                : 'bg-surface-container text-on-surface-variant border-outline-variant/30 hover:bg-surface-container-high'
+            }`}
+          >
+            <input
+              type="radio"
+              name="scan-language"
+              value={opt.value}
+              checked={language === opt.value}
+              onChange={() => setLanguage(opt.value)}
+              className="sr-only"
+            />
+            <span
+              className={`w-2 h-2 rounded-full border-2 ${language === opt.value ? 'bg-secondary border-secondary' : 'border-on-surface-variant'}`}
+            />
+            {opt.label}
+          </label>
+        ))}
+      </fieldset>
+
+      {hasScanned && scanResult && isValidJob && (
+        <>
+          <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} />
+          <RedFlagsList flags={scanResult.redFlags} critical={scanResult.flagsCritical} />
+        </>
+      )}
+
+      {isLoading && !hasScanned && !scanResult && (
+        <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="relative w-[132px] h-[132px] flex items-center justify-center shrink-0">
+              <div className="w-[132px] h-[132px] rounded-full bg-surface-container-high animate-pulse" />
+            </div>
+            <div className="flex flex-col gap-1.5 min-w-0 w-full">
+              <div className="mx-auto w-32 h-4 rounded bg-surface-container-high animate-pulse" />
+              <div className="mx-auto w-full max-w-[220px] h-3 rounded bg-surface-container-high animate-pulse" />
+              <div className="mx-auto w-3/4 max-w-[180px] h-3 rounded bg-surface-container-high animate-pulse" />
+            </div>
+            <div className="flex items-center gap-2 text-on-surface-variant">
+              <span className="w-2 h-2 rounded-full bg-secondary animate-ping" />
+              <span className="font-label-md">Scanning… {progressPercent}%</span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {hasScanned && !isValidJob && scanResult && (
+        <InvalidContentError onRetry={resetAll} />
+      )}
+
+      <ScanActions
+        onPickElement={handlePickElement}
+        onCancelPick={() => setPickerCancelPhase((p) => p + 1)}
+        isPickerActive={pickerActive}
+        isPickerActivating={pickerActivating}
+        onManualCrop={() => setCropPhase((p) => p + 1)}
+        onCancelCrop={() => setCropCancelPhase((p) => p + 1)}
+        isCropActive={cropActive}
+        isCropActivating={cropActivating}
+        afterScan={hasScanned}
+      />
+
+      {screenshots.length > 0 && !hasScanned && (
+        <div className="flex flex-col gap-3">
+          <div className={`grid gap-2 ${screenshots.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {screenshots.map((ss, i) => (
+              <div key={i} className={`relative rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container cursor-pointer group ${
+                screenshots.length === 1 ? 'max-h-80' : 'aspect-square'
+              }`} onClick={() => setLightboxIndex(i)}>
+                <img src={ss} alt={`Selected ${i + 1}`} className={`w-full h-full ${screenshots.length === 1 ? 'object-contain' : 'object-cover'}`} />
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeScreenshot(i); }}
+                  className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                >
+                  <Icon name="close" className="text-sm" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={handleScan}
+            disabled={isLoading}
+            className="w-full tactile-btn-gold py-3 rounded-lg font-headline-md text-base flex items-center justify-center gap-2 disabled:opacity-70 active:translate-y-[1px]"
+          >
+            <Icon name="security" />
+            {isLoading ? 'Scanning...' : `Scan (${screenshots.length})`}
+          </button>
+        </div>
+      )}
+
+      {hasScanned && (
+        <div className="flex flex-wrap gap-2">
+          {screenshots.map((ss, i) => (
+            <button
+              key={i}
+              onClick={() => setLightboxIndex(i)}
+              className="w-16 h-16 rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container shrink-0 hover:ring-2 hover:ring-secondary transition-all"
+            >
+              <img src={ss} alt={`Screenshot ${i + 1}`} className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {lightboxIndex !== null && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center"
+          onClick={() => setLightboxIndex(null)}
+        >
+          <button
+            onClick={() => setLightboxIndex(null)}
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors z-10"
+          >
+            <Icon name="close" className="text-lg" />
+          </button>
+
+          {screenshots.length > 1 && lightboxIndex > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors z-10"
+            >
+              <Icon name="chevron_left" className="text-2xl" />
+            </button>
+          )}
+
+          {screenshots.length > 1 && lightboxIndex < screenshots.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors z-10"
+            >
+              <Icon name="chevron_right" className="text-2xl" />
+            </button>
+          )}
+
+          <img
+            src={screenshots[lightboxIndex]}
+            alt={`Full size screenshot ${lightboxIndex + 1}`}
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/60 text-white text-label-sm">
+            {lightboxIndex + 1} / {screenshots.length}
+          </div>
+        </div>
+      )}
+
+      <PickerButton
+        forceActivate={pickerPhase}
+        forceCancel={pickerCancelPhase}
+        forceManualCrop={cropPhase}
+        forceCropCancel={cropCancelPhase}
+        onActiveChange={setPickerActive}
+        onActivatingChange={setPickerActivating}
+        onCropActiveChange={setCropActive}
+        onCropActivatingChange={setCropActivating}
+        onSelectionChange={handleSelectionChange}
+        onScreenshotReady={handleScreenshotReady}
+      />
+    </div>
+  );
+}
+
+export default ScamScanView;
