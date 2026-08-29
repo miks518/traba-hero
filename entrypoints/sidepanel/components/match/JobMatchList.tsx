@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from '../common/Icon';
+import { FormattedText } from '../common/FormattedText';
 import type { ScannedJob, JobMatchItem } from '../../types';
 
 export interface JobMatchListProps {
@@ -72,9 +73,7 @@ export function JobMatchList({ jobs, matches }: JobMatchListProps) {
             </div>
 
             {m.reasoning && (
-              <p className="text-body-xs text-on-surface-variant italic leading-snug">
-                {m.reasoning}
-              </p>
+              <FormattedText text={m.reasoning} className="italic" />
             )}
 
             {(m.experienceFit || m.industryFit) && (

@@ -117,14 +117,15 @@ MATCH_INSTRUCTION = """Compare the candidate's resume against each job posting a
     "label": "High Compatibility / Medium Compatibility / Low Compatibility",
     "skill_gaps": ["Missing skill 1", "..."],
     "matched_skills": ["Matching skill 1", "..."],
-    "reasoning": "1-2 sentence explanation of why this score was given",
+    "reasoning": "Short, clear explanation. Use 1-2 sentences max. Mention what fits and what doesn't.",
     "experience_fit": "Good Fit / Overqualified / Underqualified",
     "industry_fit": "Strong / Moderate / Weak",
-    "recommended_actions": ["Actionable step 1", "Actionable step 2"]
+    "recommended_actions": ["Specific actionable step 1", "Specific actionable step 2"]
   }}
 ]
 Score based on: skills overlap (primary, compare resume skills against each job's summary), industry fit, experience level.
-For each job, provide reasoning explaining the score, whether the experience level and industry are a fit, and 2-3 actionable steps the candidate can take to improve their chances.
+For reasoning: be concise and specific. State what matches well and what's missing.
+For recommended_actions: give concrete steps (e.g., "Add a Python certification", "Include 2 relevant projects in your portfolio").
 
 Candidate Resume:
 Skills: {skills}

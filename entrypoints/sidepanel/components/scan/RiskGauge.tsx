@@ -1,4 +1,5 @@
 import React from 'react';
+import { FormattedText } from '../common/FormattedText';
 
 export interface RiskGaugeProps {
   score: number;
@@ -66,9 +67,7 @@ export function RiskGauge({ score, description, maxScore = 100 }: RiskGaugeProps
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
             {scoreLabel(pct)}
           </span>
-          <p className="font-body-md text-body-md text-on-surface-variant leading-snug">
-            {description}
-          </p>
+          <FormattedText text={description} className="font-body-md" />
         </div>
       </div>
     </section>

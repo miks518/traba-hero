@@ -10,16 +10,21 @@ RED FLAG: Fake Company Name | The recruiter's email uses gmail.com instead of th
 RED FLAG: Too-Good Salary | Pays double market rate for the position | mid
 END FLAGS
 ANALYSIS:
-1-3 sentence verdict explaining the risk level and key findings. May span multiple lines.
+- Use short, clear sentences.
+- Each key finding on its own line, prefixed with a dash (-).
+- Summarize the risk level first, then list specific concerns.
 END ANALYSIS
 JOB SUMMARY:
-3-5 sentence extraction of the posting — job title, company, key responsibilities, required skills, qualifications.
+- Job title and company on the first line.
+- Key responsibilities as a bullet list (-).
+- Required skills as a comma-separated line.
+- Qualifications as a bullet list (-).
 END JOB SUMMARY
 
 Field rules:
 - VALID: true if this is a job posting, false if it is not.
 - VERDICT_PERCENTAGE: integer from 0 (completely legitimate) to 100 (definitely a scam).
 - RED FLAG: label | reasoning | severity. Repeat the line for each flag. Severity is only low, mid, or high.
-- ANALYSIS: brief summary of the risk level and key findings.
-- JOB SUMMARY: brief extraction of the posting used to match candidates to the job later.
+- ANALYSIS: short sentences with key findings on separate lines. Start with the overall risk verdict, then list specific concerns.
+- JOB SUMMARY: structured with job title/company first, then bullet points for responsibilities and qualifications.
 
