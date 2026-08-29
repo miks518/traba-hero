@@ -43,7 +43,9 @@ export type IconName =
   | 'timer'
   | 'calendar_month'
   | 'lock'
-  | 'business';
+  | 'business'
+  | 'tips_and_updates'
+  | 'arrow_right';
 
 export interface NavTab {
   id: ViewId;
@@ -57,6 +59,7 @@ export interface RedFlag {
   title: string;
   description: string;
   icon: IconName;
+  severity?: 'low' | 'mid' | 'high';
 }
 
 export interface SkillGap {
@@ -87,6 +90,7 @@ export interface ScanResult {
     scam_reports?: { title: string; snippet: string; url: string }[];
     linkedin?: { title: string; snippet: string; url: string }[];
   };
+  jobSummary?: string;
 }
 
 export interface ScannedJob {
@@ -111,6 +115,10 @@ export interface JobMatchItem {
   label: string;
   skillGaps: string[];
   matchedSkills: string[];
+  reasoning?: string;
+  experienceFit?: string;
+  industryFit?: string;
+  recommendedActions?: string[];
 }
 
 export interface MatchResult {

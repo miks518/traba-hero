@@ -97,6 +97,10 @@ export function ResumeMatchView({
         label: m.label,
         skillGaps: m.skill_gaps,
         matchedSkills: m.matched_skills,
+        reasoning: m.reasoning,
+        experienceFit: m.experience_fit,
+        industryFit: m.industry_fit,
+        recommendedActions: m.recommended_actions,
       }));
       setMatches(mapped);
       setMatchScores(

@@ -191,7 +191,7 @@ export async function analyzeResume(fileBase64: string, fileType: string): Promi
 export async function matchResumeToJobs(
   resume: ResumeData,
   jobs: ScannedJob[]
-): Promise<{ matches: { job_id: string; score: number; label: string; skill_gaps: string[]; matched_skills: string[] }[] }> {
+): Promise<{ matches: { job_id: string; score: number; label: string; skill_gaps: string[]; matched_skills: string[]; reasoning: string; experience_fit: string; industry_fit: string; recommended_actions: string[] }[] }> {
   return request('POST', '/api/match-resume', {
     resume,
     jobs: jobs.map(j => ({ id: j.id, title: j.title, summary: j.summary })),

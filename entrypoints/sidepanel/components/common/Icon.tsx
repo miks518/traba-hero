@@ -43,7 +43,9 @@ export type IconName =
   | 'timer'
   | 'calendar_month'
   | 'lock'
-  | 'business';
+  | 'business'
+  | 'tips_and_updates'
+  | 'arrow_right';
 
 export interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
   name: IconName;

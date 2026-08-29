@@ -47,12 +47,14 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
       title: f.flag,
       description: f.reasoning,
       icon: SEVERITY_ICONS[f.severity] || 'warning',
+      severity: f.severity as 'low' | 'mid' | 'high',
     })),
     flagsCritical: hasCritical,
     isJobPosting,
     companyName: data.company_name || null,
     secRegistration: data.sec_registration || [],
     webSearch: data.web_search || {},
+    jobSummary: data.job_summary || undefined,
   };
 }
 
@@ -260,6 +262,18 @@ export function ScamScanView({
         <>
           <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} />
           <RedFlagsList flags={scanResult.redFlags} critical={scanResult.flagsCritical} />
+
+          {scanResult.jobSummary && (
+            <div className="flex flex-col gap-2 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
+              <div className="flex items-center gap-2">
+                <Icon name="description" className="text-secondary" />
+                <h3 className="text-label-md font-bold text-on-surface">Job Summary</h3>
+              </div>
+              <p className="text-body-sm text-on-surface-variant leading-relaxed">
+                {scanResult.jobSummary}
+              </p>
+            </div>
+          )}
 
           {(scanResult.companyName || (scanResult.secRegistration && scanResult.secRegistration.length > 0) || (scanResult.webSearch && (scanResult.webSearch.legitimacy?.length || scanResult.webSearch.scam_reports?.length))) && (
             <div className="flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">

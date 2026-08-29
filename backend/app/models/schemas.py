@@ -63,6 +63,10 @@ class JobMatchResult(BaseModel):
     label: str
     skill_gaps: list[str] = []
     matched_skills: list[str] = []
+    reasoning: str = ""
+    experience_fit: str = ""
+    industry_fit: str = ""
+    recommended_actions: list[str] = []
 
 
 class MatchRequest(BaseModel):
