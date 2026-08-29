@@ -132,3 +132,32 @@ def search_job_posting(text: str) -> str:
     log.info("Web search: verifying company '%s'", company)
     data = search_company(company)
     return format_search_results(data)
+
+
+def search_job_posting_data(text: str) -> dict:
+    """Extract company name and search. Returns raw data dict for frontend."""
+    company = _extract_company_name(text)
+    if not company:
+        return {"company_name": None, "results": {}}
+    log.info("Web search data: verifying company '%s'", company)
+    data = search_company(company)
+    summary = {
+        "company": company,
+        "legitimacy": [
+            {"title": r.get("title", ""), "snippet": r.get("body", "")[:200], "url": r.get("href", "")}
+            for r in data.get("legitimacy_results", [])[:3]
+        ],
+        "sec": [
+            {"title": r.get("title", ""), "snippet": r.get("body", "")[:200], "url": r.get("href", "")}
+            for r in data.get("sec_results", [])[:2]
+        ],
+        "scam_reports": [
+            {"title": r.get("title", ""), "snippet": r.get("body", "")[:200], "url": r.get("href", "")}
+            for r in data.get("scam_results", [])[:2]
+        ],
+        "linkedin": [
+            {"title": r.get("title", ""), "snippet": r.get("body", "")[:150], "url": r.get("href", "")}
+            for r in data.get("linkedin_results", [])[:2]
+        ],
+    }
+    return {"company_name": company, "results": summary}

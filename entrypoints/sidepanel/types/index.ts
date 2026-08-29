@@ -42,7 +42,8 @@ export type IconName =
   | 'shield_person'
   | 'timer'
   | 'calendar_month'
-  | 'lock';
+  | 'lock'
+  | 'business';
 
 export interface NavTab {
   id: ViewId;
@@ -78,6 +79,14 @@ export interface ScanResult {
   redFlags: RedFlag[];
   flagsCritical: boolean;
   isJobPosting: boolean;
+  companyName?: string | null;
+  secRegistration?: { company_name: string; sec_no: string; status: string; date_approved: string }[];
+  webSearch?: {
+    legitimacy?: { title: string; snippet: string; url: string }[];
+    sec?: { title: string; snippet: string; url: string }[];
+    scam_reports?: { title: string; snippet: string; url: string }[];
+    linkedin?: { title: string; snippet: string; url: string }[];
+  };
 }
 
 export interface ScannedJob {
@@ -131,4 +140,12 @@ export interface ApiScanResponse {
   analysis: string;
   job_summary: string;
   error?: string | null;
+  company_name?: string | null;
+  sec_registration?: { company_name: string; sec_no: string; status: string; date_approved: string }[];
+  web_search?: {
+    legitimacy?: { title: string; snippet: string; url: string }[];
+    sec?: { title: string; snippet: string; url: string }[];
+    scam_reports?: { title: string; snippet: string; url: string }[];
+    linkedin?: { title: string; snippet: string; url: string }[];
+  };
 }

@@ -19,6 +19,9 @@ class ScanResponse(BaseModel):
     analysis: str = ""
     job_summary: str = ""
     error: str | None = None
+    company_name: str | None = None
+    sec_registration: list[dict] = []
+    web_search: dict = {}
 
 
 class ScanTextRequest(BaseModel):

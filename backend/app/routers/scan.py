@@ -18,8 +18,8 @@ from app.models.schemas import (
 )
 from app.services.image import decode_base64_image
 from app.services.lm_client import chat, chat_json, chat_stream_pieces, _parse_custom, _parse_json
-from app.services.web_search import _extract_company_name, search_job_posting
-from app.services.sec_api import sec_context
+from app.services.web_search import _extract_company_name, search_job_posting, search_job_posting_data
+from app.services.sec_api import sec_context, sec_data
 from app.exceptions import InvalidImageError
 from app.rate_limit import limiter
 
@@ -157,7 +157,7 @@ def _sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
-async def _scan_event_stream(messages: list, max_tokens: int = 2048) -> str:
+async def _scan_event_stream(messages: list, max_tokens: int = 2048, company_data: dict | None = None) -> str:
     """Stream an LM Studio scan, emitting SSE progress events and a final result."""
     yield _sse({"type": "progress", "percent": 5, "stage": "Preparing request"})
     first = True
@@ -191,12 +191,18 @@ async def _scan_event_stream(messages: list, max_tokens: int = 2048) -> str:
     log.info("Parsed custom result: %s", result)
     if isinstance(result, dict):
         yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
-        yield _sse({"type": "result", "data": _scan_response(result).model_dump()})
+        resp = _scan_response(result).model_dump()
+        if company_data:
+            resp.update(company_data)
+        yield _sse({"type": "result", "data": resp})
         return
     fallback = _parse_json(message_content) if message_content else None
     if isinstance(fallback, dict):
         yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
-        yield _sse({"type": "result", "data": _scan_response(fallback).model_dump()})
+        resp = _scan_response(fallback).model_dump()
+        if company_data:
+            resp.update(company_data)
+        yield _sse({"type": "result", "data": resp})
         return
     yield _sse({"type": "error", "error": "The AI returned an unreadable response. Please try again."})
 
@@ -231,22 +237,31 @@ async def scan_text(req: ScanTextRequest, request: Request):
 
     # Pre-search: try to find company info before sending to AI
     search_context = search_job_posting(req.text)
+    web_data = search_job_posting_data(req.text)
     user_content = TEXT_SCAN_INSTRUCTION.replace("{text}", req.text) + "\n\n" + SCAN_OUTPUT_FORMAT + "\n\n" + _language_instruction(req.language)
     if search_context:
         user_content = search_context + "\n\n" + user_content
 
     # SEC registry lookup for the extracted company name
     company = _extract_company_name(req.text)
+    sec_matches = []
     if company:
         sec = sec_context(company)
+        sec_matches = sec_data(company)
         if sec:
             user_content = sec + "\n\n" + user_content
+
+    company_payload = {
+        "company_name": web_data.get("company_name") or company,
+        "sec_registration": sec_matches,
+        "web_search": web_data.get("results", {}),
+    }
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
     ]
-    return StreamingResponse(_scan_event_stream(messages), media_type="text/event-stream")
+    return StreamingResponse(_scan_event_stream(messages, company_data=company_payload), media_type="text/event-stream")
 
 
 @router.post("/api/test-text", response_model=TestTextResponse)

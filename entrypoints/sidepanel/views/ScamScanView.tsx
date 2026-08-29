@@ -50,6 +50,9 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
     })),
     flagsCritical: hasCritical,
     isJobPosting,
+    companyName: data.company_name || null,
+    secRegistration: data.sec_registration || [],
+    webSearch: data.web_search || {},
   };
 }
 
@@ -257,6 +260,74 @@ export function ScamScanView({
         <>
           <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} />
           <RedFlagsList flags={scanResult.redFlags} critical={scanResult.flagsCritical} />
+
+          {(scanResult.companyName || (scanResult.secRegistration && scanResult.secRegistration.length > 0) || (scanResult.webSearch && (scanResult.webSearch.legitimacy?.length || scanResult.webSearch.scam_reports?.length))) && (
+            <div className="flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
+              <div className="flex items-center gap-2">
+                <Icon name="business" className="text-secondary" />
+                <h3 className="text-label-md font-bold text-on-surface">Company Information</h3>
+              </div>
+
+              {scanResult.companyName && (
+                <div className="flex items-center gap-2">
+                  <span className="text-body-xs text-on-surface-variant">Company:</span>
+                  <span className="text-body-sm font-bold text-on-surface">{scanResult.companyName}</span>
+                </div>
+              )}
+
+              {scanResult.secRegistration && scanResult.secRegistration.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-label-sm font-bold text-on-surface-variant">SEC Registration</span>
+                  {scanResult.secRegistration.map((sec, i) => (
+                    <div key={i} className="flex flex-col gap-0.5 p-2 rounded-lg bg-surface-container-highest/50">
+                      <span className="text-body-sm text-on-surface">{sec.company_name}</span>
+                      <div className="flex items-center gap-3 text-body-xs text-on-surface-variant">
+                        {sec.sec_no && <span>SEC# {sec.sec_no}</span>}
+                        {sec.status && <span className={`font-bold ${sec.status.toLowerCase().includes('active') ? 'text-green-400' : 'text-amber-400'}`}>{sec.status}</span>}
+                        {sec.date_approved && <span>{sec.date_approved}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {scanResult.webSearch?.legitimacy && scanResult.webSearch.legitimacy.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-label-sm font-bold text-on-surface-variant">Web Results</span>
+                  {scanResult.webSearch.legitimacy.map((r, i) => (
+                    <div key={i} className="flex flex-col gap-0.5">
+                      <span className="text-body-xs text-on-surface line-clamp-1">{r.title}</span>
+                      <span className="text-body-xs text-on-surface-variant line-clamp-2">{r.snippet}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {scanResult.webSearch?.scam_reports && scanResult.webSearch.scam_reports.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-label-sm font-bold text-error">Scam Reports</span>
+                  {scanResult.webSearch.scam_reports.map((r, i) => (
+                    <div key={i} className="flex flex-col gap-0.5 p-2 rounded-lg bg-error-container/10 border border-error/20">
+                      <span className="text-body-xs text-on-surface line-clamp-1">{r.title}</span>
+                      <span className="text-body-xs text-on-surface-variant line-clamp-2">{r.snippet}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {scanResult.webSearch?.linkedin && scanResult.webSearch.linkedin.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-label-sm font-bold text-on-surface-variant">LinkedIn</span>
+                  {scanResult.webSearch.linkedin.map((r, i) => (
+                    <div key={i} className="flex flex-col gap-0.5">
+                      <span className="text-body-xs text-on-surface line-clamp-1">{r.title}</span>
+                      <span className="text-body-xs text-on-surface-variant line-clamp-2">{r.snippet}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 

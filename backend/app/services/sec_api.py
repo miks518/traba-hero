@@ -92,3 +92,21 @@ def sec_context(company_name: str) -> str:
     if not data:
         return ""
     return format_sec_results(company_name, data)
+
+
+def sec_data(company_name: str) -> list[dict]:
+    """Return raw SEC registry matches as list of dicts for frontend."""
+    if not settings.sec_api_key:
+        return []
+    log.info("SEC data: looking up '%s'", company_name)
+    data = lookup_company_by_name(company_name)
+    matches = _matches_from(data)
+    return [
+        {
+            "company_name": m.get("company_name", ""),
+            "sec_no": m.get("sec_no", ""),
+            "status": m.get("status", m.get("status_id", "")),
+            "date_approved": m.get("date_approved", m.get("term_of_existence", "")),
+        }
+        for m in matches[:5]
+    ]

@@ -42,7 +42,8 @@ export type IconName =
   | 'shield_person'
   | 'timer'
   | 'calendar_month'
-  | 'lock';
+  | 'lock'
+  | 'business';
 
 export interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
   name: IconName;
