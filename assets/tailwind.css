@@ -306,6 +306,37 @@
     filter: drop-shadow(0px 1px 0px rgba(0, 0, 0, 0.2));
   }
 
+  /* ── Text size scaling ───────────────────────────────────────────── */
+  .text-size-big {
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .text-size-big .text-headline-xl { font-size: 52px; line-height: 60px; }
+  .text-size-big .text-headline-lg { font-size: 35px; line-height: 44px; }
+  .text-size-big .text-headline-md { font-size: 26px; line-height: 34px; }
+  .text-size-big .text-headline-sm { font-size: 20px; line-height: 28px; }
+  .text-size-big .text-headline-xs { font-size: 18px; line-height: 25px; }
+  .text-size-big .text-body-lg { font-size: 18px; line-height: 27px; }
+  .text-size-big .text-body-md { font-size: 16px; line-height: 23px; }
+  .text-size-big .text-body-sm { font-size: 15px; line-height: 21px; }
+  .text-size-big .text-label-md { font-size: 14px; line-height: 19px; }
+  .text-size-big .text-label-sm { font-size: 13px; line-height: 17px; }
+
+  .text-size-largest {
+    font-size: 20px;
+    line-height: 1.6;
+  }
+  .text-size-largest .text-headline-xl { font-size: 58px; line-height: 66px; }
+  .text-size-largest .text-headline-lg { font-size: 40px; line-height: 48px; }
+  .text-size-largest .text-headline-md { font-size: 30px; line-height: 38px; }
+  .text-size-largest .text-headline-sm { font-size: 23px; line-height: 31px; }
+  .text-size-largest .text-headline-xs { font-size: 20px; line-height: 28px; }
+  .text-size-largest .text-body-lg { font-size: 20px; line-height: 30px; }
+  .text-size-largest .text-body-md { font-size: 18px; line-height: 26px; }
+  .text-size-largest .text-body-sm { font-size: 17px; line-height: 24px; }
+  .text-size-largest .text-label-md { font-size: 16px; line-height: 21px; }
+  .text-size-largest .text-label-sm { font-size: 15px; line-height: 19px; }
+
   /* Nav item active state */
   .nav-item-active {
     background: linear-gradient(135deg,

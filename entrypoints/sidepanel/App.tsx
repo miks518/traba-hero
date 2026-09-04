@@ -5,6 +5,7 @@ import { ResumeMatchView } from './views/ResumeMatchView';
 import { ModelTestView } from './views/ModelTestView';
 import type { ScanProgress } from './lib/api';
 import type { ViewId, ScannedJob, ResumeData } from './types';
+import type { TextSize } from './components/shell/TopAppBar';
 
 function getInitialTheme(): 'dark' | 'light' {
   return 'dark';
@@ -17,13 +18,43 @@ export default function App() {
   const [scannedJobsCount, setScannedJobsCount] = useState(0);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>(getInitialTheme);
+  const [textSize, setTextSize] = useState<TextSize>('default');
+
+  useEffect(() => {
+    try {
+      // @ts-ignore - storage API available in extension context
+      chrome.storage.local.get(['theme', 'textSize'], (result) => {
+        const storedTheme = result.theme as string | undefined;
+        if (storedTheme === 'light' || storedTheme === 'dark') {
+          setTheme(storedTheme);
+          document.documentElement.classList.toggle('dark', storedTheme === 'dark');
+        }
+        const storedSize = result.textSize as string | undefined;
+        if (storedSize === 'default' || storedSize === 'big' || storedSize === 'largest') {
+          setTextSize(storedSize);
+        }
+      });
+    } catch {}
+  }, []);
 
   const handleToggleTheme = useCallback(() => {
     setTheme((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark';
       document.documentElement.classList.toggle('dark', next === 'dark');
+      try {
+        // @ts-ignore - storage API available in extension context
+        chrome.storage.local.set({ theme: next });
+      } catch {}
       return next;
     });
+  }, []);
+
+  const handleTextSizeChange = useCallback((size: TextSize) => {
+    setTextSize(size);
+    try {
+      // @ts-ignore - storage API available in extension context
+      chrome.storage.local.set({ textSize: size });
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -52,8 +83,8 @@ export default function App() {
   const hasMediumRisk = scannedJobs.some((j) => j.scanResult.status === 'suspicious');
 
   return (
-    <div className="w-full h-screen bg-background text-on-surface flex flex-col overflow-hidden font-body text-body-md">
-      <TopAppBar onClose={() => window.close()} theme={theme} onToggleTheme={handleToggleTheme} />
+    <div className={`w-full h-screen bg-background text-on-surface flex flex-col overflow-hidden font-body text-body-md ${textSize === 'big' ? 'text-size-big' : textSize === 'largest' ? 'text-size-largest' : ''}`}>
+      <TopAppBar onClose={() => window.close()} theme={theme} onToggleTheme={handleToggleTheme} textSize={textSize} onTextSizeChange={handleTextSizeChange} />
       <div className="flex flex-1 overflow-hidden">
         <SideNav
           activeView={activeView}

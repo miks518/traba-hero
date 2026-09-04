@@ -90,7 +90,7 @@ def _parse_custom(raw: str) -> dict | None:
         if kw == "VALID":
             val = rest.lower()
             result["valid"] = val in ("true", "yes", "1", "legitimate", "valid")
-        elif kw == "VERDICT PERCENTAGE":
+        elif kw in ("VERDICT PERCENTAGE", "VERDICT_PERCENTAGE"):
             num = re.search(r"\d{1,3}", rest)
             if num:
                 result["verdict_percentage"] = int(num.group(0))

@@ -301,9 +301,101 @@ function deactivateManualCrop() {
   delete (activate as unknown as Record<string, unknown>)._cropCleanup;
 }
 
+const FAB_THEMES = {
+  dark: {
+    bg: 'linear-gradient(180deg, #5eeb95 0%, #4ade80 45%, #166534 100%)',
+    border: '1px solid #5eeb95',
+    shadow: '0 6px 0 0 #14532d, 0 8px 15px rgba(0,0,0,0.3), inset 0 1px 0 0 rgba(255,255,255,0.4)',
+    shadowActive: '0 2px 0 0 #14532d, inset 0 1px 0 0 rgba(255,255,255,0.4)',
+    color: '#052e16',
+  },
+  light: {
+    bg: 'linear-gradient(180deg, #6fbe6b 0%, #3b6934 45%, #1e4d1e 100%)',
+    border: '1px solid #6fbe6b',
+    shadow: '0 6px 0 0 #0f3d0f, 0 8px 15px rgba(0,0,0,0.25), inset 0 1px 0 0 rgba(255,255,255,0.35)',
+    shadowActive: '0 2px 0 0 #0f3d0f, inset 0 1px 0 0 rgba(255,255,255,0.35)',
+    color: '#ffffff',
+  },
+} as const;
+
+function applyFabTheme(fab: HTMLDivElement, theme: 'dark' | 'light') {
+  const t = FAB_THEMES[theme];
+  fab.style.background = t.bg;
+  fab.style.border = t.border;
+  fab.style.boxShadow = t.shadow;
+  fab.style.color = t.color;
+  fab.onmousedown = () => { fab.style.transform = 'translateY(4px)'; fab.style.boxShadow = t.shadowActive; };
+  fab.onmouseup = () => { fab.style.transform = ''; fab.style.boxShadow = t.shadow; };
+  fab.onmouseleave = () => { fab.style.transform = ''; fab.style.boxShadow = t.shadow; };
+}
+
+function injectFloatingButton() {
+  if (document.getElementById('trabahero-fab') || window !== window.top) return;
+
+  const fab = document.createElement('div');
+  fab.id = 'trabahero-fab';
+  fab.style.cssText = [
+    'position:fixed',
+    'bottom:24px',
+    'right:24px',
+    'width:52px',
+    'height:52px',
+    'border-radius:14px',
+    'display:flex',
+    'align-items:center',
+    'justify-content:center',
+    'cursor:pointer',
+    'z-index:2147483647',
+    'transition:transform 0.1s ease',
+    'padding:0',
+    'margin:0',
+  ].join(';');
+
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('width', '26');
+  icon.setAttribute('height', '26');
+  icon.style.cssText = 'fill:currentColor;pointer-events:none;';
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z');
+  icon.appendChild(path);
+  fab.appendChild(icon);
+
+  applyFabTheme(fab, 'dark');
+
+  try {
+    // @ts-ignore
+    chrome.storage.local.get('theme', (result) => {
+      const stored = result.theme as string | undefined;
+      if (stored === 'light' || stored === 'dark') applyFabTheme(fab, stored);
+    });
+  } catch {}
+
+  try {
+    // @ts-ignore
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.theme) {
+        const next = changes.theme.newValue as 'dark' | 'light';
+        if (next === 'dark' || next === 'light') applyFabTheme(fab, next);
+      }
+    });
+  } catch {}
+
+  fab.addEventListener('click', () => {
+    if (active) return;
+    activate();
+    browser.runtime.sendMessage({ action: 'OPEN_SIDEPANEL_AND_PICK' });
+  });
+
+  document.body.appendChild(fab);
+}
+
 export default defineContentScript({
   matches: ['*://*/*'],
   main() {
+    injectFloatingButton();
+
     browser.runtime.onMessage.addListener((msg: PickerMessage, _sender, sendResponse) => {
       if (msg.source !== 'trabahero-picker') return;
 

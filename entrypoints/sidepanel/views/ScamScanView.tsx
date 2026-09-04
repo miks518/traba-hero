@@ -261,6 +261,21 @@ export function ScamScanView({
       {hasScanned && scanResult && isValidJob && (
         <>
           <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} />
+
+          {hasScanned && (
+            <div className="flex flex-wrap gap-2">
+              {screenshots.map((ss, i) => (
+                <button
+                  key={i}
+                  onClick={() => setLightboxIndex(i)}
+                  className="w-16 h-16 rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container shrink-0 hover:ring-2 hover:ring-secondary transition-all"
+                >
+                  <img src={ss} alt={`Screenshot ${i + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+
           <RedFlagsList flags={scanResult.redFlags} critical={scanResult.flagsCritical} />
 
           {scanResult.jobSummary && (
@@ -405,20 +420,6 @@ export function ScamScanView({
             <Icon name="security" />
             {isLoading ? 'Scanning...' : `Scan (${screenshots.length})`}
           </button>
-        </div>
-      )}
-
-      {hasScanned && (
-        <div className="flex flex-wrap gap-2">
-          {screenshots.map((ss, i) => (
-            <button
-              key={i}
-              onClick={() => setLightboxIndex(i)}
-              className="w-16 h-16 rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container shrink-0 hover:ring-2 hover:ring-secondary transition-all"
-            >
-              <img src={ss} alt={`Screenshot ${i + 1}`} className="w-full h-full object-cover" />
-            </button>
-          ))}
         </div>
       )}
 
