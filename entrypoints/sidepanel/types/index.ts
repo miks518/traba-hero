@@ -91,6 +91,15 @@ export interface ScanResult {
     linkedin?: { title: string; snippet: string; url: string }[];
   };
   jobSummary?: string;
+  emailVerifications?: {
+    email: string;
+    domain: string;
+    syntaxValid: boolean;
+    hasMxRecords: boolean;
+    isDisposable: boolean;
+    risk: 'low' | 'medium' | 'high';
+    reason: string;
+  }[];
 }
 
 export interface ScannedJob {
@@ -156,4 +165,13 @@ export interface ApiScanResponse {
     scam_reports?: { title: string; snippet: string; url: string }[];
     linkedin?: { title: string; snippet: string; url: string }[];
   };
+  email_verifications?: {
+    email: string;
+    domain: string;
+    syntax_valid: boolean;
+    has_mx_records: boolean;
+    is_disposable: boolean;
+    risk: 'low' | 'medium' | 'high';
+    reason: string;
+  }[];
 }

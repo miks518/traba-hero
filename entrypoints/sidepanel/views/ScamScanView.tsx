@@ -55,6 +55,15 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
     secRegistration: data.sec_registration || [],
     webSearch: data.web_search || {},
     jobSummary: data.job_summary || undefined,
+    emailVerifications: (data.email_verifications ?? []).map((e) => ({
+      email: e.email,
+      domain: e.domain,
+      syntaxValid: e.syntax_valid,
+      hasMxRecords: e.has_mx_records,
+      isDisposable: e.is_disposable,
+      risk: e.risk,
+      reason: e.reason,
+    })),
   };
 }
 
@@ -340,6 +349,34 @@ export function ScamScanView({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {scanResult.emailVerifications && scanResult.emailVerifications.length > 0 && (
+            <div className="flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
+              <div className="flex items-center gap-2">
+                <Icon name="alternate_email" className="text-secondary" />
+                <h3 className="text-label-md font-bold text-on-surface">Email Verification</h3>
+              </div>
+              {scanResult.emailVerifications.map((ev, i) => (
+                <div key={i} className={`flex flex-col gap-1 p-2.5 rounded-lg border ${
+                  ev.risk === 'high' ? 'bg-error-container/10 border-error/20' :
+                  ev.risk === 'medium' ? 'bg-secondary-container/10 border-secondary/20' :
+                  'bg-surface-container-highest/50 border-outline-variant/10'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-body-sm font-bold text-on-surface font-mono">{ev.email}</span>
+                    <span className={`text-body-xs font-bold px-1.5 py-0.5 rounded ${
+                      ev.risk === 'high' ? 'bg-error/20 text-error' :
+                      ev.risk === 'medium' ? 'bg-secondary/20 text-secondary' :
+                      'bg-green-500/20 text-green-400'
+                    }`}>
+                      {ev.risk === 'high' ? 'HIGH RISK' : ev.risk === 'medium' ? 'MEDIUM' : 'VALID'}
+                    </span>
+                  </div>
+                  <span className="text-body-xs text-on-surface-variant">{ev.reason}</span>
+                </div>
+              ))}
             </div>
           )}
         </>
