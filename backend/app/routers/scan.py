@@ -20,6 +20,7 @@ from app.services.image import decode_base64_image
 from app.services.lm_client import chat, chat_json, chat_stream_pieces, _parse_custom, _parse_json
 from app.services.web_search import _extract_company_name, search_job_posting, search_job_posting_data
 from app.services.sec_api import sec_context, sec_data
+from app.services.email_verifier import verify_emails_in_text
 from app.exceptions import InvalidImageError
 from app.rate_limit import limiter
 
@@ -189,7 +190,7 @@ def _sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
-async def _scan_event_stream(messages: list, max_tokens: int = 2048, company_data: dict | None = None) -> str:
+async def _scan_event_stream(messages: list, max_tokens: int = 2048, company_data: dict | None = None, original_text: str = "") -> str:
     """Stream an LM Studio scan, emitting SSE progress events and a final result."""
     yield _sse({"type": "progress", "percent": 5, "stage": "Preparing request"})
     first = True
@@ -226,6 +227,14 @@ async def _scan_event_stream(messages: list, max_tokens: int = 2048, company_dat
         resp = _scan_response(result).model_dump()
         if company_data:
             resp.update(company_data)
+        if original_text:
+            email_checks = verify_emails_in_text(original_text)
+            resp["email_verifications"] = [
+                {"email": c.email, "domain": c.domain, "syntax_valid": c.syntax_valid,
+                 "has_mx_records": c.has_mx_records, "is_disposable": c.is_disposable,
+                 "risk": c.risk, "reason": c.reason}
+                for c in email_checks
+            ]
         yield _sse({"type": "result", "data": resp})
         return
     fallback = _parse_json(message_content) if message_content else None
@@ -234,6 +243,14 @@ async def _scan_event_stream(messages: list, max_tokens: int = 2048, company_dat
         resp = _scan_response(fallback).model_dump()
         if company_data:
             resp.update(company_data)
+        if original_text:
+            email_checks = verify_emails_in_text(original_text)
+            resp["email_verifications"] = [
+                {"email": c.email, "domain": c.domain, "syntax_valid": c.syntax_valid,
+                 "has_mx_records": c.has_mx_records, "is_disposable": c.is_disposable,
+                 "risk": c.risk, "reason": c.reason}
+                for c in email_checks
+            ]
         yield _sse({"type": "result", "data": resp})
         return
     yield _sse({"type": "error", "error": "The AI returned an unreadable response. Please try again."})
@@ -257,7 +274,7 @@ async def scan(req: ScanRequest, request: Request):
             {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{req.image_base64}"}},
         ]},
     ]
-    return StreamingResponse(_scan_event_stream(messages), media_type="text/event-stream")
+    return StreamingResponse(_scan_event_stream(messages, original_text=""), media_type="text/event-stream")
 
 
 @router.post("/api/scan-text")
@@ -293,7 +310,7 @@ async def scan_text(req: ScanTextRequest, request: Request):
         {"role": "system", "content": load_system_prompt()},
         {"role": "user", "content": user_content},
     ]
-    return StreamingResponse(_scan_event_stream(messages, company_data=company_payload), media_type="text/event-stream")
+    return StreamingResponse(_scan_event_stream(messages, company_data=company_payload, original_text=req.text), media_type="text/event-stream")
 
 
 @router.post("/api/analyze-resume", response_model=ResumeData)
