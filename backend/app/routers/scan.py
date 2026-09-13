@@ -6,12 +6,12 @@ import logging
 import time as _time
 import zipfile
 import re
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.config import settings
 from app.models.schemas import (
     ScanRequest, ScanResponse, ScanTextRequest,
-    TestTextRequest, TestTextResponse,
     ResumeAnalysisRequest, ResumeData,
     MatchRequest, MatchResponse,
     RedFlag,
@@ -52,37 +52,57 @@ def _extract_resume_text(file_base64: str, file_type: str) -> str:
             raise HTTPException(status_code=400, detail="Could not read the .docx file. Convert it to PDF or TXT and try again.")
     raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_type}. Use PDF, TXT, DOCX, or an image.")
 
-SYSTEM_PROMPT = """You are a professional job scanner — an expert at verifying job postings and detecting employment scams. Your role is to protect job seekers by analyzing job postings thoroughly before they apply.
+FALLBACK_SYSTEM_PROMPT = """You are a professional job scanner — an expert at verifying job postings and detecting employment scams. Your role is to protect job seekers by analyzing job postings thoroughly before they apply.
 
-You will receive a job posting (as text or image), and sometimes web search results about the company. Use the search results to verify the company's legitimacy when available.
+Analyze the provided job posting thoroughly. Verify the company name, contact methods, role responsibilities, and compensation to detect any fraud or red flags.
 
-Your job is to:
-1. Determine if it is actually a job posting (VALID: true) or not (VALID: false).
-2. Analyze it for scam indicators.
-3. Extract a concise job summary.
-
-Red flags to watch for:
-- Contact email uses a free domain (gmail.com, yahoo.com, etc.) instead of company domain
-- Salary or benefits seem too good to be true for the position
-- The posting uses urgent hiring language or asks for payment upfront
-- No physical address or verifiable company phone number
-- Vague job description with no specific responsibilities
-- Company name is unfamiliar or cannot be verified
-- Phone number or website needs verification
-- Web search shows scam reports or negative reviews about the company
-
-Be thorough but fair. Not every unfamiliar company is a scam. Look for multiple indicators before raising severity."""
-
-SCAN_OUTPUT_FORMAT = """\
-Complete the sections below. The sample shows the exact labels and structure - fill in your own values based on the actual posting:
+Respond strictly using this labeled section format:
 
 VALID: true
-VERDICT_PERCENTAGE: 30
-RED FLAG | Contact email uses a free domain | The recruiter uses gmail.com instead of the company domain | low
-RED FLAG | Salary is unusually high | Pays double market rate for the role | mid
+VERDICT_PERCENTAGE: 0
 END FLAGS
 ANALYSIS:
-1-3 sentence verdict explaining the risk level and key findings. May span multiple lines.
+1-3 sentence verdict explaining the risk assessment and legitimacy of the posting.
+END ANALYSIS
+JOB SUMMARY:
+3-5 sentence extraction of the posting — job title, company, key responsibilities, required skills, and qualifications.
+END JOB SUMMARY
+
+Field rules:
+- VALID: true if this is a genuine job posting or job advertisement, false if it is not.
+- VERDICT_PERCENTAGE: integer from 0 (completely legitimate/safe) to 100 (definite scam). For legitimate jobs, this should be low (e.g. 0-25).
+- RED FLAGS:
+  * CRITICAL: If the job posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
+  * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.
+  * Never invent red flags or output placeholder/default red flags.
+  * Format (only when genuine red flags are detected):
+    RED FLAG: label | reasoning | severity
+    (Severity must be low, mid, or high)
+- ANALYSIS: Brief explanation of the risk level and key findings.
+- JOB SUMMARY: 3-5 sentence extraction of the posting (job title, company, key responsibilities, required skills, qualifications)."""
+
+
+def load_system_prompt() -> str:
+    """Load system prompt from SYSTEM_PROMPT.md in the project root with fallback."""
+    root_prompt_path = Path(__file__).resolve().parents[3] / "SYSTEM_PROMPT.md"
+    if root_prompt_path.is_file():
+        try:
+            content = root_prompt_path.read_text(encoding="utf-8").strip()
+            if content:
+                return content
+        except Exception as e:
+            log.warning("Could not read SYSTEM_PROMPT.md at %s: %s", root_prompt_path, e)
+    return FALLBACK_SYSTEM_PROMPT
+
+
+SCAN_OUTPUT_FORMAT = """\
+Respond strictly using this labeled section format:
+
+VALID: true
+VERDICT_PERCENTAGE: 0
+END FLAGS
+ANALYSIS:
+1-3 sentence verdict explaining the risk assessment and legitimacy of the posting.
 END ANALYSIS
 JOB SUMMARY:
 3-5 sentence extraction of the posting - job title, company, key responsibilities, required skills, qualifications.
@@ -91,7 +111,13 @@ END JOB SUMMARY
 Field rules:
 - VALID: true if the image/text is a job posting, false if it is not a job posting.
 - VERDICT_PERCENTAGE: integer from 0 (completely legitimate) to 100 (definitely a scam).
-- RED FLAG: label | reasoning | severity. Repeat the line for each flag. Severity is only low, mid, or high.
+- RED FLAGS:
+  * CRITICAL: If the posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
+  * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.
+  * Never invent red flags or output placeholder/default red flags.
+  * Format (only when genuine red flags are detected):
+    RED FLAG: label | reasoning | severity
+    (Severity must be low, mid, or high)
 - ANALYSIS: brief summary of the risk level and key findings.
 - JOB SUMMARY: brief extraction of the posting used to match candidates to the job later."""
 
@@ -225,7 +251,7 @@ async def scan(req: ScanRequest, request: Request):
 
     log.info("Scan: sending image to LM Studio")
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": load_system_prompt()},
         {"role": "user", "content": [
             {"type": "text", "text": IMAGE_SCAN_INSTRUCTION + "\n\n" + SCAN_OUTPUT_FORMAT + "\n\n" + _language_instruction(req.language)},
             {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{req.image_base64}"}},
@@ -264,29 +290,10 @@ async def scan_text(req: ScanTextRequest, request: Request):
     }
 
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": load_system_prompt()},
         {"role": "user", "content": user_content},
     ]
     return StreamingResponse(_scan_event_stream(messages, company_data=company_payload), media_type="text/event-stream")
-
-
-@router.post("/api/test-text", response_model=TestTextResponse)
-@limiter.limit("10/minute")
-async def test_text(req: TestTextRequest, request: Request):
-    if not req.text.strip():
-        return TestTextResponse(raw_output="", model="")
-    log.info("Test text: %d chars to LM Studio", len(req.text))
-    try:
-        raw = await asyncio.wait_for(
-            chat([{"role": "user", "content": req.text}]),
-            timeout=180.0,
-        )
-        return TestTextResponse(raw_output=raw, model=settings.model_name or "local-model")
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=504, detail="The AI service took too long to respond.")
-    except Exception as e:
-        log.error("Test text error: %s: %s", type(e).__name__, e)
-        raise HTTPException(status_code=502, detail="Hmm, I can't scan at the moment. Please try again.")
 
 
 @router.post("/api/analyze-resume", response_model=ResumeData)

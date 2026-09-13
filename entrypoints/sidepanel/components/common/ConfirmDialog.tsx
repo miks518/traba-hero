@@ -7,6 +7,7 @@ export interface ConfirmDialogProps {
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  variant?: 'danger' | 'primary';
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -17,6 +18,7 @@ export function ConfirmDialog({
   message,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  variant = 'danger',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -26,7 +28,7 @@ export function ConfirmDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="w-80 rounded-xl bg-surface-container-high border border-outline-variant/30 shadow-xl p-5 flex flex-col gap-4">
         <h3 className="text-headline-xs font-headline text-on-surface">{title}</h3>
-        <p className="text-body-sm text-on-surface-variant">{message}</p>
+        <p className="text-body-sm text-on-surface-variant leading-relaxed">{message}</p>
         <div className="flex gap-3 justify-end">
           <button
             onClick={onCancel}
@@ -36,7 +38,11 @@ export function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 rounded-lg bg-error/20 border border-error/30 text-error hover:bg-error/30 transition-colors text-label-md"
+            className={`px-4 py-2 rounded-lg text-label-md transition-colors ${
+              variant === 'primary'
+                ? 'bg-secondary text-on-secondary font-medium hover:bg-secondary/90'
+                : 'bg-error/20 border border-error/30 text-error hover:bg-error/30'
+            }`}
           >
             {confirmLabel}
           </button>

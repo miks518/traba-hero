@@ -29,15 +29,6 @@ class ScanTextRequest(BaseModel):
     language: str = "english"
 
 
-class TestTextRequest(BaseModel):
-    text: str = Field(..., max_length=50_000)
-
-
-class TestTextResponse(BaseModel):
-    raw_output: str
-    model: str
-
-
 class ResumeAnalysisRequest(BaseModel):
     file_base64: str = Field(..., max_length=5_000_000)
     file_type: str

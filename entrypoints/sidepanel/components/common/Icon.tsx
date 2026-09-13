@@ -45,7 +45,9 @@ export type IconName =
   | 'lock'
   | 'business'
   | 'tips_and_updates'
-  | 'arrow_right';
+  | 'arrow_right'
+  | 'verified'
+  | 'filter_list';
 
 export interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
   name: IconName;

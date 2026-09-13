@@ -3,7 +3,6 @@ import type { NavTab, RedFlag, SkillGap, MatchKeyword, ScanResult, MatchResult }
 export const NAV_TABS: NavTab[] = [
   { id: 'scan', label: 'Scan', title: 'Scam Scan', icon: 'security' },
   { id: 'match', label: 'Match', title: 'Resume Match', icon: 'description' },
-  { id: 'test', label: 'Test', title: 'Model Test', icon: 'smart_toy' },
 ];
 
 export const BOTTOM_NAV_ICONS = ['close', 'contact_support'] as const;

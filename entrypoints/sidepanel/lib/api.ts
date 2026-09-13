@@ -180,10 +180,6 @@ export async function scanTextStream(
   }
 }
 
-export async function testTextModel(text: string, signal?: AbortSignal): Promise<{ raw_output: string; model: string }> {
-  return request('POST', '/api/test-text', { text }, 120000, signal);
-}
-
 export async function analyzeResume(fileBase64: string, fileType: string): Promise<ResumeData> {
   return request<ResumeData>('POST', '/api/analyze-resume', { file_base64: fileBase64, file_type: fileType }, 300000);
 }

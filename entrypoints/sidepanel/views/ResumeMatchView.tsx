@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { ResumePreview, JobMatchList, ResumeUploader } from '../components/match';
 import { RedFlagCard } from '../components/scan';
 import { ConfirmDialog, Icon, ToastContainer, useToastManager } from '../components/common';
 import { analyzeResume, matchResumeToJobs } from '../lib/api';
-import type { ScannedJob, ResumeData, JobMatchItem, IconName } from '../types';
+import type { ScannedJob, ResumeData, JobMatchItem, IconName, JobFilterCategory } from '../types';
 
 export interface ResumeMatchViewProps {
   scannedJobs: ScannedJob[];
@@ -52,6 +52,14 @@ function matchBadgeStyle(score: number): string {
   return 'bg-red-900/30 text-red-400 border-red-500/40';
 }
 
+function isVerifiedJob(job: ScannedJob): boolean {
+  return job.scanResult.status === 'legitimate' && job.scanResult.riskScore < 40 && job.scanResult.isJobPosting;
+}
+
+function isSuspiciousJob(job: ScannedJob): boolean {
+  return job.scanResult.status === 'suspicious' || job.scanResult.status === 'scam' || job.scanResult.riskScore >= 40;
+}
+
 export function ResumeMatchView({
   scannedJobs,
   resumeData,
@@ -67,10 +75,27 @@ export function ResumeMatchView({
   const [matchScores, setMatchScores] = useState<Record<string, number>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showUploadConfirm, setShowUploadConfirm] = useState(false);
+  const [pendingResumeFile, setPendingResumeFile] = useState<{
+    base64: string;
+    fileType: string;
+    fileName: string;
+  } | null>(null);
   const [replacing, setReplacing] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<JobFilterCategory>('all');
   const { toasts, showToast, removeToast } = useToastManager();
 
-  const handleFileSelected = useCallback(async (base64: string, fileType: string, _fileName: string) => {
+  const verifiedJobs = useMemo(() => scannedJobs.filter(isVerifiedJob), [scannedJobs]);
+  const suspiciousJobs = useMemo(() => scannedJobs.filter(isSuspiciousJob), [scannedJobs]);
+  const highRiskJobs = useMemo(() => scannedJobs.filter((j) => j.scanResult.status === 'scam'), [scannedJobs]);
+
+  const filteredJobs = useMemo(() => {
+    if (filterCategory === 'verified') return verifiedJobs;
+    if (filterCategory === 'suspicious') return suspiciousJobs;
+    return scannedJobs;
+  }, [filterCategory, verifiedJobs, suspiciousJobs, scannedJobs]);
+
+  const processResumeFile = useCallback(async (base64: string, fileType: string, _fileName: string) => {
     setAnalyzing(true);
     try {
       const data = await analyzeResume(base64, fileType);
@@ -83,14 +108,32 @@ export function ResumeMatchView({
     } finally {
       setAnalyzing(false);
       setReplacing(false);
+      setPendingResumeFile(null);
     }
   }, [onResumeData, showToast]);
 
+  const handleFileSelected = useCallback((base64: string, fileType: string, fileName: string) => {
+    setPendingResumeFile({ base64, fileType, fileName });
+    setShowUploadConfirm(true);
+  }, []);
+
+  const handleConfirmUpload = useCallback(() => {
+    if (!pendingResumeFile) return;
+    setShowUploadConfirm(false);
+    processResumeFile(pendingResumeFile.base64, pendingResumeFile.fileType, pendingResumeFile.fileName);
+  }, [pendingResumeFile, processResumeFile]);
+
+  const handleCancelUpload = useCallback(() => {
+    setShowUploadConfirm(false);
+    setPendingResumeFile(null);
+    setReplacing(false);
+  }, []);
+
   const handleRunMatch = useCallback(async () => {
-    if (!resumeData || scannedJobs.length === 0) return;
+    if (!resumeData || verifiedJobs.length === 0) return;
     setMatching(true);
     try {
-      const result = await matchResumeToJobs(resumeData, scannedJobs);
+      const result = await matchResumeToJobs(resumeData, verifiedJobs);
       const mapped = (result.matches || []).map((m) => ({
         jobId: m.job_id,
         score: m.score,
@@ -106,78 +149,16 @@ export function ResumeMatchView({
       setMatchScores(
         Object.fromEntries(mapped.map((m) => [m.jobId, m.score]))
       );
-      showToast(`Matched against ${scannedJobs.length} job${scannedJobs.length !== 1 ? 's' : ''}`, 'success');
+      showToast(`Matched against ${verifiedJobs.length} verified job${verifiedJobs.length !== 1 ? 's' : ''}`, 'success');
     } catch (e) {
       showToast('Match request failed. Please try again later.', 'error');
     } finally {
       setMatching(false);
     }
-  }, [resumeData, scannedJobs, showToast]);
+  }, [resumeData, verifiedJobs, showToast]);
 
   const hasResume = resumeData !== null;
   const hasJobs = scannedJobs.length > 0;
-  const highRiskJobs = scannedJobs.filter((j) => j.scanResult.status === 'scam');
-  const mediumRiskJobs = scannedJobs.filter((j) => j.scanResult.status === 'suspicious');
-
-  if (isLocked) {
-    return (
-      <div className="p-container-padding bg-background flex flex-col gap-stack-md relative">
-        <ToastContainer toasts={toasts} onRemove={removeToast} />
-
-        <div className="flex items-start gap-3 p-3 rounded-xl bg-error-container/15 border border-error/30">
-          <Icon name="lock" className="text-error mt-0.5 shrink-0" />
-          <div className="flex flex-col gap-1">
-            <p className="text-label-md font-bold text-error">Resume upload locked</p>
-            <p className="text-body-xs text-on-surface-variant">
-              {highRiskJobs.length} scanned job{highRiskJobs.length !== 1 ? 's' : ''} flagged as <span className="font-bold text-error">scam</span>. Uploading your resume to suspicious employers puts your personal data at risk.
-            </p>
-            <p className="text-body-xs text-on-surface-variant">
-              Clear the flagged jobs or scan safer postings to unlock resume matching.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <h2 className="text-headline-sm font-headline text-on-surface">Resume Match</h2>
-          <p className="text-body-sm text-on-surface-variant">
-            Resume matching is disabled while scam jobs are in your scan list.
-          </p>
-
-          <div className="flex flex-col gap-2 mt-2">
-            <p className="text-label-md text-on-surface-variant font-bold">Flagged jobs:</p>
-            {highRiskJobs.map((job) => (
-              <div key={job.id} className="flex items-center gap-2 p-2 rounded-lg bg-error-container/10 border border-error/20">
-                <Icon name="warning" className="text-error text-sm shrink-0" />
-                <span className="text-body-sm text-on-surface truncate">{job.title}</span>
-                <span className="text-body-xs text-error ml-auto shrink-0">{job.scanResult.riskScore}%</span>
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={() => setShowClearConfirm(true)}
-            className="mt-2 px-3 py-1.5 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-error hover:border-error/50 transition-colors text-label-md flex items-center gap-1 self-start"
-          >
-            <Icon name="delete" className="text-sm" />
-            Clear Flagged Jobs
-          </button>
-        </div>
-
-        <ConfirmDialog
-          open={showClearConfirm}
-          title="Clear All Jobs"
-          message="This will delete all scanned jobs and unlock resume matching. Are you sure?"
-          confirmLabel="Clear All"
-          onConfirm={() => {
-            onClearJobs();
-            setMatches([]);
-            setShowClearConfirm(false);
-          }}
-          onCancel={() => setShowClearConfirm(false)}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="p-container-padding bg-background flex flex-col gap-stack-md relative">
@@ -188,13 +169,25 @@ export function ResumeMatchView({
         </div>
       )}
 
-      {hasWarnings && (
+      {highRiskJobs.length > 0 && (
+        <div className="flex items-start gap-3 p-3 rounded-xl bg-error-container/15 border border-error/30">
+          <Icon name="shield_person" className="text-error mt-0.5 shrink-0" />
+          <div className="flex flex-col gap-1">
+            <p className="text-label-md font-bold text-error">Scam Protection Active</p>
+            <p className="text-body-xs text-on-surface-variant">
+              {highRiskJobs.length} scanned job{highRiskJobs.length !== 1 ? 's' : ''} detected as <span className="font-bold text-error">scam</span>. They are safely quarantined in the <span className="font-bold text-on-surface">Suspicious</span> category and strictly excluded from resume matching.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {highRiskJobs.length === 0 && suspiciousJobs.length > 0 && (
         <div className="flex items-start gap-3 p-3 rounded-xl bg-secondary-container/15 border border-secondary/30">
           <Icon name="warning" className="text-secondary mt-0.5 shrink-0" />
           <div className="flex flex-col gap-1">
-            <p className="text-label-md font-bold text-secondary">Suspicious jobs detected</p>
+            <p className="text-label-md font-bold text-secondary">Suspicious Postings Quarantined</p>
             <p className="text-body-xs text-on-surface-variant">
-              {mediumRiskJobs.length} scanned job{mediumRiskJobs.length !== 1 ? 's' : ''} flagged as <span className="font-bold text-secondary">suspicious</span>. Review these carefully before sharing your resume.
+              {suspiciousJobs.length} scanned job{suspiciousJobs.length !== 1 ? 's' : ''} flagged as suspicious. They are isolated in the <span className="font-bold text-on-surface">Suspicious</span> category and excluded from resume matching.
             </p>
           </div>
         </div>
@@ -208,14 +201,66 @@ export function ResumeMatchView({
         <p className="text-body-sm text-on-surface-variant">
           Track your recently scanned career opportunities.
         </p>
+
+        {scannedJobs.length > 0 && (
+          <div className="flex items-center gap-1.5 p-1 bg-surface-container-low rounded-xl border border-outline-variant/20 mt-1">
+            <button
+              onClick={() => setFilterCategory('all')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-label-sm transition-all ${
+                filterCategory === 'all'
+                  ? 'bg-surface-container-high text-on-surface font-bold shadow-sm'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+              }`}
+            >
+              <span>All</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-surface-container-highest/80 text-on-surface-variant font-normal">
+                {scannedJobs.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFilterCategory('verified')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-label-sm transition-all ${
+                filterCategory === 'verified'
+                  ? 'bg-green-950/40 text-green-400 border border-green-500/40 font-bold shadow-sm'
+                  : 'text-on-surface-variant hover:text-green-400 hover:bg-surface-container'
+              }`}
+            >
+              <Icon name="verified" className="text-xs text-green-400" />
+              <span>Verified</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-green-900/40 text-green-300 font-normal">
+                {verifiedJobs.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFilterCategory('suspicious')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-label-sm transition-all ${
+                filterCategory === 'suspicious'
+                  ? 'bg-amber-950/40 text-amber-400 border border-amber-500/40 font-bold shadow-sm'
+                  : 'text-on-surface-variant hover:text-amber-400 hover:bg-surface-container'
+              }`}
+            >
+              <Icon name="warning" className="text-xs text-amber-400" />
+              <span>Suspicious</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-normal ${
+                suspiciousJobs.length > 0 ? 'bg-amber-900/40 text-amber-300' : 'bg-surface-container-highest/80 text-on-surface-variant'
+              }`}>
+                {suspiciousJobs.length}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {scannedJobs.length > 0 && (
+      {filteredJobs.length > 0 && (
         <div className="flex flex-col gap-2">
-          {[...scannedJobs].reverse().map((job, idx) => {
+          {[...filteredJobs].reverse().map((job, idx) => {
             const isExpanded = expandedId === job.id;
             const score = matchScores[job.id];
             const sr = job.scanResult;
+            const verified = isVerifiedJob(job);
+            const suspicious = isSuspiciousJob(job);
             return (
               <div key={job.id} className="flex flex-col">
                 <div
@@ -237,9 +282,27 @@ export function ResumeMatchView({
                     <span className="block text-body-md text-on-surface truncate">
                       {job.title || 'Scanned Job'}
                     </span>
-                    <span className="block text-label-sm text-on-surface-variant/70 truncate">
-                      {job.timestamp ? formatTimestamp(job.timestamp) : ''}
-                    </span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="block text-label-sm text-on-surface-variant/70 truncate">
+                        {job.timestamp ? formatTimestamp(job.timestamp) : ''}
+                      </span>
+                      {verified && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] bg-green-950/30 text-green-400 border border-green-500/30 font-medium shrink-0">
+                          <Icon name="verified" className="text-[10px]" />
+                          Verified
+                        </span>
+                      )}
+                      {suspicious && (
+                        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] shrink-0 font-medium ${
+                          sr.status === 'scam'
+                            ? 'bg-error-container/20 text-error border border-error/30'
+                            : 'bg-amber-950/30 text-amber-400 border border-amber-500/30'
+                        }`}>
+                          <Icon name="warning" className="text-[10px]" />
+                          {sr.status === 'scam' ? 'Scam' : 'Suspicious'}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {score !== undefined && (
                     <span className={`px-2 py-0.5 rounded-full border text-label-md font-bold shrink-0 ${matchBadgeStyle(score)}`}>
@@ -254,6 +317,18 @@ export function ResumeMatchView({
 
                 {isExpanded && sr && (
                   <div className="mx-2 px-3 py-3 bg-surface-container-low border border-outline-variant/10 border-t-0 rounded-b-xl flex flex-col gap-3 animate-slide-in">
+                    {suspicious ? (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-label-xs">
+                        <Icon name="lock" className="text-xs shrink-0 text-amber-400" />
+                        <span>Protected: Excluded from resume matching to protect your personal information.</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-300 text-label-xs">
+                        <Icon name="verified" className="text-xs shrink-0 text-green-400" />
+                        <span>Verified safe opportunity. Included in resume matching.</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between">
                       <span className="font-label-md text-on-surface-variant">
                         {sr.riskScore}% Risk
@@ -317,6 +392,29 @@ export function ResumeMatchView({
         </div>
       )}
 
+      {scannedJobs.length > 0 && filteredJobs.length === 0 && (
+        <div className="text-center py-6 px-4 text-body-sm text-on-surface-variant bg-surface-container-low rounded-xl border border-outline-variant/10 flex flex-col items-center gap-1.5">
+          {filterCategory === 'verified' && (
+            <>
+              <Icon name="verified" className="text-xl text-on-surface-variant/60" />
+              <p className="font-medium text-on-surface">No verified jobs found</p>
+              <p className="text-label-sm text-on-surface-variant/70">
+                Only verified non-suspicious jobs appear here and can be matched against your resume.
+              </p>
+            </>
+          )}
+          {filterCategory === 'suspicious' && (
+            <>
+              <Icon name="check_circle" className="text-xl text-green-400" />
+              <p className="font-medium text-on-surface">No suspicious jobs detected</p>
+              <p className="text-label-sm text-on-surface-variant/70">
+                All scanned job opportunities are verified safe!
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="border-t border-outline-variant/10 pt-3">
         {!hasResume || replacing ? (
           <div className="flex flex-col gap-3">
@@ -337,20 +435,34 @@ export function ResumeMatchView({
             />
 
             {hasJobs && !matching && (
-              <button
-                onClick={handleRunMatch}
-                disabled={matching}
-                className="w-full tactile-btn-gold py-3 rounded-lg font-headline-md text-base flex items-center justify-center gap-2 disabled:opacity-70 active:translate-y-[1px]"
-              >
-                <Icon name="handshake" />
-                {matches.length > 0 ? 'Re-Match' : 'Match'}
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={handleRunMatch}
+                  disabled={matching || verifiedJobs.length === 0}
+                  className="w-full tactile-btn-gold py-3 rounded-lg font-headline-md text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:translate-y-[1px]"
+                >
+                  <Icon name="handshake" />
+                  {matches.length > 0 ? 'Re-Match' : 'Match'}
+                  {verifiedJobs.length > 0 ? ` (${verifiedJobs.length} Verified)` : ''}
+                </button>
+                {verifiedJobs.length === 0 && (
+                  <p className="text-label-xs text-error/90 text-center flex items-center justify-center gap-1">
+                    <Icon name="info" className="text-xs shrink-0" />
+                    No verified jobs available. Suspicious jobs are protected from matching.
+                  </p>
+                )}
+                {suspiciousJobs.length > 0 && verifiedJobs.length > 0 && (
+                  <p className="text-label-xs text-on-surface-variant/80 text-center">
+                    Matching only against {verifiedJobs.length} verified job{verifiedJobs.length !== 1 ? 's' : ''}. {suspiciousJobs.length} suspicious job{suspiciousJobs.length !== 1 ? 's' : ''} quarantined.
+                  </p>
+                )}
+              </div>
             )}
 
             {matching && (
               <div className="flex items-center gap-2 text-on-surface-variant text-body-sm">
                 <span className="inline-block w-3 h-3 border-2 border-secondary border-t-transparent rounded-full animate-spin" />
-                Matching your resume against {scannedJobs.length} job{scannedJobs.length !== 1 ? 's' : ''}...
+                Matching your resume against {verifiedJobs.length} verified job{verifiedJobs.length !== 1 ? 's' : ''}...
               </div>
             )}
           </div>
@@ -358,7 +470,7 @@ export function ResumeMatchView({
       </div>
 
       {matches.length > 0 && (
-        <JobMatchList jobs={scannedJobs} matches={matches} />
+        <JobMatchList jobs={verifiedJobs} matches={matches} />
       )}
 
       <div className="flex gap-2">
@@ -386,6 +498,17 @@ export function ResumeMatchView({
           setShowClearConfirm(false);
         }}
         onCancel={() => setShowClearConfirm(false)}
+      />
+
+      <ConfirmDialog
+        open={showUploadConfirm}
+        title="Upload & Scan Resume?"
+        message={`Are you sure you want to upload "${pendingResumeFile?.fileName || 'your resume'}"? It will be processed and scanned by AI to extract your skills, experience, and education for job matching.`}
+        confirmLabel="Proceed & Scan"
+        cancelLabel="Cancel"
+        variant="primary"
+        onConfirm={handleConfirmUpload}
+        onCancel={handleCancelUpload}
       />
     </div>
   );

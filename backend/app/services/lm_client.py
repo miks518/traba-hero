@@ -98,6 +98,15 @@ def _parse_custom(raw: str) -> dict | None:
             parts = [p.strip() for p in re.split(r"\s*\|\s*", rest) if p.strip()]
             if not parts:
                 continue
+            flag_title = parts[0]
+            flag_lower = flag_title.lower()
+            if flag_lower in {
+                "none", "no red flags", "no red flags detected", "n/a", "na",
+                "no significant red flags", "none detected", "no flags", "no flags detected",
+                "legitimate", "no issues found", "nil",
+            } or flag_lower.startswith("no red flag") or flag_lower.startswith("no significant"):
+                continue
+
             reasoning = parts[1] if len(parts) >= 3 else ""
             severity = parts[2] if len(parts) >= 3 else ""
             if len(parts) == 2:
@@ -106,7 +115,7 @@ def _parse_custom(raw: str) -> dict | None:
                 else:
                     reasoning = parts[1]
             flags.append({
-                "flag": parts[0],
+                "flag": flag_title,
                 "reasoning": reasoning,
                 "severity": _normalize_severity(severity or "mid"),
             })
@@ -117,16 +126,15 @@ def _parse_custom(raw: str) -> dict | None:
         else:
             matched_any = False
     close_section()
-    if flags:
-        result["red_flags"] = flags
+    result["red_flags"] = flags
     return result if matched_any or flags else None
 
 
 async def chat(messages: list, max_tokens: int = 2048, temperature: float = 0.2) -> str:
     model = settings.model_name or "local-model"
     async with AsyncOpenAI(
-        base_url=settings.lm_studio_url,
-        api_key=settings.lm_studio_api_key,
+        base_url=settings.effective_ai_url,
+        api_key=settings.effective_ai_api_key,
         timeout=300.0,
         max_retries=0,
     ) as client:
@@ -172,8 +180,8 @@ async def chat_stream_pieces(messages: list, max_tokens: int, temperature: float
     """Async generator yielding each content delta from LM Studio as it arrives."""
     model = settings.model_name or "local-model"
     async with AsyncOpenAI(
-        base_url=settings.lm_studio_url,
-        api_key=settings.lm_studio_api_key,
+        base_url=settings.effective_ai_url,
+        api_key=settings.effective_ai_api_key,
         timeout=300.0,
         max_retries=0,
     ) as client:

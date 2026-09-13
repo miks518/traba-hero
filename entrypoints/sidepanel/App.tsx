@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { TopAppBar, SideNav, Footer } from './components/shell';
 import { ScamScanView } from './views/ScamScanView';
 import { ResumeMatchView } from './views/ResumeMatchView';
-import { ModelTestView } from './views/ModelTestView';
 import type { ScanProgress } from './lib/api';
 import type { ViewId, ScannedJob, ResumeData } from './types';
 import type { TextSize } from './components/shell/TopAppBar';
@@ -91,7 +90,7 @@ export default function App() {
           onTabClick={setActiveView}
           scannedJobsCount={scannedJobsCount}
           scanningProgress={scanProgress}
-          isLocked={hasHighRisk}
+          isLocked={false}
         />
         <main className="flex-1 flex flex-col overflow-y-auto custom-scroll bg-background">
           <div className={`h-full flex-col ${activeView === 'scan' ? 'flex' : 'hidden'}`}>
@@ -104,12 +103,8 @@ export default function App() {
               onResumeData={handleResumeData}
               onClearResume={handleClearResume}
               onClearJobs={handleClearJobs}
-              isLocked={hasHighRisk}
-              hasWarnings={hasMediumRisk}
+              hasWarnings={hasMediumRisk || hasHighRisk}
             />
-          </div>
-          <div className={`h-full flex-col ${activeView === 'test' ? 'flex' : 'hidden'}`}>
-            <ModelTestView />
           </div>
         </main>
       </div>

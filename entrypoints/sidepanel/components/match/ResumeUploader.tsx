@@ -30,7 +30,10 @@ export function ResumeUploader({ onFileSelected, disabled }: ResumeUploaderProps
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    if (file) {
+      handleFile(file);
+    }
+    e.target.value = '';
   }, [handleFile]);
 
   return (
