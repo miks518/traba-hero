@@ -73,9 +73,10 @@ Field rules:
 - VALID: true if this is a genuine job posting or job advertisement, false if it is not.
 - VERDICT_PERCENTAGE: integer from 0 (completely legitimate/safe) to 100 (definite scam). For legitimate jobs, this should be low (e.g. 0-25).
 - RED FLAGS:
-  * CRITICAL: If the job posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
+  * CRITICAL: If the posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
   * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.
   * Never invent red flags or output placeholder/default red flags.
+  * If the posting does NOT mention a salary, do NOT flag "high salary" or "too-good salary" — only flag salary if a specific amount is stated and it is unrealistic for the role.
   * Format (only when genuine red flags are detected):
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
@@ -116,6 +117,7 @@ Field rules:
   * CRITICAL: If the posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
   * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.
   * Never invent red flags or output placeholder/default red flags.
+  * If the posting does NOT mention a salary, do NOT flag "high salary" or "too-good salary" — only flag salary if a specific amount is stated and it is unrealistic for the role.
   * Format (only when genuine red flags are detected):
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
