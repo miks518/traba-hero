@@ -47,7 +47,8 @@ export type IconName =
   | 'tips_and_updates'
   | 'arrow_right'
   | 'verified'
-  | 'filter_list';
+  | 'filter_list'
+  | 'badge';
 
 export type JobFilterCategory = 'all' | 'verified' | 'suspicious';
 
@@ -114,6 +115,14 @@ export interface ScanResult {
     low_weight: number;
     formula: string;
     normalized_score: number;
+  };
+  externalVerification?: {
+    phones: { number: string; valid_format: boolean; carrier: string; risk: string; reason: string }[];
+    domains: { domain: string; exists: boolean; age_months: number | null; registrar: string | null; risk: string; reason: string }[];
+    websites: { url: string; alive: boolean; status_code: number | null; risk: string; reason: string }[];
+    social: { platform: string; found: boolean; url: string | null; title: string | null; risk: string; reason: string }[];
+    gov: { registry: string; found: boolean; details: string | null; risk: string; reason: string }[];
+    scam_lists: { found: boolean; count: number; sources: string[]; risk: string; reason: string }[];
   };
 }
 
@@ -199,5 +208,13 @@ export interface ApiScanResponse {
     low_weight: number;
     formula: string;
     normalized_score: number;
+  };
+  external_verification?: {
+    phones: { number: string; valid_format: boolean; carrier: string; risk: string; reason: string }[];
+    domains: { domain: string; exists: boolean; age_months: number | null; registrar: string | null; risk: string; reason: string }[];
+    websites: { url: string; alive: boolean; status_code: number | null; risk: string; reason: string }[];
+    social: { platform: string; found: boolean; url: string | null; title: string | null; risk: string; reason: string }[];
+    gov: { registry: string; found: boolean; details: string | null; risk: string; reason: string }[];
+    scam_lists: { found: boolean; count: number; sources: string[]; risk: string; reason: string }[];
   };
 }

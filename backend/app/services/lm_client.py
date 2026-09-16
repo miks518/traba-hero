@@ -45,6 +45,24 @@ _SECTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+_HIGH_SEVERITY_KEYWORDS = {
+    "upfront fee", "processing fee", "training fee", "registration fee",
+    "assessment fee", "medical fee", "uniform fee", "payment required",
+    "money collection", "will deduct from salary", "refundable deposit",
+    "admin fee", "processing charge", "advance payment", "cash bond",
+    "security deposit", "pay to apply", "pay before", "fee required",
+    "requires payment", "must pay", "pay first", "initial fee",
+}
+
+
+def _infer_severity(label: str, reasoning: str) -> str:
+    """Infer severity from flag content when LLM omits the severity field."""
+    text = f"{label} {reasoning}".lower()
+    for kw in _HIGH_SEVERITY_KEYWORDS:
+        if kw in text:
+            return "high"
+    return "mid"
+
 
 def _normalize_severity(sev: str) -> str:
     s = (sev or "").strip().lower()
@@ -114,10 +132,14 @@ def _parse_custom(raw: str) -> dict | None:
                     severity = parts[1]
                 else:
                     reasoning = parts[1]
+            if severity:
+                final_severity = _normalize_severity(severity)
+            else:
+                final_severity = _infer_severity(flag_title, reasoning)
             flags.append({
                 "flag": flag_title,
                 "reasoning": reasoning,
-                "severity": _normalize_severity(severity or "mid"),
+                "severity": final_severity,
             })
         elif kw in ("ANALYSIS", "JOB SUMMARY"):
             section = kw.lower().replace(" ", "_")

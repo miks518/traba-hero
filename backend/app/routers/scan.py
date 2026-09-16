@@ -21,6 +21,7 @@ from app.services.lm_client import chat, chat_json, chat_stream_pieces, _parse_c
 from app.services.web_search import _extract_company_name, search_job_posting, search_job_posting_data
 from app.services.sec_api import sec_context, sec_data
 from app.services.email_verifier import verify_emails_in_text
+from app.services.external_verifier import verify_all, verification_to_dict
 from app.exceptions import InvalidImageError
 from app.rate_limit import limiter
 
@@ -188,7 +189,10 @@ def _calculate_score(flags: list[RedFlag]) -> tuple[int, dict]:
            mid_count * SEVERITY_WEIGHTS["mid"] +
            low_count * SEVERITY_WEIGHTS["low"])
     # Normalize to 0-100: 1 HIGH=3→25, 2 HIGH=6→50, 3 HIGH=9→75
+    # Minimum score of 20 when any flags exist so it never reads as "legitimate"
     score = min(100, raw * 25 // 3) if raw > 0 else 0
+    if flags and score < 20:
+        score = 20
     breakdown = {
         "high_count": high_count,
         "mid_count": mid_count,
@@ -209,7 +213,7 @@ def _language_instruction(language: str) -> str:
     return "Respond in English."
 
 
-def _scan_response(result: dict) -> ScanResponse:
+def _scan_response(result: dict, external: dict | None = None) -> ScanResponse:
     flags = _red_flags(result.get("red_flags", []))
     calc_score, breakdown = _calculate_score(flags)
     return ScanResponse(
@@ -220,6 +224,7 @@ def _scan_response(result: dict) -> ScanResponse:
         job_summary=result.get("job_summary", ""),
         error=result.get("error"),
         score_breakdown=breakdown,
+        external_verification=external or {},
     )
 
 
@@ -261,33 +266,46 @@ async def _scan_event_stream(messages: list, max_tokens: int = 2048, company_dat
     log.info("Parsed custom result: %s", result)
     if isinstance(result, dict):
         yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
-        resp = _scan_response(result).model_dump()
-        if company_data:
-            resp.update(company_data)
+        # Run external verifiers
+        ext_data = {}
+        email_data = []
+        ext_verification = {}
         if original_text:
             email_checks = verify_emails_in_text(original_text)
-            resp["email_verifications"] = [
+            email_data = [
                 {"email": c.email, "domain": c.domain, "syntax_valid": c.syntax_valid,
                  "has_mx_records": c.has_mx_records, "is_disposable": c.is_disposable,
                  "risk": c.risk, "reason": c.reason}
                 for c in email_checks
             ]
+            ext_result = verify_all(original_text, company_data.get("company_name") if company_data else "")
+            ext_verification = verification_to_dict(ext_result)
+        resp = _scan_response(result, ext_verification).model_dump()
+        if company_data:
+            resp.update(company_data)
+        resp["email_verifications"] = email_data
         yield _sse({"type": "result", "data": resp})
         return
     fallback = _parse_json(message_content) if message_content else None
     if isinstance(fallback, dict):
         yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
-        resp = _scan_response(fallback).model_dump()
-        if company_data:
-            resp.update(company_data)
+        ext_data = {}
+        email_data = []
+        ext_verification = {}
         if original_text:
             email_checks = verify_emails_in_text(original_text)
-            resp["email_verifications"] = [
+            email_data = [
                 {"email": c.email, "domain": c.domain, "syntax_valid": c.syntax_valid,
                  "has_mx_records": c.has_mx_records, "is_disposable": c.is_disposable,
                  "risk": c.risk, "reason": c.reason}
                 for c in email_checks
             ]
+            ext_result = verify_all(original_text, company_data.get("company_name") if company_data else "")
+            ext_verification = verification_to_dict(ext_result)
+        resp = _scan_response(fallback, ext_verification).model_dump()
+        if company_data:
+            resp.update(company_data)
+        resp["email_verifications"] = email_data
         yield _sse({"type": "result", "data": resp})
         return
     yield _sse({"type": "error", "error": "The AI returned an unreadable response. Please try again."})

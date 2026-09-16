@@ -23,6 +23,7 @@ class ScanResponse(BaseModel):
     sec_registration: list[dict] = []
     web_search: dict = {}
     score_breakdown: dict = {}
+    external_verification: dict = {}
 
 
 class ScanTextRequest(BaseModel):
