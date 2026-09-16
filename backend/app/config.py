@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     lm_studio_url: str = "http://localhost:1234/v1"
     lm_studio_api_key: str = "lm-studio"
     model_name: str = ""
+    ai_temperature: float = 0.2
+    ai_top_p: float = 1.0
+    ai_max_tokens: int = 2048
+    send_system_prompt: bool = True
     sec_api_url: str = "https://gwwso2.sec.gov.ph/companyinformationlookup/1.0.0"
     sec_api_key: str = ""
 

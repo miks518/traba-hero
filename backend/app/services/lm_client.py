@@ -130,8 +130,17 @@ def _parse_custom(raw: str) -> dict | None:
     return result if matched_any or flags else None
 
 
-async def chat(messages: list, max_tokens: int = 2048, temperature: float = 0.2) -> str:
+async def chat(
+    messages: list,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+) -> str:
     model = settings.model_name or "local-model"
+    eff_temp = temperature if temperature is not None else settings.ai_temperature
+    eff_max_tokens = max_tokens if max_tokens is not None else settings.ai_max_tokens
+    eff_top_p = top_p if top_p is not None else settings.ai_top_p
+
     async with AsyncOpenAI(
         base_url=settings.effective_ai_url,
         api_key=settings.effective_ai_api_key,
@@ -141,23 +150,34 @@ async def chat(messages: list, max_tokens: int = 2048, temperature: float = 0.2)
         completion = await client.chat.completions.create(
             model=model,
             messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            temperature=eff_temp,
+            top_p=eff_top_p,
+            max_tokens=eff_max_tokens,
         )
         return (completion.choices[0].message.content or "").strip()
 
 
-async def chat_json(messages: list, max_tokens: int = 2048, temperature: float = 0.2) -> dict | list | None:
-    raw = await chat(messages, max_tokens, temperature)
+async def chat_json(
+    messages: list,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+) -> dict | list | None:
+    raw = await chat(messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
     parsed = _parse_json(raw)
     if parsed is None:
         log.warning("Failed to parse AI JSON from response (%d chars)", len(raw))
     return parsed
 
 
-async def chat_custom(messages: list, max_tokens: int = 2048, temperature: float = 0.2) -> dict | None:
+async def chat_custom(
+    messages: list,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+) -> dict | None:
     """Chat using the labeled-section output format (no JSON braces)."""
-    raw = await chat(messages, max_tokens, temperature)
+    raw = await chat(messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
     parsed = _parse_custom(raw)
     if parsed is None:
         parsed = _parse_json(raw)
@@ -168,17 +188,31 @@ async def chat_custom(messages: list, max_tokens: int = 2048, temperature: float
     return parsed if isinstance(parsed, dict) else None
 
 
-async def chat_stream(messages: list, max_tokens: int = 2048, temperature: float = 0.2) -> str:
-    """Stream a chat completion from LM Studio, yielding the full content text."""
+async def chat_stream(
+    messages: list,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+) -> str:
+    """Stream a chat completion from the AI provider, yielding the full content text."""
     pieces: list[str] = []
-    async for piece in chat_stream_pieces(messages, max_tokens, temperature):
+    async for piece in chat_stream_pieces(messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p):
         pieces.append(piece)
     return "".join(pieces).strip()
 
 
-async def chat_stream_pieces(messages: list, max_tokens: int, temperature: float):
-    """Async generator yielding each content delta from LM Studio as it arrives."""
+async def chat_stream_pieces(
+    messages: list,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+):
+    """Async generator yielding each content delta from the AI provider as it arrives."""
     model = settings.model_name or "local-model"
+    eff_temp = temperature if temperature is not None else settings.ai_temperature
+    eff_max_tokens = max_tokens if max_tokens is not None else settings.ai_max_tokens
+    eff_top_p = top_p if top_p is not None else settings.ai_top_p
+
     async with AsyncOpenAI(
         base_url=settings.effective_ai_url,
         api_key=settings.effective_ai_api_key,
@@ -188,8 +222,9 @@ async def chat_stream_pieces(messages: list, max_tokens: int, temperature: float
         stream = await client.chat.completions.create(
             model=model,
             messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            temperature=eff_temp,
+            top_p=eff_top_p,
+            max_tokens=eff_max_tokens,
             stream=True,
         )
         async for chunk in stream:

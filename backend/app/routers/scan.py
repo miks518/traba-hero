@@ -227,15 +227,15 @@ def _sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
-async def _scan_event_stream(messages: list, max_tokens: int = 2048, company_data: dict | None = None, original_text: str = "") -> str:
-    """Stream an LM Studio scan, emitting SSE progress events and a final result."""
+async def _scan_event_stream(messages: list, max_tokens: int | None = None, company_data: dict | None = None, original_text: str = "") -> str:
+    """Stream an AI scan, emitting SSE progress events and a final result."""
     yield _sse({"type": "progress", "percent": 5, "stage": "Preparing request"})
     first = True
     pieces: list[str] = []
     token_count = 0
     try:
         deadline = _time.monotonic() + 300.0
-        async for piece in chat_stream_pieces(messages, max_tokens, 0.2):
+        async for piece in chat_stream_pieces(messages, max_tokens=max_tokens):
             if _time.monotonic() > deadline:
                 raise asyncio.TimeoutError()
             pieces.append(piece)
