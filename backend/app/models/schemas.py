@@ -22,6 +22,7 @@ class ScanResponse(BaseModel):
     company_name: str | None = None
     sec_registration: list[dict] = []
     web_search: dict = {}
+    score_breakdown: dict = {}
 
 
 class ScanTextRequest(BaseModel):

@@ -22,9 +22,6 @@ _DISPOSABLE_DOMAINS: set[str] = {
     "tmail.ws", "tempmailo.com", "tmpmail.net", "emailondeck.com",
     "33mail.com", "mytemp.email", "spamgourmet.com", "spam4.me",
     "bccto.me", "chacuo.net", "chinairn.com",
-    # Free providers (not disposable, but commonly abused by scammers)
-    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com",
-    "mail.com", "protonmail.com", "proton.me", "zoho.com",
 }
 
 

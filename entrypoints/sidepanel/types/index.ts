@@ -104,6 +104,16 @@ export interface ScanResult {
     risk: 'low' | 'medium' | 'high';
     reason: string;
   }[];
+  scoreBreakdown?: {
+    high_count: number;
+    mid_count: number;
+    low_count: number;
+    high_weight: number;
+    mid_weight: number;
+    low_weight: number;
+    formula: string;
+    normalized_score: number;
+  };
 }
 
 export interface ScannedJob {
@@ -178,4 +188,14 @@ export interface ApiScanResponse {
     risk: 'low' | 'medium' | 'high';
     reason: string;
   }[];
+  score_breakdown?: {
+    high_count: number;
+    mid_count: number;
+    low_count: number;
+    high_weight: number;
+    mid_weight: number;
+    low_weight: number;
+    formula: string;
+    normalized_score: number;
+  };
 }

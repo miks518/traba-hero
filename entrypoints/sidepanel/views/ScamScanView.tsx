@@ -20,16 +20,25 @@ let jobIdCounter = 0;
 function mapApiResponse(data: ApiScanResponse): ScanResult {
   const isJobPosting = data.valid;
   const score = data.verdict_percentage ?? 50;
-  const hasCritical = (data.red_flags ?? []).some((f) => f.severity === 'high');
+  const flags = data.red_flags ?? [];
+  const hasCritical = flags.some((f) => f.severity === 'high');
+  const flagCount = flags.length;
+
   let status: ScanResult['status'];
   let statusTitle: string;
   if (!isJobPosting) {
     status = 'legitimate';
     statusTitle = 'Not a Job Posting';
-  } else if (score >= 70) {
+  } else if (hasCritical) {
     status = 'scam';
     statusTitle = 'Scam';
-  } else if (score >= 40) {
+  } else if (flagCount >= 2) {
+    status = 'scam';
+    statusTitle = 'Scam';
+  } else if (flagCount === 1) {
+    status = 'suspicious';
+    statusTitle = 'Suspicious';
+  } else if (score >= 70) {
     status = 'suspicious';
     statusTitle = 'Suspicious';
   } else {
@@ -64,6 +73,7 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
       risk: e.risk,
       reason: e.reason,
     })),
+    scoreBreakdown: data.score_breakdown || undefined,
   };
 }
 
@@ -270,6 +280,38 @@ export function ScamScanView({
       {hasScanned && scanResult && isValidJob && (
         <>
           <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} />
+
+          {scanResult.scoreBreakdown && (scanResult.scoreBreakdown.high_count + scanResult.scoreBreakdown.mid_count + scanResult.scoreBreakdown.low_count) > 0 && (
+            <div className="flex flex-col gap-2 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
+              <div className="flex items-center gap-2">
+                <Icon name="architecture" className="text-secondary" />
+                <h3 className="text-label-md font-bold text-on-surface">Score Calculation</h3>
+              </div>
+              <div className="flex flex-wrap gap-3 text-body-xs text-on-surface-variant">
+                {scanResult.scoreBreakdown.high_count > 0 && (
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-error" />
+                    {scanResult.scoreBreakdown.high_count} HIGH × {scanResult.scoreBreakdown.high_weight} = {scanResult.scoreBreakdown.high_count * scanResult.scoreBreakdown.high_weight}
+                  </span>
+                )}
+                {scanResult.scoreBreakdown.mid_count > 0 && (
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-secondary" />
+                    {scanResult.scoreBreakdown.mid_count} MID × {scanResult.scoreBreakdown.mid_weight} = {scanResult.scoreBreakdown.mid_count * scanResult.scoreBreakdown.mid_weight}
+                  </span>
+                )}
+                {scanResult.scoreBreakdown.low_count > 0 && (
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-outline" />
+                    {scanResult.scoreBreakdown.low_count} LOW × {scanResult.scoreBreakdown.low_weight} = {scanResult.scoreBreakdown.low_count * scanResult.scoreBreakdown.low_weight}
+                  </span>
+                )}
+              </div>
+              <span className="text-body-xs text-on-surface-variant font-mono">
+                {scanResult.scoreBreakdown.formula} → <span className="font-bold text-on-surface">{scanResult.scoreBreakdown.normalized_score}/100</span>
+              </span>
+            </div>
+          )}
 
           {hasScanned && (
             <div className="flex flex-wrap gap-2">

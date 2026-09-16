@@ -77,6 +77,8 @@ Field rules:
   * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.
   * Never invent red flags or output placeholder/default red flags.
   * If the posting does NOT mention a salary, do NOT flag "high salary" or "too-good salary" — only flag salary if a specific amount is stated and it is unrealistic for the role.
+  * Gmail, Yahoo, and similar free email providers are COMMON and ACCEPTABLE in the Philippines, especially for small businesses, manpower agencies, and direct employers. Do NOT flag Gmail as a red flag by itself — only flag it if the email address is clearly fake, suspicious, or unrelated to the company name.
+  * CRITICAL SEVERITY (use "high"): Any mention of upfront fees, payment required, money collection, "processing fee", "training fee", "registration fee", "assessment fee", "medical fee", "uniform fee", or any form of payment from the applicant. Also flag: "will deduct from salary", "refundable deposit", "admin fee", "processing charge". This is ALWAYS a scam — use severity "high".
   * Format (only when genuine red flags are detected):
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
@@ -118,6 +120,8 @@ Field rules:
   * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.
   * Never invent red flags or output placeholder/default red flags.
   * If the posting does NOT mention a salary, do NOT flag "high salary" or "too-good salary" — only flag salary if a specific amount is stated and it is unrealistic for the role.
+  * Gmail, Yahoo, and similar free email providers are COMMON and ACCEPTABLE in the Philippines, especially for small businesses, manpower agencies, and direct employers. Do NOT flag Gmail as a red flag by itself — only flag it if the email address is clearly fake, suspicious, or unrelated to the company name.
+  * CRITICAL SEVERITY (use "high"): Any mention of upfront fees, payment required, money collection, "processing fee", "training fee", "registration fee", "assessment fee", "medical fee", "uniform fee", or any form of payment from the applicant. Also flag: "will deduct from salary", "refundable deposit", "admin fee", "processing charge". This is ALWAYS a scam — use severity "high".
   * Format (only when genuine red flags are detected):
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
@@ -170,6 +174,34 @@ def _red_flags(flags: list) -> list[RedFlag]:
     return [RedFlag(**f) for f in flags]
 
 
+# Weighted scoring — placeholder weights (to be replaced with AHP-derived weights after expert survey)
+# HIGH=3, MID=2, LOW=1 → max possible = 3×N flags, normalized to 0-100
+SEVERITY_WEIGHTS = {"high": 3, "mid": 2, "low": 1}
+
+
+def _calculate_score(flags: list[RedFlag]) -> tuple[int, dict]:
+    """Calculate weighted scam score from red flags. Returns (score, breakdown)."""
+    high_count = sum(1 for f in flags if f.severity == "high")
+    mid_count = sum(1 for f in flags if f.severity == "mid")
+    low_count = sum(1 for f in flags if f.severity == "low")
+    raw = (high_count * SEVERITY_WEIGHTS["high"] +
+           mid_count * SEVERITY_WEIGHTS["mid"] +
+           low_count * SEVERITY_WEIGHTS["low"])
+    # Normalize to 0-100: 1 HIGH=3→25, 2 HIGH=6→50, 3 HIGH=9→75
+    score = min(100, raw * 25 // 3) if raw > 0 else 0
+    breakdown = {
+        "high_count": high_count,
+        "mid_count": mid_count,
+        "low_count": low_count,
+        "high_weight": SEVERITY_WEIGHTS["high"],
+        "mid_weight": SEVERITY_WEIGHTS["mid"],
+        "low_weight": SEVERITY_WEIGHTS["low"],
+        "formula": f"({high_count}×3) + ({mid_count}×2) + ({low_count}×1) = {raw}",
+        "normalized_score": score,
+    }
+    return score, breakdown
+
+
 def _language_instruction(language: str) -> str:
     lang = (language or "").strip().lower()
     if lang in ("tagalog", "filipino", "tl"):
@@ -178,13 +210,16 @@ def _language_instruction(language: str) -> str:
 
 
 def _scan_response(result: dict) -> ScanResponse:
+    flags = _red_flags(result.get("red_flags", []))
+    calc_score, breakdown = _calculate_score(flags)
     return ScanResponse(
         valid=result.get("valid", False),
-        verdict_percentage=result.get("verdict_percentage", 50),
-        red_flags=_red_flags(result.get("red_flags", [])),
+        verdict_percentage=calc_score,
+        red_flags=flags,
         analysis=result.get("analysis", ""),
         job_summary=result.get("job_summary", ""),
         error=result.get("error"),
+        score_breakdown=breakdown,
     )
 
 
