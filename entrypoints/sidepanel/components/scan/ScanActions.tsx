@@ -17,6 +17,7 @@ export interface ScanActionsProps {
   isCropActive?: boolean;
   isCropActivating?: boolean;
   afterScan?: boolean;
+  disabled?: boolean;
 }
 
 export function ScanActions({
@@ -29,6 +30,7 @@ export function ScanActions({
   isCropActive = false,
   isCropActivating = false,
   afterScan = false,
+  disabled = false,
 }: ScanActionsProps) {
   const handlePickToggle = () => {
     if (isPickerActive) {
@@ -50,7 +52,7 @@ export function ScanActions({
     <section className="flex flex-col gap-3">
       <button
         onClick={handlePickToggle}
-        disabled={isPickerActivating}
+        disabled={isPickerActivating || disabled}
         className={`w-full py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
           isPickerActive
             ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
@@ -72,7 +74,7 @@ export function ScanActions({
 
       <button
         onClick={handleCropToggle}
-        disabled={isCropActivating}
+        disabled={isCropActivating || disabled}
         className={`w-full py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
           isCropActive
             ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'

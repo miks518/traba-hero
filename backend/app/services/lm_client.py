@@ -13,28 +13,21 @@ def _fix_unquoted_keys(raw: str) -> str:
 
 
 def _parse_json(raw: str) -> dict | list | None:
+    """Extract the first valid JSON object/array from raw text, tolerating
+    surrounding prose and trailing JSON snippets."""
     if not raw or not raw.strip():
         return None
-    match = re.search(r"\{.*\}", raw, re.DOTALL)
-    if match:
-        text = match.group()
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
+    for candidate in (raw, _fix_unquoted_keys(raw)):
+        decoder = json.JSONDecoder()
+        for i, ch in enumerate(candidate):
+            if ch not in "{[":
+                continue
             try:
-                return json.loads(_fix_unquoted_keys(text))
-            except json.JSONDecodeError:
-                pass
-    match = re.search(r"\[.*\]", raw, re.DOTALL)
-    if match:
-        text = match.group()
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            try:
-                return json.loads(_fix_unquoted_keys(text))
-            except json.JSONDecodeError:
-                pass
+                obj, _ = decoder.raw_decode(candidate, i)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(obj, (dict, list)):
+                return obj
     return None
 
 

@@ -110,12 +110,16 @@ _CARRIER_PREFIXES = {
 def _check_phone(raw: str) -> PhoneCheck:
     clean = re.sub(r"[\s\-\(\)]", "", raw)
     is_valid = bool(_PH_PHONE.fullmatch(clean))
-    prefix = clean[-10:][:4] if len(clean) >= 10 else ""
+    national = clean
+    if national.startswith("+63"):
+        national = "0" + national[3:]
+    prefix = national[:4] if len(national) >= 4 else ""
     carrier = _CARRIER_PREFIXES.get(prefix, "Unknown")
 
     if not is_valid:
         return PhoneCheck(raw, False, "", "high", "Invalid Philippine phone format")
-    return PhoneCheck(raw, True, carrier, "low", f"Valid {carrier} number")
+    label = carrier if carrier != "Unknown" else "Philippine"
+    return PhoneCheck(raw, True, carrier, "low", f"Valid {label} number")
 
 
 def verify_phones(text: str) -> list[PhoneCheck]:

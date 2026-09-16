@@ -32,14 +32,20 @@ const TYPE_STYLES: Record<ToastType, { container: string; icon: IconName }> = {
 
 function ToastItemView({ item, onDone }: { item: ToastItem; onDone: () => void }) {
   const [exiting, setExiting] = useState(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    let removeTimer: ReturnType<typeof setTimeout> | undefined;
+    const exitTimer = setTimeout(() => {
       setExiting(true);
-      setTimeout(onDone, 250);
+      removeTimer = setTimeout(() => onDoneRef.current(), 250);
     }, 3000);
-    return () => clearTimeout(timer);
-  }, [onDone]);
+    return () => {
+      clearTimeout(exitTimer);
+      clearTimeout(removeTimer);
+    };
+  }, []);
 
   const style = TYPE_STYLES[item.type];
 

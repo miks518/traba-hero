@@ -121,11 +121,12 @@ export function ScamScanView({
       }
     };
     document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      abortRef.current?.abort();
-    };
+    return () => document.removeEventListener('keydown', onKeyDown);
   }, [pickerActive, cropActive, lightboxIndex]);
+
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
 
   const handleScreenshotReady = useCallback((dataUrl: string) => {
     setScreenshots((prev) => {
@@ -164,6 +165,7 @@ export function ScamScanView({
   }, [onScanProgressChange]);
 
   const handlePickElement = useCallback(() => {
+    if (isLoading) return;
     if (hasScanned) {
       resetAll();
     } else if (pickerActive) {
@@ -171,7 +173,7 @@ export function ScamScanView({
     } else {
       setPickerPhase((p) => p + 1);
     }
-  }, [hasScanned, pickerActive, resetAll]);
+  }, [isLoading, hasScanned, pickerActive, resetAll]);
 
   const handleSelectionChange = useCallback((selected: boolean) => {
     if (screenshots.length === 0) {
@@ -198,7 +200,7 @@ export function ScamScanView({
     onScanProgressChange?.({ percent: 5, stage: 'Preparing request' });
     try {
       const result = await scanScreenshotStream(
-        screenshots[0].split(',')[1],
+        screenshots.map((s) => s.split(',')[1]),
         controller.signal,
         (p) => {
           setProgress(p);
@@ -565,6 +567,7 @@ export function ScamScanView({
         isCropActive={cropActive}
         isCropActivating={cropActivating}
         afterScan={hasScanned}
+        disabled={isLoading}
       />
 
       {screenshots.length > 0 && !hasScanned && (
