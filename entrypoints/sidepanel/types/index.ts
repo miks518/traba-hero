@@ -93,6 +93,7 @@ export interface ScanResult {
     sec?: { title: string; snippet: string; url: string }[];
     scam_reports?: { title: string; snippet: string; url: string }[];
     linkedin?: { title: string; snippet: string; url: string }[];
+    dole?: { title: string; snippet: string; url: string }[];
   };
   jobSummary?: string;
   emailVerifications?: {
@@ -178,6 +179,7 @@ export interface ApiScanResponse {
     sec?: { title: string; snippet: string; url: string }[];
     scam_reports?: { title: string; snippet: string; url: string }[];
     linkedin?: { title: string; snippet: string; url: string }[];
+    dole?: { title: string; snippet: string; url: string }[];
   };
   email_verifications?: {
     email: string;

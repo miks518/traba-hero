@@ -406,6 +406,18 @@ export function ScamScanView({
                   ))}
                 </div>
               )}
+
+              {scanResult.webSearch?.dole && scanResult.webSearch.dole.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-label-sm font-bold text-on-surface-variant">DOLE Licensed Agency</span>
+                  {scanResult.webSearch.dole.map((r, i) => (
+                    <div key={i} className="flex flex-col gap-0.5">
+                      <span className="text-body-xs text-on-surface line-clamp-1">{r.title}</span>
+                      <span className="text-body-xs text-on-surface-variant line-clamp-2">{r.snippet}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

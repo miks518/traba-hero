@@ -54,12 +54,19 @@ def search_company(company_name: str, max_results: int = 5) -> dict:
                 max_results=2,
             ))
 
+            # 5. DOLE licensed agency check
+            dole_results = list(ddgs.text(
+                f"{company_name} DOLE licensed recruitment agency Philippines",
+                max_results=2,
+            ))
+
             return {
                 "company": company_name,
                 "legitimacy_results": legitimacy,
                 "sec_results": sec_results,
                 "scam_results": scam_results,
                 "linkedin_results": linkedin_results,
+                "dole_results": dole_results,
             }
     except Exception as e:
         log.warning("Web search failed for '%s': %s", company_name, e)
@@ -69,6 +76,7 @@ def search_company(company_name: str, max_results: int = 5) -> dict:
             "sec_results": [],
             "scam_results": [],
             "linkedin_results": [],
+            "dole_results": [],
         }
 
 
@@ -119,6 +127,15 @@ def format_search_results(search_data: dict) -> str:
             if body:
                 lines.append(f"     {body}")
 
+    if search_data.get("dole_results"):
+        lines.append("\n[DOLE Licensed Agency]")
+        for i, r in enumerate(search_data["dole_results"][:2], 1):
+            title = r.get("title", "")
+            body = r.get("body", "")[:200]
+            lines.append(f"  {i}. {title}")
+            if body:
+                lines.append(f"     {body}")
+
     lines.append("\n=== END SEARCH ===")
     return "\n".join(lines)
 
@@ -158,6 +175,10 @@ def search_job_posting_data(text: str) -> dict:
         "linkedin": [
             {"title": r.get("title", ""), "snippet": r.get("body", "")[:150], "url": r.get("href", "")}
             for r in data.get("linkedin_results", [])[:2]
+        ],
+        "dole": [
+            {"title": r.get("title", ""), "snippet": r.get("body", "")[:200], "url": r.get("href", "")}
+            for r in data.get("dole_results", [])[:2]
         ],
     }
     return {"company_name": company, "results": summary}
