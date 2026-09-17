@@ -262,7 +262,7 @@ export function ScamScanView({
   }
 
   return (
-    <div className="p-container-padding bg-background flex flex-col gap-stack-md relative">
+    <div className="p-container-padding pb-24 bg-background flex flex-col gap-stack-md relative">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {isLoading && (

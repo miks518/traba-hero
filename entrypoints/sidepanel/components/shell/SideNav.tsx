@@ -24,7 +24,7 @@ export function SideNav({ activeView, onTabClick, scannedJobsCount = 0, scanning
               key={tab.id}
               title={showLock ? `${tab.title} (locked — scam detected)` : tab.title}
               onClick={() => onTabClick?.(tab.id)}
-              className={`flex flex-col items-center justify-center rounded-xl p-3 cursor-pointer transition-all active:translate-y-[1px] ${
+              className={`flex flex-col items-center justify-center rounded-xl p-3 cursor-pointer transition-all duration-300 ease-out active:translate-y-[1px] ${
                 isActive
                   ? 'nav-item-active'
                   : 'text-on-surface-variant opacity-70 hover:bg-surface-container-high'

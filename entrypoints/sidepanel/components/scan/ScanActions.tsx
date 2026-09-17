@@ -49,49 +49,51 @@ export function ScanActions({
   };
 
   return (
-    <section className="flex flex-col gap-3">
-      <button
-        onClick={handlePickToggle}
-        disabled={isPickerActivating || disabled}
-        className={`w-full py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
-          isPickerActive
-            ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
-            : 'tactile-btn-gold py-3 rounded-lg font-headline-md text-base disabled:opacity-70'
-        }`}
-      >
-        <Icon
-          name="touch_app"
-          className={isPickerActivating ? 'animate-pulse' : ''}
-        />
-        {isPickerActivating
-          ? PICK_ELEMENT_ACTIVE_LABEL
-          : isPickerActive
-            ? PICK_ELEMENT_CANCEL_LABEL
-            : afterScan
-              ? PICK_AGAIN_LABEL
-              : PICK_ELEMENT_LABEL}
-      </button>
+    <div className="sticky bottom-0 left-0 right-0 z-30 p-3 -mx-container-padding mt-auto">
+      <div className="flex gap-2">
+        <button
+          onClick={handlePickToggle}
+          disabled={isPickerActivating || disabled}
+          className={`flex-1 py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
+            isPickerActive
+              ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
+              : 'tactile-btn-gold py-3 rounded-lg text-body-md disabled:opacity-70'
+          }`}
+        >
+          <Icon
+            name="touch_app"
+            className={isPickerActivating ? 'animate-pulse' : ''}
+          />
+          {isPickerActivating
+            ? PICK_ELEMENT_ACTIVE_LABEL
+            : isPickerActive
+              ? PICK_ELEMENT_CANCEL_LABEL
+              : afterScan
+                ? PICK_AGAIN_LABEL
+                : PICK_ELEMENT_LABEL}
+        </button>
 
-      <button
-        onClick={handleCropToggle}
-        disabled={isCropActivating || disabled}
-        className={`w-full py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
-          isCropActive
-            ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
-            : 'btn-outline-gold'
-        }`}
-      >
-        <Icon
-          name="crop"
-          className={isCropActivating ? 'animate-pulse' : ''}
-        />
-        {isCropActivating
-          ? 'Selecting...'
-          : isCropActive
-            ? 'Cancel Crop'
-            : 'Manual Crop'}
-      </button>
-    </section>
+        <button
+          onClick={handleCropToggle}
+          disabled={isCropActivating || disabled}
+          className={`flex-1 py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
+            isCropActive
+              ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
+              : 'btn-outline-gold'
+          }`}
+        >
+          <Icon
+            name="crop"
+            className={isCropActivating ? 'animate-pulse' : ''}
+          />
+          {isCropActivating
+            ? 'Selecting...'
+            : isCropActive
+              ? 'Cancel Crop'
+              : 'Manual Crop'}
+        </button>
+      </div>
+    </div>
   );
 }
 

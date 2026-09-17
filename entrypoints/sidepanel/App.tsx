@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { TopAppBar, SideNav, Footer } from './components/shell';
 import { ScamScanView } from './views/ScamScanView';
 import { ResumeMatchView } from './views/ResumeMatchView';
@@ -12,11 +12,20 @@ function getInitialTheme(): 'dark' | 'light' {
 
 export default function App() {
   const [activeView, setActiveView] = useState<ViewId>('scan');
+  const [scanAnimKey, setScanAnimKey] = useState(0);
+  const [matchAnimKey, setMatchAnimKey] = useState(0);
   const [scannedJobs, setScannedJobs] = useState<ScannedJob[]>([]);
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>(getInitialTheme);
   const [textSize, setTextSize] = useState<TextSize>('default');
+
+  const handleTabChange = useCallback((id: ViewId) => {
+    if (id === activeView) return;
+    setActiveView(id);
+    if (id === 'scan') setScanAnimKey((k) => k + 1);
+    else setMatchAnimKey((k) => k + 1);
+  }, [activeView]);
 
   useEffect(() => {
     try {
@@ -79,21 +88,27 @@ export default function App() {
   const hasMediumRisk = scannedJobs.some((j) => j.scanResult.status === 'suspicious');
 
   return (
-    <div className={`w-full h-screen bg-background text-on-surface flex flex-col overflow-hidden font-body text-body-md ${textSize === 'big' ? 'text-size-big' : textSize === 'largest' ? 'text-size-largest' : ''}`}>
+    <div className={`w-full h-screen bg-background text-on-surface flex flex-col overflow-hidden font-body text-body-md ${textSize === 'big' ? 'text-size-big' : textSize === 'largest' ? 'text-size-largest' : 'text-size-default'}`}>
       <TopAppBar onClose={() => window.close()} theme={theme} onToggleTheme={handleToggleTheme} textSize={textSize} onTextSizeChange={handleTextSizeChange} />
       <div className="flex flex-1 overflow-hidden">
         <SideNav
           activeView={activeView}
-          onTabClick={setActiveView}
+          onTabClick={handleTabChange}
           scannedJobsCount={scannedJobs.length}
           scanningProgress={scanProgress}
           isLocked={false}
         />
         <main className="flex-1 flex flex-col overflow-y-auto custom-scroll bg-background">
-          <div className={`h-full flex-col ${activeView === 'scan' ? 'flex' : 'hidden'}`}>
+          <div
+            key={`scan-${scanAnimKey}`}
+            className={`h-full flex-col ${activeView === 'scan' ? 'flex animate-slide-in-left' : 'hidden'}`}
+          >
             <ScamScanView onScanComplete={handleScanComplete} onScanProgressChange={setScanProgress} />
           </div>
-          <div className={`h-full flex-col ${activeView === 'match' ? 'flex' : 'hidden'}`}>
+          <div
+            key={`match-${matchAnimKey}`}
+            className={`h-full flex-col ${activeView === 'match' ? 'flex animate-slide-in-left' : 'hidden'}`}
+          >
             <ResumeMatchView
               scannedJobs={scannedJobs}
               resumeData={resumeData}

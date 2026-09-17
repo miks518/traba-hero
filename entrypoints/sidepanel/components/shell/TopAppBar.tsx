@@ -55,7 +55,7 @@ export function TopAppBar({
   }, [showTextSize]);
 
   return (
-    <header className="bg-surface-container w-full sticky top-0 z-20 border-b border-outline-variant/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] flex justify-between items-center px-4 py-3 shrink-0">
+    <header className="bg-surface-container w-full sticky top-0 z-40 border-b border-outline-variant/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] flex justify-between items-center px-4 py-3 shrink-0">
       <div className="flex items-center gap-2">
         <TrabaheroLogo size={22} className="text-gold-gradient" />
         <span className="text-headline-sm font-headline font-bold text-gold-gradient">
@@ -66,7 +66,7 @@ export function TopAppBar({
         {onTextSizeChange && (
           <div ref={textSizeRef}>
             <Icon
-              name="tips_and_updates"
+              name="text_fields"
               className="cursor-pointer text-on-surface-variant hover:text-secondary transition-colors active:scale-95"
               onClick={() => { setShowTextSize((p) => !p); setShowHelp(false); }}
             />

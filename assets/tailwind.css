@@ -307,35 +307,130 @@
   }
 
   /* ── Text size scaling ───────────────────────────────────────────── */
-  .text-size-big {
-    font-size: 17px;
-    line-height: 1.55;
+  .text-size-default {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
   }
-  .text-size-big .text-headline-xl { font-size: 52px; line-height: 60px; }
-  .text-size-big .text-headline-lg { font-size: 35px; line-height: 44px; }
-  .text-size-big .text-headline-md { font-size: 26px; line-height: 34px; }
-  .text-size-big .text-headline-sm { font-size: 20px; line-height: 28px; }
-  .text-size-big .text-headline-xs { font-size: 18px; line-height: 25px; }
-  .text-size-big .text-body-lg { font-size: 18px; line-height: 27px; }
-  .text-size-big .text-body-md { font-size: 16px; line-height: 23px; }
-  .text-size-big .text-body-sm { font-size: 15px; line-height: 21px; }
-  .text-size-big .text-label-md { font-size: 14px; line-height: 19px; }
-  .text-size-big .text-label-sm { font-size: 13px; line-height: 17px; }
+
+  .text-size-default .text-body-md {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: bold;
+  }
+
+  .text-size-big {
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    font-weight: bold;
+  }
+
+  .text-size-big .text-headline-xl {
+    font-size: 3.25rem;
+    line-height: 3.75rem;
+  }
+
+  .text-size-big .text-headline-lg {
+    font-size: 2.1875rem;
+    line-height: 2.75rem;
+  }
+
+  .text-size-big .text-headline-md {
+    font-size: 1.625rem;
+    line-height: 2.125rem;
+  }
+
+  .text-size-big .text-headline-sm {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+
+  .text-size-big .text-headline-xs {
+    font-size: 1.125rem;
+    line-height: 1.5625rem;
+  }
+
+  .text-size-big .text-body-lg {
+    font-size: 1.125rem;
+    line-height: 1.6875rem;
+  }
+
+  .text-size-big .text-body-md {
+    font-size: 1rem;
+    line-height: 1.4375rem;
+    font-weight: bold;
+  }
+
+  .text-size-big .text-body-sm {
+    font-size: 0.9375rem;
+    line-height: 1.3125rem;
+
+  }
+
+  .text-size-big .text-label-md {
+    font-size: 0.875rem;
+    line-height: 1.1875rem;
+  }
+
+  .text-size-big .text-label-sm {
+    font-size: 0.8125rem;
+    line-height: 1.0625rem;
+  }
 
   .text-size-largest {
-    font-size: 20px;
+    font-size: 1.25rem;
     line-height: 1.6;
   }
-  .text-size-largest .text-headline-xl { font-size: 58px; line-height: 66px; }
-  .text-size-largest .text-headline-lg { font-size: 40px; line-height: 48px; }
-  .text-size-largest .text-headline-md { font-size: 30px; line-height: 38px; }
-  .text-size-largest .text-headline-sm { font-size: 23px; line-height: 31px; }
-  .text-size-largest .text-headline-xs { font-size: 20px; line-height: 28px; }
-  .text-size-largest .text-body-lg { font-size: 20px; line-height: 30px; }
-  .text-size-largest .text-body-md { font-size: 18px; line-height: 26px; }
-  .text-size-largest .text-body-sm { font-size: 17px; line-height: 24px; }
-  .text-size-largest .text-label-md { font-size: 16px; line-height: 21px; }
-  .text-size-largest .text-label-sm { font-size: 15px; line-height: 19px; }
+
+  .text-size-largest .text-headline-xl {
+    font-size: 3.625rem;
+    line-height: 4.125rem;
+  }
+
+  .text-size-largest .text-headline-lg {
+    font-size: 2.5rem;
+    line-height: 3rem;
+  }
+
+  .text-size-largest .text-headline-md {
+    font-size: 1.875rem;
+    line-height: 2.375rem;
+  }
+
+  .text-size-largest .text-headline-sm {
+    font-size: 1.4375rem;
+    line-height: 1.9375rem;
+  }
+
+  .text-size-largest .text-headline-xs {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+
+  .text-size-largest .text-body-lg {
+    font-size: 1.25rem;
+    line-height: 1.875rem;
+  }
+
+  .text-size-largest .text-body-md {
+    font-size: 1.125rem;
+    line-height: 1.625rem;
+    font-weight: bold;
+  }
+
+  .text-size-largest .text-body-sm {
+    font-size: 1.0625rem;
+    line-height: 1.5rem;
+  }
+
+  .text-size-largest .text-label-md {
+    font-size: 1rem;
+    line-height: 1.3125rem;
+  }
+
+  .text-size-largest .text-label-sm {
+    font-size: 0.9375rem;
+    line-height: 1.1875rem;
+  }
 
   /* Nav item active state */
   .nav-item-active {
@@ -348,5 +443,6 @@
       rgba(255, 255, 255, 0.4) 0px 1px 1px inset,
       color-mix(in srgb, var(--color-secondary), black 55%) 0px 4px 0px 0px;
     color: var(--color-on-secondary);
+    transition: background 0.3s ease-out, border-color 0.3s ease-out, box-shadow 0.3s ease-out, color 0.3s ease-out, opacity 0.3s ease-out;
   }
 }

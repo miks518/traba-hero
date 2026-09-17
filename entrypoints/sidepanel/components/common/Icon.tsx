@@ -48,7 +48,8 @@ export type IconName =
   | 'arrow_right'
   | 'verified'
   | 'filter_list'
-  | 'badge';
+  | 'badge'
+  | 'text_fields';
 
 export interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
   name: IconName;
