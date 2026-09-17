@@ -68,7 +68,7 @@ ANALYSIS:
 1-2 short sentences. State the verdict and the single most important reason.
 END ANALYSIS
 JOB SUMMARY:
-2-3 short sentences: job title, company, and only the key requirements.
+Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification.
 END JOB SUMMARY
 
 Be concise: no greetings, no preamble, no repetition, no markdown.
@@ -88,7 +88,7 @@ Field rules:
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
 - ANALYSIS: 1-2 short sentences only.
-- JOB SUMMARY: 2-3 short sentences only."""
+- JOB SUMMARY: Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."""
 
 
 def load_system_prompt() -> str:
@@ -127,7 +127,7 @@ ANALYSIS:
 1-2 short sentences. State the verdict and the single most important reason.
 END ANALYSIS
 JOB SUMMARY:
-2-3 short sentences: job title, company, and only the key requirements.
+Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification.
 END JOB SUMMARY
 
 Be concise: no greetings, no preamble, no repetition, no markdown.
@@ -147,11 +147,11 @@ Field rules:
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
 - ANALYSIS: 1-2 short sentences only.
-- JOB SUMMARY: 2-3 short sentences only."""
+- JOB SUMMARY: Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."""
 
-IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. First decide if it is actually a job posting (VALID: true) or not (VALID: false). Then analyze it for scam indicators. If several images are provided, treat them as parts of the same posting. Extract a brief job_summary (2-3 sentences) covering the job title, company, and key requirements."
+IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. First decide if it is actually a job posting (VALID: true) or not (VALID: false). Then analyze it for scam indicators. If several images are provided, treat them as parts of the same posting. Extract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
 
-TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nFirst decide if it is actually a job posting (VALID: true) or not (VALID: false). Then analyze it for scam indicators.\n\nExtract a brief job_summary (2-3 sentences) covering the job title, company, and key requirements."
+TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nFirst decide if it is actually a job posting (VALID: true) or not (VALID: false). Then analyze it for scam indicators.\n\nExtract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
 
 RESUME_INSTRUCTION = """Analyze this resume and extract candidate details. Respond strictly using this labeled format (NO curly braces or JSON):
 

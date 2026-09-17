@@ -15,7 +15,7 @@ ANALYSIS:
 1-2 short sentences. State the verdict and the single most important reason.
 END ANALYSIS
 JOB SUMMARY:
-2-3 short sentences: job title, company, and only the key requirements.
+Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification.
 END JOB SUMMARY
 
 Field rules:
@@ -33,4 +33,4 @@ Field rules:
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
 - ANALYSIS: 1-2 short sentences only.
-- JOB SUMMARY: 2-3 short sentences only.
+- JOB SUMMARY: Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification.
