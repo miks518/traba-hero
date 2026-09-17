@@ -93,7 +93,7 @@ Field rules:
 
 def load_system_prompt() -> str:
     """Load system prompt from SYSTEM_PROMPT.md in the project root with fallback."""
-    root_prompt_path = Path(__file__).resolve().parents[3] / "SYSTEM_PROMPT.md"
+    root_prompt_path = Path(__file__).resolve().parents[2] / "SYSTEM_PROMPT.md"
     if root_prompt_path.is_file():
         try:
             content = root_prompt_path.read_text(encoding="utf-8").strip()

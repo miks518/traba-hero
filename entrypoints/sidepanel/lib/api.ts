@@ -1,6 +1,6 @@
 import type { ApiScanResponse, ResumeData, ScannedJob } from '../types';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.WXT_API_BASE;
 
 export interface ScanProgress {
   percent: number;
