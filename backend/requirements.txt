@@ -7,3 +7,4 @@ slowapi==0.1.10
 pypdf==6.15.0
 duckduckgo-search==8.1.1
 dnspython==2.8.0
+whois==1.20240129.2

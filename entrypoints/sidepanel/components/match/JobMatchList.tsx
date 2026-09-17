@@ -46,6 +46,8 @@ export function JobMatchList({ jobs, matches }: JobMatchListProps) {
       </span>
       {sorted.map((m) => {
         const job = jobs.find((j) => j.id === m.jobId);
+        const matchedSkills = m.matchedSkills ?? [];
+        const skillGaps = m.skillGaps ?? [];
         return (
           <div
             key={m.jobId}
@@ -92,11 +94,11 @@ export function JobMatchList({ jobs, matches }: JobMatchListProps) {
             )}
 
             <div className="flex flex-wrap gap-4 text-body-sm">
-              {m.matchedSkills.length > 0 && (
+              {matchedSkills.length > 0 && (
                 <div className="flex flex-col gap-1">
                   <span className="text-label-sm text-on-surface-variant">Matched</span>
                   <div className="flex flex-wrap gap-1">
-                    {m.matchedSkills.map((s, i) => (
+                    {matchedSkills.map((s, i) => (
                       <span key={i} className="flex items-center gap-0.5 px-1.5 py-0.5 bg-green-900/30 text-green-400 text-label-sm rounded">
                         <Icon name="check_circle" className="text-[12px]" />
                         {s}
@@ -105,11 +107,11 @@ export function JobMatchList({ jobs, matches }: JobMatchListProps) {
                   </div>
                 </div>
               )}
-              {m.skillGaps.length > 0 && (
+              {skillGaps.length > 0 && (
                 <div className="flex flex-col gap-1">
                   <span className="text-label-sm text-on-surface-variant">Gaps</span>
                   <div className="flex flex-wrap gap-1">
-                    {m.skillGaps.map((s, i) => (
+                    {skillGaps.map((s, i) => (
                       <span key={i} className="px-1.5 py-0.5 bg-error/10 text-error text-label-sm rounded">
                         {s}
                       </span>

@@ -13,28 +13,21 @@ def _fix_unquoted_keys(raw: str) -> str:
 
 
 def _parse_json(raw: str) -> dict | list | None:
+    """Extract the first valid JSON object/array from raw text, tolerating
+    surrounding prose and trailing JSON snippets."""
     if not raw or not raw.strip():
         return None
-    match = re.search(r"\{.*\}", raw, re.DOTALL)
-    if match:
-        text = match.group()
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
+    for candidate in (raw, _fix_unquoted_keys(raw)):
+        decoder = json.JSONDecoder()
+        for i, ch in enumerate(candidate):
+            if ch not in "{[":
+                continue
             try:
-                return json.loads(_fix_unquoted_keys(text))
-            except json.JSONDecodeError:
-                pass
-    match = re.search(r"\[.*\]", raw, re.DOTALL)
-    if match:
-        text = match.group()
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            try:
-                return json.loads(_fix_unquoted_keys(text))
-            except json.JSONDecodeError:
-                pass
+                obj, _ = decoder.raw_decode(candidate, i)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(obj, (dict, list)):
+                return obj
     return None
 
 
@@ -44,6 +37,24 @@ _SECTION_RE = re.compile(
     r"^\s*(?P<kw>VALID|VERDICT[\s_]*PERCENTAGE|RED\s*FLAG|ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANALYSIS|JOB\s*SUMMARY))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
+
+_HIGH_SEVERITY_KEYWORDS = {
+    "upfront fee", "processing fee", "training fee", "registration fee",
+    "assessment fee", "medical fee", "uniform fee", "payment required",
+    "money collection", "will deduct from salary", "refundable deposit",
+    "admin fee", "processing charge", "advance payment", "cash bond",
+    "security deposit", "pay to apply", "pay before", "fee required",
+    "requires payment", "must pay", "pay first", "initial fee",
+}
+
+
+def _infer_severity(label: str, reasoning: str) -> str:
+    """Infer severity from flag content when LLM omits the severity field."""
+    text = f"{label} {reasoning}".lower()
+    for kw in _HIGH_SEVERITY_KEYWORDS:
+        if kw in text:
+            return "high"
+    return "mid"
 
 
 def _normalize_severity(sev: str) -> str:
@@ -114,10 +125,14 @@ def _parse_custom(raw: str) -> dict | None:
                     severity = parts[1]
                 else:
                     reasoning = parts[1]
+            if severity:
+                final_severity = _normalize_severity(severity)
+            else:
+                final_severity = _infer_severity(flag_title, reasoning)
             flags.append({
                 "flag": flag_title,
                 "reasoning": reasoning,
-                "severity": _normalize_severity(severity or "mid"),
+                "severity": final_severity,
             })
         elif kw in ("ANALYSIS", "JOB SUMMARY"):
             section = kw.lower().replace(" ", "_")

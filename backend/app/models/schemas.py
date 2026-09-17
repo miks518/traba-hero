@@ -2,7 +2,8 @@ from pydantic import BaseModel, Field
 
 
 class ScanRequest(BaseModel):
-    image_base64: str = Field(..., max_length=5_000_000)
+    image_base64: str = ""
+    images_base64: list[str] = []
     language: str = "english"
 
 
@@ -23,6 +24,7 @@ class ScanResponse(BaseModel):
     sec_registration: list[dict] = []
     web_search: dict = {}
     score_breakdown: dict = {}
+    external_verification: dict = {}
 
 
 class ScanTextRequest(BaseModel):

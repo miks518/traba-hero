@@ -103,7 +103,7 @@ export interface ScanStreamResult {
 }
 
 export async function scanScreenshotStream(
-  imageBase64: string,
+  imagesBase64: string[],
   externalSignal: AbortSignal,
   onProgress: (progress: ScanProgress) => void,
   timeoutMs = 240000,
@@ -119,7 +119,7 @@ export async function scanScreenshotStream(
     const res = await fetch(`${API_BASE}/api/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_base64: imageBase64 }),
+      body: JSON.stringify({ images_base64: imagesBase64 }),
       signal: controller.signal,
     });
 

@@ -14,7 +14,6 @@ export default function App() {
   const [activeView, setActiveView] = useState<ViewId>('scan');
   const [scannedJobs, setScannedJobs] = useState<ScannedJob[]>([]);
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
-  const [scannedJobsCount, setScannedJobsCount] = useState(0);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>(getInitialTheme);
   const [textSize, setTextSize] = useState<TextSize>('default');
@@ -62,8 +61,7 @@ export default function App() {
 
   const handleScanComplete = useCallback((job: ScannedJob) => {
     setScannedJobs((prev) => [...prev, job]);
-    setScannedJobsCount(scannedJobs.length + 1);
-  }, [scannedJobs.length]);
+  }, []);
 
   const handleResumeData = useCallback((data: ResumeData) => {
     setResumeData(data);
@@ -71,7 +69,6 @@ export default function App() {
 
   const handleClearJobs = useCallback(() => {
     setScannedJobs([]);
-    setScannedJobsCount(0);
   }, []);
 
   const handleClearResume = useCallback(() => {
@@ -88,7 +85,7 @@ export default function App() {
         <SideNav
           activeView={activeView}
           onTabClick={setActiveView}
-          scannedJobsCount={scannedJobsCount}
+          scannedJobsCount={scannedJobs.length}
           scanningProgress={scanProgress}
           isLocked={false}
         />

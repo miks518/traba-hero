@@ -5,6 +5,7 @@ export interface RiskGaugeProps {
   score: number;
   description: string;
   maxScore?: number;
+  status?: 'scam' | 'suspicious' | 'legitimate';
 }
 
 function scoreColor(score: number): string {
@@ -18,17 +19,17 @@ function scoreLabel(score: number): string {
   return 'Legitimate';
 }
 
-export function RiskGauge({ score, description, maxScore = 100 }: RiskGaugeProps) {
+export function RiskGauge({ score, description, maxScore = 100, status }: RiskGaugeProps) {
   const normalized = Math.min(score / maxScore, 1);
   const pct = Math.round(normalized * 100);
-  const color = scoreColor(pct);
+  const color = status === 'scam' ? 'hsl(0, 78%, 44%)' : status === 'suspicious' ? 'hsl(45, 78%, 44%)' : scoreColor(pct);
 
   const radius = 52;
   const strokeWidth = 14;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference * (1 - normalized);
 
-  const isLegitimate = pct < 40;
+  const isLegitimate = status ? status === 'legitimate' : pct < 40;
 
   return (
     <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card">
@@ -69,7 +70,7 @@ export function RiskGauge({ score, description, maxScore = 100 }: RiskGaugeProps
             style={{ color }}
           >
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-            {scoreLabel(pct)}
+            {status === 'scam' ? 'Scam' : status === 'suspicious' ? 'Suspicious' : 'Legitimate'}
           </span>
           <FormattedText text={description} className="font-body-md" />
         </div>

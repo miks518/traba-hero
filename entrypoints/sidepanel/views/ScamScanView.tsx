@@ -38,7 +38,7 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
   } else if (flagCount === 1) {
     status = 'suspicious';
     statusTitle = 'Suspicious';
-  } else if (score >= 70) {
+  } else if (score >= 40) {
     status = 'suspicious';
     statusTitle = 'Suspicious';
   } else {
@@ -74,6 +74,7 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
       reason: e.reason,
     })),
     scoreBreakdown: data.score_breakdown || undefined,
+    externalVerification: data.external_verification || undefined,
   };
 }
 
@@ -120,11 +121,12 @@ export function ScamScanView({
       }
     };
     document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      abortRef.current?.abort();
-    };
+    return () => document.removeEventListener('keydown', onKeyDown);
   }, [pickerActive, cropActive, lightboxIndex]);
+
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
 
   const handleScreenshotReady = useCallback((dataUrl: string) => {
     setScreenshots((prev) => {
@@ -163,6 +165,7 @@ export function ScamScanView({
   }, [onScanProgressChange]);
 
   const handlePickElement = useCallback(() => {
+    if (isLoading) return;
     if (hasScanned) {
       resetAll();
     } else if (pickerActive) {
@@ -170,7 +173,7 @@ export function ScamScanView({
     } else {
       setPickerPhase((p) => p + 1);
     }
-  }, [hasScanned, pickerActive, resetAll]);
+  }, [isLoading, hasScanned, pickerActive, resetAll]);
 
   const handleSelectionChange = useCallback((selected: boolean) => {
     if (screenshots.length === 0) {
@@ -197,7 +200,7 @@ export function ScamScanView({
     onScanProgressChange?.({ percent: 5, stage: 'Preparing request' });
     try {
       const result = await scanScreenshotStream(
-        screenshots[0].split(',')[1],
+        screenshots.map((s) => s.split(',')[1]),
         controller.signal,
         (p) => {
           setProgress(p);
@@ -279,7 +282,7 @@ export function ScamScanView({
 
       {hasScanned && scanResult && isValidJob && (
         <>
-          <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} />
+          <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} status={scanResult.status} />
 
           {scanResult.scoreBreakdown && (scanResult.scoreBreakdown.high_count + scanResult.scoreBreakdown.mid_count + scanResult.scoreBreakdown.low_count) > 0 && (
             <div className="flex flex-col gap-2 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
@@ -448,6 +451,86 @@ export function ScamScanView({
               ))}
             </div>
           )}
+
+          {scanResult.externalVerification && (() => {
+            const ev = scanResult.externalVerification;
+            const hasAny = (ev.phones?.length || 0) + (ev.domains?.length || 0) + (ev.websites?.length || 0) + (ev.social?.length || 0) + (ev.gov?.length || 0) + (ev.scam_lists?.length || 0) > 0;
+            if (!hasAny) return null;
+            return (
+              <div className="flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
+                <div className="flex items-center gap-2">
+                  <Icon name="search" className="text-secondary" />
+                  <h3 className="text-label-md font-bold text-on-surface">External Verification</h3>
+                </div>
+
+                {ev.phones && ev.phones.length > 0 && ev.phones.map((p, i) => (
+                  <div key={`ph-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${p.risk === 'high' ? 'bg-error-container/10' : p.risk === 'medium' ? 'bg-secondary-container/10' : 'bg-surface-container-highest/50'}`}>
+                    <Icon name="phone_disabled" className={p.risk === 'high' ? 'text-error' : 'text-on-surface-variant'} />
+                    <span className="font-mono text-on-surface">{p.number}</span>
+                    <span className={`font-bold ${p.risk === 'high' ? 'text-error' : p.risk === 'medium' ? 'text-secondary' : 'text-green-400'}`}>
+                      {p.risk === 'high' ? 'INVALID' : p.carrier || 'VALID'}
+                    </span>
+                    <span className="text-on-surface-variant">{p.reason}</span>
+                  </div>
+                ))}
+
+                {ev.domains && ev.domains.length > 0 && ev.domains.map((d, i) => (
+                  <div key={`dom-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${d.risk === 'high' ? 'bg-error-container/10' : d.risk === 'medium' ? 'bg-secondary-container/10' : 'bg-surface-container-highest/50'}`}>
+                    <Icon name="info" className={d.risk === 'high' ? 'text-error' : 'text-on-surface-variant'} />
+                    <span className="font-mono text-on-surface">{d.domain}</span>
+                    <span className={`font-bold ${d.risk === 'high' ? 'text-error' : d.risk === 'medium' ? 'text-secondary' : 'text-green-400'}`}>
+                      {d.age_months !== null ? `${d.age_months}mo old` : 'UNKNOWN'}
+                    </span>
+                    <span className="text-on-surface-variant">{d.reason}</span>
+                  </div>
+                ))}
+
+                {ev.websites && ev.websites.length > 0 && ev.websites.map((w, i) => (
+                  <div key={`web-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${w.risk === 'high' ? 'bg-error-container/10' : w.risk === 'medium' ? 'bg-secondary-container/10' : 'bg-surface-container-highest/50'}`}>
+                    <Icon name="open_in_new" className={w.alive ? 'text-green-400' : 'text-error'} />
+                    <span className="font-mono text-on-surface truncate max-w-[200px]">{w.url}</span>
+                    <span className={`font-bold ${w.alive ? 'text-green-400' : 'text-error'}`}>
+                      {w.alive ? `HTTP ${w.status_code}` : 'DEAD'}
+                    </span>
+                  </div>
+                ))}
+
+                {ev.social && ev.social.length > 0 && ev.social.map((s, i) => (
+                  <div key={`soc-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${s.found ? 'bg-surface-container-highest/50' : 'bg-secondary-container/10'}`}>
+                    <Icon name={s.platform === 'facebook' ? 'smart_toy' : 'work'} className={s.found ? 'text-green-400' : 'text-secondary'} />
+                    <span className="text-on-surface capitalize">{s.platform}</span>
+                    <span className={`font-bold ${s.found ? 'text-green-400' : 'text-secondary'}`}>
+                      {s.found ? 'FOUND' : 'NOT FOUND'}
+                    </span>
+                    {s.title && <span className="text-on-surface-variant truncate max-w-[200px]">{s.title}</span>}
+                  </div>
+                ))}
+
+                {ev.gov && ev.gov.length > 0 && ev.gov.map((g, i) => (
+                  <div key={`gov-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${g.found ? 'bg-surface-container-highest/50' : 'bg-secondary-container/10'}`}>
+                    <Icon name="badge" className={g.found ? 'text-green-400' : 'text-secondary'} />
+                    <span className="text-on-surface">{g.registry}</span>
+                    <span className={`font-bold ${g.found ? 'text-green-400' : 'text-secondary'}`}>
+                      {g.found ? 'REGISTERED' : 'NOT FOUND'}
+                    </span>
+                    {g.details && <span className="text-on-surface-variant truncate max-w-[200px]">{g.details}</span>}
+                  </div>
+                ))}
+
+                {ev.scam_lists && ev.scam_lists.length > 0 && ev.scam_lists.map((s, i) => (
+                  s.found && (
+                    <div key={`scam-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${s.risk === 'high' ? 'bg-error-container/10' : 'bg-secondary-container/10'}`}>
+                      <Icon name="warning" className="text-error" />
+                      <span className="text-on-surface">Scam Reports: {s.count}</span>
+                      <span className={`font-bold ${s.risk === 'high' ? 'text-error' : 'text-secondary'}`}>
+                        {s.risk === 'high' ? 'MULTIPLE REPORTS' : '1 REPORT'}
+                      </span>
+                    </div>
+                  )
+                ))}
+              </div>
+            );
+          })()}
         </>
       )}
 
@@ -484,6 +567,7 @@ export function ScamScanView({
         isCropActive={cropActive}
         isCropActivating={cropActivating}
         afterScan={hasScanned}
+        disabled={isLoading}
       />
 
       {screenshots.length > 0 && !hasScanned && (

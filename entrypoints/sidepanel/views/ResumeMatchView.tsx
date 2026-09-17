@@ -136,14 +136,14 @@ export function ResumeMatchView({
       const result = await matchResumeToJobs(resumeData, verifiedJobs);
       const mapped = (result.matches || []).map((m) => ({
         jobId: m.job_id,
-        score: m.score,
-        label: m.label,
-        skillGaps: m.skill_gaps,
-        matchedSkills: m.matched_skills,
-        reasoning: m.reasoning,
-        experienceFit: m.experience_fit,
-        industryFit: m.industry_fit,
-        recommendedActions: m.recommended_actions,
+        score: m.score ?? 0,
+        label: m.label ?? '',
+        skillGaps: m.skill_gaps ?? [],
+        matchedSkills: m.matched_skills ?? [],
+        reasoning: m.reasoning ?? '',
+        experienceFit: m.experience_fit ?? '',
+        industryFit: m.industry_fit ?? '',
+        recommendedActions: m.recommended_actions ?? [],
       }));
       setMatches(mapped);
       setMatchScores(
