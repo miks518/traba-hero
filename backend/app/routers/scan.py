@@ -299,8 +299,9 @@ async def _scan_event_stream(messages: list, max_tokens: int = 2048, company_dat
 
         email_data: list[dict] = []
         ext_verification: dict = {}
-        if original_text:
-            email_checks = verify_emails_in_text(original_text)
+        verify_text = original_text or (result.get("job_summary", "") + " " + result.get("analysis", ""))
+        if verify_text.strip():
+            email_checks = verify_emails_in_text(verify_text)
             email_data = [
                 {"email": c.email, "domain": c.domain, "syntax_valid": c.syntax_valid,
                  "has_mx_records": c.has_mx_records, "is_disposable": c.is_disposable,
@@ -308,7 +309,7 @@ async def _scan_event_stream(messages: list, max_tokens: int = 2048, company_dat
                 for c in email_checks
             ]
             company_name = company_data.get("company_name") if company_data else ""
-            ext_verification = verification_to_dict(verify_all(original_text, company_name))
+            ext_verification = verification_to_dict(verify_all(verify_text, company_name))
 
         resp = _scan_response(result, ext_verification).model_dump()
         if company_data:
