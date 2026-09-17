@@ -14,7 +14,10 @@ log = logging.getLogger("trabahero")
 # ── Philippine phone patterns ────────────────────────────────────────────
 _PH_MOBILE = re.compile(r"(\+63|0)9\d{9}")
 _PH_LANDLINE = re.compile(r"(\+63|0)\d{2,3}\d{7,8}")
-_PH_PHONE = re.compile(r"(?:\+63|0)\d{9,10}")
+_PH_PHONE = re.compile(r"(?:\+63|0)\d{7,10}")
+
+# ── Email extraction ─────────────────────────────────────────────────────
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
 # ── URL / domain extraction ──────────────────────────────────────────────
 _URL_RE = re.compile(r"https?://[^\s<>\"']+")
@@ -107,6 +110,40 @@ _CARRIER_PREFIXES = {
 }
 
 
+_PH_LANDLINE_AREAS = {
+    "02": "Manila/Metro Manila",
+    "032": "Cebu",
+    "033": "Iloilo",
+    "034": "Bacolod",
+    "035": "Tacloban",
+    "036": "Laoag",
+    "038": "Legazpi",
+    "042": "Lucena",
+    "043": "Batangas",
+    "044": "Olongapo",
+    "045": "Clark/Angeles",
+    "046": "Calapan",
+    "049": "Tagaytay",
+    "052": "Naga",
+    "053": "Tacloban",
+    "055": "Sorsogon",
+    "056": "Masbate",
+    "062": "Iloilo",
+    "063": "Bacolod",
+    "064": "Roxas",
+    "072": "Baguio",
+    "074": "La Trinidad",
+    "075": "Dagupan",
+    "077": "Cabanatuan",
+    "082": "Davao",
+    "083": "General Santos",
+    "085": "Zamboanga",
+    "086": "Cagayan de Oro",
+    "087": "Butuan",
+    "088": "CDO/Ozamiz",
+}
+
+
 def _check_phone(raw: str) -> PhoneCheck:
     clean = re.sub(r"[\s\-\(\)]", "", raw)
     is_valid = bool(_PH_PHONE.fullmatch(clean))
@@ -114,12 +151,19 @@ def _check_phone(raw: str) -> PhoneCheck:
     if national.startswith("+63"):
         national = "0" + national[3:]
     prefix = national[:4] if len(national) >= 4 else ""
-    carrier = _CARRIER_PREFIXES.get(prefix, "Unknown")
+    carrier = _CARRIER_PREFIXES.get(prefix, "")
 
     if not is_valid:
         return PhoneCheck(raw, False, "", "high", "Invalid Philippine phone format")
-    label = carrier if carrier != "Unknown" else "Philippine"
-    return PhoneCheck(raw, True, carrier, "low", f"Valid {label} number")
+
+    # Determine if mobile or landline
+    if national.startswith("09") and len(national) >= 11:
+        label = carrier if carrier else "Philippine mobile"
+    else:
+        area = national[:3] if len(national) >= 3 else national[:2]
+        label = _PH_LANDLINE_AREAS.get(area, "Philippine landline")
+
+    return PhoneCheck(raw, True, carrier or label, "low", f"Valid {label} number")
 
 
 def verify_phones(text: str) -> list[PhoneCheck]:
@@ -157,19 +201,35 @@ def _check_domain(domain: str) -> DomainCheck:
                            "Could not retrieve domain info")
 
 
+_EXCLUDED_DOMAINS = {"com", "ph", "net", "org", "gov", "edu", "mail.gov"}
+
+
 def _extract_domains(text: str) -> list[str]:
+    # Extract emails first to get their domains and exclude email local parts
+    emails = set(_EMAIL_RE.findall(text))
+    email_domains = set()
+    for e in emails:
+        domain = e.split("@")[1].lower().rstrip(".")
+        if domain not in _EXCLUDED_DOMAINS:
+            email_domains.add(domain)
+
+    # Extract from URLs
     urls = _URL_RE.findall(text)
     domains = set()
     for url in urls:
         parsed = urlparse(url)
         if parsed.hostname:
-            domains.add(parsed.hostname.lower().removeprefix("www."))
-    # Also check bare domains in text
+            hostname = parsed.hostname.lower().removeprefix("www.")
+            if hostname not in _EXCLUDED_DOMAINS:
+                domains.add(hostname)
+
+    # Bare domains — skip TLD-only and email-related fragments
     for m in _DOMAIN_RE.finditer(text):
         d = m.group(1).lower()
-        if d not in ("com", "ph", "net", "org", "gov", "edu"):
+        if d not in _EXCLUDED_DOMAINS and d not in email_domains:
             domains.add(d)
-    return list(domains)
+
+    return list(domains | email_domains)
 
 
 def verify_domains(text: str) -> list[DomainCheck]:

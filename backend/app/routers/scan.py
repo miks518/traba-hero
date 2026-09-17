@@ -315,7 +315,11 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
                  "risk": c.risk, "reason": c.reason}
                 for c in email_checks
             ]
-            company_name = company_data.get("company_name") if company_data else ""
+            company_name = ""
+            if company_data:
+                company_name = company_data.get("company_name", "")
+            if not company_name:
+                company_name = _extract_company_name(verify_text) or ""
             ext_verification = verification_to_dict(verify_all(verify_text, company_name))
 
         resp = _scan_response(result, ext_verification).model_dump()
