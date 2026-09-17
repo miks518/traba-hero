@@ -145,6 +145,76 @@ def _parse_custom(raw: str) -> dict | None:
     return result if matched_any or flags else None
 
 
+_MATCH_SECTION_RE = re.compile(
+    r"^\s*(?P<kw>JOB_ID|SCORE|LABEL|SKILL_GAPS|MATCHED_SKILLS|REASONING|EXPERIENCE_FIT|INDUSTRY_FIT|RECOMMENDED_ACTIONS|END\s*JOB)\s*:?\s*(?P<rest>.*)$",
+    re.IGNORECASE,
+)
+
+
+def _parse_match_custom(raw: str) -> list[dict] | None:
+    """Parse the resume match labeled section format. Returns a list of job match dicts."""
+    if not raw or not raw.strip():
+        return None
+    matches: list[dict] = []
+    current: dict = {}
+    section: str | None = None
+    buf: list[str] = []
+    matched_any = False
+
+    def close_section() -> None:
+        nonlocal section
+        if section and buf:
+            current[section] = "\n".join(buf).strip()
+        section = None
+        buf.clear()
+
+    for line in raw.splitlines():
+        m = _MATCH_SECTION_RE.match(line)
+        if not m:
+            if section:
+                buf.append(line)
+            continue
+        kw = " ".join(m.group("kw").split()).upper()
+        rest = m.group("rest").strip()
+
+        if kw == "END JOB":
+            close_section()
+            if current.get("job_id"):
+                matches.append(current)
+            current = {}
+            matched_any = True
+            continue
+
+        close_section()
+        matched_any = True
+
+        if kw == "JOB_ID":
+            current["job_id"] = rest
+        elif kw == "SCORE":
+            num = re.search(r"\d{1,3}", rest)
+            current["score"] = int(num.group(0)) if num else 0
+        elif kw == "LABEL":
+            current["label"] = rest or "Low Compatibility"
+        elif kw in ("SKILL_GAPS", "MATCHED_SKILLS", "RECOMMENDED_ACTIONS"):
+            key = kw.lower()
+            items = [x.strip() for x in re.split(r"[,;|\n]", rest) if x.strip()]
+            current[key] = items
+        elif kw == "REASONING":
+            section = "reasoning"
+            if rest:
+                buf.append(rest)
+        elif kw == "EXPERIENCE_FIT":
+            current["experience_fit"] = rest or "Good Fit"
+        elif kw == "INDUSTRY_FIT":
+            current["industry_fit"] = rest or "Moderate"
+
+    close_section()
+    if current.get("job_id"):
+        matches.append(current)
+
+    return matches if matched_any and matches else None
+
+
 async def chat(
     messages: list,
     max_tokens: int | None = None,
@@ -293,6 +363,28 @@ async def chat_custom(
     if parsed is None:
         log.warning("Failed to parse AI scan response (%d chars)", len(raw))
     return parsed if isinstance(parsed, dict) else None
+
+
+async def chat_match(
+    messages: list,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+) -> list[dict] | None:
+    """Chat using the labeled-section match format with JSON fallback."""
+    raw = await chat(messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
+    parsed = _parse_match_custom(raw)
+    if parsed is None:
+        fallback = _parse_json(raw)
+        if isinstance(fallback, list):
+            parsed = fallback
+            log.info("Match custom parse failed; fell back to JSON array")
+        elif isinstance(fallback, dict):
+            parsed = [fallback]
+            log.info("Match custom parse failed; fell back to single JSON object")
+    if parsed is None:
+        log.warning("Failed to parse AI match response (%d chars). Raw: %s", len(raw), raw[:500])
+    return parsed
 
 
 async def chat_stream(

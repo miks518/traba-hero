@@ -18,7 +18,7 @@ from app.models.schemas import (
     RedFlag,
 )
 from app.services.image import decode_base64_image
-from app.services.lm_client import chat, chat_json, chat_resume, chat_stream_pieces, _parse_custom, _parse_json
+from app.services.lm_client import chat, chat_json, chat_match, chat_resume, chat_stream_pieces, _parse_custom, _parse_json
 from app.services.web_search import _extract_company_name, search_job_posting, search_job_posting_data
 from app.services.sec_api import sec_context, sec_data
 from app.services.email_verifier import verify_emails_in_text
@@ -157,20 +157,20 @@ Rules:
 - INDUSTRIES: Comma-separated list of industries (e.g. Information Technology, Healthcare, Customer Service).
 - SUMMARY: Concise 1-2 sentence professional overview."""
 
-MATCH_INSTRUCTION = """Compare the candidate's resume against each job posting and return ONLY valid JSON array (no markdown):
-[
-  {{
-    "job_id": "...",
-    "score": 0-100,
-    "label": "High Compatibility / Medium Compatibility / Low Compatibility",
-    "skill_gaps": ["Missing skill 1", "..."],
-    "matched_skills": ["Matching skill 1", "..."],
-    "reasoning": "Short, clear explanation. Use 1-2 sentences max. Mention what fits and what doesn't.",
-    "experience_fit": "Good Fit / Overqualified / Underqualified",
-    "industry_fit": "Strong / Moderate / Weak",
-    "recommended_actions": ["Specific actionable step 1", "Specific actionable step 2"]
-  }}
-]
+MATCH_INSTRUCTION = """Compare the candidate's resume against each job posting.
+For EACH job, respond with a labeled section in this exact format (repeat for every job):
+
+JOB_ID: {job_id}
+SCORE: 0-100
+LABEL: High Compatibility / Medium Compatibility / Low Compatibility
+SKILL_GAPS: Missing skill 1, Missing skill 2
+MATCHED_SKILLS: Matching skill 1, Matching skill 2
+REASONING: Short, clear explanation. Use 1-2 sentences max. Mention what fits and what doesn't.
+EXPERIENCE_FIT: Good Fit / Overqualified / Underqualified
+INDUSTRY_FIT: Strong / Moderate / Weak
+RECOMMENDED_ACTIONS: Specific actionable step 1, Specific actionable step 2
+END JOB
+
 Score based on: skills overlap (primary, compare resume skills against each job's summary), industry fit, experience level.
 For reasoning: be concise and specific. State what matches well and what's missing.
 For recommended_actions: give concrete steps (e.g., "Add a Python certification", "Include 2 relevant projects in your portfolio").
@@ -425,8 +425,8 @@ async def match_resume_endpoint(req: MatchRequest, request: Request):
         summary=req.resume.summary,
         jobs=json.dumps([{"id": j.id, "title": j.title, "summary": j.summary} for j in req.jobs], indent=2),
     )
-    result = await chat_json([{"role": "user", "content": prompt}], max_tokens=2048)
-    items = result if isinstance(result, list) else ([result] if isinstance(result, dict) else [])
+    result = await chat_match([{"role": "user", "content": prompt}], max_tokens=2048)
+    items = result if isinstance(result, list) else ([])
     matches: list[JobMatchResult] = []
     for r in items:
         if not isinstance(r, dict) or not r.get("job_id"):
