@@ -61,22 +61,22 @@ function showToast(message: string, type: 'info' | 'warning' | 'error' | 'succes
   el.id = 'trabahero-toast';
   el.style.cssText = [
     'position:fixed',
-    'top:20px',
-    'left:50%',
-    'transform:translateX(-50%) translateY(-20px)',
+    'top:12px',
+    'left:12px',
+    'transform:translateY(-20px)',
     'z-index:2147483648',
     'font-family:Inter,system-ui,sans-serif',
-    'font-size:14px',
+    'font-size:12px',
     'font-weight:500',
-    'padding:12px 16px 12px 16px',
-    'border-radius:14px',
-    'line-height:1.4',
-    'max-width:380px',
-    'min-width:280px',
+    'padding:8px 12px 8px 12px',
+    'border-radius:10px',
+    'line-height:1.3',
+    'max-width:280px',
+    'min-width:180px',
     'pointer-events:none',
     'display:flex',
     'align-items:center',
-    'gap:10px',
+    'gap:8px',
     'box-shadow:' + c.shadow,
     'border:1px solid ' + c.accent + '40',
     'opacity:0',
@@ -91,15 +91,15 @@ function showToast(message: string, type: 'info' | 'warning' | 'error' | 'succes
     'left:0',
     'top:0',
     'bottom:0',
-    'width:8px',
-    'border-radius:16px 0 0 16px',
+    'width:5px',
+    'border-radius:10px 0 0 10px',
     'background:' + c.accent,
   ].join(';');
 
   const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   iconSvg.setAttribute('viewBox', '0 0 24 24');
-  iconSvg.setAttribute('width', '20');
-  iconSvg.setAttribute('height', '20');
+  iconSvg.setAttribute('width', '16');
+  iconSvg.setAttribute('height', '16');
   iconSvg.style.cssText = 'fill:' + c.accent + ';flex-shrink:0;';
   iconSvg.innerHTML = TOAST_ICONS[type] ?? '';
 
@@ -116,13 +116,13 @@ function showToast(message: string, type: 'info' | 'warning' | 'error' | 'succes
 
   requestAnimationFrame(() => {
     el.style.opacity = '1';
-    el.style.transform = 'translateX(-50%) translateY(0)';
+    el.style.transform = 'translateY(0)';
   });
 
   toastTimer = setTimeout(() => {
     if (el) {
       el.style.opacity = '0';
-      el.style.transform = 'translateX(-50%) translateY(-20px)';
+      el.style.transform = 'translateY(-20px)';
       setTimeout(() => { el.remove(); if (currentToastEl === el) currentToastEl = null; }, 300);
     }
     toastTimer = null;
