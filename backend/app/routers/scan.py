@@ -18,7 +18,7 @@ from app.models.schemas import (
     RedFlag,
 )
 from app.services.image import decode_base64_image
-from app.services.lm_client import chat, chat_json, chat_match, chat_resume, chat_stream_pieces, _parse_custom, _parse_json
+from app.services.lm_client import chat, chat_json, chat_custom, chat_resume, chat_stream_pieces, _parse_custom, _parse_json, _parse_resume_custom
 from app.services.web_search import _extract_company_name, search_job_posting, search_job_posting_data
 from app.services.sec_api import sec_context, sec_data
 from app.services.email_verifier import verify_emails_in_text
@@ -104,6 +104,19 @@ def load_system_prompt() -> str:
     return FALLBACK_SYSTEM_PROMPT
 
 
+def load_resume_prompt() -> str:
+    """Load system prompt from RESUME_PROMPT.md in the backend directory with fallback."""
+    prompt_path = Path(__file__).resolve().parents[2] / "RESUME_PROMPT.md"
+    if prompt_path.is_file():
+        try:
+            content = prompt_path.read_text(encoding="utf-8").strip()
+            if content:
+                return content
+        except Exception as e:
+            log.warning("Could not read RESUME_PROMPT.md at %s: %s", prompt_path, e)
+    return "You are a resume analysis assistant. Extract candidate details from the provided resume."
+
+
 SCAN_OUTPUT_FORMAT = """\
 Respond strictly using this labeled section format:
 
@@ -157,23 +170,21 @@ Rules:
 - INDUSTRIES: Comma-separated list of industries (e.g. Information Technology, Healthcare, Customer Service).
 - SUMMARY: Concise 1-2 sentence professional overview."""
 
-MATCH_INSTRUCTION = """Compare the candidate's resume against each job posting.
-For EACH job, respond with a labeled section in this exact format (repeat for every job):
+MATCH_INSTRUCTION = """Compare the candidate's resume against each job posting below.
+Respond strictly using this labeled section format:
 
-JOB_ID: {job_id}
-SCORE: 0-100
-LABEL: High Compatibility / Medium Compatibility / Low Compatibility
-SKILL_GAPS: Missing skill 1, Missing skill 2
-MATCHED_SKILLS: Matching skill 1, Matching skill 2
-REASONING: Short, clear explanation. Use 1-2 sentences max. Mention what fits and what doesn't.
-EXPERIENCE_FIT: Good Fit / Overqualified / Underqualified
-INDUSTRY_FIT: Strong / Moderate / Weak
-RECOMMENDED_ACTIONS: Specific actionable step 1, Specific actionable step 2
-END JOB
+VALID: true
+VERDICT_PERCENTAGE: 0-100 (how well the resume matches, 100 = perfect)
+END FLAGS
+ANALYSIS:
+1-2 sentences: what skills match and what's missing. Be specific.
+END ANALYSIS
+JOB SUMMARY:
+Job title. Matched skills: skill1, skill2. Gaps: gap1, gap2. Fit: Good Fit/Overqualified/Underqualified. Actions: step1, step2.
+END JOB SUMMARY
 
-Score based on: skills overlap (primary, compare resume skills against each job's summary), industry fit, experience level.
-For reasoning: be concise and specific. State what matches well and what's missing.
-For recommended_actions: give concrete steps (e.g., "Add a Python certification", "Include 2 relevant projects in your portfolio").
+Scoring: 80-100 strong match, 50-79 partial, 0-49 weak.
+Be concise: no greetings, no preamble, no markdown.
 
 Candidate Resume:
 Skills: {skills}
@@ -392,16 +403,30 @@ async def scan_text(req: ScanTextRequest, request: Request):
 @router.post("/api/analyze-resume", response_model=ResumeData)
 @limiter.limit("5/minute")
 async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request):
-    content = []
     if req.file_type.lower() in ("png", "jpg", "jpeg"):
-        content.append({"type": "image_url", "image_url": {"url": f"data:image/{req.file_type.lower()};base64,{req.file_base64}"}})
-        content.append({"type": "text", "text": RESUME_INSTRUCTION})
+        content: list[dict] = [
+            {"type": "text", "text": RESUME_INSTRUCTION},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{req.file_base64}"}},
+        ]
     else:
         text = _extract_resume_text(req.file_base64, req.file_type)
-        content.append({"type": "text", "text": f"{RESUME_INSTRUCTION}\n\nResume text:\n{text[:8000]}"})
-    result = await chat_json([{"role": "user", "content": content}], max_tokens=1024)
+        content = [{"type": "text", "text": f"{RESUME_INSTRUCTION}\n\nResume text:\n{text[:8000]}"}]
+
+    messages = [
+        {"role": "system", "content": load_resume_prompt()},
+        {"role": "user", "content": content},
+    ]
+
+    raw = await chat(messages, max_tokens=2048)
+    log.info("Resume AI raw response (%d chars): %s", len(raw), raw[:500])
+
+    result = _parse_resume_custom(raw)
+    log.info("Resume parsed result: %s", result)
+
     if not isinstance(result, dict):
+        log.warning("Resume parse failed. Raw: %s", raw[:500])
         return ResumeData()
+
     data: dict = {}
     for key in ("skills", "job_titles", "industries"):
         val = result.get(key)
@@ -425,26 +450,52 @@ async def match_resume_endpoint(req: MatchRequest, request: Request):
         summary=req.resume.summary,
         jobs=json.dumps([{"id": j.id, "title": j.title, "summary": j.summary} for j in req.jobs], indent=2),
     )
-    result = await chat_match([{"role": "user", "content": prompt}], max_tokens=2048)
-    items = result if isinstance(result, list) else ([])
+    result = await chat_custom([{"role": "user", "content": prompt}], max_tokens=4096)
+    log.info("Match parsed result: %s", result)
+
     matches: list[JobMatchResult] = []
-    for r in items:
-        if not isinstance(r, dict) or not r.get("job_id"):
-            continue
-        try:
-            score = int(float(r.get("score") or 0))
-        except (TypeError, ValueError):
-            score = 0
-        score = max(0, min(100, score))
-        matches.append(JobMatchResult(
-            job_id=str(r.get("job_id")),
-            score=score,
-            label=str(r.get("label") or "Low Compatibility"),
-            skill_gaps=[str(x) for x in r.get("skill_gaps") or [] if isinstance(x, (str, int, float))],
-            matched_skills=[str(x) for x in r.get("matched_skills") or [] if isinstance(x, (str, int, float))],
-            reasoning=str(r.get("reasoning") or ""),
-            experience_fit=str(r.get("experience_fit") or ""),
-            industry_fit=str(r.get("industry_fit") or ""),
-            recommended_actions=[str(x) for x in r.get("recommended_actions") or [] if isinstance(x, (str, int, float))],
-        ))
+
+    if isinstance(result, dict):
+        analysis = result.get("analysis", "")
+        job_summary = result.get("job_summary", "")
+        verdict = result.get("verdict_percentage", 0)
+        score = max(0, min(100, int(verdict) if verdict else 0))
+        label = "High Compatibility" if score >= 80 else "Medium Compatibility" if score >= 50 else "Low Compatibility"
+
+        skill_gaps = []
+        matched_skills = []
+        recommended_actions = []
+        experience_fit = ""
+        if job_summary:
+            parts = [p.strip() for p in re.split(r"[.;]", job_summary) if p.strip()]
+            for p in parts:
+                p_lower = p.lower()
+                if "gap" in p_lower or "missing" in p_lower:
+                    items = re.split(r":", p, maxsplit=1)
+                    if len(items) > 1:
+                        skill_gaps = [x.strip() for x in re.split(r"[,;]", items[1]) if x.strip()]
+                elif "match" in p_lower:
+                    items = re.split(r":", p, maxsplit=1)
+                    if len(items) > 1:
+                        matched_skills = [x.strip() for x in re.split(r"[,;]", items[1]) if x.strip()]
+                elif "fit" in p_lower:
+                    experience_fit = p.strip()
+                elif "action" in p_lower or "step" in p_lower:
+                    items = re.split(r":", p, maxsplit=1)
+                    if len(items) > 1:
+                        recommended_actions = [x.strip() for x in re.split(r"[,;]", items[1]) if x.strip()]
+
+        if req.jobs:
+            matches.append(JobMatchResult(
+                job_id=req.jobs[0].id,
+                score=score,
+                label=label,
+                skill_gaps=skill_gaps,
+                matched_skills=matched_skills,
+                reasoning=analysis,
+                experience_fit=experience_fit,
+                industry_fit="Moderate",
+                recommended_actions=recommended_actions,
+            ))
+
     return MatchResponse(matches=matches)
