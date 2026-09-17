@@ -1,59 +1,129 @@
 import type { PickerMessage } from '../types/picker';
 
-const TOAST_COLORS = {
-  info: { bg: '#1e1f23', text: '#e3e2e7', border: '#e9c34980' },
-  warning: { bg: '#93000a', text: '#ffdad6', border: '#ffb4ab80' },
-  error: { bg: '#93000a', text: '#ffdad6', border: '#ffb4ab80' },
-  success: { bg: '#af8d11', text: '#342800', border: '#e9c34980' },
+// Theme colors sourced from assets/tailwind.css (:root = light, .dark = dark)
+const TOAST_THEMES = {
+  dark: {
+    info: { bg: '#1e1f23', text: '#e3e2e7', accent: '#4ade80', shadow: '0 6px 0 0 #14532d, 0 8px 20px rgba(0,0,0,0.4)' },
+    warning: { bg: '#166534', text: '#86efac', accent: '#4ade80', shadow: '0 6px 0 0 #14532d, 0 8px 20px rgba(0,0,0,0.4)' },
+    error: { bg: '#93000a', text: '#ffdad6', accent: '#ffb4ab', shadow: '0 6px 0 0 #700007, 0 8px 20px rgba(0,0,0,0.4)' },
+    success: { bg: '#14532d', text: '#dcfce7', accent: '#4ade80', shadow: '0 6px 0 0 #14532d, 0 8px 20px rgba(0,0,0,0.4)' },
+  },
+  light: {
+    info: { bg: '#e7eefe', text: '#151c27', accent: '#3b6934', shadow: '0 6px 0 0 #23501e, 0 8px 20px rgba(0,0,0,0.15)' },
+    warning: { bg: '#b9eeab', text: '#002201', accent: '#3b6934', shadow: '0 6px 0 0 #23501e, 0 8px 20px rgba(0,0,0,0.15)' },
+    error: { bg: '#ffdad6', text: '#410000', accent: '#ba1a1a', shadow: '0 6px 0 0 #93000a, 0 8px 20px rgba(0,0,0,0.15)' },
+    success: { bg: '#c1e1c1', text: '#06210d', accent: '#49654c', shadow: '0 6px 0 0 #324d35, 0 8px 20px rgba(0,0,0,0.15)' },
+  },
 } as const;
 
+const TOAST_ICONS: Record<string, string> = {
+  info: '<path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>',
+  warning: '<path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>',
+  error: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>',
+  success: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>',
+};
+
+let toastTheme: 'dark' | 'light' = 'dark';
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let currentToastEl: HTMLDivElement | null = null;
 
-function showToast(message: string, type: keyof typeof TOAST_COLORS = 'info', duration = 3000) {
+function getToastStyle(type: 'info' | 'warning' | 'error' | 'success') {
+  return TOAST_THEMES[toastTheme][type];
+}
+
+function syncToastTheme() {
+  try {
+    // @ts-ignore
+    chrome.storage.local.get('theme', (result) => {
+      const stored = result.theme as string | undefined;
+      if (stored === 'light' || stored === 'dark') toastTheme = stored;
+    });
+    // @ts-ignore
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.theme) {
+        const next = changes.theme.newValue as string;
+        if (next === 'light' || next === 'dark') toastTheme = next;
+      }
+    });
+  } catch { }
+}
+
+function showToast(message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info', duration = 3500) {
   if (toastTimer) clearTimeout(toastTimer);
-
-  let el = document.getElementById('trabahero-toast');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'trabahero-toast';
-    el.style.cssText = [
-      'position:fixed',
-      'top:16px',
-      'left:16px',
-      'z-index:2147483648',
-      'font-family:Inter,sans-serif',
-      'font-size:13px',
-      'padding:12px 18px',
-      'border-radius:12px',
-      'line-height:1.4',
-      'max-width:320px',
-      'pointer-events:none',
-      'box-shadow:0 8px 24px rgba(0,0,0,0.5)',
-      'transition:opacity .25s ease,transform .25s ease',
-    ].join(';');
-    document.body.appendChild(el);
+  if (currentToastEl) {
+    currentToastEl.remove();
+    currentToastEl = null;
   }
 
-  const c = TOAST_COLORS[type];
-  el.textContent = message;
-  el.style.background = c.bg;
-  el.style.color = c.text;
-  el.style.border = `1px solid ${c.border}`;
-  el.style.opacity = '0';
-  el.style.transform = 'translateX(-16px)';
-  el.style.display = '';
+  const c = getToastStyle(type);
+
+  const el = document.createElement('div');
+  el.id = 'trabahero-toast';
+  el.style.cssText = [
+    'position:fixed',
+    'top:20px',
+    'left:50%',
+    'transform:translateX(-50%) translateY(-20px)',
+    'z-index:2147483648',
+    'font-family:Inter,system-ui,sans-serif',
+    'font-size:14px',
+    'font-weight:500',
+    'padding:12px 16px 12px 16px',
+    'border-radius:14px',
+    'line-height:1.4',
+    'max-width:380px',
+    'min-width:280px',
+    'pointer-events:none',
+    'display:flex',
+    'align-items:center',
+    'gap:10px',
+    'box-shadow:' + c.shadow,
+    'border:1px solid ' + c.accent + '40',
+    'opacity:0',
+    'transition:opacity .3s ease,transform .3s cubic-bezier(.4,0,.2,1)',
+    'background:' + c.bg,
+    'color:' + c.text,
+  ].join(';');
+
+  const accentBar = document.createElement('div');
+  accentBar.style.cssText = [
+    'position:absolute',
+    'left:0',
+    'top:0',
+    'bottom:0',
+    'width:8px',
+    'border-radius:16px 0 0 16px',
+    'background:' + c.accent,
+  ].join(';');
+
+  const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  iconSvg.setAttribute('viewBox', '0 0 24 24');
+  iconSvg.setAttribute('width', '20');
+  iconSvg.setAttribute('height', '20');
+  iconSvg.style.cssText = 'fill:' + c.accent + ';flex-shrink:0;';
+  iconSvg.innerHTML = TOAST_ICONS[type] ?? '';
+
+  const textSpan = document.createElement('span');
+  textSpan.style.cssText = 'flex:1;line-height:1.45;letter-spacing:0.01em;';
+  textSpan.textContent = message;
+
+  el.appendChild(accentBar);
+  el.appendChild(iconSvg);
+  el.appendChild(textSpan);
+
+  document.body.appendChild(el);
+  currentToastEl = el;
 
   requestAnimationFrame(() => {
-    el!.style.opacity = '1';
-    el!.style.transform = 'translateX(0)';
+    el.style.opacity = '1';
+    el.style.transform = 'translateX(-50%) translateY(0)';
   });
 
-  if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     if (el) {
       el.style.opacity = '0';
-      el.style.transform = 'translateX(-16px)';
-      setTimeout(() => { el?.remove(); el = null; }, 260);
+      el.style.transform = 'translateX(-50%) translateY(-20px)';
+      setTimeout(() => { el.remove(); if (currentToastEl === el) currentToastEl = null; }, 300);
     }
     toastTimer = null;
   }, duration);
@@ -87,7 +157,7 @@ function isWithinViewport(el: HTMLElement): boolean {
 
 function sendDeactivated() {
   const msg: PickerMessage = { source: 'trabahero-picker', action: 'PICKER_DEACTIVATED' };
-  browser.runtime.sendMessage(msg).catch(() => {});
+  browser.runtime.sendMessage(msg).catch(() => { });
 }
 
 function activate() {
@@ -127,7 +197,7 @@ function activate() {
     if (!target) return;
 
     if (!isWithinViewport(target)) {
-      showToast('This element extends beyond the visible area — make sure it is visible or try manual crop', 'warning');
+      showToast('This element extends beyond the visible area — make sure it is visible or try manual crop', 'error');
       return;
     }
 
@@ -329,7 +399,15 @@ function applyFabTheme(fab: HTMLDivElement, theme: 'dark' | 'light') {
   fab.onmouseleave = () => { fab.style.transform = ''; fab.style.boxShadow = t.shadow; };
 }
 
+let fabEnabled = true;
+
+function removeFloatingButton() {
+  const existing = document.getElementById('trabahero-fab');
+  if (existing) existing.remove();
+}
+
 function injectFloatingButton() {
+  if (!fabEnabled) return;
   if (document.getElementById('trabahero-fab') || window !== window.top) return;
 
   const fab = document.createElement('div');
@@ -370,7 +448,7 @@ function injectFloatingButton() {
       const stored = result.theme as string | undefined;
       if (stored === 'light' || stored === 'dark') applyFabTheme(fab, stored);
     });
-  } catch {}
+  } catch { }
 
   try {
     // @ts-ignore
@@ -380,7 +458,7 @@ function injectFloatingButton() {
         if (next === 'dark' || next === 'light') applyFabTheme(fab, next);
       }
     });
-  } catch {}
+  } catch { }
 
   fab.addEventListener('click', () => {
     if (active) return;
@@ -394,7 +472,30 @@ function injectFloatingButton() {
 export default defineContentScript({
   matches: ['*://*/*'],
   main() {
-    injectFloatingButton();
+    syncToastTheme();
+
+    try {
+      // @ts-ignore
+      chrome.storage.local.get('fabEnabled', (result) => {
+        fabEnabled = result.fabEnabled !== false;
+        if (fabEnabled) {
+          injectFloatingButton();
+        }
+      });
+      // @ts-ignore
+      chrome.storage.onChanged.addListener((changes) => {
+        if (changes.fabEnabled) {
+          fabEnabled = changes.fabEnabled.newValue !== false;
+          if (fabEnabled) {
+            injectFloatingButton();
+          } else {
+            removeFloatingButton();
+          }
+        }
+      });
+    } catch {
+      injectFloatingButton();
+    }
 
     browser.runtime.onMessage.addListener((msg: PickerMessage, _sender, sendResponse) => {
       if (msg.source !== 'trabahero-picker') return;

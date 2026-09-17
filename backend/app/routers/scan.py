@@ -17,7 +17,7 @@ from app.models.schemas import (
     RedFlag,
 )
 from app.services.image import decode_base64_image
-from app.services.lm_client import chat, chat_json, chat_stream_pieces, _parse_custom, _parse_json
+from app.services.lm_client import chat, chat_json, chat_resume, chat_stream_pieces, _parse_custom, _parse_json
 from app.services.web_search import _extract_company_name, search_job_posting, search_job_posting_data
 from app.services.sec_api import sec_context, sec_data
 from app.services.email_verifier import verify_emails_in_text
@@ -132,15 +132,22 @@ IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. First decide if it
 
 TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nFirst decide if it is actually a job posting (VALID: true) or not (VALID: false). Then analyze it for scam indicators.\n\nExtract a concise job_summary (3-5 sentences) covering the job title, company, key responsibilities, required skills, and qualifications."
 
-RESUME_INSTRUCTION = """Analyze this resume and return ONLY valid JSON (no markdown):
-{
-  "skills": ["Skill 1", "Skill 2", "..."],
-  "experience_years": 0.0,
-  "job_titles": ["Previous Job Title 1", "..."],
-  "industries": ["Industry 1", "..."],
-  "summary": "Brief 1-2 sentence summary of the candidate's profile"
-}
-Extract all technical and soft skills. Estimate experience years from the timeline."""
+RESUME_INSTRUCTION = """Analyze this resume and extract candidate details. Respond strictly using this labeled format (NO curly braces or JSON):
+
+SKILLS: skill 1, skill 2, skill 3, skill 4
+EXPERIENCE_YEARS: number (e.g. 3.5 or 0)
+JOB_TITLES: job title 1, job title 2
+INDUSTRIES: industry 1, industry 2
+SUMMARY:
+1-2 sentence summary of the candidate's professional profile and background.
+END SUMMARY
+
+Rules:
+- SKILLS: Comma-separated list of all relevant technical and soft skills.
+- EXPERIENCE_YEARS: Estimated total years of relevant work experience (number only).
+- JOB_TITLES: Comma-separated list of past or target job titles found in the resume.
+- INDUSTRIES: Comma-separated list of industries (e.g. Information Technology, Healthcare, Customer Service).
+- SUMMARY: Concise 1-2 sentence professional overview."""
 
 MATCH_INSTRUCTION = """Compare the candidate's resume against each job posting and return ONLY valid JSON array (no markdown):
 [
@@ -360,7 +367,7 @@ async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request):
     else:
         text = _extract_resume_text(req.file_base64, req.file_type)
         content.append({"type": "text", "text": f"{RESUME_INSTRUCTION}\n\nResume text:\n{text[:8000]}"})
-    result = await chat_json([{"role": "user", "content": content}], max_tokens=1024)
+    result = await chat_resume([{"role": "user", "content": content}])
     return ResumeData(**(result if isinstance(result, dict) else {}))
 
 

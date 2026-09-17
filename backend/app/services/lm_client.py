@@ -170,6 +170,98 @@ async def chat_json(
     return parsed
 
 
+def _parse_resume_custom(raw: str) -> dict | None:
+    """Parse resume analysis output using labeled section format, with fallback to JSON."""
+    if not raw or not raw.strip():
+        return None
+
+    # First attempt labeled section parsing
+    result: dict = {
+        "skills": [],
+        "experience_years": 0.0,
+        "job_titles": [],
+        "industries": [],
+        "summary": "",
+    }
+    summary_lines: list[str] = []
+    in_summary = False
+    matched_any = False
+
+    resume_section_re = re.compile(
+        r"^\s*(?P<kw>SKILLS|EXPERIENCE[\s_]*YEARS|JOB[\s_]*TITLES|INDUSTRIES|SUMMARY|END[\s_]*SUMMARY)\s*:?\s*(?P<rest>.*)$",
+        re.IGNORECASE,
+    )
+
+    for line in raw.splitlines():
+        m = resume_section_re.match(line)
+        if not m:
+            if in_summary:
+                summary_lines.append(line)
+            continue
+
+        kw = " ".join(m.group("kw").split()).upper().replace(" ", "_")
+        rest = m.group("rest").strip()
+
+        if kw == "END_SUMMARY":
+            in_summary = False
+            continue
+
+        if kw == "SUMMARY":
+            in_summary = True
+            matched_any = True
+            if rest:
+                summary_lines.append(rest)
+            continue
+
+        in_summary = False
+        matched_any = True
+
+        if kw == "SKILLS":
+            items = [s.strip().strip('"\'') for s in re.split(r"[,;|•\n]+", rest) if s.strip()]
+            result["skills"].extend([i for i in items if i and i.lower() not in ("none", "n/a")])
+        elif kw in ("EXPERIENCE_YEARS", "EXPERIENCE"):
+            num = re.search(r"(\d+(?:\.\d+)?)", rest)
+            if num:
+                try:
+                    result["experience_years"] = float(num.group(1))
+                except ValueError:
+                    pass
+        elif kw in ("JOB_TITLES", "TITLES"):
+            items = [s.strip().strip('"\'') for s in re.split(r"[,;|•\n]+", rest) if s.strip()]
+            result["job_titles"].extend([i for i in items if i and i.lower() not in ("none", "n/a")])
+        elif kw == "INDUSTRIES":
+            items = [s.strip().strip('"\'') for s in re.split(r"[,;|•\n]+", rest) if s.strip()]
+            result["industries"].extend([i for i in items if i and i.lower() not in ("none", "n/a")])
+
+    if summary_lines:
+        result["summary"] = "\n".join(summary_lines).strip()
+
+    if matched_any and (result["skills"] or result["job_titles"] or result["summary"]):
+        return result
+
+    # Fallback to JSON parsing if model emitted JSON despite instructions
+    json_parsed = _parse_json(raw)
+    if isinstance(json_parsed, dict):
+        log.info("Resume custom parse used JSON fallback")
+        return json_parsed
+
+    return None
+
+
+async def chat_resume(
+    messages: list,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+) -> dict | None:
+    """Analyze resume using labeled format (no braces) with JSON fallback."""
+    raw = await chat(messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
+    parsed = _parse_resume_custom(raw)
+    if parsed is None:
+        log.warning("Failed to parse resume response (%d chars). Raw: %s", len(raw), raw[:300])
+    return parsed
+
+
 async def chat_custom(
     messages: list,
     max_tokens: int | None = None,

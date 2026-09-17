@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import TrabaheroLogo from '../sidepanel/components/common/TrabaheroLogo';
 
 const iconMap: Record<string, string> = {
   scan: 'security',
   match: 'description',
   launch: 'open_in_new',
+  fab: 'shield_person',
 };
 
 function PopupIcon({
@@ -23,6 +24,26 @@ function PopupIcon({
 }
 
 export default function App() {
+  const [fabEnabled, setFabEnabled] = useState(true);
+
+  useEffect(() => {
+    try {
+      // @ts-ignore - storage API available in extension context
+      chrome.storage.local.get('fabEnabled', (result) => {
+        if (result.fabEnabled === false) setFabEnabled(false);
+      });
+    } catch {}
+  }, []);
+
+  const handleToggleFab = () => {
+    const next = !fabEnabled;
+    setFabEnabled(next);
+    try {
+      // @ts-ignore - storage API available in extension context
+      chrome.storage.local.set({ fabEnabled: next });
+    } catch {}
+  };
+
   const openSidepanel = () => {
     browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
       if (tabs[0]?.id) {
@@ -87,6 +108,37 @@ export default function App() {
               </span>
             </div>
           </div>
+        </div>
+
+        <div className="tactile-card bg-surface-container rounded-xl p-3 flex items-center gap-3">
+          <PopupIcon name="fab" className="text-secondary text-[24px] shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-label-md text-on-surface block">
+              Floating Button
+            </span>
+            <span className="text-body-sm text-on-surface-variant opacity-70">
+              Show scan button on pages
+            </span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={fabEnabled}
+            onClick={handleToggleFab}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out ${
+              fabEnabled
+                ? 'bg-secondary'
+                : 'bg-surface-container-highest border border-outline-variant'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full shadow-card ring-0 transition duration-200 ease-in-out mt-px ${
+                fabEnabled
+                  ? 'translate-x-[22px] bg-on-secondary'
+                  : 'translate-x-[1px] bg-outline'
+              }`}
+            />
+          </button>
         </div>
       </main>
 
