@@ -12,8 +12,6 @@ function getInitialTheme(): 'dark' | 'light' {
 
 export default function App() {
   const [activeView, setActiveView] = useState<ViewId>('scan');
-  const [scanAnimKey, setScanAnimKey] = useState(0);
-  const [matchAnimKey, setMatchAnimKey] = useState(0);
   const [scannedJobs, setScannedJobs] = useState<ScannedJob[]>([]);
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
@@ -23,8 +21,6 @@ export default function App() {
   const handleTabChange = useCallback((id: ViewId) => {
     if (id === activeView) return;
     setActiveView(id);
-    if (id === 'scan') setScanAnimKey((k) => k + 1);
-    else setMatchAnimKey((k) => k + 1);
   }, [activeView]);
 
   useEffect(() => {
@@ -100,14 +96,12 @@ export default function App() {
         />
         <main className="flex-1 flex flex-col overflow-y-auto custom-scroll bg-background">
           <div
-            key={`scan-${scanAnimKey}`}
-            className={`h-full flex-col ${activeView === 'scan' ? 'flex animate-slide-in-left' : 'hidden'}`}
+            className={`h-full flex-col ${activeView === 'scan' ? 'flex' : 'hidden'}`}
           >
             <ScamScanView onScanComplete={handleScanComplete} onScanProgressChange={setScanProgress} />
           </div>
           <div
-            key={`match-${matchAnimKey}`}
-            className={`h-full flex-col ${activeView === 'match' ? 'flex animate-slide-in-left' : 'hidden'}`}
+            className={`h-full flex-col ${activeView === 'match' ? 'flex' : 'hidden'}`}
           >
             <ResumeMatchView
               scannedJobs={scannedJobs}
