@@ -290,7 +290,7 @@ export function ScamScanView({
                 <Icon name="architecture" className="text-secondary" />
                 <h3 className="text-label-md font-bold text-on-surface">Score Calculation</h3>
               </div>
-              <div className="flex flex-wrap gap-3 text-body-xs text-on-surface-variant">
+              <div className="flex flex-wrap gap-3 text-body-sm text-on-surface-variant">
                 {scanResult.scoreBreakdown.high_count > 0 && (
                   <span className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-error" />
@@ -310,7 +310,7 @@ export function ScamScanView({
                   </span>
                 )}
               </div>
-              <span className="text-body-xs text-on-surface-variant font-mono">
+              <span className="text-body-sm text-on-surface-variant font-mono break-all">
                 {scanResult.scoreBreakdown.formula} → <span className="font-bold text-on-surface">{scanResult.scoreBreakdown.normalized_score}/100</span>
               </span>
             </div>
@@ -352,9 +352,9 @@ export function ScamScanView({
               </div>
 
               {scanResult.companyName && (
-                <div className="flex items-center gap-2">
-                  <span className="text-body-xs text-on-surface-variant">Company:</span>
-                  <span className="text-body-sm font-bold text-on-surface">{scanResult.companyName}</span>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-body-sm text-on-surface-variant">Company:</span>
+                  <span className="text-body-sm font-bold text-on-surface break-words min-w-0">{scanResult.companyName}</span>
                 </div>
               )}
 
@@ -364,8 +364,8 @@ export function ScamScanView({
                   {scanResult.secRegistration.map((sec, i) => (
                     <div key={i} className="flex flex-col gap-0.5 p-2 rounded-lg bg-surface-container-highest/50">
                       <span className="text-body-sm text-on-surface">{sec.company_name}</span>
-                      <div className="flex items-center gap-3 text-body-xs text-on-surface-variant">
-                        {sec.sec_no && <span>SEC# {sec.sec_no}</span>}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-on-surface-variant">
+                        {sec.sec_no && <span className="break-all">SEC# {sec.sec_no}</span>}
                         {sec.status && <span className={`font-bold ${sec.status.toLowerCase().includes('active') ? 'text-green-400' : 'text-amber-400'}`}>{sec.status}</span>}
                         {sec.date_approved && <span>{sec.date_approved}</span>}
                       </div>
@@ -379,8 +379,8 @@ export function ScamScanView({
                   <span className="text-label-sm font-bold text-on-surface-variant">Web Results</span>
                   {scanResult.webSearch.legitimacy.map((r, i) => (
                     <div key={i} className="flex flex-col gap-0.5">
-                      <span className="text-body-xs text-on-surface line-clamp-1">{r.title}</span>
-                      <span className="text-body-xs text-on-surface-variant line-clamp-2">{r.snippet}</span>
+                      <span className="text-body-sm text-on-surface line-clamp-1">{r.title}</span>
+                      <span className="text-body-sm text-on-surface-variant line-clamp-2">{r.snippet}</span>
                     </div>
                   ))}
                 </div>
@@ -391,8 +391,8 @@ export function ScamScanView({
                   <span className="text-label-sm font-bold text-error">Scam Reports</span>
                   {scanResult.webSearch.scam_reports.map((r, i) => (
                     <div key={i} className="flex flex-col gap-0.5 p-2 rounded-lg bg-error-container/10 border border-error/20">
-                      <span className="text-body-xs text-on-surface line-clamp-1">{r.title}</span>
-                      <span className="text-body-xs text-on-surface-variant line-clamp-2">{r.snippet}</span>
+                      <span className="text-body-sm text-on-surface line-clamp-1">{r.title}</span>
+                      <span className="text-body-sm text-on-surface-variant line-clamp-2">{r.snippet}</span>
                     </div>
                   ))}
                 </div>
@@ -403,8 +403,8 @@ export function ScamScanView({
                   <span className="text-label-sm font-bold text-on-surface-variant">LinkedIn</span>
                   {scanResult.webSearch.linkedin.map((r, i) => (
                     <div key={i} className="flex flex-col gap-0.5">
-                      <span className="text-body-xs text-on-surface line-clamp-1">{r.title}</span>
-                      <span className="text-body-xs text-on-surface-variant line-clamp-2">{r.snippet}</span>
+                      <span className="text-body-sm text-on-surface line-clamp-1">{r.title}</span>
+                      <span className="text-body-sm text-on-surface-variant line-clamp-2">{r.snippet}</span>
                     </div>
                   ))}
                 </div>
@@ -415,8 +415,8 @@ export function ScamScanView({
                   <span className="text-label-sm font-bold text-on-surface-variant">DOLE Licensed Agency</span>
                   {scanResult.webSearch.dole.map((r, i) => (
                     <div key={i} className="flex flex-col gap-0.5">
-                      <span className="text-body-xs text-on-surface line-clamp-1">{r.title}</span>
-                      <span className="text-body-xs text-on-surface-variant line-clamp-2">{r.snippet}</span>
+                      <span className="text-body-sm text-on-surface line-clamp-1">{r.title}</span>
+                      <span className="text-body-sm text-on-surface-variant line-clamp-2">{r.snippet}</span>
                     </div>
                   ))}
                 </div>
@@ -436,9 +436,9 @@ export function ScamScanView({
                   ev.risk === 'medium' ? 'bg-secondary-container/10 border-secondary/20' :
                   'bg-surface-container-highest/50 border-outline-variant/10'
                 }`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-body-sm font-bold text-on-surface font-mono">{ev.email}</span>
-                    <span className={`text-body-xs font-bold px-1.5 py-0.5 rounded ${
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-body-sm font-bold text-on-surface font-mono break-all">{ev.email}</span>
+                    <span className={`text-body-sm font-bold px-1.5 py-0.5 rounded ${
                       ev.risk === 'high' ? 'bg-error/20 text-error' :
                       ev.risk === 'medium' ? 'bg-secondary/20 text-secondary' :
                       'bg-green-500/20 text-green-400'
@@ -446,7 +446,7 @@ export function ScamScanView({
                       {ev.risk === 'high' ? 'HIGH RISK' : ev.risk === 'medium' ? 'MEDIUM' : 'VALID'}
                     </span>
                   </div>
-                  <span className="text-body-xs text-on-surface-variant">{ev.reason}</span>
+                  <span className="text-body-sm text-on-surface-variant break-words">{ev.reason}</span>
                 </div>
               ))}
             </div>
@@ -464,31 +464,31 @@ export function ScamScanView({
                 </div>
 
                 {ev.phones && ev.phones.length > 0 && ev.phones.map((p, i) => (
-                  <div key={`ph-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${p.risk === 'high' ? 'bg-error-container/10' : p.risk === 'medium' ? 'bg-secondary-container/10' : 'bg-surface-container-highest/50'}`}>
+                  <div key={`ph-${i}`} className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm p-2 rounded-lg ${p.risk === 'high' ? 'bg-error-container/10' : p.risk === 'medium' ? 'bg-secondary-container/10' : 'bg-surface-container-highest/50'}`}>
                     <Icon name="phone_disabled" className={p.risk === 'high' ? 'text-error' : 'text-on-surface-variant'} />
-                    <span className="font-mono text-on-surface">{p.number}</span>
+                    <span className="font-mono text-on-surface break-all">{p.number}</span>
                     <span className={`font-bold ${p.risk === 'high' ? 'text-error' : p.risk === 'medium' ? 'text-secondary' : 'text-green-400'}`}>
                       {p.risk === 'high' ? 'INVALID' : p.carrier || 'VALID'}
                     </span>
-                    <span className="text-on-surface-variant">{p.reason}</span>
+                    <span className="text-on-surface-variant min-w-0 break-words">{p.reason}</span>
                   </div>
                 ))}
 
                 {ev.domains && ev.domains.length > 0 && ev.domains.map((d, i) => (
-                  <div key={`dom-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${d.risk === 'high' ? 'bg-error-container/10' : d.risk === 'medium' ? 'bg-secondary-container/10' : 'bg-surface-container-highest/50'}`}>
+                  <div key={`dom-${i}`} className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm p-2 rounded-lg ${d.risk === 'high' ? 'bg-error-container/10' : d.risk === 'medium' ? 'bg-secondary-container/10' : 'bg-surface-container-highest/50'}`}>
                     <Icon name="info" className={d.risk === 'high' ? 'text-error' : 'text-on-surface-variant'} />
-                    <span className="font-mono text-on-surface">{d.domain}</span>
+                    <span className="font-mono text-on-surface break-all">{d.domain}</span>
                     <span className={`font-bold ${d.risk === 'high' ? 'text-error' : d.risk === 'medium' ? 'text-secondary' : 'text-green-400'}`}>
                       {d.age_months !== null ? `${d.age_months}mo old` : 'UNKNOWN'}
                     </span>
-                    <span className="text-on-surface-variant">{d.reason}</span>
+                    <span className="text-on-surface-variant min-w-0 break-words">{d.reason}</span>
                   </div>
                 ))}
 
                 {ev.websites && ev.websites.length > 0 && ev.websites.map((w, i) => (
-                  <div key={`web-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${w.risk === 'high' ? 'bg-error-container/10' : w.risk === 'medium' ? 'bg-secondary-container/10' : 'bg-surface-container-highest/50'}`}>
+                  <div key={`web-${i}`} className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm p-2 rounded-lg ${w.risk === 'high' ? 'bg-error-container/10' : w.risk === 'medium' ? 'bg-secondary-container/10' : 'bg-surface-container-highest/50'}`}>
                     <Icon name="open_in_new" className={w.alive ? 'text-green-400' : 'text-error'} />
-                    <span className="font-mono text-on-surface truncate max-w-[200px]">{w.url}</span>
+                    <span className="font-mono text-on-surface truncate min-w-0 max-w-full">{w.url}</span>
                     <span className={`font-bold ${w.alive ? 'text-green-400' : 'text-error'}`}>
                       {w.alive ? `HTTP ${w.status_code}` : 'DEAD'}
                     </span>
@@ -496,30 +496,30 @@ export function ScamScanView({
                 ))}
 
                 {ev.social && ev.social.length > 0 && ev.social.map((s, i) => (
-                  <div key={`soc-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${s.found ? 'bg-surface-container-highest/50' : 'bg-secondary-container/10'}`}>
+                  <div key={`soc-${i}`} className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm p-2 rounded-lg ${s.found ? 'bg-surface-container-highest/50' : 'bg-secondary-container/10'}`}>
                     <Icon name={s.platform === 'facebook' ? 'smart_toy' : 'work'} className={s.found ? 'text-green-400' : 'text-secondary'} />
                     <span className="text-on-surface capitalize">{s.platform}</span>
                     <span className={`font-bold ${s.found ? 'text-green-400' : 'text-secondary'}`}>
                       {s.found ? 'FOUND' : 'NOT FOUND'}
                     </span>
-                    {s.title && <span className="text-on-surface-variant truncate max-w-[200px]">{s.title}</span>}
+                    {s.title && <span className="text-on-surface-variant truncate min-w-0 max-w-full">{s.title}</span>}
                   </div>
                 ))}
 
                 {ev.gov && ev.gov.length > 0 && ev.gov.map((g, i) => (
-                  <div key={`gov-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${g.found ? 'bg-surface-container-highest/50' : 'bg-secondary-container/10'}`}>
+                  <div key={`gov-${i}`} className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm p-2 rounded-lg ${g.found ? 'bg-surface-container-highest/50' : 'bg-secondary-container/10'}`}>
                     <Icon name="badge" className={g.found ? 'text-green-400' : 'text-secondary'} />
                     <span className="text-on-surface">{g.registry}</span>
                     <span className={`font-bold ${g.found ? 'text-green-400' : 'text-secondary'}`}>
                       {g.found ? 'REGISTERED' : 'NOT FOUND'}
                     </span>
-                    {g.details && <span className="text-on-surface-variant truncate max-w-[200px]">{g.details}</span>}
+                    {g.details && <span className="text-on-surface-variant truncate min-w-0 max-w-full">{g.details}</span>}
                   </div>
                 ))}
 
                 {ev.scam_lists && ev.scam_lists.length > 0 && ev.scam_lists.map((s, i) => (
                   s.found && (
-                    <div key={`scam-${i}`} className={`flex items-center gap-2 text-body-xs p-2 rounded-lg ${s.risk === 'high' ? 'bg-error-container/10' : 'bg-secondary-container/10'}`}>
+                    <div key={`scam-${i}`} className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm p-2 rounded-lg ${s.risk === 'high' ? 'bg-error-container/10' : 'bg-secondary-container/10'}`}>
                       <Icon name="warning" className="text-error" />
                       <span className="text-on-surface">Scam Reports: {s.count}</span>
                       <span className={`font-bold ${s.risk === 'high' ? 'text-error' : 'text-secondary'}`}>
