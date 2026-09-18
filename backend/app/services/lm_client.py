@@ -6,6 +6,21 @@ from app.config import settings
 
 log = logging.getLogger("trabahero")
 
+_client: AsyncOpenAI | None = None
+
+
+def _get_client() -> AsyncOpenAI:
+    """Return a shared AsyncOpenAI client, creating it on first call."""
+    global _client
+    if _client is None:
+        _client = AsyncOpenAI(
+            base_url=settings.effective_ai_url,
+            api_key=settings.effective_ai_api_key,
+            timeout=300.0,
+            max_retries=0,
+        )
+    return _client
+
 
 def _fix_unquoted_keys(raw: str) -> str:
     """Fix JSON with unquoted keys that small models sometimes produce."""
@@ -226,20 +241,15 @@ async def chat(
     eff_max_tokens = max_tokens if max_tokens is not None else settings.ai_max_tokens
     eff_top_p = top_p if top_p is not None else settings.ai_top_p
 
-    async with AsyncOpenAI(
-        base_url=settings.effective_ai_url,
-        api_key=settings.effective_ai_api_key,
-        timeout=300.0,
-        max_retries=0,
-    ) as client:
-        completion = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=eff_temp,
-            top_p=eff_top_p,
-            max_tokens=eff_max_tokens,
-        )
-        return (completion.choices[0].message.content or "").strip()
+    client = _get_client()
+    completion = await client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=eff_temp,
+        top_p=eff_top_p,
+        max_tokens=eff_max_tokens,
+    )
+    return (completion.choices[0].message.content or "").strip()
 
 
 async def chat_json(
@@ -412,23 +422,18 @@ async def chat_stream_pieces(
     eff_max_tokens = max_tokens if max_tokens is not None else settings.ai_max_tokens
     eff_top_p = top_p if top_p is not None else settings.ai_top_p
 
-    async with AsyncOpenAI(
-        base_url=settings.effective_ai_url,
-        api_key=settings.effective_ai_api_key,
-        timeout=300.0,
-        max_retries=0,
-    ) as client:
-        stream = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=eff_temp,
-            top_p=eff_top_p,
-            max_tokens=eff_max_tokens,
-            stream=True,
-        )
-        async for chunk in stream:
-            if not chunk.choices:
-                continue
-            piece = chunk.choices[0].delta.content or ""
-            if piece:
-                yield piece
+    client = _get_client()
+    stream = await client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=eff_temp,
+        top_p=eff_top_p,
+        max_tokens=eff_max_tokens,
+        stream=True,
+    )
+    async for chunk in stream:
+        if not chunk.choices:
+            continue
+        piece = chunk.choices[0].delta.content or ""
+        if piece:
+            yield piece
