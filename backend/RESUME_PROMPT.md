@@ -15,7 +15,7 @@ SUMMARY:
 END SUMMARY
 
 Field rules:
-- SKILLS: Comma-separated list of all relevant technical and soft skills found in the resume. Do not invent skills not mentioned. If no skills are found, use "None", keep the skills at the maximum of 3 main skills.
+- SKILLS: Comma-separated list of all relevant technical and soft skills found in the resume. Do not invent skills not mentioned. If no skills are found, use "None", make sure to only include the skills at the maximum of 3 main skills.
 - EXPERIENCE_YEARS: Estimated total years of relevant work experience (number only). If no experience is found, use 0.
 - JOB_TITLES: Comma-separated list of past or target job titles found in the resume.
 - INDUSTRIES: Comma-separated list of industries (e.g. Information Technology, Healthcare, Customer Service).

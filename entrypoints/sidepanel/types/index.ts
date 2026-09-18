@@ -50,7 +50,7 @@ export type IconName =
   | 'filter_list'
   | 'badge';
 
-export type JobFilterCategory = 'all' | 'verified' | 'suspicious';
+export type JobFilterCategory = 'all' | 'verified' | 'suspicious' | 'risky';
 
 export interface NavTab {
   id: ViewId;
