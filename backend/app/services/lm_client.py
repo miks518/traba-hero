@@ -261,7 +261,7 @@ async def chat_json(
     raw = await chat(messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
     parsed = _parse_json(raw)
     if parsed is None:
-        log.warning("Failed to parse AI JSON from response (%d chars)", len(raw))
+        log.warning("[chat_json] Failed to parse JSON from AI response (%d chars): %s", len(raw), raw[:300])
     return parsed
 
 
@@ -353,7 +353,7 @@ async def chat_resume(
     raw = await chat(messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
     parsed = _parse_resume_custom(raw)
     if parsed is None:
-        log.warning("Failed to parse resume response (%d chars). Raw: %s", len(raw), raw[:300])
+        log.warning("[chat_resume] Failed to parse labeled-section format from AI (%d chars): %s", len(raw), raw[:300])
     return parsed
 
 
@@ -371,7 +371,7 @@ async def chat_custom(
         if isinstance(parsed, dict):
             log.info("Custom parse failed; fell back to JSON for scan response")
     if parsed is None:
-        log.warning("Failed to parse AI scan response (%d chars)", len(raw))
+        log.warning("[chat_custom] Failed to parse labeled-section format from AI (%d chars): %s", len(raw), raw[:300])
     return parsed if isinstance(parsed, dict) else None
 
 
@@ -393,7 +393,7 @@ async def chat_match(
             parsed = [fallback]
             log.info("Match custom parse failed; fell back to single JSON object")
     if parsed is None:
-        log.warning("Failed to parse AI match response (%d chars). Raw: %s", len(raw), raw[:500])
+        log.warning("[chat_match] Failed to parse labeled-section format from AI (%d chars): %s", len(raw), raw[:500])
     return parsed
 
 

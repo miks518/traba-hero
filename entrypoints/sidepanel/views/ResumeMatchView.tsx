@@ -2,7 +2,8 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { ResumePreview, JobMatchList, ResumeUploader } from '../components/match';
 import { RedFlagCard } from '../components/scan';
 import { ConfirmDialog, Icon, ToastContainer, useToastManager } from '../components/common';
-import { analyzeResume, matchResumeToJobs } from '../lib/api';
+import { analyzeResumeStream, matchResumeToJobsStream } from '../lib/api';
+import type { ScanProgress } from '../lib/api';
 import type { ScannedJob, ResumeData, JobMatchItem, IconName, JobFilterCategory } from '../types';
 
 export interface ResumeMatchViewProps {
@@ -11,6 +12,7 @@ export interface ResumeMatchViewProps {
   onResumeData: (data: ResumeData) => void;
   onClearResume: () => void;
   onClearJobs: () => void;
+  onProgressChange?: (progress: ScanProgress | null) => void;
   isLocked?: boolean;
   hasWarnings?: boolean;
 }
@@ -66,6 +68,7 @@ export function ResumeMatchView({
   onResumeData,
   onClearResume,
   onClearJobs,
+  onProgressChange,
   isLocked = false,
   hasWarnings = false,
 }: ResumeMatchViewProps) {
@@ -83,6 +86,9 @@ export function ResumeMatchView({
   } | null>(null);
   const [replacing, setReplacing] = useState(false);
   const [filterCategory, setFilterCategory] = useState<JobFilterCategory>('all');
+  const [resumeProgress, setResumeProgress] = useState<ScanProgress | null>(null);
+  const [matchProgress, setMatchProgress] = useState<ScanProgress | null>(null);
+  const abortRef = React.useRef<AbortController | null>(null);
   const { toasts, showToast, removeToast } = useToastManager();
 
   const verifiedJobs = useMemo(() => scannedJobs.filter(isVerifiedJob), [scannedJobs]);
@@ -96,21 +102,44 @@ export function ResumeMatchView({
   }, [filterCategory, verifiedJobs, suspiciousJobs, scannedJobs]);
 
   const processResumeFile = useCallback(async (base64: string, fileType: string, _fileName: string) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setAnalyzing(true);
+    setResumeProgress({ percent: 5, stage: 'Preparing request' });
+    onProgressChange?.({ percent: 5, stage: 'Preparing request' });
     try {
-      const data = await analyzeResume(base64, fileType);
-      onResumeData(data);
-      setMatches([]);
-      setMatchScores({});
-      showToast('Resume analyzed successfully', 'success');
+      const result = await analyzeResumeStream(
+        base64,
+        fileType,
+        controller.signal,
+        (p) => {
+          setResumeProgress(p);
+          onProgressChange?.(p);
+        },
+      );
+      if (result.timedOut) {
+        showToast('The analysis took too long. Please try again.', 'error');
+        return;
+      }
+      if (result.data) {
+        onResumeData(result.data);
+        setMatches([]);
+        setMatchScores({});
+        showToast('Resume analyzed successfully', 'success');
+      }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       showToast('There seems to be an error with our servers. Please try again later.', 'error');
     } finally {
       setAnalyzing(false);
+      setResumeProgress(null);
+      onProgressChange?.(null);
       setReplacing(false);
       setPendingResumeFile(null);
     }
-  }, [onResumeData, showToast]);
+  }, [onResumeData, showToast, onProgressChange]);
 
   const handleFileSelected = useCallback((base64: string, fileType: string, fileName: string) => {
     setPendingResumeFile({ base64, fileType, fileName });
@@ -131,31 +160,54 @@ export function ResumeMatchView({
 
   const handleRunMatch = useCallback(async () => {
     if (!resumeData || verifiedJobs.length === 0) return;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setMatching(true);
+    setMatchProgress({ percent: 5, stage: 'Preparing request' });
+    onProgressChange?.({ percent: 5, stage: 'Preparing request' });
     try {
-      const result = await matchResumeToJobs(resumeData, verifiedJobs);
-      const mapped = (result.matches || []).map((m) => ({
-        jobId: m.job_id,
-        score: m.score ?? 0,
-        label: m.label ?? '',
-        skillGaps: m.skill_gaps ?? [],
-        matchedSkills: m.matched_skills ?? [],
-        reasoning: m.reasoning ?? '',
-        experienceFit: m.experience_fit ?? '',
-        industryFit: m.industry_fit ?? '',
-        recommendedActions: m.recommended_actions ?? [],
-      }));
-      setMatches(mapped);
-      setMatchScores(
-        Object.fromEntries(mapped.map((m) => [m.jobId, m.score]))
+      const result = await matchResumeToJobsStream(
+        resumeData,
+        verifiedJobs,
+        controller.signal,
+        (p) => {
+          setMatchProgress(p);
+          onProgressChange?.(p);
+        },
       );
-      showToast(`Matched against ${verifiedJobs.length} verified job${verifiedJobs.length !== 1 ? 's' : ''}`, 'success');
+      if (result.timedOut) {
+        showToast('The matching took too long. Please try again.', 'error');
+        return;
+      }
+      if (result.data) {
+        const mapped = (result.data.matches || []).map((m) => ({
+          jobId: m.job_id,
+          score: m.score ?? 0,
+          label: m.label ?? '',
+          skillGaps: m.skill_gaps ?? [],
+          matchedSkills: m.matched_skills ?? [],
+          reasoning: m.reasoning ?? '',
+          experienceFit: m.experience_fit ?? '',
+          industryFit: m.industry_fit ?? '',
+          recommendedActions: m.recommended_actions ?? [],
+        }));
+        setMatches(mapped);
+        setMatchScores(
+          Object.fromEntries(mapped.map((m) => [m.jobId, m.score]))
+        );
+        showToast(`Matched against ${verifiedJobs.length} verified job${verifiedJobs.length !== 1 ? 's' : ''}`, 'success');
+      }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       showToast('Match request failed. Please try again later.', 'error');
     } finally {
       setMatching(false);
+      setMatchProgress(null);
+      onProgressChange?.(null);
     }
-  }, [resumeData, verifiedJobs, showToast]);
+  }, [resumeData, verifiedJobs, showToast, onProgressChange]);
 
   const hasResume = resumeData !== null;
   const hasJobs = scannedJobs.length > 0;
@@ -165,7 +217,14 @@ export function ResumeMatchView({
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       {(analyzing || matching) && (
         <div className="absolute top-0 left-0 w-full h-1 bg-surface-container-highest overflow-hidden rounded-full z-10">
-          <div className="w-full h-full bg-secondary animate-loading-bar rounded-full" />
+          {(resumeProgress || matchProgress) ? (
+            <div
+              className="h-full bg-secondary rounded-full transition-all duration-300"
+              style={{ width: `${(resumeProgress || matchProgress)?.percent ?? 0}%` }}
+            />
+          ) : (
+            <div className="w-full h-full bg-secondary animate-loading-bar rounded-full" />
+          )}
         </div>
       )}
 
@@ -421,8 +480,8 @@ export function ResumeMatchView({
             <ResumeUploader onFileSelected={handleFileSelected} disabled={analyzing} />
             {analyzing && (
               <div className="flex items-center gap-2 text-on-surface-variant text-body-sm">
-                <span className="inline-block w-3 h-3 border-2 border-secondary border-t-transparent rounded-full animate-spin" />
-                Analyzing your resume...
+                <span className="w-2 h-2 rounded-full bg-secondary animate-ping" />
+                <span>Analyzing… {resumeProgress?.percent ?? 0}%</span>
               </div>
             )}
           </div>
@@ -461,8 +520,8 @@ export function ResumeMatchView({
 
             {matching && (
               <div className="flex items-center gap-2 text-on-surface-variant text-body-sm">
-                <span className="inline-block w-3 h-3 border-2 border-secondary border-t-transparent rounded-full animate-spin" />
-                Matching your resume against {verifiedJobs.length} verified job{verifiedJobs.length !== 1 ? 's' : ''}...
+                <span className="w-2 h-2 rounded-full bg-secondary animate-ping" />
+                <span>Matching… {matchProgress?.percent ?? 0}%</span>
               </div>
             )}
           </div>

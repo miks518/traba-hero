@@ -184,6 +184,92 @@ export async function analyzeResume(fileBase64: string, fileType: string): Promi
   return request<ResumeData>('POST', '/api/analyze-resume', { file_base64: fileBase64, file_type: fileType }, 300000);
 }
 
+export interface ResumeStreamResult {
+  data?: ResumeData;
+  timedOut?: boolean;
+}
+
+export async function analyzeResumeStream(
+  fileBase64: string,
+  fileType: string,
+  externalSignal: AbortSignal,
+  onProgress: (progress: ScanProgress) => void,
+  timeoutMs = 300000,
+): Promise<ResumeStreamResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  if (externalSignal) {
+    externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/analyze-resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_base64: fileBase64, file_type: fileType }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new ApiRequestError(res.status, text || res.statusText);
+    }
+
+    const data = await consumeSseStreamResume(res.body, onProgress);
+    return { data: data ?? undefined };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      if (externalSignal.aborted) return { timedOut: false };
+      return { timedOut: true };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function consumeSseStreamResume(
+  body: ReadableStream<Uint8Array> | null,
+  onProgress: (progress: ScanProgress) => void,
+): Promise<ResumeData | null> {
+  if (!body) return null;
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data: ')) continue;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(trimmed.slice(6));
+      } catch {
+        continue;
+      }
+      if (event.type === 'progress') {
+        onProgress({
+          percent: Number(event.percent ?? 0),
+          stage: String(event.stage ?? 'Analyzing'),
+        });
+      } else if (event.type === 'result') {
+        return event.data as ResumeData;
+      } else if (event.type === 'error') {
+        throw new Error(String(event.error ?? 'Resume analysis failed'));
+      }
+    }
+  }
+  return null;
+}
+
 export async function matchResumeToJobs(
   resume: ResumeData,
   jobs: ScannedJob[]
@@ -192,4 +278,93 @@ export async function matchResumeToJobs(
     resume,
     jobs: jobs.map(j => ({ id: j.id, title: j.title, summary: j.summary })),
   }, 300000);
+}
+
+export interface MatchStreamResult {
+  data?: { matches: { job_id: string; score: number; label: string; skill_gaps: string[]; matched_skills: string[]; reasoning: string; experience_fit: string; industry_fit: string; recommended_actions: string[] }[] };
+  timedOut?: boolean;
+}
+
+export async function matchResumeToJobsStream(
+  resume: ResumeData,
+  jobs: ScannedJob[],
+  externalSignal: AbortSignal,
+  onProgress: (progress: ScanProgress) => void,
+  timeoutMs = 300000,
+): Promise<MatchStreamResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  if (externalSignal) {
+    externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/match-resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resume,
+        jobs: jobs.map(j => ({ id: j.id, title: j.title, summary: j.summary })),
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new ApiRequestError(res.status, text || res.statusText);
+    }
+
+    const data = await consumeSseStreamMatch(res.body, onProgress);
+    return { data: data ?? undefined };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      if (externalSignal.aborted) return { timedOut: false };
+      return { timedOut: true };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function consumeSseStreamMatch(
+  body: ReadableStream<Uint8Array> | null,
+  onProgress: (progress: ScanProgress) => void,
+): Promise<MatchStreamResult['data'] | null> {
+  if (!body) return null;
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data: ')) continue;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(trimmed.slice(6));
+      } catch {
+        continue;
+      }
+      if (event.type === 'progress') {
+        onProgress({
+          percent: Number(event.percent ?? 0),
+          stage: String(event.stage ?? 'Matching'),
+        });
+      } else if (event.type === 'result') {
+        return event.data as MatchStreamResult['data'];
+      } else if (event.type === 'error') {
+        throw new Error(String(event.error ?? 'Match failed'));
+      }
+    }
+  }
+  return null;
 }

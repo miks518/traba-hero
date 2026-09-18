@@ -15,6 +15,7 @@ export default function App() {
   const [scannedJobs, setScannedJobs] = useState<ScannedJob[]>([]);
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
+  const [resumeMatchProgress, setResumeMatchProgress] = useState<ScanProgress | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>(getInitialTheme);
   const [textSize, setTextSize] = useState<TextSize>('default');
 
@@ -91,7 +92,7 @@ export default function App() {
           activeView={activeView}
           onTabClick={handleTabChange}
           scannedJobsCount={scannedJobs.length}
-          scanningProgress={scanProgress}
+          scanningProgress={resumeMatchProgress || scanProgress}
           isLocked={false}
         />
         <main className="flex-1 flex flex-col overflow-y-auto custom-scroll bg-background">
@@ -109,6 +110,7 @@ export default function App() {
               onResumeData={handleResumeData}
               onClearResume={handleClearResume}
               onClearJobs={handleClearJobs}
+              onProgressChange={setResumeMatchProgress}
               hasWarnings={hasMediumRisk || hasHighRisk}
             />
           </div>

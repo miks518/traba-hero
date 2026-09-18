@@ -25,6 +25,7 @@ from app.services.email_verifier import verify_emails_in_text
 from app.services.external_verifier import verify_all, verification_to_dict
 from app.exceptions import InvalidImageError
 from app.rate_limit import limiter
+from app.ai_limiter import ai_limiter
 
 log = logging.getLogger("trabahero")
 router = APIRouter()
@@ -117,6 +118,19 @@ def load_resume_prompt() -> str:
     return "You are a resume analysis assistant. Extract candidate details from the provided resume."
 
 
+def load_match_prompt() -> str:
+    """Load system prompt from MATCH_PROMPT.md in the backend directory with fallback."""
+    prompt_path = Path(__file__).resolve().parents[2] / "MATCH_PROMPT.md"
+    if prompt_path.is_file():
+        try:
+            content = prompt_path.read_text(encoding="utf-8").strip()
+            if content:
+                return content
+        except Exception as e:
+            log.warning("Could not read MATCH_PROMPT.md at %s: %s", prompt_path, e)
+    return "You are a job-match specialist. Evaluate how well a candidate's resume aligns with each job posting."
+
+
 SCAN_OUTPUT_FORMAT = """\
 Respond strictly using this labeled section format:
 
@@ -171,20 +185,8 @@ Rules:
 - SUMMARY: Concise 1-2 sentence professional overview."""
 
 MATCH_INSTRUCTION = """Compare the candidate's resume against each job posting below.
-Respond strictly using this labeled section format:
-
-VALID: true
-VERDICT_PERCENTAGE: 0-100 (how well the resume matches, 100 = perfect)
-END FLAGS
-ANALYSIS:
-1-2 sentences: what skills match and what's missing. Be specific.
-END ANALYSIS
-JOB SUMMARY:
-Job title. Matched skills: skill1, skill2. Gaps: gap1, gap2. Fit: Good Fit/Overqualified/Underqualified. Actions: step1, step2.
-END JOB SUMMARY
 
 Scoring: 80-100 strong match, 50-79 partial, 0-49 weak.
-Be concise: no greetings, no preamble, no markdown.
 
 Candidate Resume:
 Skills: {skills}
@@ -271,8 +273,9 @@ def _sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
-async def _scan_event_stream(messages: list, max_tokens: int | None = None, company_data: dict | None = None, original_text: str = "") -> str:
+async def _scan_event_stream(messages: list, max_tokens: int | None = None, company_data: dict | None = None, original_text: str = "", endpoint: str = "scan") -> str:
     """Stream an AI scan, emitting SSE progress events and a final result."""
+    log.info("[%s] Starting scan stream", endpoint)
     yield _sse({"type": "progress", "percent": 5, "stage": "Preparing request"})
     first = True
     pieces: list[str] = []
@@ -291,10 +294,11 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
                 pct = min(88, 30 + int(token_count / 12))
                 yield _sse({"type": "progress", "percent": pct, "stage": "Analyzing"})
     except asyncio.TimeoutError:
+        log.error("[%s] AI timed out after 300s (%d tokens received)", endpoint, token_count)
         yield _sse({"type": "error", "error": "The AI service took too long to respond. Please try again."})
         return
     except Exception as e:  # noqa: BLE001
-        log.error("Scan stream error: %s: %s", type(e).__name__, e)
+        log.error("[%s] Stream error: %s: %s (tokens=%d)", endpoint, type(e).__name__, e, token_count)
         yield _sse({"type": "error", "error": "Hmm, I can't scan at the moment. Please try again."})
         return
 
@@ -303,16 +307,17 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
         # Strip web-search tool-call blocks (opener + closer share the same marker)
         message_content = re.sub(r"<\|tool_call\|>.*?<\|tool_call\|>", "", message_content, flags=re.DOTALL)
         message_content = message_content.replace("<|tool_call|>", "").strip()
-        log.info("Raw model output (first 500 chars): %s", message_content[:500])
+        log.info("[%s] Raw model output (tokens=%d, chars=%d): %s", endpoint, token_count, len(message_content), message_content[:500])
 
         result = _parse_custom(message_content) if message_content else None
         if not isinstance(result, dict):
             result = _parse_json(message_content) if message_content else None
         if not isinstance(result, dict):
+            log.error("[%s] Parse failed after %d tokens. Raw: %s", endpoint, token_count, message_content[:500])
             yield _sse({"type": "error", "error": "The AI returned an unreadable response. Please try again."})
             return
 
-        log.info("Parsed scan result: %s", result)
+        log.info("[%s] Parsed result: %s", endpoint, result)
         yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
 
         email_data: list[dict] = []
@@ -335,7 +340,7 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
         resp["email_verifications"] = email_data
         yield _sse({"type": "result", "data": resp})
     except Exception as e:  # noqa: BLE001
-        log.error("Scan post-processing error: %s: %s", type(e).__name__, e)
+        log.error("[%s] Post-processing error: %s: %s", endpoint, type(e).__name__, e)
         yield _sse({"type": "error", "error": "The AI returned an unreadable response. Please try again."})
 
 
@@ -361,7 +366,16 @@ async def scan(req: ScanRequest, request: Request):
         {"role": "system", "content": load_system_prompt()},
         {"role": "user", "content": content},
     ]
-    return StreamingResponse(_scan_event_stream(messages, original_text=""), media_type="text/event-stream")
+
+    async def _limited_stream():
+        await ai_limiter.acquire()
+        try:
+            async for event in _scan_event_stream(messages, original_text="", endpoint="scan-image"):
+                yield event
+        finally:
+            ai_limiter.release()
+
+    return StreamingResponse(_limited_stream(), media_type="text/event-stream")
 
 
 @router.post("/api/scan-text")
@@ -397,74 +411,128 @@ async def scan_text(req: ScanTextRequest, request: Request):
         {"role": "system", "content": load_system_prompt()},
         {"role": "user", "content": user_content},
     ]
-    return StreamingResponse(_scan_event_stream(messages, company_data=company_payload, original_text=req.text), media_type="text/event-stream")
+
+    async def _limited_stream():
+        await ai_limiter.acquire()
+        try:
+            async for event in _scan_event_stream(messages, company_data=company_payload, original_text=req.text, endpoint="scan-text"):
+                yield event
+        finally:
+            ai_limiter.release()
+
+    return StreamingResponse(_limited_stream(), media_type="text/event-stream")
 
 
-@router.post("/api/analyze-resume", response_model=ResumeData)
-@limiter.limit("5/minute")
-async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request):
-    if req.file_type.lower() in ("png", "jpg", "jpeg"):
-        content: list[dict] = [
-            {"type": "text", "text": RESUME_INSTRUCTION},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{req.file_base64}"}},
-        ]
-    else:
-        text = _extract_resume_text(req.file_base64, req.file_type)
-        content = [{"type": "text", "text": f"{RESUME_INSTRUCTION}\n\nResume text:\n{text[:8000]}"}]
-
-    messages = [
-        {"role": "system", "content": load_resume_prompt()},
-        {"role": "user", "content": content},
-    ]
-
-    raw = await chat(messages, max_tokens=2048)
-    log.info("Resume AI raw response (%d chars): %s", len(raw), raw[:500])
-
-    result = _parse_resume_custom(raw)
-    log.info("Resume parsed result: %s", result)
-
-    if not isinstance(result, dict):
-        log.warning("Resume parse failed. Raw: %s", raw[:500])
-        return ResumeData()
-
-    data: dict = {}
-    for key in ("skills", "job_titles", "industries"):
-        val = result.get(key)
-        data[key] = [str(x) for x in val if isinstance(x, (str, int, float))] if isinstance(val, list) else []
+async def _resume_event_stream(messages: list, max_tokens: int | None = None, endpoint: str = "resume") -> str:
+    """Stream a resume analysis, emitting SSE progress events and a final result."""
+    log.info("[%s] Starting resume stream", endpoint)
+    yield _sse({"type": "progress", "percent": 5, "stage": "Preparing request"})
+    first = True
+    pieces: list[str] = []
+    token_count = 0
     try:
-        data["experience_years"] = float(result.get("experience_years") or 0)
-    except (TypeError, ValueError):
-        data["experience_years"] = 0.0
-    data["summary"] = str(result.get("summary") or "")
-    return ResumeData(**data)
+        deadline = _time.monotonic() + 300.0
+        async for piece in chat_stream_pieces(messages, max_tokens=max_tokens):
+            if _time.monotonic() > deadline:
+                raise asyncio.TimeoutError()
+            pieces.append(piece)
+            token_count += 1
+            if first:
+                first = False
+                yield _sse({"type": "progress", "percent": 30, "stage": "Sent to AI"})
+            elif token_count % 4 == 0:
+                pct = min(88, 30 + int(token_count / 12))
+                yield _sse({"type": "progress", "percent": pct, "stage": "Analyzing"})
+    except asyncio.TimeoutError:
+        log.error("[%s] AI timed out after 300s (%d tokens received)", endpoint, token_count)
+        yield _sse({"type": "error", "error": "The AI service took too long to respond. Please try again."})
+        return
+    except Exception as e:  # noqa: BLE001
+        log.error("[%s] Stream error: %s: %s (tokens=%d)", endpoint, type(e).__name__, e, token_count)
+        yield _sse({"type": "error", "error": "Hmm, I can't analyze the resume at the moment. Please try again."})
+        return
+
+    try:
+        message_content = "".join(pieces).strip()
+        log.info("[%s] Raw model output (tokens=%d, chars=%d): %s", endpoint, token_count, len(message_content), message_content[:500])
+
+        yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
+
+        result = _parse_resume_custom(message_content)
+        if not isinstance(result, dict):
+            log.warning("[%s] Parse failed after %d tokens. Raw: %s", endpoint, token_count, message_content[:500])
+            yield _sse({"type": "result", "data": ResumeData().model_dump()})
+            return
+
+        data: dict = {}
+        for key in ("skills", "job_titles", "industries"):
+            val = result.get(key)
+            data[key] = [str(x) for x in val if isinstance(x, (str, int, float))] if isinstance(val, list) else []
+        try:
+            data["experience_years"] = float(result.get("experience_years") or 0)
+        except (TypeError, ValueError):
+            data["experience_years"] = 0.0
+        data["summary"] = str(result.get("summary") or "")
+
+        yield _sse({"type": "result", "data": data})
+    except Exception as e:  # noqa: BLE001
+        log.error("[%s] Post-processing error: %s: %s", endpoint, type(e).__name__, e)
+        yield _sse({"type": "error", "error": "The AI returned an unreadable response. Please try again."})
 
 
-@router.post("/api/match-resume", response_model=MatchResponse)
-@limiter.limit("10/minute")
-async def match_resume_endpoint(req: MatchRequest, request: Request):
-    prompt = MATCH_INSTRUCTION.format(
-        skills=", ".join(req.resume.skills),
-        experience=req.resume.experience_years,
-        titles=", ".join(req.resume.job_titles),
-        industries=", ".join(req.resume.industries),
-        summary=req.resume.summary,
-        jobs=json.dumps([{"id": j.id, "title": j.title, "summary": j.summary} for j in req.jobs], indent=2),
-    )
-    result = await chat_custom([{"role": "user", "content": prompt}], max_tokens=4096)
-    log.info("Match parsed result: %s", result)
+async def _match_event_stream(messages: list, max_tokens: int | None = None, endpoint: str = "match") -> str:
+    """Stream a resume-job match, emitting SSE progress events and a final result."""
+    log.info("[%s] Starting match stream", endpoint)
+    yield _sse({"type": "progress", "percent": 5, "stage": "Preparing request"})
+    first = True
+    pieces: list[str] = []
+    token_count = 0
+    try:
+        deadline = _time.monotonic() + 300.0
+        async for piece in chat_stream_pieces(messages, max_tokens=max_tokens):
+            if _time.monotonic() > deadline:
+                raise asyncio.TimeoutError()
+            pieces.append(piece)
+            token_count += 1
+            if first:
+                first = False
+                yield _sse({"type": "progress", "percent": 30, "stage": "Sent to AI"})
+            elif token_count % 4 == 0:
+                pct = min(88, 30 + int(token_count / 12))
+                yield _sse({"type": "progress", "percent": pct, "stage": "Matching"})
+    except asyncio.TimeoutError:
+        log.error("[%s] AI timed out after 300s (%d tokens received)", endpoint, token_count)
+        yield _sse({"type": "error", "error": "The AI service took too long to respond. Please try again."})
+        return
+    except Exception as e:  # noqa: BLE001
+        log.error("[%s] Stream error: %s: %s (tokens=%d)", endpoint, type(e).__name__, e, token_count)
+        yield _sse({"type": "error", "error": "Hmm, I can't match resumes at the moment. Please try again."})
+        return
 
-    matches: list[JobMatchResult] = []
+    try:
+        message_content = "".join(pieces).strip()
+        log.info("[%s] Raw model output (tokens=%d, chars=%d): %s", endpoint, token_count, len(message_content), message_content[:500])
 
-    if isinstance(result, dict):
+        yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
+
+        result = _parse_custom(message_content) if message_content else None
+        if not isinstance(result, dict):
+            log.error("[%s] Parse failed after %d tokens. Raw: %s", endpoint, token_count, message_content[:500])
+            result = _parse_json(message_content) if message_content else None
+        if not isinstance(result, dict):
+            yield _sse({"type": "error", "error": "The AI returned an unreadable response. Please try again."})
+            return
+
+        # Post-process into match result format
         analysis = result.get("analysis", "")
         job_summary = result.get("job_summary", "")
         verdict = result.get("verdict_percentage", 0)
         score = max(0, min(100, int(verdict) if verdict else 0))
         label = "High Compatibility" if score >= 80 else "Medium Compatibility" if score >= 50 else "Low Compatibility"
 
-        skill_gaps = []
-        matched_skills = []
-        recommended_actions = []
+        skill_gaps: list[str] = []
+        matched_skills: list[str] = []
+        recommended_actions: list[str] = []
         experience_fit = ""
         if job_summary:
             parts = [p.strip() for p in re.split(r"[.;]", job_summary) if p.strip()]
@@ -485,17 +553,76 @@ async def match_resume_endpoint(req: MatchRequest, request: Request):
                     if len(items) > 1:
                         recommended_actions = [x.strip() for x in re.split(r"[,;]", items[1]) if x.strip()]
 
-        if req.jobs:
-            matches.append(JobMatchResult(
-                job_id=req.jobs[0].id,
-                score=score,
-                label=label,
-                skill_gaps=skill_gaps,
-                matched_skills=matched_skills,
-                reasoning=analysis,
-                experience_fit=experience_fit,
-                industry_fit="Moderate",
-                recommended_actions=recommended_actions,
-            ))
+        data = {
+            "matches": [{
+                "job_id": "",
+                "score": score,
+                "label": label,
+                "skill_gaps": skill_gaps,
+                "matched_skills": matched_skills,
+                "reasoning": analysis,
+                "experience_fit": experience_fit,
+                "industry_fit": "Moderate",
+                "recommended_actions": recommended_actions,
+            }],
+        }
 
-    return MatchResponse(matches=matches)
+        yield _sse({"type": "result", "data": data})
+    except Exception as e:  # noqa: BLE001
+        log.error("[%s] Post-processing error: %s: %s", endpoint, type(e).__name__, e)
+        yield _sse({"type": "error", "error": "The AI returned an unreadable response. Please try again."})
+
+
+@router.post("/api/analyze-resume")
+@limiter.limit("5/minute")
+async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request):
+    if req.file_type.lower() in ("png", "jpg", "jpeg"):
+        content: list[dict] = [
+            {"type": "text", "text": RESUME_INSTRUCTION},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{req.file_base64}"}},
+        ]
+    else:
+        text = _extract_resume_text(req.file_base64, req.file_type)
+        content = [{"type": "text", "text": f"{RESUME_INSTRUCTION}\n\nResume text:\n{text[:8000]}"}]
+
+    messages = [
+        {"role": "system", "content": load_resume_prompt()},
+        {"role": "user", "content": content},
+    ]
+
+    async def _limited_stream():
+        await ai_limiter.acquire()
+        try:
+            async for event in _resume_event_stream(messages, max_tokens=2048, endpoint="analyze-resume"):
+                yield event
+        finally:
+            ai_limiter.release()
+
+    return StreamingResponse(_limited_stream(), media_type="text/event-stream")
+
+
+@router.post("/api/match-resume")
+@limiter.limit("10/minute")
+async def match_resume_endpoint(req: MatchRequest, request: Request):
+    prompt = MATCH_INSTRUCTION.format(
+        skills=", ".join(req.resume.skills),
+        experience=req.resume.experience_years,
+        titles=", ".join(req.resume.job_titles),
+        industries=", ".join(req.resume.industries),
+        summary=req.resume.summary,
+        jobs=json.dumps([{"id": j.id, "title": j.title, "summary": j.summary} for j in req.jobs], indent=2),
+    )
+    messages = [
+        {"role": "system", "content": load_match_prompt()},
+        {"role": "user", "content": prompt},
+    ]
+
+    async def _limited_stream():
+        await ai_limiter.acquire()
+        try:
+            async for event in _match_event_stream(messages, max_tokens=2048, endpoint="match-resume"):
+                yield event
+        finally:
+            ai_limiter.release()
+
+    return StreamingResponse(_limited_stream(), media_type="text/event-stream")

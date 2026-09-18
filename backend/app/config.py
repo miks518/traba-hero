@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     send_system_prompt: bool = True
     sec_api_url: str = "https://gwwso2.sec.gov.ph/companyinformationlookup/1.0.0"
     sec_api_key: str = ""
+    ai_max_concurrent: int = 2
+    ai_max_queue_depth: int = 10
+    ai_acquire_timeout: float = 10.0
+    ai_call_timeout: float = 120.0
 
     @property
     def effective_ai_api_key(self) -> str:

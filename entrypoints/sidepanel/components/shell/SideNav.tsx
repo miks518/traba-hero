@@ -72,7 +72,7 @@ export function SideNav({ activeView, onTabClick, scannedJobsCount = 0, scanning
         {scanningProgress && (
           <div className="flex items-center gap-1.5 text-secondary">
             <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-ping" />
-            <span className="text-[10px] font-label">Scanning… {scanningProgress.percent}%</span>
+            <span className="text-[10px] font-label">{scanningProgress.stage}… {scanningProgress.percent}%</span>
           </div>
         )}
       </div>
