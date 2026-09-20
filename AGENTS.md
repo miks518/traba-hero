@@ -20,6 +20,9 @@ npm run zip              # Package for distribution
 # Backend (from backend/)
 python -m uvicorn app.main:app --reload --port 8000
 
+# Backend tests (from backend/)
+python -m pytest tests/ -v
+
 # Backend setup (first time)
 cd backend
 python -m venv .venv
@@ -34,12 +37,15 @@ Copy-Item .env.example .env
 - `entrypoints/background.ts` — Opens sidepanel on toolbar click
 - `entrypoints/content.tsx` — Element picker overlay for screenshot capture
 - `entrypoints/sidepanel/` — Main React app (views, components, types)
-- `entrypoints/sidepanel/lib/api.ts` — HTTP client → `backend URL`
+- `entrypoints/sidepanel/lib/api.ts` — HTTP client → `backend URL`; sends `X-Trabahero-Client-Key` header on all requests
+- `entrypoints/sidepanel/lib/imageUtils.ts` — Screenshot compression (JPEG 0.8, max 1920px)
 - `entrypoints/sidepanel/views/ScamScanView.tsx` — Job scanning with progress streaming
 - `entrypoints/sidepanel/views/ResumeMatchView.tsx` — Resume analysis + job matching with progress
 - `backend/app/routers/scan.py` — All API endpoints + SSE streaming helpers
 - `backend/app/services/lm_client.py` — OpenAI-compatible client (OpenRouter/LM Studio)
 - `backend/app/config.py` — Settings via pydantic-settings, loads from `backend/.env`
+- `backend/app/core/auth.py` — Client key validation (`require_client_key` dependency)
+- `backend/app/rate_limit.py` — Rate limiting with proxy-safe IP detection (X-Forwarded-For/X-Real-IP)
 - `backend/app/ai_limiter.py` — Concurrency control (semaphore + queue depth)
 
 ## API Endpoints
@@ -67,6 +73,7 @@ All prompts are in `backend/` root, resolved via `Path(__file__).resolve().paren
 
 **Extension** (root `.env`):
 - `WXT_API_BASE` — Backend URL (e.g. `https://traba-hero-production.up.railway.app`)
+- `WXT_CLIENT_KEY` — Shared secret for backend auth; must match `CLIENT_SECRET_KEY` in `backend/.env`
 
 **Backend** (`backend/.env`):
 - `AI_API_KEY` — OpenRouter API key
@@ -75,6 +82,7 @@ All prompts are in `backend/` root, resolved via `Path(__file__).resolve().paren
 - `LM_STUDIO_URL` — Local LM Studio URL (fallback)
 - `AI_TEMPERATURE`, `AI_TOP_P`, `AI_MAX_TOKENS` — Generation controls
 - `AI_MAX_CONCURRENT`, `AI_MAX_QUEUE_DEPTH` — Concurrency limits
+- `CLIENT_SECRET_KEY` — Shared secret for extension auth; leave empty to disable (dev mode)
 
 ## Design System
 
@@ -95,6 +103,7 @@ See `DESIGN.md` for the full design system: colors (light/dark themes), typograp
 - `wxt prepare` runs on `postinstall` — generates `.wxt/` directory with tsconfig and types
 - `.wxt/` and `.output/` are gitignored — never commit them
 - `WXT_API_BASE` is a build-time variable — restart `npm run dev` after changing `.env`
+- `WXT_CLIENT_KEY` must match `CLIENT_SECRET_KEY` in `backend/.env` — also a build-time variable
 - OpenRouter model IDs have no `~` prefix — the `~` in the UI copy snippet is decorative
 - Backend prompt files are in `backend/` root, NOT the project root
 - No lint/format/test commands configured — only `npm run compile` for type checking

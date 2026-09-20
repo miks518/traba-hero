@@ -18,20 +18,22 @@
 
 ---
 
-### [ ] Task 1.2: Client-Side Image Compression
+### [x] Task 1.2: Client-Side Image Compression
 - **Objective:** Prevent high-resolution screenshots from triggering HTTP 413 (Payload Too Large) or slowing down network requests.
 - **Frontend Changes (`entrypoints/content/capture.ts`):**
   - Before converting canvas screenshots to base64, compress images to JPEG format with a quality parameter (e.g., `canvas.toDataURL('image/jpeg', 0.8)`).
   - Enforce a maximum dimension constraint (e.g., max width/height of 1920px) before sending payload to `POST /api/scan`.
 - **Verification:** Test multi-screenshot capture on high-DPI displays and verify total request size stays under 4MB.
+- **Implemented:** Created `imageUtils.ts` with `compressImage()` that scales to 1920px max and outputs JPEG at 0.8 quality. `ScamScanView.tsx` now compresses each screenshot before storing in state. TypeScript compiles clean.
 
 ---
 
-### [ ] Task 1.3: Reverse-Proxy Safe Rate Limiting
+### [x] Task 1.3: Reverse-Proxy Safe Rate Limiting
 - **Objective:** Prevent `slowapi` rate limiter from blocking all users when deployed behind Nginx/Cloudflare proxies.
 - **Backend Changes (`backend/app/core/rate_limit.py`):**
   - Update the key function for `slowapi` to check for `X-Forwarded-For` or `X-Real-IP` headers first before defaulting to `request.client.host`.
 - **Verification:** Test local requests with simulated `X-Forwarded-For` headers to ensure IP tracking functions correctly.
+- **Implemented:** Custom `_get_client_ip` key function in `rate_limit.py` checks `X-Forwarded-For` (first IP), then `X-Real-IP`, then falls back to `get_remote_address`. 6 pytest tests pass covering single/multi IP, priority, whitespace handling.
 
 ---
 

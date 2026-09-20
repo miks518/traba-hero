@@ -1,26 +1,10 @@
 import type { ApiScanResponse, ResumeData, ScannedJob } from '../types';
 
-const API_BASE = 'http://localhost:8000';
-
-async function getClientKey(): Promise<string> {
-  return new Promise((resolve) => {
-    // @ts-ignore - chrome.storage is available in Chrome extension context
-    chrome.storage.local.get(['trabahero_client_key'], (result: Record<string, string>) => {
-      if (result.trabahero_client_key) {
-        resolve(result.trabahero_client_key);
-      } else {
-        const key = crypto.randomUUID();
-        // @ts-ignore - chrome.storage is available in Chrome extension context
-        chrome.storage.local.set({ trabahero_client_key: key });
-        resolve(key);
-      }
-    });
-  });
-}
+const API_BASE = import.meta.env.WXT_API_BASE;
+const CLIENT_KEY = import.meta.env.WXT_CLIENT_KEY;
 
 async function authHeaders(): Promise<Record<string, string>> {
-  const key = await getClientKey();
-  return { 'X-Trabahero-Client-Key': key };
+  return { 'X-Trabahero-Client-Key': CLIENT_KEY ?? '' };
 }
 
 export interface ScanProgress {

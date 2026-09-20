@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError } from '../components/scan';
 import { Icon, ToastContainer, useToastManager } from '../components/common';
 import { scanScreenshotStream, ApiRequestError, type ScanProgress } from '../lib/api';
+import { compressImage } from '../lib/imageUtils';
 import type { ScanResult, IconName, ScannedJob, ApiScanResponse } from '../types';
 
 export interface ScamScanViewProps {
@@ -128,13 +129,14 @@ export function ScamScanView({
     return () => abortRef.current?.abort();
   }, []);
 
-  const handleScreenshotReady = useCallback((dataUrl: string) => {
+  const handleScreenshotReady = useCallback(async (dataUrl: string) => {
+    const compressed = await compressImage(dataUrl);
     setScreenshots((prev) => {
       if (prev.length >= MAX_SCREENSHOTS) {
         showToast(`You can select up to ${MAX_SCREENSHOTS} images only. Remove one to add another.`, 'error');
         return prev;
       }
-      return [...prev, dataUrl];
+      return [...prev, compressed];
     });
   }, [showToast]);
 

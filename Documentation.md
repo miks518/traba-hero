@@ -737,6 +737,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | SSE progress update interval | ≤ 500ms | Frequency of progress events from backend |
 | Content script injection | < 100ms | Time for FAB to appear after page load |
 | Extension bundle size | < 500KB | Total extension size (excluding AI models) |
+| Screenshot payload | < 1MB per image | JPEG compression at 0.8 quality, max 1920px dimension |
 
 ---
 
@@ -875,7 +876,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Queue depth | Up to 10 queued requests before 503 (configurable) |
 | Horizontal scaling | FastAPI async design supports multiple worker processes |
 | AI provider flexibility | OpenRouter for cloud scale; LM Studio for local/offline |
-| Rate limiting | Per-IP rate limits prevent abuse (5-10 req/min) |
+| Rate limiting | Per-IP rate limits prevent abuse (5-10 req/min); proxy-safe via X-Forwarded-For/X-Real-IP header inspection |
 | Stateless backend | No session state stored server-side |
 | Configurable limits | All concurrency/queue/timeout values in `backend/.env` |
 
@@ -936,6 +937,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Requirement | Description |
 |-------------|-------------|
 | Extension env | `WXT_API_BASE` — backend URL (build-time variable) |
+| Extension env | `WXT_CLIENT_KEY` — shared secret for backend auth; must match `CLIENT_SECRET_KEY` |
 | Backend env | `AI_API_KEY`, `AI_API_URL`, `MODEL_NAME` — AI provider config |
 | Backend env | `LM_STUDIO_URL` — local LM Studio fallback URL |
 | Backend env | `AI_TEMPERATURE`, `AI_TOP_P`, `AI_MAX_TOKENS` — generation controls |
@@ -1131,16 +1133,16 @@ Matches a resume against scanned job postings.
 | FR-28 | InvalidContentError.tsx, scan.py | Implemented |
 | FR-29 | ResumeMatchView, App.tsx | Implemented |
 | FR-30 | entrypoints/popup/ | Implemented |
-| NFR-01 | All components | Implemented |
+| NFR-01 | All components, imageUtils.ts | Implemented |
 | NFR-02 | api.ts, ai_limiter.py, scan.py | Implemented |
-| NFR-03 | wxt.config.ts, config.py, core/auth.py | Implemented |
+| NFR-03 | wxt.config.ts, config.py, core/auth.py, api.ts | Implemented |
 | NFR-04 | TopAppBar, tailwind.css, Toast | Implemented |
 | NFR-05 | wxt.config.ts, package.json, requirements.txt | Implemented |
 | NFR-06 | Project structure, TypeScript, Tailwind | Implemented |
-| NFR-07 | ai_limiter.py, rate_limit.py | Implemented |
+| NFR-07 | ai_limiter.py, rate_limit.py (_get_client_ip) | Implemented |
 | NFR-08 | No auth, no persistence, local AI option | Implemented |
 | NFR-09 | scan.py (language param), system prompts | Implemented |
-| NFR-10 | .env files, config.py, App.tsx | Implemented |
+| NFR-10 | .env files, config.py, App.tsx, api.ts | Implemented |
 
 ---
 
