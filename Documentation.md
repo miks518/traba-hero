@@ -1,7 +1,7 @@
 # Trabahero — Functional & Non-Functional Requirements
 
 **Project:** Trabahero — A Universal Visual Job-Scam Detection System for Filipino Job Seekers
-**Version:** 0.1.0
+**Version:** 0.2.0
 **Last Updated:** 2026-09-20
 
 ---
@@ -785,6 +785,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | HTTPS enforcement | API calls to backend use HTTP (local) or HTTPS (production) |
 | No eval() usage | No dynamic code execution in extension or backend |
 | Sanitized output | AI responses are parsed, not rendered as raw HTML |
+| Client authentication | Extension sends `X-Trabahero-Client-Key` header; backend validates via `require_client_key` dependency against `CLIENT_SECRET_KEY` env var; returns 401 on mismatch |
 
 ---
 
@@ -940,6 +941,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Backend env | `AI_TEMPERATURE`, `AI_TOP_P`, `AI_MAX_TOKENS` — generation controls |
 | Backend env | `AI_MAX_CONCURRENT`, `AI_MAX_QUEUE_DEPTH` — concurrency limits |
 | Backend env | `SEC_API_KEY` — SEC Philippines API key (optional) |
+| Backend env | `CLIENT_SECRET_KEY` — shared secret for extension auth; leave empty to disable (dev mode) |
 | Theme persistence | `chrome.storage.local` stores `theme`, `textSize`, `fabEnabled` |
 | Startup order | LM Studio (if local) → Backend → Extension |
 | Dev workflow | `npm run dev` for extension; `uvicorn --reload` for backend |
@@ -1026,6 +1028,8 @@ interface ScannedJob {
 ---
 
 ## 6. API Reference
+
+All API endpoints (except `GET /health`) require the `X-Trabahero-Client-Key` header. The extension generates a unique key per instance, stores it in `chrome.storage.local`, and sends it with every request. The backend validates this against the `CLIENT_SECRET_KEY` environment variable. If `CLIENT_SECRET_KEY` is empty, auth is disabled (development mode). Requests without a valid key receive `401 Unauthorized`.
 
 ### POST /api/scan
 
@@ -1129,7 +1133,7 @@ Matches a resume against scanned job postings.
 | FR-30 | entrypoints/popup/ | Implemented |
 | NFR-01 | All components | Implemented |
 | NFR-02 | api.ts, ai_limiter.py, scan.py | Implemented |
-| NFR-03 | wxt.config.ts, config.py | Implemented |
+| NFR-03 | wxt.config.ts, config.py, core/auth.py | Implemented |
 | NFR-04 | TopAppBar, tailwind.css, Toast | Implemented |
 | NFR-05 | wxt.config.ts, package.json, requirements.txt | Implemented |
 | NFR-06 | Project structure, TypeScript, Tailwind | Implemented |
@@ -1140,4 +1144,4 @@ Matches a resume against scanned job postings.
 
 ---
 
-*Document generated from codebase analysis. All requirements reflect the current implemented state of Trabahero v0.1.0.*
+*Document generated from codebase analysis. All requirements reflect the current implemented state of Trabahero v0.2.0.*

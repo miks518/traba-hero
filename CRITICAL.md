@@ -6,7 +6,7 @@
 
 ## Phase 1: Security & API Protection
 
-### [ ] Task 1.1: Extension-to-Backend Request Authentication
+### [x] Task 1.1: Extension-to-Backend Request Authentication
 - **Objective:** Prevent unauthorized external users from draining LLM API credits by calling backend endpoints directly.
 - **Frontend Changes (`entrypoints/`):**
   - Create an API key or session token generator in `chrome.storage.local`.
@@ -14,6 +14,7 @@
 - **Backend Changes (`backend/`):**
   - Create a lightweight middleware or FastAPI dependency (`backend/app/core/auth.py`) to validate incoming headers against an environment variable (`CLIENT_SECRET_KEY`).
 - **Verification:** Unit test `POST /api/scan` without the key to confirm it returns `401 Unauthorized`.
+- **Implemented:** Shared secret key generated per extension instance via `crypto.randomUUID()`, stored in `chrome.storage.local`, sent as `X-Trabahero-Client-Key` header. Backend validates via `require_client_key` FastAPI dependency. Auth disabled when `CLIENT_SECRET_KEY` is empty (dev mode). 13 pytest tests pass. TypeScript compiles clean.
 
 ---
 
