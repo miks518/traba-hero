@@ -1,7 +1,6 @@
-"""Google Custom Search API — replaces DuckDuckGo for reliable web searches."""
+"""Brave Search API — reliable web searches (2000 queries/month free, no credit card)."""
 
 import logging
-from urllib.parse import quote_plus
 
 import httpx
 
@@ -9,53 +8,53 @@ from app.config import settings
 
 log = logging.getLogger("trabahero")
 
-GOOGLE_SEARCH_URL = "https://www.googleapis.com/customsearch/v1"
+BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 
 
-def google_search(query: str, num_results: int = 5) -> list[dict]:
-    """Run a Google Custom Search query. Returns list of {title, snippet, url}."""
-    if not settings.google_search_api_key or not settings.google_search_cx:
-        log.warning("Google Search not configured — missing API key or CX")
+def brave_search(query: str, num_results: int = 5) -> list[dict]:
+    """Run a Brave Search query. Returns list of {title, snippet, url}."""
+    if not settings.brave_search_api_key:
+        log.warning("Brave Search not configured — missing API key")
         return []
 
     try:
         resp = httpx.get(
-            GOOGLE_SEARCH_URL,
-            params={
-                "key": settings.google_search_api_key,
-                "cx": settings.google_search_cx,
-                "q": query,
-                "num": min(num_results, 10),
+            BRAVE_SEARCH_URL,
+            headers={
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip",
+                "X-Subscription-Token": settings.brave_search_api_key,
             },
+            params={"q": query, "count": min(num_results, 20)},
             timeout=10,
         )
         if resp.status_code != 200:
-            log.warning("Google Search returned %d: %s", resp.status_code, resp.text[:200])
+            log.warning("Brave Search returned %d: %s", resp.status_code, resp.text[:200])
             return []
 
         data = resp.json()
-        items = data.get("items", [])
+        results = data.get("web", {}).get("results", [])
         return [
             {
                 "title": item.get("title", ""),
-                "snippet": item.get("snippet", "")[:300],
-                "url": item.get("link", ""),
+                "snippet": item.get("description", "")[:300],
+                "url": item.get("url", ""),
             }
-            for item in items
+            for item in results
         ]
     except Exception as e:
-        log.warning("Google Search failed for '%s': %s", query, e)
+        log.warning("Brave Search failed for '%s': %s", query, e)
         return []
 
 
 def search_company(company_name: str) -> dict:
-    """Search for company info using Google. Returns structured results."""
-    legitimacy = google_search(f"{company_name} Philippines company", 5)
-    sec = google_search(f"{company_name} SEC registration Philippines", 3)
-    scam = google_search(f"{company_name} scam fraud warning Philippines", 3)
-    linkedin = google_search(f"{company_name} LinkedIn company page", 2)
-    dole = google_search(f"{company_name} DOLE licensed recruitment agency Philippines", 2)
-    facebook = google_search(f"{company_name} Facebook page Philippines", 2)
+    """Search for company info using Brave. Returns structured results."""
+    legitimacy = brave_search(f"{company_name} Philippines company", 5)
+    sec = brave_search(f"{company_name} SEC registration Philippines", 3)
+    scam = brave_search(f"{company_name} scam fraud warning Philippines", 3)
+    linkedin = brave_search(f"{company_name} LinkedIn company page", 2)
+    dole = brave_search(f"{company_name} DOLE licensed recruitment agency Philippines", 2)
+    facebook = brave_search(f"{company_name} Facebook page Philippines", 2)
 
     return {
         "company": company_name,
@@ -108,7 +107,7 @@ def search_job_posting(text: str) -> str:
     company = _extract_company_name(text)
     if not company:
         return ""
-    log.info("Google Search: verifying company '%s'", company)
+    log.info("Brave Search: verifying company '%s'", company)
     data = search_company(company)
     return format_search_results(data)
 
@@ -120,7 +119,7 @@ def search_job_posting_data(text: str) -> dict:
     company = _extract_company_name(text)
     if not company:
         return {"company_name": None, "results": {}}
-    log.info("Google Search data: verifying company '%s'", company)
+    log.info("Brave Search data: verifying company '%s'", company)
     data = search_company(company)
     summary = {
         "company": company,

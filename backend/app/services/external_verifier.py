@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 import whois
-from app.services.google_search import google_search
+from app.services.brave_search import brave_search
 
 log = logging.getLogger("trabahero")
 
@@ -256,7 +256,7 @@ def verify_websites(text: str) -> list[WebsiteCheck]:
 
 def _search_social(company: str, platform: str, query: str) -> SocialCheck:
     try:
-        results = google_search(query, 3)
+        results = brave_search(query, 3)
         for r in results:
             title = (r.get("title") or "").lower()
             url = (r.get("url") or "").lower()
@@ -285,7 +285,7 @@ def verify_social(company: str) -> list[SocialCheck]:
 
 def _search_gov(company: str, registry: str, query: str) -> GovCheck:
     try:
-        results = google_search(query, 3)
+        results = brave_search(query, 3)
         for r in results:
             title = (r.get("title") or "").lower()
             snippet = (r.get("snippet") or "").lower()

@@ -17,8 +17,7 @@ class Settings(BaseSettings):
     send_system_prompt: bool = True
     sec_api_url: str = "https://gwwso2.sec.gov.ph/companyinformationlookup/1.0.0"
     sec_api_key: str = ""
-    google_search_api_key: str = ""
-    google_search_cx: str = ""
+    brave_search_api_key: str = ""
 
     @property
     def effective_ai_api_key(self) -> str:

@@ -20,7 +20,7 @@ from app.models.schemas import (
 from app.services.image import decode_base64_image
 from app.services.lm_client import chat, chat_json, chat_match, chat_resume, chat_stream_pieces, _parse_custom, _parse_json
 from app.services.web_search import _extract_company_name
-from app.services.google_search import search_job_posting, search_job_posting_data
+from app.services.brave_search import search_job_posting, search_job_posting_data
 from app.services.sec_api import sec_context, sec_data
 from app.services.email_verifier import verify_emails_in_text
 from app.services.external_verifier import verify_all, verification_to_dict
