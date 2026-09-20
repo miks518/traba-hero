@@ -256,11 +256,14 @@ def verify_websites(text: str) -> list[WebsiteCheck]:
 
 def _search_social(company: str, platform: str, query: str) -> SocialCheck:
     try:
-        results = brave_search(query, 3)
+        results = brave_search(query, 5)
+        company_lower = company.lower()
+        # Check that BOTH the platform AND company name appear in the result
         for r in results:
             title = (r.get("title") or "").lower()
             url = (r.get("url") or "").lower()
-            if platform in url or platform in title:
+            combined = title + " " + url
+            if platform in combined and company_lower.split()[0] in combined:
                 return SocialCheck(platform, True, r.get("url"), r.get("title"),
                                    "low", f"Found {platform} page for {company}")
         return SocialCheck(platform, False, None, None, "medium",
@@ -285,11 +288,13 @@ def verify_social(company: str) -> list[SocialCheck]:
 
 def _search_gov(company: str, registry: str, query: str) -> GovCheck:
     try:
-        results = brave_search(query, 3)
+        results = brave_search(query, 5)
+        company_lower = company.lower().split()[0]
         for r in results:
             title = (r.get("title") or "").lower()
             snippet = (r.get("snippet") or "").lower()
-            if registry.lower() in title or registry.lower() in snippet:
+            combined = title + " " + snippet
+            if registry.lower() in combined and company_lower in combined:
                 return GovCheck(registry, True, r.get("title"), "low",
                                 f"Found in {registry} records")
         return GovCheck(registry, False, None, "medium",
