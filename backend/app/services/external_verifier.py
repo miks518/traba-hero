@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 import whois
-from duckduckgo_search import DDGS
+from app.services.google_search import google_search
 
 log = logging.getLogger("trabahero")
 
@@ -256,13 +256,12 @@ def verify_websites(text: str) -> list[WebsiteCheck]:
 
 def _search_social(company: str, platform: str, query: str) -> SocialCheck:
     try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
+        results = google_search(query, 3)
         for r in results:
             title = (r.get("title") or "").lower()
-            href = (r.get("href") or "").lower()
-            if platform in href or platform in title:
-                return SocialCheck(platform, True, r.get("href"), r.get("title"),
+            url = (r.get("url") or "").lower()
+            if platform in url or platform in title:
+                return SocialCheck(platform, True, r.get("url"), r.get("title"),
                                    "low", f"Found {platform} page for {company}")
         return SocialCheck(platform, False, None, None, "medium",
                            f"No {platform} page found for {company}")
@@ -286,12 +285,11 @@ def verify_social(company: str) -> list[SocialCheck]:
 
 def _search_gov(company: str, registry: str, query: str) -> GovCheck:
     try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
+        results = google_search(query, 3)
         for r in results:
             title = (r.get("title") or "").lower()
-            body = (r.get("body") or "").lower()
-            if registry.lower() in title or registry.lower() in body:
+            snippet = (r.get("snippet") or "").lower()
+            if registry.lower() in title or registry.lower() in snippet:
                 return GovCheck(registry, True, r.get("title"), "low",
                                 f"Found in {registry} records")
         return GovCheck(registry, False, None, "medium",
@@ -325,15 +323,14 @@ def verify_scam_lists(company: str, text: str) -> ScamListCheck:
         ]
         all_results = []
         sources = set()
-        with DDGS() as ddgs:
-            for q in queries:
-                results = list(ddgs.text(q, max_results=3))
-                for r in results:
-                    title = (r.get("title") or "").lower()
-                    body = (r.get("body") or "").lower()
-                    if any(w in title + body for w in ["scam", "fraud", "warning", "alert", "beware"]):
-                        all_results.append(r)
-                        sources.add(r.get("href", "")[:50])
+        for q in queries:
+            results = google_search(q, 3)
+            for r in results:
+                title = (r.get("title") or "").lower()
+                snippet = (r.get("snippet") or "").lower()
+                if any(w in title + snippet for w in ["scam", "fraud", "warning", "alert", "beware"]):
+                    all_results.append(r)
+                    sources.add(r.get("url", "")[:50])
 
         if len(all_results) >= 2:
             return ScamListCheck(True, len(all_results), list(sources), "high",
