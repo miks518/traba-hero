@@ -194,20 +194,24 @@ def _check_domain(domain: str) -> DomainCheck:
         if age_months is not None and age_months < 12:
             return DomainCheck(domain, True, age_months, registrar, "medium",
                                f"Domain is {age_months} months old — relatively new")
-        return DomainCheck(domain, True, age_months, registrar, "low",
-                           f"Domain is {age_months} months old — established")
+        if age_months is not None:
+            return DomainCheck(domain, True, age_months, registrar, "low",
+                               f"Domain is {age_months} months old — established")
+        return DomainCheck(domain, True, None, registrar, "medium",
+                           "Domain exists but creation date unknown")
     except Exception:
         return DomainCheck(domain, False, None, None, "medium",
                            "Could not retrieve domain info")
 
 
-_EXCLUDED_DOMAINS = {"com", "ph", "net", "org", "gov", "edu", "mail.gov"}
+_EXCLUDED_DOMAINS = {"com", "ph", "net", "org", "gov", "edu", "mail.gov", "facebook.com", "linkedin.com", "bit.ly"}
 
 
 def _extract_domains(text: str) -> list[str]:
+    domains = set()
+
     # Extract from URLs only (company websites)
     urls = _URL_RE.findall(text)
-    domains = set()
     for url in urls:
         parsed = urlparse(url)
         if parsed.hostname:
@@ -215,8 +219,9 @@ def _extract_domains(text: str) -> list[str]:
             if hostname not in _EXCLUDED_DOMAINS:
                 domains.add(hostname)
 
-    # Bare domains — skip TLD-only
-    for m in _DOMAIN_RE.finditer(text):
+    # Bare domains — strip emails first to avoid fragments like "recruitment.nac"
+    text_no_emails = _EMAIL_RE.sub("", text)
+    for m in _DOMAIN_RE.finditer(text_no_emails):
         d = m.group(1).lower()
         if d not in _EXCLUDED_DOMAINS:
             domains.add(d)
