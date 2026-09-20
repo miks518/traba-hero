@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     ai_acquire_timeout: float = 10.0
     ai_call_timeout: float = 120.0
     client_secret_key: str = ""
-
+    brave_search_api_key: str = ""
     @property
     def effective_ai_api_key(self) -> str:
         for key in (self.ai_api_key, self.openrouter_api_key, self.openai_api_key, self.lm_studio_api_key):

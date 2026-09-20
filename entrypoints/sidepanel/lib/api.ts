@@ -1,6 +1,6 @@
 import type { ApiScanResponse, ResumeData, ScannedJob } from '../types';
 
-const API_BASE = import.meta.env.WXT_API_BASE;
+const API_BASE = 'http://localhost:8000';
 
 async function getClientKey(): Promise<string> {
   return new Promise((resolve) => {

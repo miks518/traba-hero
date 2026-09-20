@@ -18,8 +18,9 @@ from app.models.schemas import (
     RedFlag,
 )
 from app.services.image import decode_base64_image
-from app.services.lm_client import chat, chat_json, chat_custom, chat_resume, chat_stream_pieces, _parse_custom, _parse_json, _parse_resume_custom
-from app.services.web_search import _extract_company_name, search_job_posting, search_job_posting_data
+from app.services.lm_client import chat, chat_json, chat_match, chat_resume, chat_stream_pieces, _parse_custom, _parse_json
+from app.services.web_search import _extract_company_name
+from app.services.brave_search import search_job_posting, search_job_posting_data
 from app.services.sec_api import sec_context, sec_data
 from app.services.email_verifier import verify_emails_in_text
 from app.services.external_verifier import verify_all, verification_to_dict
@@ -332,7 +333,11 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
                  "risk": c.risk, "reason": c.reason}
                 for c in email_checks
             ]
-            company_name = company_data.get("company_name") if company_data else ""
+            company_name = ""
+            if company_data:
+                company_name = company_data.get("company_name", "")
+            if not company_name:
+                company_name = _extract_company_name(verify_text) or ""
             ext_verification = verification_to_dict(verify_all(verify_text, company_name))
 
         resp = _scan_response(result, ext_verification).model_dump()

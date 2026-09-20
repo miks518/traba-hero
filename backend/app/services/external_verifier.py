@@ -7,14 +7,17 @@ from urllib.parse import urlparse
 
 import httpx
 import whois
-from duckduckgo_search import DDGS
+from app.services.brave_search import brave_search
 
 log = logging.getLogger("trabahero")
 
 # ── Philippine phone patterns ────────────────────────────────────────────
 _PH_MOBILE = re.compile(r"(\+63|0)9\d{9}")
 _PH_LANDLINE = re.compile(r"(\+63|0)\d{2,3}\d{7,8}")
-_PH_PHONE = re.compile(r"(?:\+63|0)\d{9,10}")
+_PH_PHONE = re.compile(r"(?:\+63|0)\d{7,10}")
+
+# ── Email extraction ─────────────────────────────────────────────────────
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
 # ── URL / domain extraction ──────────────────────────────────────────────
 _URL_RE = re.compile(r"https?://[^\s<>\"']+")
@@ -107,6 +110,40 @@ _CARRIER_PREFIXES = {
 }
 
 
+_PH_LANDLINE_AREAS = {
+    "02": "Manila/Metro Manila",
+    "032": "Cebu",
+    "033": "Iloilo",
+    "034": "Bacolod",
+    "035": "Tacloban",
+    "036": "Laoag",
+    "038": "Legazpi",
+    "042": "Lucena",
+    "043": "Batangas",
+    "044": "Olongapo",
+    "045": "Clark/Angeles",
+    "046": "Calapan",
+    "049": "Tagaytay",
+    "052": "Naga",
+    "053": "Tacloban",
+    "055": "Sorsogon",
+    "056": "Masbate",
+    "062": "Iloilo",
+    "063": "Bacolod",
+    "064": "Roxas",
+    "072": "Baguio",
+    "074": "La Trinidad",
+    "075": "Dagupan",
+    "077": "Cabanatuan",
+    "082": "Davao",
+    "083": "General Santos",
+    "085": "Zamboanga",
+    "086": "Cagayan de Oro",
+    "087": "Butuan",
+    "088": "CDO/Ozamiz",
+}
+
+
 def _check_phone(raw: str) -> PhoneCheck:
     clean = re.sub(r"[\s\-\(\)]", "", raw)
     is_valid = bool(_PH_PHONE.fullmatch(clean))
@@ -114,12 +151,19 @@ def _check_phone(raw: str) -> PhoneCheck:
     if national.startswith("+63"):
         national = "0" + national[3:]
     prefix = national[:4] if len(national) >= 4 else ""
-    carrier = _CARRIER_PREFIXES.get(prefix, "Unknown")
+    carrier = _CARRIER_PREFIXES.get(prefix, "")
 
     if not is_valid:
         return PhoneCheck(raw, False, "", "high", "Invalid Philippine phone format")
-    label = carrier if carrier != "Unknown" else "Philippine"
-    return PhoneCheck(raw, True, carrier, "low", f"Valid {label} number")
+
+    # Determine if mobile or landline
+    if national.startswith("09") and len(national) >= 11:
+        label = carrier if carrier else "Philippine mobile"
+    else:
+        area = national[:3] if len(national) >= 3 else national[:2]
+        label = _PH_LANDLINE_AREAS.get(area, "Philippine landline")
+
+    return PhoneCheck(raw, True, carrier or label, "low", f"Valid {label} number")
 
 
 def verify_phones(text: str) -> list[PhoneCheck]:
@@ -150,25 +194,38 @@ def _check_domain(domain: str) -> DomainCheck:
         if age_months is not None and age_months < 12:
             return DomainCheck(domain, True, age_months, registrar, "medium",
                                f"Domain is {age_months} months old — relatively new")
-        return DomainCheck(domain, True, age_months, registrar, "low",
-                           f"Domain is {age_months} months old — established")
+        if age_months is not None:
+            return DomainCheck(domain, True, age_months, registrar, "low",
+                               f"Domain is {age_months} months old — established")
+        return DomainCheck(domain, True, None, registrar, "medium",
+                           "Domain exists but creation date unknown")
     except Exception:
         return DomainCheck(domain, False, None, None, "medium",
                            "Could not retrieve domain info")
 
 
+_EXCLUDED_DOMAINS = {"com", "ph", "net", "org", "gov", "edu", "mail.gov", "facebook.com", "linkedin.com", "bit.ly"}
+
+
 def _extract_domains(text: str) -> list[str]:
-    urls = _URL_RE.findall(text)
     domains = set()
+
+    # Extract from URLs only (company websites)
+    urls = _URL_RE.findall(text)
     for url in urls:
         parsed = urlparse(url)
         if parsed.hostname:
-            domains.add(parsed.hostname.lower().removeprefix("www."))
-    # Also check bare domains in text
-    for m in _DOMAIN_RE.finditer(text):
+            hostname = parsed.hostname.lower().removeprefix("www.")
+            if hostname not in _EXCLUDED_DOMAINS:
+                domains.add(hostname)
+
+    # Bare domains — strip emails first to avoid fragments like "recruitment.nac"
+    text_no_emails = _EMAIL_RE.sub("", text)
+    for m in _DOMAIN_RE.finditer(text_no_emails):
         d = m.group(1).lower()
-        if d not in ("com", "ph", "net", "org", "gov", "edu"):
+        if d not in _EXCLUDED_DOMAINS:
             domains.add(d)
+
     return list(domains)
 
 
@@ -199,13 +256,15 @@ def verify_websites(text: str) -> list[WebsiteCheck]:
 
 def _search_social(company: str, platform: str, query: str) -> SocialCheck:
     try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
+        results = brave_search(query, 5)
+        company_lower = company.lower()
+        # Check that BOTH the platform AND company name appear in the result
         for r in results:
             title = (r.get("title") or "").lower()
-            href = (r.get("href") or "").lower()
-            if platform in href or platform in title:
-                return SocialCheck(platform, True, r.get("href"), r.get("title"),
+            url = (r.get("url") or "").lower()
+            combined = title + " " + url
+            if platform in combined and company_lower.split()[0] in combined:
+                return SocialCheck(platform, True, r.get("url"), r.get("title"),
                                    "low", f"Found {platform} page for {company}")
         return SocialCheck(platform, False, None, None, "medium",
                            f"No {platform} page found for {company}")
@@ -229,12 +288,13 @@ def verify_social(company: str) -> list[SocialCheck]:
 
 def _search_gov(company: str, registry: str, query: str) -> GovCheck:
     try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
+        results = brave_search(query, 5)
+        company_lower = company.lower().split()[0]
         for r in results:
             title = (r.get("title") or "").lower()
-            body = (r.get("body") or "").lower()
-            if registry.lower() in title or registry.lower() in body:
+            snippet = (r.get("snippet") or "").lower()
+            combined = title + " " + snippet
+            if registry.lower() in combined and company_lower in combined:
                 return GovCheck(registry, True, r.get("title"), "low",
                                 f"Found in {registry} records")
         return GovCheck(registry, False, None, "medium",
@@ -268,15 +328,14 @@ def verify_scam_lists(company: str, text: str) -> ScamListCheck:
         ]
         all_results = []
         sources = set()
-        with DDGS() as ddgs:
-            for q in queries:
-                results = list(ddgs.text(q, max_results=3))
-                for r in results:
-                    title = (r.get("title") or "").lower()
-                    body = (r.get("body") or "").lower()
-                    if any(w in title + body for w in ["scam", "fraud", "warning", "alert", "beware"]):
-                        all_results.append(r)
-                        sources.add(r.get("href", "")[:50])
+        for q in queries:
+            results = google_search(q, 3)
+            for r in results:
+                title = (r.get("title") or "").lower()
+                snippet = (r.get("snippet") or "").lower()
+                if any(w in title + snippet for w in ["scam", "fraud", "warning", "alert", "beware"]):
+                    all_results.append(r)
+                    sources.add(r.get("url", "")[:50])
 
         if len(all_results) >= 2:
             return ScamListCheck(True, len(all_results), list(sources), "high",

@@ -479,7 +479,7 @@ export function ScamScanView({
                     <Icon name="info" className={d.risk === 'high' ? 'text-error' : 'text-on-surface-variant'} />
                     <span className="font-mono text-on-surface break-all">{d.domain}</span>
                     <span className={`font-bold ${d.risk === 'high' ? 'text-error' : d.risk === 'medium' ? 'text-secondary' : 'text-green-400'}`}>
-                      {d.age_months !== null ? `${d.age_months}mo old` : 'UNKNOWN'}
+                      {d.age_months != null ? `${d.age_months}mo old` : 'UNKNOWN'}
                     </span>
                     <span className="text-on-surface-variant min-w-0 break-words">{d.reason}</span>
                   </div>
