@@ -7,7 +7,7 @@ import time as _time
 import zipfile
 import re
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.config import settings
 from app.models.schemas import (
@@ -26,6 +26,7 @@ from app.services.external_verifier import verify_all, verification_to_dict
 from app.exceptions import InvalidImageError
 from app.rate_limit import limiter
 from app.ai_limiter import ai_limiter
+from app.core.auth import require_client_key
 
 log = logging.getLogger("trabahero")
 router = APIRouter()
@@ -346,7 +347,7 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
 
 @router.post("/api/scan")
 @limiter.limit("5/minute")
-async def scan(req: ScanRequest, request: Request):
+async def scan(req: ScanRequest, request: Request, _auth: None = Depends(require_client_key)):
     images = [img for img in (req.images_base64 or [req.image_base64]) if img]
     if not images:
         raise InvalidImageError()
@@ -380,7 +381,7 @@ async def scan(req: ScanRequest, request: Request):
 
 @router.post("/api/scan-text")
 @limiter.limit("5/minute")
-async def scan_text(req: ScanTextRequest, request: Request):
+async def scan_text(req: ScanTextRequest, request: Request, _auth: None = Depends(require_client_key)):
     if not req.text.strip():
         return ScanResponse(valid=False, verdict_percentage=100, analysis="No text provided.")
     log.info("Text scan: %d chars to LM Studio", len(req.text))
@@ -575,7 +576,7 @@ async def _match_event_stream(messages: list, max_tokens: int | None = None, end
 
 @router.post("/api/analyze-resume")
 @limiter.limit("5/minute")
-async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request):
+async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request, _auth: None = Depends(require_client_key)):
     if req.file_type.lower() in ("png", "jpg", "jpeg"):
         content: list[dict] = [
             {"type": "text", "text": RESUME_INSTRUCTION},
@@ -603,7 +604,7 @@ async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request):
 
 @router.post("/api/match-resume")
 @limiter.limit("10/minute")
-async def match_resume_endpoint(req: MatchRequest, request: Request):
+async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None = Depends(require_client_key)):
     prompt = MATCH_INSTRUCTION.format(
         skills=", ".join(req.resume.skills),
         experience=req.resume.experience_years,

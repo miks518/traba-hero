@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     ai_max_queue_depth: int = 10
     ai_acquire_timeout: float = 10.0
     ai_call_timeout: float = 120.0
+    client_secret_key: str = ""
 
     @property
     def effective_ai_api_key(self) -> str:

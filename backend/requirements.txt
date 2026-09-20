@@ -8,3 +8,5 @@ pypdf==6.15.0
 duckduckgo-search==8.1.1
 dnspython==2.8.0
 python-whois==0.9.6
+pytest==8.4.1
+httpx==0.28.1
