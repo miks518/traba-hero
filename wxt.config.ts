@@ -8,7 +8,7 @@ export default defineConfig({
     description: 'A Universal Visual Job-Scam Detection System for Filipino Job Seekers.',
     version: '0.1.0',
     permissions: ['activeTab', 'storage', 'tabs', 'sidePanel'],
-    host_permissions: ['<all_urls>', `${import.meta.env.WXT_API_BASE}/*`],
+    host_permissions: ['<all_urls>', 'http://localhost:8000/*'],
     side_panel: {
       default_path: 'entrypoints/sidepanel/index.html',
     },
