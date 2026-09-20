@@ -205,15 +205,7 @@ _EXCLUDED_DOMAINS = {"com", "ph", "net", "org", "gov", "edu", "mail.gov"}
 
 
 def _extract_domains(text: str) -> list[str]:
-    # Extract emails first to get their domains and exclude email local parts
-    emails = set(_EMAIL_RE.findall(text))
-    email_domains = set()
-    for e in emails:
-        domain = e.split("@")[1].lower().rstrip(".")
-        if domain not in _EXCLUDED_DOMAINS:
-            email_domains.add(domain)
-
-    # Extract from URLs
+    # Extract from URLs only (company websites)
     urls = _URL_RE.findall(text)
     domains = set()
     for url in urls:
@@ -223,13 +215,13 @@ def _extract_domains(text: str) -> list[str]:
             if hostname not in _EXCLUDED_DOMAINS:
                 domains.add(hostname)
 
-    # Bare domains — skip TLD-only and email-related fragments
+    # Bare domains — skip TLD-only
     for m in _DOMAIN_RE.finditer(text):
         d = m.group(1).lower()
-        if d not in _EXCLUDED_DOMAINS and d not in email_domains:
+        if d not in _EXCLUDED_DOMAINS:
             domains.add(d)
 
-    return list(domains | email_domains)
+    return list(domains)
 
 
 def verify_domains(text: str) -> list[DomainCheck]:
