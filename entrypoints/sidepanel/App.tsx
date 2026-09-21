@@ -27,7 +27,7 @@ export default function App() {
   useEffect(() => {
     try {
       // @ts-ignore - storage API available in extension context
-      chrome.storage.local.get(['theme', 'textSize'], (result) => {
+      chrome.storage.local.get(['theme', 'textSize', 'scannedJobs'], (result) => {
         const storedTheme = result.theme as string | undefined;
         if (storedTheme === 'light' || storedTheme === 'dark') {
           setTheme(storedTheme);
@@ -36,6 +36,10 @@ export default function App() {
         const storedSize = result.textSize as string | undefined;
         if (storedSize === 'default' || storedSize === 'big' || storedSize === 'largest') {
           setTextSize(storedSize);
+        }
+        const storedJobs = result.scannedJobs as ScannedJob[] | undefined;
+        if (storedJobs && Array.isArray(storedJobs)) {
+          setScannedJobs(storedJobs);
         }
       });
     } catch {}
@@ -69,12 +73,24 @@ export default function App() {
     setScannedJobs((prev) => [...prev, job]);
   }, []);
 
+  // Persist scanned jobs to storage
+  useEffect(() => {
+    try {
+      // @ts-ignore - storage API available in extension context
+      chrome.storage.local.set({ scannedJobs });
+    } catch {}
+  }, [scannedJobs]);
+
   const handleResumeData = useCallback((data: ResumeData) => {
     setResumeData(data);
   }, []);
 
   const handleClearJobs = useCallback(() => {
     setScannedJobs([]);
+    try {
+      // @ts-ignore - storage API available in extension context
+      chrome.storage.local.set({ scannedJobs: [] });
+    } catch {}
   }, []);
 
   const handleClearResume = useCallback(() => {
