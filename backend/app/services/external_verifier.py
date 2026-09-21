@@ -348,12 +348,22 @@ def _search_sec(company: str) -> GovCheck:
 def verify_gov(company: str) -> list[GovCheck]:
     if not company:
         return []
-    checks = [
-        _search_sec(company),
-        _search_gov(company, "PhilGEPS", f"{company} PhilGEPS registration Philippines"),
-        _search_gov(company, "DTI", f"{company} DTI business name registration Philippines"),
-    ]
-    return checks
+    sec = _search_sec(company)
+    dti = _search_gov(company, "DTI", f"{company} DTI business name registration Philippines")
+    philgeps = _search_gov(company, "PhilGEPS", f"{company} PhilGEPS registration Philippines")
+
+    # Cross-reference SEC and DTI
+    if sec.found and not dti.found:
+        dti.reason = "Not DTI-registered — expected, company is SEC-registered (corporation)"
+        dti.risk = "low"
+    elif dti.found and not sec.found:
+        sec.reason = "Not SEC-registered — company is DTI-registered (sole proprietorship)"
+        sec.risk = "low"
+    elif not sec.found and not dti.found:
+        sec.reason = "Not found in SEC or DTI — may be unregistered or using a different business name"
+        sec.risk = "medium"
+
+    return [sec, dti, philgeps]
 
 
 # ── Scam list search ─────────────────────────────────────────────────────
