@@ -2,6 +2,7 @@
 
 import re
 import logging
+import html
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
@@ -289,10 +290,12 @@ def _search_gov(company: str, registry: str, query: str) -> GovCheck:
             snippet = (r.get("snippet") or "").lower()
             combined = title + " " + snippet
             if registry.lower() in combined and company_lower in combined:
-                return GovCheck(registry, True, r.get("title"), "low",
+                raw = r.get("snippet", "")[:200] or r.get("title", "")
+                detail = html.unescape(re.sub(r"<[^>]+>", "", raw)).strip()
+                return GovCheck(registry, True, detail, "low",
                                 f"Found in {registry} records")
         return GovCheck(registry, False, None, "medium",
-                        f"Not found in {registry} records")
+                        f"Not found in {registry} records — company may not be registered here")
     except Exception as e:
         log.warning("Gov search failed for %s: %s", registry, e)
         return GovCheck(registry, False, None, "medium",
@@ -303,6 +306,7 @@ def verify_gov(company: str) -> list[GovCheck]:
     if not company:
         return []
     checks = [
+        _search_gov(company, "SEC", f"{company} SEC registration Philippines SEC ID"),
         _search_gov(company, "PhilGEPS", f"{company} PhilGEPS registration Philippines"),
         _search_gov(company, "DTI", f"{company} DTI business name registration Philippines"),
     ]
@@ -323,7 +327,7 @@ def verify_scam_lists(company: str, text: str) -> ScamListCheck:
         all_results = []
         sources = set()
         for q in queries:
-            results = google_search(q, 3)
+            results = brave_search(q, 3)
             for r in results:
                 title = (r.get("title") or "").lower()
                 snippet = (r.get("snippet") or "").lower()
