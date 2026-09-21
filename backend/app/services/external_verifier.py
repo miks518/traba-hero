@@ -290,7 +290,7 @@ def _search_gov(company: str, registry: str, query: str) -> GovCheck:
             snippet = (r.get("snippet") or "").lower()
             combined = title + " " + snippet
             if registry.lower() in combined and company_lower in combined:
-                raw = r.get("snippet", "")[:200] or r.get("title", "")
+                raw = r.get("snippet", "")[:400] or r.get("title", "")
                 detail = html.unescape(re.sub(r"<[^>]+>", "", raw)).strip()
                 return GovCheck(registry, True, detail, "low",
                                 f"Found in {registry} records")
@@ -302,11 +302,60 @@ def _search_gov(company: str, registry: str, query: str) -> GovCheck:
                         f"Could not search {registry}")
 
 
+def _search_sec(company: str) -> GovCheck:
+    """Search SEC and extract structured details (SEC ID, TIN, registration date, address)."""
+    try:
+        results = brave_search(f"{company} SEC registration Philippines SEC ID", 5)
+        company_lower = company.lower().split()[0]
+
+        for r in results:
+            title = (r.get("title") or "").lower()
+            snippet = (r.get("snippet") or "").lower()
+            combined = title + " " + snippet
+            if "sec" in combined and company_lower in combined:
+                raw = r.get("snippet", "")[:600] or r.get("title", "")
+                detail = html.unescape(re.sub(r"<[^>]+>", "", raw)).strip()
+
+                details = []
+                sec_id = re.search(r"SEC\s*(?:Identification|ID)\s*(?:Number)?\s*[:\u00b7\-–\u2013]\s*(\d+)", detail, re.I)
+                if sec_id:
+                    details.append(f"SEC ID: {sec_id.group(1)}")
+
+                tin = re.search(r"(?:BIR|TIN|Tax\s*Identification)\s*(?:Number)?\s*[:\u00b7\-–\u2013]\s*([\d\-]+)", detail, re.I)
+                if tin:
+                    details.append(f"TIN: {tin.group(1)}")
+
+                reg_date = re.search(r"([A-Za-z]+\s+\d{1,2},?\s*\d{4})", detail)
+                if reg_date and "registration" in combined:
+                    details.append(f"Registered: {reg_date.group(1)}")
+
+                address = re.search(r"(?:Office|Principal)\s*(?:Address)?\s*[:\u00b7\-–\u2013]\s*(.+?)(?:\d{4}\s*Philippines|Province|$)", detail, re.I)
+                if address:
+                    addr = address.group(1).strip().rstrip("·")
+                    if len(addr) > 10:
+                        details.append(f"Address: {addr}")
+
+                jurisdiction = re.search(r"(?:jurisdiction|incorporation)\s*[:\u00b7\-–\u2013]\s*(\w[\w\s]+)", detail, re.I)
+                if jurisdiction:
+                    details.append(f"Jurisdiction: {jurisdiction.group(1).strip()}")
+
+                if details:
+                    return GovCheck("SEC", True, " | ".join(details), "low",
+                                    "SEC registered — details found")
+                return GovCheck("SEC", True, detail[:200], "low",
+                                "Found in SEC records")
+        return GovCheck("SEC", False, None, "medium",
+                        "Not found in SEC records — company may not be registered")
+    except Exception as e:
+        log.warning("SEC search failed: %s", e)
+        return GovCheck("SEC", False, None, "medium", "Could not search SEC")
+
+
 def verify_gov(company: str) -> list[GovCheck]:
     if not company:
         return []
     checks = [
-        _search_gov(company, "SEC", f"{company} SEC registration Philippines SEC ID"),
+        _search_sec(company),
         _search_gov(company, "PhilGEPS", f"{company} PhilGEPS registration Philippines"),
         _search_gov(company, "DTI", f"{company} DTI business name registration Philippines"),
     ]
