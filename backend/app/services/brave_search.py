@@ -52,18 +52,16 @@ def search_company(company_name: str) -> dict:
     legitimacy = brave_search(f"{company_name} Philippines company", 5)
     sec = brave_search(f"{company_name} SEC registration Philippines", 3)
     scam = brave_search(f"{company_name} scam fraud warning Philippines", 3)
-    linkedin = brave_search(f"{company_name} LinkedIn company page", 2)
     dole = brave_search(f"{company_name} DOLE licensed recruitment agency Philippines", 2)
-    facebook = brave_search(f"{company_name} Facebook page Philippines", 2)
 
     return {
         "company": company_name,
         "legitimacy_results": legitimacy,
         "sec_results": sec,
         "scam_results": scam,
-        "linkedin_results": linkedin,
+        "linkedin_results": [],
         "dole_results": dole,
-        "facebook_results": facebook,
+        "facebook_results": [],
     }
 
 
