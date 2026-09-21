@@ -275,13 +275,7 @@ def _search_social(company: str, platform: str, query: str) -> SocialCheck:
 
 
 def verify_social(company: str) -> list[SocialCheck]:
-    if not company:
-        return []
-    checks = [
-        _search_social(company, "facebook", f"{company} Philippines Facebook page"),
-        _search_social(company, "linkedin", f"{company} LinkedIn company page"),
-    ]
-    return checks
+    return []
 
 
 # ── Government registries ────────────────────────────────────────────────
