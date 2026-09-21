@@ -329,12 +329,6 @@ def _search_sec(company: str) -> GovCheck:
                 if reg_date and "registration" in combined:
                     details.append(f"Registered: {reg_date.group(1)}")
 
-                address = re.search(r"(?:Office|Principal)\s*(?:Address)?\s*[:\u00b7\-–\u2013]\s*(.+?)(?:\d{4}\s*Philippines|Province|$)", detail, re.I)
-                if address:
-                    addr = address.group(1).strip().rstrip("·")
-                    if len(addr) > 10:
-                        details.append(f"Address: {addr}")
-
                 jurisdiction = re.search(r"(?:jurisdiction|incorporation)\s*[:\u00b7\-–\u2013]\s*(\w[\w\s]+)", detail, re.I)
                 if jurisdiction:
                     details.append(f"Jurisdiction: {jurisdiction.group(1).strip()}")
