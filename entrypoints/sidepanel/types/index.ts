@@ -48,7 +48,10 @@ export type IconName =
   | 'arrow_right'
   | 'verified'
   | 'filter_list'
-  | 'badge';
+  | 'badge'
+  | 'gpp_good'
+  | 'gpp_maybe'
+  | 'gpp_bad';
 
 export type JobFilterCategory = 'all' | 'verified' | 'suspicious' | 'risky';
 
@@ -76,6 +79,19 @@ export interface MatchKeyword {
   id: string;
   label: string;
   matched: boolean;
+}
+
+export interface VerificationItem {
+  label: string;
+  status: 'green' | 'yellow' | 'red';
+  explanation: string;
+}
+
+export interface VerificationResult {
+  items: VerificationItem[];
+  report: string;
+  recommendation: string;
+  searchLog?: { query: string; round: number; result_preview: string }[];
 }
 
 export interface ScanResult {
@@ -116,14 +132,9 @@ export interface ScanResult {
     formula: string;
     normalized_score: number;
   };
-  externalVerification?: {
-    phones: { number: string; valid_format: boolean; carrier: string; risk: string; reason: string }[];
-    domains: { domain: string; exists: boolean; age_months: number | null; registrar: string | null; risk: string; reason: string }[];
-    websites: { url: string; alive: boolean; status_code: number | null; risk: string; reason: string }[];
-    social: { platform: string; found: boolean; url: string | null; title: string | null; risk: string; reason: string }[];
-    gov: { registry: string; found: boolean; details: string | null; risk: string; reason: string }[];
-    scam_lists: { found: boolean; count: number; sources: string[]; risk: string; reason: string }[];
-  };
+  verificationResult?: VerificationResult;
+  verificationLoading?: boolean;
+  verificationError?: boolean;
 }
 
 export interface ScannedJob {
@@ -209,12 +220,8 @@ export interface ApiScanResponse {
     formula: string;
     normalized_score: number;
   };
-  external_verification?: {
-    phones: { number: string; valid_format: boolean; carrier: string; risk: string; reason: string }[];
-    domains: { domain: string; exists: boolean; age_months: number | null; registrar: string | null; risk: string; reason: string }[];
-    websites: { url: string; alive: boolean; status_code: number | null; risk: string; reason: string }[];
-    social: { platform: string; found: boolean; url: string | null; title: string | null; risk: string; reason: string }[];
-    gov: { registry: string; found: boolean; details: string | null; risk: string; reason: string }[];
-    scam_lists: { found: boolean; count: number; sources: string[]; risk: string; reason: string }[];
+  verification_context?: {
+    company_name?: string;
+    job_summary?: string;
   };
 }

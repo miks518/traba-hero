@@ -72,4 +72,21 @@ class MatchResponse(BaseModel):
     matches: list[JobMatchResult] = []
 
 
+class VerifyRequest(BaseModel):
+    company_name: str = ""
+    job_summary: str = ""
+    red_flags: list[RedFlag] = []
+
+
+class VerificationItem(BaseModel):
+    label: str
+    status: str  # "green" | "yellow" | "red"
+    explanation: str
+
+
+class VerificationResponse(BaseModel):
+    items: list[VerificationItem] = []
+    report: str = ""
+    recommendation: str = ""
+    search_log: list[dict] = []
 

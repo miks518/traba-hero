@@ -7,6 +7,5 @@ slowapi==0.1.10
 pypdf==6.15.0
 httpx==0.28.1
 dnspython==2.8.0
-python-whois==0.9.6
-duckduckgo-search==8.1.1
+ddgs==9.0.0
 pytest==8.4.1

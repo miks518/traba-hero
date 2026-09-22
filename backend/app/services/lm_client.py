@@ -437,3 +437,69 @@ async def chat_stream_pieces(
         piece = chunk.choices[0].delta.content or ""
         if piece:
             yield piece
+
+
+async def chat_with_tools(
+    messages: list,
+    tools: list,
+    max_rounds: int = 5,
+    max_tokens: int | None = None,
+) -> tuple[str, list[dict]]:
+    """Multi-turn agentic loop with OpenAI-compatible tool calling.
+
+    Returns:
+        (final_text, search_log) where search_log is a list of
+        {query, round, result_preview} dicts for the frontend.
+    """
+    from app.services.ai_tools import execute_tool
+
+    model = settings.model_name or "local-model"
+    eff_max_tokens = max_tokens if max_tokens is not None else settings.ai_max_tokens
+    client = _get_client()
+    search_log: list[dict] = []
+    last_text = ""
+
+    for round_num in range(1, max_rounds + 1):
+        completion = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+            temperature=settings.ai_temperature,
+            top_p=settings.ai_top_p,
+            max_tokens=eff_max_tokens,
+        )
+
+        choice = completion.choices[0]
+        message = choice.message
+
+        if message.content:
+            last_text = message.content.strip()
+
+        if not message.tool_calls:
+            return last_text, search_log
+
+        messages.append(message.model_dump())
+
+        for tool_call in message.tool_calls:
+            fn_name = tool_call.function.name
+            try:
+                fn_args = json.loads(tool_call.function.arguments)
+            except json.JSONDecodeError:
+                fn_args = {}
+
+            result = await execute_tool(fn_name, fn_args)
+            query = fn_args.get("query", "")
+            search_log.append({
+                "query": query,
+                "round": round_num,
+                "result_preview": result[:200],
+            })
+
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": result,
+            })
+
+    return last_text, search_log

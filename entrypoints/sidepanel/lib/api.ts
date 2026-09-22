@@ -1,4 +1,4 @@
-import type { ApiScanResponse, ResumeData, ScannedJob } from '../types';
+import type { ApiScanResponse, ResumeData, ScannedJob, VerificationResult } from '../types';
 
 const API_BASE = import.meta.env.WXT_API_BASE;
 const CLIENT_KEY = import.meta.env.WXT_CLIENT_KEY;
@@ -372,4 +372,94 @@ async function consumeSseStreamMatch(
     }
   }
   return null;
+}
+
+export interface VerifyStreamResult {
+  result?: VerificationResult;
+  timedOut?: boolean;
+}
+
+export async function verifyJobStream(
+  context: { company_name: string; job_summary: string; red_flags?: { flag: string; reasoning: string; severity: string }[] },
+  externalSignal: AbortSignal,
+  onProgress: (progress: ScanProgress) => void,
+  onSearch: (query: string, round: number) => void,
+  timeoutMs = 120000,
+): Promise<VerifyStreamResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  if (externalSignal) {
+    externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+      body: JSON.stringify(context),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new ApiRequestError(res.status, text || res.statusText);
+    }
+
+    const body = res.body;
+    if (!body) return { timedOut: true };
+
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+        let event: Record<string, unknown>;
+        try {
+          event = JSON.parse(trimmed.slice(6));
+        } catch {
+          continue;
+        }
+        if (event.type === 'progress') {
+          onProgress({
+            percent: Number(event.percent ?? 0),
+            stage: String(event.stage ?? 'Verifying'),
+          });
+        } else if (event.type === 'search') {
+          onSearch(String(event.query ?? ''), Number(event.round ?? 0));
+        } else if (event.type === 'result') {
+          const data = event.data as { items: VerificationResult['items']; report: string; recommendation: string; search_log: unknown[] };
+          return {
+            result: {
+              items: data.items ?? [],
+              report: data.report ?? '',
+              recommendation: data.recommendation ?? '',
+              searchLog: data.search_log as VerificationResult['searchLog'],
+            },
+          };
+        } else if (event.type === 'error') {
+          throw new Error(String(event.error ?? 'Verification failed'));
+        }
+      }
+    }
+    return {};
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      if (externalSignal.aborted) return { timedOut: false };
+      return { timedOut: true };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }

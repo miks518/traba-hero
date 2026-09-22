@@ -16,13 +16,12 @@ from app.models.schemas import (
     MatchRequest, MatchResponse,
     JobMatchResult,
     RedFlag,
+    VerifyRequest, VerificationItem,
 )
 from app.services.image import decode_base64_image
 from app.services.lm_client import chat, chat_json, chat_match, chat_resume, chat_stream_pieces, _parse_custom, _parse_json, _parse_resume_custom
-from app.services.web_search import _extract_company_name, search_job_posting, search_job_posting_data
-from app.services.sec_api import sec_context, sec_data
+from app.services.ddg_search import extract_company_name, search_job_posting, search_job_posting_data
 from app.services.email_verifier import verify_emails_in_text
-from app.services.external_verifier import verify_all, verification_to_dict
 from app.exceptions import InvalidImageError
 from app.rate_limit import limiter
 from app.ai_limiter import ai_limiter
@@ -76,7 +75,7 @@ END JOB SUMMARY
 Be concise: no greetings, no preamble, no repetition, no markdown.
 
 Field rules:
-- VALID: true if this is a genuine job posting or job advertisement, false if it is not.
+- VALID: true if this is a genuine job posting or job advertisement, false if it is not. If VALID: false, output ONLY the VALID line and stop immediately — do not generate any other fields.
 - VERDICT_PERCENTAGE: integer from 0 (completely legitimate/safe) to 100 (definite scam). For legitimate jobs, this should be low (e.g. 0-25).
 - RED FLAGS:
   * CRITICAL: If the posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
@@ -148,7 +147,7 @@ END JOB SUMMARY
 Be concise: no greetings, no preamble, no repetition, no markdown.
 
 Field rules:
-- VALID: true if the image/text is a job posting, false if it is not a job posting.
+- VALID: true if the image/text is a job posting, false if it is not a job posting. If VALID: false, output ONLY the VALID line and stop immediately — do not generate any other fields.
 - VERDICT_PERCENTAGE: integer from 0 (completely legitimate) to 100 (definitely a scam).
 - RED FLAGS:
   * CRITICAL: If the posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
@@ -164,9 +163,9 @@ Field rules:
 - ANALYSIS: 1-2 short sentences only.
 - JOB SUMMARY: Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."""
 
-IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. First decide if it is actually a job posting (VALID: true) or not (VALID: false). Then analyze it for scam indicators. If several images are provided, treat them as parts of the same posting. Extract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
+IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. First decide if it is actually a job posting (VALID: true) or not (VALID: false). If it is not a job posting, output only the VALID: false line and stop — do not analyze further. If it is a job posting, then analyze it for scam indicators. If several images are provided, treat them as parts of the same posting. Extract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
 
-TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nFirst decide if it is actually a job posting (VALID: true) or not (VALID: false). Then analyze it for scam indicators.\n\nExtract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
+TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nFirst decide if it is actually a job posting (VALID: true) or not (VALID: false). If it is not a job posting, output only the VALID: false line and stop — do not analyze further. If it is a job posting, then analyze it for scam indicators.\n\nExtract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
 
 RESUME_INSTRUCTION = """Analyze this resume and extract candidate details. Respond strictly using this labeled format (NO curly braces or JSON):
 
@@ -198,6 +197,93 @@ Summary: {summary}
 
 Jobs to match against:
 {jobs}"""
+
+VERIFY_SYSTEM_PROMPT = """You are a job verification assistant. You are given a job posting summary and web search results about the company. Your task is to verify the legitimacy of the job posting based on these search results.
+
+Analyze the search results and determine:
+1. Whether the company exists and is legitimate
+2. Whether the company is registered with the Philippine SEC
+3. Whether there are any scam reports or fraud warnings
+4. Whether the company has a social media presence
+
+Respond with your findings in this EXACT format for each verification:
+
+VERIFY: Company Existence
+STATUS: green | yellow | red
+DETAIL: One sentence explaining what you found.
+END VERIFY
+
+VERIFY: SEC Registration
+STATUS: green | yellow | red
+DETAIL: One sentence explaining what you found.
+END VERIFY
+
+VERIFY: Scam Reports
+STATUS: green | yellow | red
+DETAIL: One sentence explaining what you found.
+END VERIFY
+
+VERIFY: Online Presence
+STATUS: green | yellow | red
+DETAIL: One sentence explaining what you found.
+END VERIFY
+
+STATUS RULES:
+- green: Confirmed positive (found, active, no issues)
+- yellow: Partial or uncertain (found but with caveats, or not applicable)
+- red: Confirmed negative (not found, scam reports, suspicious)
+
+Only include verification categories that are relevant to this job posting. Skip categories that do not apply.
+
+After the verification blocks, ALWAYS output these two sections:
+
+REPORT:
+2-4 short plain sentences summarizing overall verification findings. Write complete sentences only — no markdown, no bullet points, no headers, no horizontal rules, no asterisks.
+END REPORT
+
+RECOMMENDATION:
+1-2 short plain sentences stating whether to apply, proceed with caution, or avoid this job. Write complete sentences only — no markdown, no bullet points, no headers, no horizontal rules, no asterisks.
+END RECOMMENDATION"""
+
+
+def _build_verify_prompt(req: VerifyRequest, search_context: str = "") -> str:
+    """Build the user prompt for verification."""
+    parts = []
+    if req.company_name:
+        parts.append(f"Company to verify: {req.company_name}")
+    parts.append(f"Job Posting Summary:\n{req.job_summary}")
+    if req.red_flags:
+        flags_text = "\n".join(f"- {f.flag}: {f.reasoning}" for f in req.red_flags)
+        parts.append(f"\nRed flags detected:\n{flags_text}")
+    if search_context:
+        parts.append(f"\n{search_context}")
+    return "\n\n".join(parts)
+
+
+def _parse_verification_result(text: str) -> list[VerificationItem]:
+    """Parse the AI's labeled verification output into structured items."""
+    items = []
+    pattern = re.compile(
+        r"VERIFY:\s*(.+?)\s*STATUS:\s*(green|yellow|red)\s*DETAIL:\s*(.+?)\s*END\s*VERIFY",
+        re.IGNORECASE | re.DOTALL,
+    )
+    for match in pattern.finditer(text):
+        items.append(VerificationItem(
+            label=match.group(1).strip(),
+            status=match.group(2).strip().lower(),
+            explanation=match.group(3).strip(),
+        ))
+    return items
+
+
+def _parse_verify_section(text: str, name: str) -> str:
+    """Extract a labeled REPORT/RECOMMENDATION section body. Returns '' if missing."""
+    pattern = re.compile(
+        rf"{name}:\s*(.+?)\s*END\s*{name}",
+        re.IGNORECASE | re.DOTALL,
+    )
+    match = pattern.search(text)
+    return match.group(1).strip() if match else ""
 
 def _red_flags(flags: list) -> list[RedFlag]:
     out: list[RedFlag] = []
@@ -255,7 +341,7 @@ def _language_instruction(language: str) -> str:
     return "Respond in English."
 
 
-def _scan_response(result: dict, external: dict | None = None) -> ScanResponse:
+def _scan_response(result: dict) -> ScanResponse:
     flags = _red_flags(result.get("red_flags", []))
     calc_score, breakdown = _calculate_score(flags)
     return ScanResponse(
@@ -266,7 +352,6 @@ def _scan_response(result: dict, external: dict | None = None) -> ScanResponse:
         job_summary=result.get("job_summary", ""),
         error=result.get("error"),
         score_breakdown=breakdown,
-        external_verification=external or {},
     )
 
 
@@ -274,26 +359,47 @@ def _sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
+_VALID_LINE_RE = re.compile(r"^\s*VALID\s*:\s*(true|false)\b", re.IGNORECASE | re.MULTILINE)
+
+
 async def _scan_event_stream(messages: list, max_tokens: int | None = None, company_data: dict | None = None, original_text: str = "", endpoint: str = "scan") -> str:
-    """Stream an AI scan, emitting SSE progress events and a final result."""
+    """Stream an AI scan, emitting SSE progress events and a final result.
+
+    Early-exits the AI stream as soon as a complete ``VALID: false`` line is
+    received so non-job-posting content does not burn tokens on the remaining fields.
+    """
     log.info("[%s] Starting scan stream", endpoint)
     yield _sse({"type": "progress", "percent": 5, "stage": "Preparing request"})
     first = True
     pieces: list[str] = []
     token_count = 0
+    early_exit = False
+    valid_seen = False
     try:
         deadline = _time.monotonic() + 300.0
-        async for piece in chat_stream_pieces(messages, max_tokens=max_tokens):
-            if _time.monotonic() > deadline:
-                raise asyncio.TimeoutError()
-            pieces.append(piece)
-            token_count += 1
-            if first:
-                first = False
-                yield _sse({"type": "progress", "percent": 30, "stage": "Sent to AI"})
-            elif token_count % 4 == 0:
-                pct = min(88, 30 + int(token_count / 12))
-                yield _sse({"type": "progress", "percent": pct, "stage": "Analyzing"})
+        stream = chat_stream_pieces(messages, max_tokens=max_tokens)
+        try:
+            async for piece in stream:
+                if _time.monotonic() > deadline:
+                    raise asyncio.TimeoutError()
+                pieces.append(piece)
+                token_count += 1
+                if first:
+                    first = False
+                    yield _sse({"type": "progress", "percent": 30, "stage": "Sent to AI"})
+                elif token_count % 4 == 0:
+                    pct = min(88, 30 + int(token_count / 12))
+                    yield _sse({"type": "progress", "percent": pct, "stage": "Analyzing"})
+                if not valid_seen:
+                    m = _VALID_LINE_RE.search("".join(pieces))
+                    if m:
+                        valid_seen = True
+                        if m.group(1).lower() == "false":
+                            early_exit = True
+                            log.info("[%s] Early exit after VALID: false (tokens=%d)", endpoint, token_count)
+                            break
+        finally:
+            await stream.aclose()
     except asyncio.TimeoutError:
         log.error("[%s] AI timed out after 300s (%d tokens received)", endpoint, token_count)
         yield _sse({"type": "error", "error": "The AI service took too long to respond. Please try again."})
@@ -308,7 +414,7 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
         # Strip web-search tool-call blocks (opener + closer share the same marker)
         message_content = re.sub(r"<\|tool_call\|>.*?<\|tool_call\|>", "", message_content, flags=re.DOTALL)
         message_content = message_content.replace("<|tool_call|>", "").strip()
-        log.info("[%s] Raw model output (tokens=%d, chars=%d): %s", endpoint, token_count, len(message_content), message_content[:500])
+        log.info("[%s] Raw model output (tokens=%d, chars=%d, early_exit=%s): %s", endpoint, token_count, len(message_content), early_exit, message_content[:500])
 
         result = _parse_custom(message_content) if message_content else None
         if not isinstance(result, dict):
@@ -321,10 +427,11 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
         log.info("[%s] Parsed result: %s", endpoint, result)
         yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
 
+        is_invalid = early_exit or not result.get("valid", True)
+
         email_data: list[dict] = []
-        ext_verification: dict = {}
         verify_text = original_text or (result.get("job_summary", "") + " " + result.get("analysis", ""))
-        if verify_text.strip():
+        if not is_invalid and verify_text.strip():
             email_checks = verify_emails_in_text(verify_text)
             email_data = [
                 {"email": c.email, "domain": c.domain, "syntax_valid": c.syntax_valid,
@@ -332,17 +439,24 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
                  "risk": c.risk, "reason": c.reason}
                 for c in email_checks
             ]
+
+        resp = _scan_response(result).model_dump()
+        if company_data:
+            resp.update(company_data)
+        resp["email_verifications"] = email_data
+
+        if not is_invalid:
             company_name = ""
             if company_data:
                 company_name = company_data.get("company_name", "")
             if not company_name:
-                company_name = _extract_company_name(verify_text) or ""
-            ext_verification = verification_to_dict(verify_all(verify_text, company_name))
+                company_name = extract_company_name(verify_text) or ""
+            if company_name:
+                resp["verification_context"] = {
+                    "company_name": company_name,
+                    "job_summary": result.get("job_summary", ""),
+                }
 
-        resp = _scan_response(result, ext_verification).model_dump()
-        if company_data:
-            resp.update(company_data)
-        resp["email_verifications"] = email_data
         yield _sse({"type": "result", "data": resp})
     except Exception as e:  # noqa: BLE001
         log.error("[%s] Post-processing error: %s: %s", endpoint, type(e).__name__, e)
@@ -397,18 +511,8 @@ async def scan_text(req: ScanTextRequest, request: Request, _auth: None = Depend
     if search_context:
         user_content = search_context + "\n\n" + user_content
 
-    # SEC registry lookup for the extracted company name
-    company = _extract_company_name(req.text)
-    sec_matches = []
-    if company:
-        sec = sec_context(company)
-        sec_matches = sec_data(company)
-        if sec:
-            user_content = sec + "\n\n" + user_content
-
     company_payload = {
-        "company_name": web_data.get("company_name") or company,
-        "sec_registration": sec_matches,
+        "company_name": web_data.get("company_name"),
         "web_search": web_data.get("results", {}),
     }
 
@@ -631,3 +735,48 @@ async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None
             ai_limiter.release()
 
     return StreamingResponse(_limited_stream(), media_type="text/event-stream")
+
+
+@router.post("/api/verify")
+@limiter.limit("10/minute")
+async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends(require_client_key)):
+    """External verification: one DuckDuckGo search + one AI call. SSE stream."""
+
+    async def _verify_stream():
+        await ai_limiter.acquire()
+        try:
+            yield _sse({"type": "progress", "percent": 5, "stage": "Preparing verification"})
+
+            search_context = ""
+            if req.company_name:
+                yield _sse({"type": "progress", "percent": 15, "stage": "Searching the web"})
+                yield _sse({"type": "search", "query": f"{req.company_name} Philippines", "round": 1})
+                search_context = await asyncio.to_thread(search_job_posting, req.company_name)
+                yield _sse({"type": "progress", "percent": 40, "stage": "AI analyzing"})
+
+            verify_prompt = _build_verify_prompt(req, search_context)
+            messages = [
+                {"role": "system", "content": VERIFY_SYSTEM_PROMPT},
+                {"role": "user", "content": verify_prompt},
+            ]
+
+            final_text = await chat(messages, max_tokens=1024)
+            yield _sse({"type": "progress", "percent": 85, "stage": "Analyzing results"})
+
+            items = _parse_verification_result(final_text)
+            report = _parse_verify_section(final_text, "REPORT")
+            recommendation = _parse_verify_section(final_text, "RECOMMENDATION")
+
+            yield _sse({"type": "result", "data": {
+                "items": [item.model_dump() for item in items],
+                "report": report,
+                "recommendation": recommendation,
+                "search_log": [{"query": f"{req.company_name} Philippines", "round": 1}] if req.company_name else [],
+            }})
+        except Exception as e:  # noqa: BLE001
+            log.error("[verify] Error: %s: %s", type(e).__name__, e)
+            yield _sse({"type": "error", "error": "Verification failed. Please try again."})
+        finally:
+            ai_limiter.release()
+
+    return StreamingResponse(_verify_stream(), media_type="text/event-stream")

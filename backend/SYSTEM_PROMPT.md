@@ -19,7 +19,7 @@ JOB SUMMARY:
 END JOB SUMMARY
 
 Field rules:
-- VALID: true if this is a genuine job posting or job advertisement, false if it is not.
+- VALID: true if this is a genuine job posting or job advertisement, false if it is not. If VALID: false, output ONLY the VALID line and stop immediately — do not generate any other fields.
 - VERDICT_PERCENTAGE: integer from 0 (completely legitimate/safe) to 100 (definite scam). For legitimate jobs, this should be low (e.g. 0-25).
 - RED FLAGS:
   * CRITICAL: If the job posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.

@@ -49,7 +49,10 @@ export type IconName =
   | 'verified'
   | 'filter_list'
   | 'badge'
-  | 'text_fields';
+  | 'text_fields'
+  | 'gpp_good'
+  | 'gpp_maybe'
+  | 'gpp_bad';
 
 export interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
   name: IconName;

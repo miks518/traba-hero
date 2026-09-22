@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-Trabahero is a job-scam detection browser extension for Filipino job seekers. It uses AI (OpenRouter cloud or LM Studio local) to analyze job postings for fraud signals.
+Trabahero is a job-scam detection browser extension for Filipino job seekers. It uses AI (OpenRouter) to analyze job postings for fraud signals.
 
 **Two-tier architecture:**
 - **Extension** (root): React 19 + TypeScript + Tailwind, built with WXT framework
-- **Backend** (`backend/`): FastAPI Python proxy — calls OpenRouter or LM Studio
+- **Backend** (`backend/`): FastAPI Python proxy — calls OpenRouter
 
 ## Quick Commands
 
@@ -30,7 +30,7 @@ python -m venv .venv
 Copy-Item .env.example .env
 ```
 
-**Start order:** LM Studio (if local) → backend → extension
+**Start order:** backend → extension
 
 ## Key Architecture
 
@@ -39,10 +39,13 @@ Copy-Item .env.example .env
 - `entrypoints/sidepanel/` — Main React app (views, components, types)
 - `entrypoints/sidepanel/lib/api.ts` — HTTP client → `backend URL`; sends `X-Trabahero-Client-Key` header on all requests
 - `entrypoints/sidepanel/lib/imageUtils.ts` — Screenshot compression (JPEG 0.8, max 1920px)
-- `entrypoints/sidepanel/views/ScamScanView.tsx` — Job scanning with progress streaming
+- `entrypoints/sidepanel/views/ScamScanView.tsx` — Job scanning with progress streaming + async verification trigger
 - `entrypoints/sidepanel/views/ResumeMatchView.tsx` — Resume analysis + job matching with progress
+- `entrypoints/sidepanel/components/scan/VerificationSection.tsx` — Traffic-light verification cards (async from /api/verify)
 - `backend/app/routers/scan.py` — All API endpoints + SSE streaming helpers
-- `backend/app/services/lm_client.py` — OpenAI-compatible client (OpenRouter/LM Studio)
+- `backend/app/services/lm_client.py` — OpenAI-compatible client (OpenRouter) with tool calling support
+- `backend/app/services/ddg_search.py` — DuckDuckGo search with rate limiting (replaces old web_search, brave_search, sec_api)
+- `backend/app/services/ai_tools.py` — Tool schema definitions + execution dispatcher for verification
 - `backend/app/config.py` — Settings via pydantic-settings, loads from `backend/.env`
 - `backend/app/core/auth.py` — Client key validation (`require_client_key` dependency)
 - `backend/app/rate_limit.py` — Rate limiting with proxy-safe IP detection (X-Forwarded-For/X-Real-IP)
@@ -56,6 +59,7 @@ Copy-Item .env.example .env
 | `/api/scan-text` | POST | Scan job posting text (SSE stream) |
 | `/api/analyze-resume` | POST | Parse resume into structured data (SSE stream) |
 | `/api/match-resume` | POST | Match resume against job postings (SSE stream) |
+| `/api/verify` | POST | AI-driven external verification via DuckDuckGo tool calling (SSE stream) |
 
 All endpoints return `text/event-stream` with progress events (`percent`, `stage`) and a final `result` event.
 
@@ -79,10 +83,12 @@ All prompts are in `backend/` root, resolved via `Path(__file__).resolve().paren
 - `AI_API_KEY` — OpenRouter API key
 - `AI_API_URL` — AI provider URL (e.g. `https://openrouter.ai/api/v1`)
 - `MODEL_NAME` — Model ID (e.g. `deepseek/deepseek-flash-latest`)
-- `LM_STUDIO_URL` — Local LM Studio URL (fallback)
 - `AI_TEMPERATURE`, `AI_TOP_P`, `AI_MAX_TOKENS` — Generation controls
 - `AI_MAX_CONCURRENT`, `AI_MAX_QUEUE_DEPTH` — Concurrency limits
 - `CLIENT_SECRET_KEY` — Shared secret for extension auth; leave empty to disable (dev mode)
+- `DDG_MAX_CONCURRENT` — Max concurrent DuckDuckGo searches (default: 2)
+- `DDG_MIN_INTERVAL` — Min seconds between searches (default: 1.5)
+- `DDG_MAX_PER_VERIFY` — Max searches per verification request (default: 10)
 
 ## Design System
 
