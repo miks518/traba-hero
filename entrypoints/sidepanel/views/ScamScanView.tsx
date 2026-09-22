@@ -515,7 +515,7 @@ export function ScamScanView({
                     <span className={`font-bold ${g.found ? 'text-green-400' : 'text-secondary'}`}>
                       {g.found ? 'REGISTERED' : 'NOT FOUND'}
                     </span>
-                    {g.details && <span className="text-on-surface-variant truncate min-w-0 max-w-full">{g.details}</span>}
+                    {g.details && <span className="text-on-surface-variant min-w-0 max-w-full break-words">{g.details}</span>}
                   </div>
                 ))}
 
