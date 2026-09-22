@@ -41,11 +41,12 @@ Copy-Item .env.example .env
 - `entrypoints/sidepanel/lib/imageUtils.ts` — Screenshot compression (JPEG 0.8, max 1920px)
 - `entrypoints/sidepanel/views/ScamScanView.tsx` — Job scanning with progress streaming + async verification trigger
 - `entrypoints/sidepanel/views/ResumeMatchView.tsx` — Resume analysis + job matching with progress
-- `entrypoints/sidepanel/components/scan/VerificationSection.tsx` — Traffic-light verification cards (async from /api/verify)
-- `backend/app/routers/scan.py` — All API endpoints + SSE streaming helpers
+- `entrypoints/sidepanel/components/scan/VerificationSection.tsx` — External verification cards + missing company name guardrail (red "Unable to Verify" banner)
+- `backend/app/services/ddg_search.py` — DuckDuckGo search with rate limiting, `extract_company_name()` for company name extraction
+- `backend/app/routers/scan.py` — All API endpoints + SSE streaming helpers; `/api/verify` includes raw AI response logging
 - `backend/app/services/lm_client.py` — OpenAI-compatible client (OpenRouter) with tool calling support
-- `backend/app/services/ddg_search.py` — DuckDuckGo search with rate limiting (replaces old web_search, brave_search, sec_api)
 - `backend/app/services/ai_tools.py` — Tool schema definitions + execution dispatcher for verification
+- `backend/app/routers/scan.py` (`VERIFY_SYSTEM_PROMPT`) — Verify system prompt inline — requires Company Name verification as first category
 - `backend/app/config.py` — Settings via pydantic-settings, loads from `backend/.env`
 - `backend/app/core/auth.py` — Client key validation (`require_client_key` dependency)
 - `backend/app/rate_limit.py` — Rate limiting with proxy-safe IP detection (X-Forwarded-For/X-Real-IP)
@@ -59,19 +60,24 @@ Copy-Item .env.example .env
 | `/api/scan-text` | POST | Scan job posting text (SSE stream) |
 | `/api/analyze-resume` | POST | Parse resume into structured data (SSE stream) |
 | `/api/match-resume` | POST | Match resume against job postings (SSE stream) |
-| `/api/verify` | POST | AI-driven external verification via DuckDuckGo tool calling (SSE stream) |
+| `/api/verify` | POST | External verification via DuckDuckGo + AI (SSE stream) |
 
 All endpoints return `text/event-stream` with progress events (`percent`, `stage`) and a final `result` event.
+
+**Verification flow:** After a successful scan, the backend adds `verification_context` to the scan response only if a company name was extracted (via `extract_company_name()` or `company_data`). If no company name is found, `verification_context` is absent and the frontend never calls `/api/verify`, instead showing a red "Unable to Verify" warning banner. The `/api/verify` endpoint logs the raw AI response and parsed results for debugging.
 
 ## System Prompts
 
 | Prompt File | Used By | Loaded By |
 |---|---|---|
 | `SYSTEM_PROMPT.md` | Job scan (scan, scan-text) | `load_system_prompt()` |
+| `VERIFY_SYSTEM_PROMPT` | External verification (/api/verify) | Defined inline in `scan.py` |
 | `RESUME_PROMPT.md` | Resume analysis | `load_resume_prompt()` |
 | `MATCH_PROMPT.md` | Resume-job matching | `load_match_prompt()` |
 
 All prompts are in `backend/` root, resolved via `Path(__file__).resolve().parents[2]`.
+
+The `VERIFY_SYSTEM_PROMPT` requires the AI to verify **Company Name** as the first category. If the company name is missing or unclear from the original posting, it returns `red` for that category.
 
 ## Environment Variables
 
@@ -120,8 +126,16 @@ See `DESIGN.md` for the full design system: colors (light/dark themes), typograp
 | Filter | Icon | Condition |
 |---|---|---|
 | All | `work` | Always shown |
-| Verified | `verified` (green) | `status === 'legitimate'` AND `riskScore < 40` AND `isJobPosting` |
-| Suspicious | `warning` (amber) | `status === 'suspicious'` OR `riskScore 40-69` |
-| Risky | `shield_person` (red) | `status === 'scam'` OR `riskScore >= 70` |
+| Verified | `verified` (green) | `riskLevel === 'low'` AND `isJobPosting` |
+| Moderate | `warning` (amber) | `riskLevel === 'moderate'` |
+| High/Critical | `shield_person` (red) | `riskLevel === 'high'` OR `riskLevel === 'critical'` |
 
-Risky/Verified jobs are excluded from resume matching.
+Risk scores (0-100): Low (0-15), Moderate (16-45), High (46-75), Critical (76-100). High/Critical jobs are excluded from resume matching.
+
+## Verification Guardrails
+
+- If no company name is extracted from the job posting, `verification_context` is absent from the scan response
+- Frontend checks `data.verification_context?.company_name` before calling `/api/verify`
+- If missing, `VerificationSection` renders a red "Unable to Verify" banner with risk caution
+- `/api/verify` logs raw AI response and parsed items at INFO/WARNING level for debugging
+- `extract_company_name()` in `ddg_search.py` uses regex patterns to find company names; if it fails, verification is skipped silently (intentional guardrail)

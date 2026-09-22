@@ -201,12 +201,17 @@ Jobs to match against:
 VERIFY_SYSTEM_PROMPT = """You are a job verification assistant. You are given a job posting summary and web search results about the company. Your task is to verify the legitimacy of the job posting based on these search results.
 
 Analyze the search results and determine:
-1. Whether the company exists and is legitimate
+1. Whether the company exists and is legitimate — also verify that the company name provided is real and matches what was found online. If the company name is missing, unclear, or appears to be fabricated, flag this.
 2. Whether the company is registered with the Philippine SEC
 3. Whether there are any scam reports or fraud warnings
 4. Whether the company has a social media presence
 
 Respond with your findings in this EXACT format for each verification:
+
+VERIFY: Company Name
+STATUS: green | yellow | red
+DETAIL: One sentence confirming whether the company name is legitimate and identifiable from the posting, or flagging it as missing/unclear.
+END VERIFY
 
 VERIFY: Company Existence
 STATUS: green | yellow | red
@@ -232,6 +237,8 @@ STATUS RULES:
 - green: Confirmed positive (found, active, no issues)
 - yellow: Partial or uncertain (found but with caveats, or not applicable)
 - red: Confirmed negative (not found, scam reports, suspicious)
+
+Include a "Company Name" verification category for every job posting. If the company name was unclear or missing from the original posting, set it to red.
 
 Only include verification categories that are relevant to this job posting. Skip categories that do not apply.
 
@@ -344,9 +351,11 @@ def _language_instruction(language: str) -> str:
 def _scan_response(result: dict) -> ScanResponse:
     flags = _red_flags(result.get("red_flags", []))
     calc_score, breakdown = _calculate_score(flags)
+    ai_score = result.get("verdict_percentage")
+    verdict_percentage = ai_score if ai_score is not None else calc_score
     return ScanResponse(
         valid=result.get("valid", False),
-        verdict_percentage=calc_score,
+        verdict_percentage=verdict_percentage,
         red_flags=flags,
         analysis=result.get("analysis", ""),
         job_summary=result.get("job_summary", ""),
@@ -425,6 +434,7 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
             return
 
         log.info("[%s] Parsed result: %s", endpoint, result)
+        log.info("[%s] valid=%s, verdict_percentage=%s, job_summary_len=%d, red_flags=%d", endpoint, result.get("valid"), result.get("verdict_percentage"), len(str(result.get("job_summary", ""))), len(_red_flags(result.get("red_flags", []))))
         yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
 
         is_invalid = early_exit or not result.get("valid", True)
@@ -451,11 +461,15 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
                 company_name = company_data.get("company_name", "")
             if not company_name:
                 company_name = extract_company_name(verify_text) or ""
+            log.info("[%s] is_valid=%s, company_name='%s', verify_text_len=%d", endpoint, not is_invalid, company_name, len(verify_text))
             if company_name:
                 resp["verification_context"] = {
                     "company_name": company_name,
                     "job_summary": result.get("job_summary", ""),
                 }
+                log.info("[%s] verification_context set for: %s", endpoint, company_name)
+            else:
+                log.warning("[%s] No company_name extracted — verification_context NOT set. job_summary first 200 chars: %s", endpoint, str(result.get("job_summary", ""))[:200])
 
         yield _sse({"type": "result", "data": resp})
     except Exception as e:  # noqa: BLE001
@@ -761,11 +775,22 @@ async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends
             ]
 
             final_text = await chat(messages, max_tokens=1024)
+            log.info("[verify] Raw AI response (%d chars): %s", len(final_text), final_text[:1000])
             yield _sse({"type": "progress", "percent": 85, "stage": "Analyzing results"})
 
             items = _parse_verification_result(final_text)
             report = _parse_verify_section(final_text, "REPORT")
             recommendation = _parse_verify_section(final_text, "RECOMMENDATION")
+
+            log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d", len(items), len(report), len(recommendation))
+            if items:
+                log.info("[verify] Items: %s", items)
+            if report:
+                log.info("[verify] Report: %s", report[:200])
+            if recommendation:
+                log.info("[verify] Recommendation: %s", recommendation[:200])
+            if not items and not report and not recommendation:
+                log.warning("[verify] All parsed results empty. Raw text first 500 chars: %s", final_text[:500])
 
             yield _sse({"type": "result", "data": {
                 "items": [item.model_dump() for item in items],

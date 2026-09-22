@@ -3,7 +3,21 @@ import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError
 import { Icon, ToastContainer, useToastManager } from '../components/common';
 import { scanScreenshotStream, verifyJobStream, ApiRequestError, type ScanProgress } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
-import type { ScanResult, IconName, ScannedJob, ApiScanResponse } from '../types';
+import type { ScanResult, IconName, ScannedJob, ApiScanResponse, ScanRiskLevel } from '../types';
+
+function getRiskLevel(score: number): ScanRiskLevel {
+  if (score >= 76) return 'critical';
+  if (score >= 46) return 'high';
+  if (score >= 16) return 'moderate';
+  return 'low';
+}
+
+function getRiskLabel(score: number): string {
+  if (score >= 76) return 'Critical Risk';
+  if (score >= 46) return 'High Risk';
+  if (score >= 16) return 'Moderate Risk';
+  return 'Low Risk';
+}
 
 export interface ScamScanViewProps {
   onScanComplete?: (job: ScannedJob) => void;
@@ -26,29 +40,20 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
   const flagCount = flags.length;
 
   let status: ScanResult['status'];
-  let statusTitle: string;
   if (!isJobPosting) {
     status = 'legitimate';
-    statusTitle = 'Not a Job Posting';
-  } else if (hasCritical) {
+  } else if (hasCritical || flagCount >= 2) {
     status = 'scam';
-    statusTitle = 'Scam';
-  } else if (flagCount >= 2) {
-    status = 'scam';
-    statusTitle = 'Scam';
-  } else if (flagCount === 1) {
+  } else if (flagCount === 1 || score >= 40) {
     status = 'suspicious';
-    statusTitle = 'Suspicious';
-  } else if (score >= 40) {
-    status = 'suspicious';
-    statusTitle = 'Suspicious';
   } else {
     status = 'legitimate';
-    statusTitle = 'Legitimate';
   }
   return {
     status,
-    statusTitle,
+    riskLevel: getRiskLevel(score),
+    riskLabel: getRiskLabel(score),
+    statusTitle: getRiskLabel(score),
     scanningTarget: 'Scanned Element',
     riskScore: score,
     riskDescription: data.analysis || 'Analysis completed.',
@@ -227,6 +232,7 @@ export function ScamScanView({
       }
       const data = result.response;
       const mapped = mapApiResponse(data);
+      console.log('[scan] data.valid=%s, data.verification_context=%s', data.valid, JSON.stringify(data.verification_context));
       setScanResult(mapped);
       setHasScanned(true);
       setIsValidJob(mapped.isJobPosting);
@@ -246,6 +252,7 @@ export function ScamScanView({
 
         // Trigger async verification if company name is available
         const verifyCtx = data.verification_context;
+        console.log('[scan] verifyCtx=', JSON.stringify(verifyCtx));
         if (verifyCtx?.company_name) {
           startVerification({
             company_name: verifyCtx.company_name,
@@ -269,6 +276,7 @@ export function ScamScanView({
     job_summary: string;
     red_flags?: { flag: string; reasoning: string; severity: string }[];
   }) => {
+    console.log('[verify] Starting verification for:', context.company_name);
     verifyAbortRef.current?.abort();
     const controller = new AbortController();
     verifyAbortRef.current = controller;
@@ -284,16 +292,21 @@ export function ScamScanView({
         (query) => setCurrentSearchQuery(query),
       );
 
+      console.log('[verify] verifyResult:', verifyResult);
+
       if (verifyResult.result) {
+        console.log('[verify] Result received:', verifyResult.result);
         setScanResult(prev => prev ? {
           ...prev,
           verificationResult: verifyResult.result,
           verificationLoading: false,
         } : null);
       } else {
+        console.warn('[verify] Empty result from verifyJobStream');
         setScanResult(prev => prev ? { ...prev, verificationLoading: false } : null);
       }
-    } catch {
+    } catch (e) {
+      console.error('[verify] Error:', e);
       setScanResult(prev => prev ? { ...prev, verificationLoading: false, verificationError: true } : null);
     }
   }, []);
@@ -332,7 +345,7 @@ export function ScamScanView({
 
       {hasScanned && scanResult && isValidJob && (
         <>
-          <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} status={scanResult.status} />
+          <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} riskLevel={scanResult.riskLevel} riskLabel={scanResult.riskLabel} />
 
           {scanResult.scoreBreakdown && (scanResult.scoreBreakdown.high_count + scanResult.scoreBreakdown.mid_count + scanResult.scoreBreakdown.low_count) > 0 && (
             <div className="flex flex-col gap-2 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
@@ -388,7 +401,7 @@ export function ScamScanView({
                 <Icon name="description" className="text-secondary" />
                 <h3 className="text-label-md font-bold text-on-surface">Job Summary</h3>
               </div>
-              <p className="text-body-sm text-on-surface-variant leading-relaxed">
+              <p className="text-body-sm text-on-surface-variant leading-relaxed text-justify">
                 {scanResult.jobSummary}
               </p>
             </div>
@@ -500,12 +513,13 @@ export function ScamScanView({
             </div>
           )}
 
-          <VerificationSection
-            result={scanResult.verificationResult}
-            loading={scanResult.verificationLoading}
-            error={scanResult.verificationError}
-            currentQuery={currentSearchQuery}
-          />
+<VerificationSection
+              result={scanResult.verificationResult}
+              loading={scanResult.verificationLoading}
+              error={scanResult.verificationError}
+              currentQuery={currentSearchQuery}
+              noCompanyName={isValidJob && !scanResult.verificationResult && !scanResult.verificationLoading && !scanResult.verificationError}
+            />
         </>
       )}
 

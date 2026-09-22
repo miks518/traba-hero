@@ -53,7 +53,7 @@ export type IconName =
   | 'gpp_maybe'
   | 'gpp_bad';
 
-export type JobFilterCategory = 'all' | 'verified' | 'suspicious' | 'risky';
+export type JobFilterCategory = 'all' | 'verified' | 'suspicious' | 'risky' | 'low' | 'moderate' | 'high' | 'critical';
 
 export interface NavTab {
   id: ViewId;
@@ -94,8 +94,12 @@ export interface VerificationResult {
   searchLog?: { query: string; round: number; result_preview: string }[];
 }
 
+export type ScanRiskLevel = 'low' | 'moderate' | 'high' | 'critical';
+
 export interface ScanResult {
   status: 'scam' | 'suspicious' | 'legitimate';
+  riskLevel: ScanRiskLevel;
+  riskLabel: string;
   statusTitle: string;
   scanningTarget: string;
   riskScore: number;
@@ -142,7 +146,7 @@ export interface ScannedJob {
   title: string;
   summary: string;
   timestamp: string;
-  scanResult: ScanResult;
+  scanResult: ScanResult & { riskLevel: ScanRiskLevel; riskLabel: string };
 }
 
 export interface ResumeData {

@@ -52,7 +52,7 @@ export type IconName =
   | 'text_fields'
   | 'gpp_good'
   | 'gpp_maybe'
-  | 'gpp_bad';
+  | 'gpp_bad'
 
 export interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
   name: IconName;

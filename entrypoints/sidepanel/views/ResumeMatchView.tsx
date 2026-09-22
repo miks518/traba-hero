@@ -42,28 +42,33 @@ function riskColor(score: number): string {
   return 'text-green-500';
 }
 
-function riskLabel(score: number): string {
-  if (score >= 70) return 'Scam';
-  if (score >= 40) return 'Suspicious';
-  return 'Legitimate';
+function riskLevelLabel(level: string): string {
+  switch (level) {
+    case 'low': return 'Low Risk';
+    case 'moderate': return 'Moderate Risk';
+    case 'high': return 'High Risk';
+    case 'critical': return 'Critical Risk';
+    default: return 'Low Risk';
+  }
 }
 
 function matchBadgeStyle(score: number): string {
-  if (score >= 70) return 'bg-green-900/30 text-green-400 border-green-500/40';
-  if (score >= 40) return 'bg-amber-900/30 text-amber-400 border-amber-500/40';
-  return 'bg-red-900/30 text-red-400 border-red-500/40';
+  if (score >= 76) return 'bg-red-900/30 text-red-400 border-red-500/40';
+  if (score >= 46) return 'bg-orange-900/30 text-orange-400 border-orange-500/40';
+  if (score >= 16) return 'bg-amber-900/30 text-amber-400 border-amber-500/40';
+  return 'bg-green-900/30 text-green-400 border-green-500/40';
 }
 
 function isVerifiedJob(job: ScannedJob): boolean {
-  return job.scanResult.status === 'legitimate' && job.scanResult.riskScore < 40 && job.scanResult.isJobPosting;
+  return job.scanResult.riskLevel === 'low' && job.scanResult.isJobPosting;
 }
 
 function isSuspiciousJob(job: ScannedJob): boolean {
-  return job.scanResult.status === 'suspicious' || (job.scanResult.riskScore >= 40 && job.scanResult.riskScore < 70);
+  return job.scanResult.riskLevel === 'moderate';
 }
 
 function isRiskyJob(job: ScannedJob): boolean {
-  return job.scanResult.status === 'scam' || job.scanResult.riskScore >= 70;
+  return job.scanResult.riskLevel === 'high' || job.scanResult.riskLevel === 'critical';
 }
 
 export function ResumeMatchView({
@@ -88,7 +93,6 @@ export function ResumeMatchView({
     fileType: string;
     fileName: string;
   } | null>(null);
-  const [replacing, setReplacing] = useState(false);
   const [filterCategory, setFilterCategory] = useState<JobFilterCategory>('all');
   const [resumeProgress, setResumeProgress] = useState<ScanProgress | null>(null);
   const [matchProgress, setMatchProgress] = useState<ScanProgress | null>(null);
@@ -141,7 +145,6 @@ export function ResumeMatchView({
       setAnalyzing(false);
       setResumeProgress(null);
       onProgressChange?.(null);
-      setReplacing(false);
       setPendingResumeFile(null);
     }
   }, [onResumeData, showToast, onProgressChange]);
@@ -160,7 +163,6 @@ export function ResumeMatchView({
   const handleCancelUpload = useCallback(() => {
     setShowUploadConfirm(false);
     setPendingResumeFile(null);
-    setReplacing(false);
   }, []);
 
   const handleRunMatch = useCallback(async () => {
@@ -237,9 +239,9 @@ export function ResumeMatchView({
         <div className="flex items-start gap-3 p-3 rounded-xl bg-error-container/15 border border-error/30">
           <Icon name="shield_person" className="text-error mt-0.5 shrink-0" />
           <div className="flex flex-col gap-1">
-            <p className="text-label-md font-bold text-error">Scam Protection Active</p>
+            <p className="text-label-md font-bold text-error">Risk Protection Active</p>
             <p className="text-body-xs text-on-surface-variant">
-              {riskyJobs.length} scanned job{riskyJobs.length !== 1 ? 's' : ''} flagged as <span className="font-bold text-error">risky</span>. They are in the <span className="font-bold text-on-surface">Risky</span> category and strictly excluded from resume matching.
+              {riskyJobs.length} scanned job{riskyJobs.length !== 1 ? 's' : ''} flagged as <span className="font-bold text-error">critical/high risk</span>. They are in the <span className="font-bold text-on-surface">Critical/High Risk</span> category and strictly excluded from resume matching.
             </p>
           </div>
         </div>
@@ -249,9 +251,9 @@ export function ResumeMatchView({
         <div className="flex items-start gap-3 p-3 rounded-xl bg-secondary-container/15 border border-secondary/30">
           <Icon name="warning" className="text-secondary mt-0.5 shrink-0" />
           <div className="flex flex-col gap-1">
-            <p className="text-label-md font-bold text-secondary">Suspicious Postings Quarantined</p>
-            <p className="text-body-xs text-on-surface-variant">
-              {suspiciousJobs.length} scanned job{suspiciousJobs.length !== 1 ? 's' : ''} flagged as suspicious. They are isolated in the <span className="font-bold text-on-surface">Suspicious</span> category and excluded from resume matching.
+<p className="text-label-md font-bold text-secondary">Moderate Risk Postings Quarantined</p>
+             <p className="text-body-xs text-on-surface-variant">
+               {suspiciousJobs.length} scanned job{suspiciousJobs.length !== 1 ? 's' : ''} flagged as moderate risk. They are isolated in the <span className="font-bold text-on-surface">Moderate Risk</span> category and excluded from resume matching.
             </p>
           </div>
         </div>
@@ -285,7 +287,7 @@ export function ResumeMatchView({
 
             <button
               onClick={() => setFilterCategory('verified')}
-              title="Verified jobs"
+              title="Low Risk jobs"
               className={`relative flex-1 flex items-center justify-center py-2 rounded-lg transition-all ${
                 filterCategory === 'verified'
                   ? 'bg-green-950/40 text-green-400 border border-green-500/40 shadow-sm'
@@ -302,7 +304,7 @@ export function ResumeMatchView({
 
             <button
               onClick={() => setFilterCategory('suspicious')}
-              title="Suspicious jobs"
+              title="Moderate Risk jobs"
               className={`relative flex-1 flex items-center justify-center py-2 rounded-lg transition-all ${
                 filterCategory === 'suspicious'
                   ? 'bg-amber-950/40 text-amber-400 border border-amber-500/40 shadow-sm'
@@ -319,7 +321,7 @@ export function ResumeMatchView({
 
             <button
               onClick={() => setFilterCategory('risky')}
-              title="Risky jobs"
+              title="High/Critical Risk jobs"
               className={`relative flex-1 flex items-center justify-center py-2 rounded-lg transition-all ${
                 filterCategory === 'risky'
                   ? 'bg-red-950/40 text-red-400 border border-red-500/40 shadow-sm'
@@ -376,16 +378,24 @@ export function ResumeMatchView({
                           Verified
                         </span>
                       )}
-                      {suspicious && (
-                        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] shrink-0 font-medium ${
-                          sr.status === 'scam'
-                            ? 'bg-error-container/20 text-error border border-error/30'
-                            : 'bg-amber-950/30 text-amber-400 border border-amber-500/30'
-                        }`}>
-                          <Icon name="warning" className="text-[10px]" />
-                          {sr.status === 'scam' ? 'Scam' : 'Suspicious'}
-                        </span>
-                      )}
+                      {sr.riskLevel === 'critical' && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] bg-error-container/20 text-error border border-error/30 shrink-0 font-medium">
+                            <Icon name="shield_person" className="text-[10px]" />
+                            Critical
+                          </span>
+                        )}
+                        {sr.riskLevel === 'high' && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] bg-amber-950/30 text-amber-400 border border-amber-500/30 shrink-0 font-medium">
+                            <Icon name="warning" className="text-[10px]" />
+                            High
+                          </span>
+                        )}
+                        {suspicious && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] bg-amber-950/30 text-amber-400 border border-amber-500/30 shrink-0 font-medium">
+                            <Icon name="warning" className="text-[10px]" />
+                            Moderate
+                          </span>
+                        )}
                     </div>
                   </div>
                   {score !== undefined && (
@@ -418,7 +428,7 @@ export function ResumeMatchView({
                         {sr.riskScore}% Risk
                       </span>
                       <span className={`font-label-md font-bold ${riskColor(sr.riskScore)}`}>
-                        {riskLabel(sr.riskScore)}
+                        {riskLevelLabel(sr.riskLevel)}
                       </span>
                     </div>
 
@@ -509,7 +519,7 @@ export function ResumeMatchView({
       )}
 
       <div className="border-t border-outline-variant/10 pt-3">
-        {!hasResume || replacing ? (
+        {!hasResume ? (
           <div className="flex flex-col gap-3">
             <ResumeUploader onFileSelected={handleFileSelected} disabled={analyzing} />
             {analyzing && (
@@ -523,7 +533,6 @@ export function ResumeMatchView({
           <div className="flex flex-col gap-3">
             <ResumePreview
               data={resumeData}
-              onReplace={() => setReplacing(true)}
               onRemove={onClearResume}
             />
 
@@ -535,18 +544,18 @@ export function ResumeMatchView({
                   className="w-full tactile-btn-gold py-3 rounded-lg font-headline-md text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:translate-y-[1px]"
                 >
                   <Icon name="handshake" />
-                  {matches.length > 0 ? 'Re-Match' : 'Match'}
-                  {verifiedJobs.length > 0 ? ` (${verifiedJobs.length} Verified)` : ''}
+{matches.length > 0 ? 'Re-Match' : 'Match'}
+                   {verifiedJobs.length > 0 ? ` (${verifiedJobs.length} Low Risk)` : ''}
                 </button>
                 {verifiedJobs.length === 0 && (
                   <p className="text-label-xs text-error/90 text-center flex items-center justify-center gap-1">
                     <Icon name="info" className="text-xs shrink-0" />
-                    No verified jobs available. Suspicious jobs are protected from matching.
+                    No low risk jobs available. Moderate and high risk jobs are excluded from matching.
                   </p>
                 )}
                 {suspiciousJobs.length > 0 && verifiedJobs.length > 0 && (
                   <p className="text-label-xs text-on-surface-variant/80 text-center">
-                    Matching only against {verifiedJobs.length} verified job{verifiedJobs.length !== 1 ? 's' : ''}. {suspiciousJobs.length} suspicious job{suspiciousJobs.length !== 1 ? 's' : ''} quarantined.
+                    Matching only against {verifiedJobs.length} low risk job{verifiedJobs.length !== 1 ? 's' : ''}. {suspiciousJobs.length} moderate risk job{suspiciousJobs.length !== 1 ? 's' : ''} quarantined.
                   </p>
                 )}
               </div>

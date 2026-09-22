@@ -73,25 +73,27 @@ export function ScanActions({
                 : PICK_ELEMENT_LABEL}
         </button>
 
-        <button
-          onClick={handleCropToggle}
-          disabled={isCropActivating || disabled}
-          className={`flex-1 py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
-            isCropActive
-              ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
-              : 'btn-outline-gold'
-          }`}
-        >
-          <Icon
-            name="crop"
-            className={isCropActivating ? 'animate-pulse' : ''}
-          />
-          {isCropActivating
-            ? 'Selecting...'
-            : isCropActive
-              ? 'Cancel Crop'
-              : 'Manual Crop'}
-        </button>
+        {!afterScan && (
+          <button
+            onClick={handleCropToggle}
+            disabled={isCropActivating || disabled}
+            className={`flex-1 py-2.5 rounded-lg text-label-md font-label flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
+              isCropActive
+                ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
+                : 'btn-outline-gold bg-background'
+            }`}
+          >
+            <Icon
+              name="crop"
+              className={isCropActivating ? 'animate-pulse' : ''}
+            />
+            {isCropActivating
+              ? 'Selecting...'
+              : isCropActive
+                ? 'Cancel Crop'
+                : 'Manual Crop'}
+          </button>
+        )}
       </div>
     </div>
   );

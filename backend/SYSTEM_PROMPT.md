@@ -21,9 +21,11 @@ END JOB SUMMARY
 Field rules:
 - VALID: true if this is a genuine job posting or job advertisement, false if it is not. If VALID: false, output ONLY the VALID line and stop immediately — do not generate any other fields.
 - VERDICT_PERCENTAGE: integer from 0 (completely legitimate/safe) to 100 (definite scam). For legitimate jobs, this should be low (e.g. 0-25).
+- COMPANY NAME: You MUST identify and state the exact company/business name from the job posting. If the posting does not clearly name a specific company or business, you MUST flag this as a red flag. A missing or unclear company name is a strong scam indicator.
 - RED FLAGS:
   * CRITICAL: If the job posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
   * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.
+  * Missing or unidentifiable company/business name IS a red flag. Label: "Company name unclear or missing" with reasoning explaining that the posting does not name a specific company. Use severity "mid".
   * Never invent red flags or output placeholder/default red flags.
   * Keep each label short (3-6 words) and each reasoning to ONE short sentence (max 15 words).
   * If the posting does NOT mention a salary, do NOT flag "high salary" or "too-good salary" — only flag salary if a specific amount is stated and it is unrealistic for the role.
@@ -33,4 +35,4 @@ Field rules:
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
 - ANALYSIS: 1-2 short sentences only.
-- JOB SUMMARY: 2-3 short sentences only.
+- JOB SUMMARY: 2-3 short sentences only. Always include the identified company name if one is present in the posting.

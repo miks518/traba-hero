@@ -1,8 +1,8 @@
 # Trabahero — Functional & Non-Functional Requirements
 
 **Project:** Trabahero — A Universal Visual Job-Scam Detection System for Filipino Job Seekers
-**Version:** 0.2.0
-**Last Updated:** 2026-09-20
+**Version:** 0.3.0
+**Last Updated:** 2026-09-23
 
 ---
 
@@ -218,9 +218,9 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 |-----------|-------|
 | **ID** | FR-07 |
 | **Priority** | Critical |
-| **Component** | `lm_client.py`, `scan.py`, `SYSTEM_PROMPT.md` |
+| **Component** | `lm_client.py`, `scan.py`, `SYSTEM_PROMPT.md`, `VERIFY_SYSTEM_PROMPT` |
 
-**Description:** The backend shall use an AI model to analyze job postings for fraud indicators and produce a structured verdict.
+**Description:** The backend shall use an AI model to analyze job postings for fraud indicators and produce a structured verdict. External verification is performed via a separate `/api/verify` endpoint using DuckDuckGo search + AI analysis.
 
 **Acceptance Criteria:**
 - AC-01: The AI model receives the job posting content (image and/or text) with a system prompt.
@@ -233,6 +233,10 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-08: The backend supports both OpenRouter (cloud) and LM Studio (local) AI providers.
 - AC-09: The AI response is parsed using custom labeled-section format parser with JSON fallback.
 - AC-10: Unreadable AI responses return a user-friendly error message.
+- AC-11: The system prompt requires the AI to identify the company/business name from the job posting.
+- AC-12: If the company name is missing or unclear, the AI flags it as a red flag ("Company name unclear or missing", severity mid).
+- AC-13: External verification is triggered via POST /api/verify after a successful scan, using the company name from the scan result.
+- AC-14: If no company name is found, external verification is skipped and a red "Unable to Verify" warning banner is displayed in the UI with a caution message to the user.
 
 ---
 
@@ -244,16 +248,26 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | **Priority** | Critical |
 | **Component** | `scan.py`, `RiskGauge.tsx` |
 
-**Description:** The system shall calculate a weighted risk score from detected red flags and display it as a circular gauge.
+**Description:** The system shall calculate a risk score from the AI's verdict percentage (primary) or red flags (fallback) and display it as a circular gauge.
 
 **Acceptance Criteria:**
-- AC-01: Red flags are weighted: HIGH=3, MID=2, LOW=1.
-- AC-02: The raw score is normalized to 0-100: `min(100, raw * 25 // 3)`.
-- AC-03: If any flags exist, the minimum score is 20 (never reads as "legitimate").
-- AC-04: The score is displayed as a circular SVG arc gauge with color transitions: green (0-39), yellow (40-69), red (70+).
-- AC-05: The gauge shows the numeric score in the center and a label below (Legitimate/Suspicious/Scam).
-- AC-06: A score breakdown is provided: high/mid/low counts, weights, and formula.
-- AC-07: Status categories: `legitimate` (score < 40), `suspicious` (40-69), `scam` (70+).
+- AC-01: The AI's stated `VERDICT_PERCENTAGE` is used as the primary risk score.
+- AC-02: If the AI does not provide a verdict percentage, red flags are weighted as fallback: HIGH=3, MID=2, LOW=1.
+- AC-03: The raw flag score is normalized to 0-100: `min(100, raw * 25 // 3)`.
+- AC-04: If any flags exist and the fallback score is below 20, the minimum score is 20.
+- AC-05: The score is displayed as a circular SVG arc gauge with color transitions.
+- AC-06: The gauge shows the numeric score in the center and a risk label below (Low/Moderate/High/Critical Risk).
+- AC-07: Risk categories (based on score): **Low Risk** (0-15), **Moderate Risk** (16-45), **High Risk** (46-75), **Critical Risk** (76-100).
+- AC-08: A score breakdown is provided: high/mid/low counts, weights, and formula.
+- AC-09: The score is always displayed regardless of whether the job is classified as legitimate.
+
+**Risk Label Mapping:**
+| Score Range | Label |
+|-------------|-------|
+| 0–15 | Low Risk |
+| 16–45 | Moderate Risk |
+| 46–75 | High Risk |
+| 76–100 | Critical Risk |
 
 ---
 
@@ -263,9 +277,9 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 |-----------|-------|
 | **ID** | FR-09 |
 | **Priority** | Critical |
-| **Component** | `RedFlagsList.tsx`, `RedFlagCard.tsx` |
+| **Component** | `RedFlagsList.tsx`, `RedFlagCard.tsx`, `SYSTEM_PROMPT.md` |
 
-**Description:** The system shall detect and display red flags with severity indicators.
+**Description:** The system shall detect and display red flags with severity indicators. A missing or unclear company/business name is treated as a red flag.
 
 **Acceptance Criteria:**
 - AC-01: Red flags are displayed as a list of cards with icon, title, severity badge, and description.
@@ -275,6 +289,8 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-05: Flags are prioritized by severity (high first, then mid, then low).
 - AC-06: The system never invents red flags — only genuine scam indicators from the AI are shown.
 - AC-07: Upfront fees are always flagged as HIGH severity (per system prompt rules).
+- AC-08: **Missing or unclear company/business name IS a red flag.** Label: "Company name unclear or missing", severity: mid. This is a strong scam indicator.
+- AC-09: The AI system prompt requires identifying the company name from the job posting. If it cannot be identified, the AI must flag it.
 
 ---
 
@@ -345,19 +361,20 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 |-----------|-------|
 | **ID** | FR-13 |
 | **Priority** | High |
-| **Component** | `external_verifier.py`, `ScamScanView.tsx` |
+| **Component** | `scan.py`, `ScamScanView.tsx`, `VerificationSection.tsx` |
 
-**Description:** The system shall perform external verification of phones, domains, websites, social media, government registries, and scam lists.
+**Description:** The system shall perform external verification of companies via DuckDuckGo search + AI analysis. If no company name is identified from the job posting, verification is skipped and a red warning banner is displayed.
 
 **Acceptance Criteria:**
-- AC-01: **Phone verification:** Philippine phone numbers are extracted and validated against mobile (09xx) and landline patterns. Carrier is identified from prefix (Globe, Smart, Sun, DITO).
-- AC-02: **Domain verification:** Domains are checked via WHOIS for age. Domains < 6 months old are HIGH risk, < 12 months are MEDIUM.
-- AC-03: **Website verification:** URLs are checked via HTTP HEAD request. Non-2xx responses are flagged as MEDIUM risk.
-- AC-04: **Social media verification:** Facebook and LinkedIn pages are searched via DuckDuckGo for the company name.
-- AC-05: **Government registry verification:** PhilGEPS and DTI registrations are searched via DuckDuckGo.
-- AC-06: **Scam list search:** The company is searched for scam/fraud/warning mentions across multiple queries.
-- AC-07: Results with 2+ scam mentions are HIGH risk; 1 mention is MEDIUM; 0 is LOW.
-- AC-08: All verification results are displayed in the scan results UI with risk levels and reasons.
+- AC-01: After a successful scan with a valid job posting, the backend extracts the company name and triggers external verification via POST `/api/verify`.
+- AC-02: `/api/verify` performs one DuckDuckGo search and one AI call using the `VERIFY_SYSTEM_PROMPT`.
+- AC-03: The AI verifies **Company Name** (first category), Company Existence, SEC Registration, Scam Reports, and Online Presence.
+- AC-04: If the company name is missing, unclear, or unidentifiable, external verification is **not triggered**.
+- AC-05: When verification is skipped due to missing company name, the UI displays a red "Unable to Verify" warning banner with a caution message to the user.
+- AC-06: The warning banner is styled with red background (`bg-error/10`) and red border (`border-error/30`) to convey high risk.
+- AC-07: The banner includes: an icon, "Unable to Verify" title, explanation that company name was not identified, and a "⚠ Treat this as a high-risk posting" caution.
+- AC-08: Results with 2+ scam mentions are HIGH risk; 1 mention is MEDIUM; 0 is LOW.
+- AC-09: All verification results are displayed in the scan results UI with risk levels and reasons.
 
 ---
 
@@ -440,14 +457,15 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 **Description:** The system shall filter scanned jobs by risk category.
 
 **Acceptance Criteria:**
-- AC-01: Four filter tabs: All, Verified, Suspicious, Risky.
+- AC-01: Four filter tabs: All, Verified, Moderate, High/Critical.
 - AC-02: Each tab shows a count badge of matching jobs.
-- AC-03: **Verified:** `status === 'legitimate'` AND `riskScore < 40` AND `isJobPosting`.
-- AC-04: **Suspicious:** `status === 'suspicious'` OR `riskScore 40-69`.
-- AC-05: **Risky:** `status === 'scam'` OR `riskScore >= 70`.
-- AC-06: Risky jobs are excluded from resume matching.
-- AC-07: A red warning banner appears if risky jobs exist.
-- AC-08: An amber warning banner appears if suspicious jobs exist.
+- AC-03: **Verified (Low Risk):** `riskLevel === 'low'` AND `isJobPosting`.
+- AC-04: **Moderate:** `riskLevel === 'moderate'`.
+- AC-05: **High/Critical:** `riskLevel === 'high'` OR `riskLevel === 'critical'`.
+- AC-06: High/Critical jobs are excluded from resume matching.
+- AC-07: A red warning banner appears if high/critical jobs exist.
+- AC-08: An amber warning banner appears if moderate jobs exist.
+- AC-09: The risk level is determined by the AI's `verdict_percentage`: Low (0-15), Moderate (16-45), High (46-75), Critical (76-100).
 
 ---
 
@@ -609,6 +627,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | `/api/scan-text` | POST | 5/min | Scan job posting text (SSE stream) |
 | `/api/analyze-resume` | POST | 5/min | Parse resume into structured data (SSE stream) |
 | `/api/match-resume` | POST | 10/min | Match resume against job postings (SSE stream) |
+| `/api/verify` | POST | 10/min | External verification via DuckDuckGo + AI (SSE stream) |
 | `/health` | GET | — | Health check endpoint |
 
 **Acceptance Criteria:**
@@ -617,6 +636,9 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-03: Rate limiting is enforced per IP address.
 - AC-04: Invalid requests return structured error responses.
 - AC-05: The backend runs on FastAPI with async support.
+- AC-06: `/api/verify` accepts a `VerifyRequest` with `company_name`, `job_summary`, and `red_flags`. It returns `items`, `report`, `recommendation`, and `search_log`.
+- AC-07: `/api/verify` logs the raw AI response and parsed results for debugging.
+- AC-08: If the scan result has no `verification_context` (missing company name), `/api/verify` is never called and the frontend shows a red "Unable to Verify" warning banner.
 
 ---
 
@@ -958,9 +980,11 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 ```typescript
 interface ScanResult {
   status: 'scam' | 'suspicious' | 'legitimate';
+  riskLevel: 'low' | 'moderate' | 'high' | 'critical';
+  riskLabel: string;              // "Low Risk", "Moderate Risk", "High Risk", "Critical Risk"
   statusTitle: string;
   scanningTarget: string;
-  riskScore: number;              // 0-100
+  riskScore: number;              // 0-100 (from AI verdict_percentage or flag-based fallback)
   riskDescription: string;
   redFlags: RedFlag[];
   flagsCritical: boolean;
@@ -971,7 +995,34 @@ interface ScanResult {
   jobSummary?: string;
   emailVerifications?: EmailCheck[];
   scoreBreakdown?: ScoreBreakdown;
-  externalVerification?: ExternalVerification;
+  verificationResult?: VerificationResult;
+  verificationLoading?: boolean;
+  verificationError?: boolean;
+  verificationContext?: {         // Set only if company name was identified
+    company_name: string;
+    job_summary: string;
+  };
+}
+```
+
+### VerificationResult
+
+```typescript
+interface VerificationResult {
+  items: VerificationItem[];
+  report: string;
+  recommendation: string;
+  searchLog?: { query: string; round: number; result_preview: string }[];
+}
+```
+
+### VerificationItem
+
+```typescript
+interface VerificationItem {
+  label: string;                  // "Company Name", "Company Existence", "SEC Registration", etc.
+  status: 'green' | 'yellow' | 'red';
+  explanation: string;
 }
 ```
 
@@ -1133,6 +1184,7 @@ Matches a resume against scanned job postings.
 | FR-28 | InvalidContentError.tsx, scan.py | Implemented |
 | FR-29 | ResumeMatchView, App.tsx | Implemented |
 | FR-30 | entrypoints/popup/ | Implemented |
+| FR-31 | VerificationSection, ScamScanView | Implemented — Missing company name guardrail: red "Unable to Verify" banner when no company name found |
 | NFR-01 | All components, imageUtils.ts | Implemented |
 | NFR-02 | api.ts, ai_limiter.py, scan.py | Implemented |
 | NFR-03 | wxt.config.ts, config.py, core/auth.py, api.ts | Implemented |
@@ -1143,6 +1195,7 @@ Matches a resume against scanned job postings.
 | NFR-08 | No auth, no persistence, local AI option | Implemented |
 | NFR-09 | scan.py (language param), system prompts | Implemented |
 | NFR-10 | .env files, config.py, App.tsx, api.ts | Implemented |
+| NFR-11 | scan.py (/api/verify logging), ScamScanView (debug logs) | Implemented — Raw AI response and parsing logs for /api/verify |
 
 ---
 

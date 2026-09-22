@@ -4,11 +4,10 @@ import type { ResumeData } from '../../types';
 
 export interface ResumePreviewProps {
   data: ResumeData;
-  onReplace?: () => void;
   onRemove?: () => void;
 }
 
-export function ResumePreview({ data, onReplace, onRemove }: ResumePreviewProps) {
+export function ResumePreview({ data, onRemove }: ResumePreviewProps) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -16,13 +15,6 @@ export function ResumePreview({ data, onReplace, onRemove }: ResumePreviewProps)
           Resume Summary
         </span>
         <div className="flex gap-2">
-          <button
-            onClick={onReplace}
-            title="Replace resume"
-            className="p-1 rounded-lg text-green-500 hover:bg-green-500/10 transition-colors"
-          >
-            <Icon name="refresh" className="text-[18px]" />
-          </button>
           <button
             onClick={onRemove}
             title="Remove resume"
