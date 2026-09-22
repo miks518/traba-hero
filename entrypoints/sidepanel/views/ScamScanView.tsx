@@ -481,18 +481,16 @@ export function ScamScanView({
                 <h3 className="text-label-md font-bold text-on-surface">Email Verification</h3>
               </div>
               {scanResult.emailVerifications.map((ev, i) => (
-                <div key={i} className={`flex flex-col gap-1 p-2.5 rounded-lg border ${
-                  ev.risk === 'high' ? 'bg-error-container/10 border-error/20' :
-                  ev.risk === 'medium' ? 'bg-secondary-container/10 border-secondary/20' :
-                  'bg-surface-container-highest/50 border-outline-variant/10'
-                }`}>
+                <div key={i} className={`flex flex-col gap-1 p-2.5 rounded-lg border ${ev.risk === 'high' ? 'bg-error-container/10 border-error/20' :
+                    ev.risk === 'medium' ? 'bg-secondary-container/10 border-secondary/20' :
+                      'bg-surface-container-highest/50 border-outline-variant/10'
+                  }`}>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-body-sm font-bold text-on-surface font-mono break-all">{ev.email}</span>
-                    <span className={`text-body-sm font-bold px-1.5 py-0.5 rounded ${
-                      ev.risk === 'high' ? 'bg-error/20 text-error' :
-                      ev.risk === 'medium' ? 'bg-secondary/20 text-secondary' :
-                      'bg-green-500/20 text-green-400'
-                    }`}>
+                    <span className={`text-body-sm font-bold px-1.5 py-0.5 rounded ${ev.risk === 'high' ? 'bg-error/20 text-error' :
+                        ev.risk === 'medium' ? 'bg-secondary/20 text-secondary' :
+                          'bg-green-500/20 text-green-400'
+                      }`}>
                       {ev.risk === 'high' ? 'HIGH RISK' : ev.risk === 'medium' ? 'MEDIUM' : 'VALID'}
                     </span>
                   </div>
@@ -551,9 +549,8 @@ export function ScamScanView({
         <div className="flex flex-col gap-3">
           <div className={`grid gap-2 ${screenshots.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {screenshots.map((ss, i) => (
-              <div key={i} className={`relative rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container cursor-pointer group ${
-                screenshots.length === 1 ? 'max-h-80' : 'aspect-square'
-              }`} onClick={() => setLightboxIndex(i)}>
+              <div key={i} className={`relative rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container cursor-pointer group ${screenshots.length === 1 ? 'max-h-80' : 'aspect-square'
+                }`} onClick={() => setLightboxIndex(i)}>
                 <img src={ss} alt={`Selected ${i + 1}`} className={`w-full h-full ${screenshots.length === 1 ? 'object-contain' : 'object-cover'}`} />
                 <button
                   onClick={(e) => { e.stopPropagation(); removeScreenshot(i); }}
