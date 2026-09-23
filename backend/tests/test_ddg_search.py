@@ -138,13 +138,14 @@ class TestSearchCompany:
     def test_calls_all_query_types(self, mock_search):
         mock_search.return_value = []
         result = search_company("ACME")
-        assert mock_search.call_count == 5
+        assert mock_search.call_count == 8
         assert result["company"] == "ACME"
         assert "legitimacy_results" in result
         assert "sec_results" in result
         assert "scam_results" in result
         assert "linkedin_results" in result
         assert "dole_results" in result
+        assert "social_results" in result
 
 
 # ── search_job_posting ───────────────────────────────────────────────

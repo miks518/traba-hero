@@ -23,7 +23,7 @@ export function FormattedText({ text, className = '' }: FormattedTextProps) {
           );
         }
         return (
-          <p key={i} className="text-body-sm text-on-surface-variant leading-relaxed text-justify">
+          <p key={i} className="text-body-sm text-on-surface-variant leading-relaxed text-left">
             {trimmed}
           </p>
         );

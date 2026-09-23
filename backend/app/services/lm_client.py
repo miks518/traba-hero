@@ -49,7 +49,7 @@ def _parse_json(raw: str) -> dict | list | None:
 _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "critical", "severe", "info"}
 
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|VERDICT[\s_]*PERCENTAGE|RED\s*FLAG|ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANALYSIS|JOB\s*SUMMARY))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|RED\s*FLAG|JOB\s*SUMMARY|END\s*(?:FLAGS|JOB\s*SUMMARY))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 
@@ -106,9 +106,7 @@ def _parse_custom(raw: str) -> dict | None:
             continue
         kw = " ".join(m.group("kw").split()).upper()
         rest = m.group("rest").strip()
-        if kw == "END FLAGS":
-            continue
-        if kw in ("END ANALYSIS", "END JOB SUMMARY"):
+        if kw in ("END JOB SUMMARY",):
             close_section()
             continue
         close_section()
@@ -116,10 +114,6 @@ def _parse_custom(raw: str) -> dict | None:
         if kw == "VALID":
             val = rest.lower()
             result["valid"] = val in ("true", "yes", "1", "legitimate", "valid")
-        elif kw in ("VERDICT PERCENTAGE", "VERDICT_PERCENTAGE"):
-            num = re.search(r"\d{1,3}", rest)
-            if num:
-                result["verdict_percentage"] = int(num.group(0))
         elif kw == "RED FLAG":
             parts = [p.strip() for p in re.split(r"\s*\|\s*", rest) if p.strip()]
             if not parts:
@@ -149,7 +143,7 @@ def _parse_custom(raw: str) -> dict | None:
                 "reasoning": reasoning,
                 "severity": final_severity,
             })
-        elif kw in ("ANALYSIS", "JOB SUMMARY"):
+        elif kw == "JOB SUMMARY":
             section = kw.lower().replace(" ", "_")
             if rest:
                 buf.append(rest)

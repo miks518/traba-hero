@@ -46,7 +46,7 @@ export function VerificationSection({ result, loading, error, currentQuery, noCo
         <div className="flex flex-col items-center gap-3 py-4">
           <div className="w-10 h-10 rounded-full border-2 border-secondary border-t-transparent animate-spin" />
           <div className="flex flex-col items-center gap-1 text-center">
-            <span className="text-body-sm text-on-surface-variant">Searching the web…</span>
+            <span className="text-body-sm text-on-surface-variant">Verifying... Please wait.</span>
             {currentQuery && (
               <span className="text-label-sm text-on-surface-variant/70 max-w-[250px] truncate">
                 {currentQuery}

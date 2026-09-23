@@ -15,15 +15,12 @@ class RedFlag(BaseModel):
 
 class ScanResponse(BaseModel):
     valid: bool
-    verdict_percentage: int = 0
     red_flags: list[RedFlag] = []
-    analysis: str = ""
     job_summary: str = ""
     error: str | None = None
     company_name: str | None = None
     sec_registration: list[dict] = []
     web_search: dict = {}
-    score_breakdown: dict = {}
     external_verification: dict = {}
 
 

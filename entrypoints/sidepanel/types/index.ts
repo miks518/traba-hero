@@ -91,6 +91,8 @@ export interface VerificationResult {
   items: VerificationItem[];
   report: string;
   recommendation: string;
+  riskScore?: number;
+  riskLevel?: ScanRiskLevel;
   searchLog?: { query: string; round: number; result_preview: string }[];
 }
 
@@ -191,9 +193,7 @@ export type ApiStatus = 'idle' | 'loading' | 'success' | 'error';
 
 export interface ApiScanResponse {
   valid: boolean;
-  verdict_percentage: number;
   red_flags: { flag: string; reasoning: string; severity: string }[];
-  analysis: string;
   job_summary: string;
   error?: string | null;
   company_name?: string | null;
@@ -228,4 +228,7 @@ export interface ApiScanResponse {
     company_name?: string;
     job_summary?: string;
   };
+  verificationResult?: VerificationResult;
+  verificationLoading?: boolean;
+  verificationError?: boolean;
 }

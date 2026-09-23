@@ -79,7 +79,7 @@ def format_search_context(search_data: dict) -> str:
     """Format search results into a context string for the AI prompt."""
     has_any = any(
         search_data.get(k)
-        for k in ["legitimacy_results", "sec_results", "scam_results", "linkedin_results", "dole_results"]
+        for k in ["legitimacy_results", "sec_results", "scam_results", "linkedin_results", "dole_results", "social_results"]
     )
     if not has_any:
         return ""
@@ -92,6 +92,7 @@ def format_search_context(search_data: dict) -> str:
         ("scam_results", "Scam/Fraud Reports"),
         ("linkedin_results", "LinkedIn Presence"),
         ("dole_results", "DOLE Licensed Agency"),
+        ("social_results", "Social Media Reviews"),
     ]
 
     for key, label in sections:
@@ -108,12 +109,20 @@ def format_search_context(search_data: dict) -> str:
 
 
 def search_company(company_name: str) -> dict:
-    """Multi-query company search. Returns structured results."""
+    """Multi-query company search. Returns structured results including social media reviews."""
     legitimacy = ddg_search(f"{company_name} Philippines company", 5)
     sec = ddg_search(f"{company_name} SEC registration Philippines", 3)
     scam = ddg_search(f"{company_name} scam fraud warning Philippines", 3)
     linkedin = ddg_search(f"{company_name} LinkedIn company page", 2)
     dole = ddg_search(f"{company_name} DOLE licensed recruitment agency Philippines", 2)
+    facebook_reviews = ddg_search(f'site:facebook.com "{company_name}" reviews', 5)
+    reddit_reviews = ddg_search(f'site:reddit.com "{company_name}" Philippines', 5)
+    general_reviews = ddg_search(f'"{company_name}" reviews employee', 5)
+
+    social_results = []
+    social_results.extend([{"title": r.get("title", ""), "snippet": r.get("body", "")[:300], "url": r.get("href", ""), "source": "Facebook"} for r in facebook_reviews])
+    social_results.extend([{"title": r.get("title", ""), "snippet": r.get("body", "")[:300], "url": r.get("href", ""), "source": "Reddit"} for r in reddit_reviews])
+    social_results.extend([{"title": r.get("title", ""), "snippet": r.get("body", "")[:300], "url": r.get("href", ""), "source": "Web"} for r in general_reviews])
 
     return {
         "company": company_name,
@@ -122,6 +131,7 @@ def search_company(company_name: str) -> dict:
         "scam_results": scam,
         "linkedin_results": linkedin,
         "dole_results": dole,
+        "social_results": social_results,
     }
 
 
@@ -135,6 +145,13 @@ def search_job_posting(text: str) -> str:
     return format_search_context(data)
 
 
+def verify_company(company_name: str) -> str:
+    """Run extended company verification searches and return formatted context."""
+    log.info("[ddg] Verifying company '%s' with extended search", company_name)
+    data = search_company(company_name)
+    return format_search_context(data)
+
+
 def search_job_posting_data(text: str) -> dict:
     """Extract company name and search. Returns raw data dict for frontend."""
     company = extract_company_name(text)
@@ -142,6 +159,10 @@ def search_job_posting_data(text: str) -> dict:
         return {"company_name": None, "results": {}}
     log.info("[ddg] Search data for company '%s'", company)
     data = search_company(company)
+    social_list = [
+        {"title": r.get("title", ""), "snippet": r.get("snippet", "")[:200], "url": r.get("url", ""), "source": r.get("source", "")}
+        for r in data.get("social_results", [])
+    ]
     summary = {
         "company": company,
         "legitimacy": [
@@ -164,5 +185,6 @@ def search_job_posting_data(text: str) -> dict:
             {"title": r.get("title", ""), "snippet": r.get("snippet", "")[:200], "url": r.get("url", "")}
             for r in data.get("dole_results", [])[:2]
         ],
+        "reviews": social_list,
     }
     return {"company_name": company, "results": summary}

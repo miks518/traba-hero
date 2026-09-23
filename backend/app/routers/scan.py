@@ -19,8 +19,8 @@ from app.models.schemas import (
     VerifyRequest, VerificationItem,
 )
 from app.services.image import decode_base64_image
-from app.services.lm_client import chat, chat_json, chat_match, chat_resume, chat_stream_pieces, _parse_custom, _parse_json, _parse_resume_custom
-from app.services.ddg_search import extract_company_name, search_job_posting, search_job_posting_data
+from app.services.lm_client import chat, chat_json, chat_match, chat_resume, chat_stream_pieces, _parse_custom, _parse_json, _parse_resume_custom, _parse_match_custom
+from app.services.ddg_search import extract_company_name, search_job_posting, search_job_posting_data, verify_company
 from app.services.email_verifier import verify_emails_in_text
 from app.exceptions import InvalidImageError
 from app.rate_limit import limiter
@@ -63,11 +63,8 @@ Analyze the provided job posting thoroughly. Verify the company name, contact me
 Respond strictly using this labeled section format:
 
 VALID: true
-VERDICT_PERCENTAGE: 0
+RED FLAG: label | reasoning | severity
 END FLAGS
-ANALYSIS:
-1-2 short sentences. State the verdict and the single most important reason.
-END ANALYSIS
 JOB SUMMARY:
 Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification.
 END JOB SUMMARY
@@ -76,7 +73,36 @@ Be concise: no greetings, no preamble, no repetition, no markdown.
 
 Field rules:
 - VALID: true if this is a genuine job posting or job advertisement, false if it is not. If VALID: false, output ONLY the VALID line and stop immediately — do not generate any other fields.
-- VERDICT_PERCENTAGE: integer from 0 (completely legitimate/safe) to 100 (definite scam). For legitimate jobs, this should be low (e.g. 0-25).
+- COMPANY NAME: You MUST identify and state the exact company/business name from the job posting. If the posting does not clearly name a specific company or business, you MUST flag this as a red flag. A missing or unclear company name is a strong scam indicator.
+- RED FLAGS:
+  * CRITICAL: If the posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
+  * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.
+  * Missing or unidentifiable company/business name IS a red flag. Label: "Company name unclear or missing" with reasoning explaining that the posting does not name a specific company. Use severity "mid".
+  * Never invent red flags or output placeholder/default red flags.
+  * Keep each label short (3-6 words) and each reasoning to ONE short sentence (max 15 words).
+  * If the posting does NOT mention a salary, do NOT flag "high salary" or "too-good salary" — only flag salary if a specific amount is stated and it is unrealistic for the role.
+  * Gmail, Yahoo, and similar free email providers are COMMON and ACCEPTABLE in the Philippines, especially for small businesses, manpower agencies, and direct employers. Do NOT flag Gmail as a red flag by itself — only flag it if the email address is clearly fake, suspicious, or unrelated to the company name.
+  * CRITICAL SEVERITY (use "high"): Any mention of upfront fees, payment required, money collection, "processing fee", "training fee", "registration fee", "assessment fee", "medical fee", "uniform fee", or any form of payment from the applicant. Also flag: "will deduct from salary", "refundable deposit", "admin fee", "processing charge". This is ALWAYS a scam — use severity "high".
+  * Format (only when genuine red flags are detected):
+    RED FLAG: label | reasoning | severity
+    (Severity must be low, mid, or high)
+- JOB SUMMARY: Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."""
+
+SCAN_OUTPUT_FORMAT = """\
+Respond strictly using this labeled section format:
+
+VALID: true
+RED FLAG: label | reasoning | severity
+END FLAGS
+JOB SUMMARY:
+Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification.
+END JOB SUMMARY
+
+Be concise: no greetings, no preamble, no repetition, no markdown.
+
+Field rules:
+- VALID: true if the image/text is a job posting, false if it is not a job posting. If VALID: false, output ONLY the VALID line and stop immediately — do not generate any other fields.
+- COMPANY NAME: You MUST identify and state the exact company/business name from the job posting. If the posting does not clearly name a specific company or business, you MUST flag this as a red flag. A missing or unclear company name is a strong scam indicator.
 - RED FLAGS:
   * CRITICAL: If the posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
   * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.
@@ -88,9 +114,11 @@ Field rules:
   * Format (only when genuine red flags are detected):
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
-- ANALYSIS: 1-2 short sentences only.
 - JOB SUMMARY: Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."""
 
+IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. First decide if it is actually a job posting (VALID: true) or not (VALID: false). If it is not a job posting, output only the VALID: false line and stop. If it is a job posting, identify the company name and list any obvious scam red flags. Extract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
+
+TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nFirst decide if it is actually a job posting (VALID: true) or not (VALID: false). If it is not a job posting, output only the VALID: false line and stop. If it is a job posting, identify the company name and list any obvious scam red flags. Extract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
 
 def load_system_prompt() -> str:
     """Load system prompt from SYSTEM_PROMPT.md in the project root with fallback."""
@@ -104,7 +132,6 @@ def load_system_prompt() -> str:
             log.warning("Could not read SYSTEM_PROMPT.md at %s: %s", root_prompt_path, e)
     return FALLBACK_SYSTEM_PROMPT
 
-
 def load_resume_prompt() -> str:
     """Load system prompt from RESUME_PROMPT.md in the backend directory with fallback."""
     prompt_path = Path(__file__).resolve().parents[2] / "RESUME_PROMPT.md"
@@ -117,7 +144,6 @@ def load_resume_prompt() -> str:
             log.warning("Could not read RESUME_PROMPT.md at %s: %s", prompt_path, e)
     return "You are a resume analysis assistant. Extract candidate details from the provided resume."
 
-
 def load_match_prompt() -> str:
     """Load system prompt from MATCH_PROMPT.md in the backend directory with fallback."""
     prompt_path = Path(__file__).resolve().parents[2] / "MATCH_PROMPT.md"
@@ -129,43 +155,6 @@ def load_match_prompt() -> str:
         except Exception as e:
             log.warning("Could not read MATCH_PROMPT.md at %s: %s", prompt_path, e)
     return "You are a job-match specialist. Evaluate how well a candidate's resume aligns with each job posting."
-
-
-SCAN_OUTPUT_FORMAT = """\
-Respond strictly using this labeled section format:
-
-VALID: true
-VERDICT_PERCENTAGE: 0
-END FLAGS
-ANALYSIS:
-1-2 short sentences. State the verdict and the single most important reason.
-END ANALYSIS
-JOB SUMMARY:
-Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification.
-END JOB SUMMARY
-
-Be concise: no greetings, no preamble, no repetition, no markdown.
-
-Field rules:
-- VALID: true if the image/text is a job posting, false if it is not a job posting. If VALID: false, output ONLY the VALID line and stop immediately — do not generate any other fields.
-- VERDICT_PERCENTAGE: integer from 0 (completely legitimate) to 100 (definitely a scam).
-- RED FLAGS:
-  * CRITICAL: If the posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
-  * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.
-  * Never invent red flags or output placeholder/default red flags.
-  * Keep each label short (3-6 words) and each reasoning to ONE short sentence (max 15 words).
-  * If the posting does NOT mention a salary, do NOT flag "high salary" or "too-good salary" — only flag salary if a specific amount is stated and it is unrealistic for the role.
-  * Gmail, Yahoo, and similar free email providers are COMMON and ACCEPTABLE in the Philippines, especially for small businesses, manpower agencies, and direct employers. Do NOT flag Gmail as a red flag by itself — only flag it if the email address is clearly fake, suspicious, or unrelated to the company name.
-  * CRITICAL SEVERITY (use "high"): Any mention of upfront fees, payment required, money collection, "processing fee", "training fee", "registration fee", "assessment fee", "medical fee", "uniform fee", or any form of payment from the applicant. Also flag: "will deduct from salary", "refundable deposit", "admin fee", "processing charge". This is ALWAYS a scam — use severity "high".
-  * Format (only when genuine red flags are detected):
-    RED FLAG: label | reasoning | severity
-    (Severity must be low, mid, or high)
-- ANALYSIS: 1-2 short sentences only.
-- JOB SUMMARY: Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."""
-
-IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. First decide if it is actually a job posting (VALID: true) or not (VALID: false). If it is not a job posting, output only the VALID: false line and stop — do not analyze further. If it is a job posting, then analyze it for scam indicators. If several images are provided, treat them as parts of the same posting. Extract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
-
-TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nFirst decide if it is actually a job posting (VALID: true) or not (VALID: false). If it is not a job posting, output only the VALID: false line and stop — do not analyze further. If it is a job posting, then analyze it for scam indicators.\n\nExtract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
 
 RESUME_INSTRUCTION = """Analyze this resume and extract candidate details. Respond strictly using this labeled format (NO curly braces or JSON):
 
@@ -186,6 +175,22 @@ Rules:
 
 MATCH_INSTRUCTION = """Compare the candidate's resume against each job posting below.
 
+For EACH job, provide a separate section using this format:
+
+JOB_ID: <the job's unique identifier>
+SCORE: 0-100 (80-100 strong match, 50-79 partial, 0-49 weak)
+LABEL: High Compatibility / Medium Compatibility / Low Compatibility
+SKILL_GAPS: gap1, gap2, gap3 (comma-separated; empty if none)
+MATCHED_SKILLS: skill1, skill2, skill3 (comma-separated; empty if none)
+REASONING:
+2-3 sentences: what skills match and what is missing. Be specific.
+EXPERIENCE_FIT: Good Fit / Overqualified / Underqualified / Moderate
+INDUSTRY_FIT: Strong / Moderate / Weak
+RECOMMENDED_ACTIONS: action1, action2 (comma-separated)
+END JOB
+
+Repeat the section for every job. Do not combine all jobs into one section.
+
 Scoring: 80-100 strong match, 50-79 partial, 0-49 weak.
 
 Candidate Resume:
@@ -205,6 +210,7 @@ Analyze the search results and determine:
 2. Whether the company is registered with the Philippine SEC
 3. Whether there are any scam reports or fraud warnings
 4. Whether the company has a social media presence
+5. Social reputation — check Facebook and Reddit reviews for employee experiences, complaints, or positive feedback
 
 Respond with your findings in this EXACT format for each verification:
 
@@ -233,6 +239,11 @@ STATUS: green | yellow | red
 DETAIL: One sentence explaining what you found.
 END VERIFY
 
+VERIFY: Social Reputation
+STATUS: green | yellow | red
+DETAIL: One sentence explaining what Facebook or Reddit reviews revealed about the company's reputation.
+END VERIFY
+
 STATUS RULES:
 - green: Confirmed positive (found, active, no issues)
 - yellow: Partial or uncertain (found but with caveats, or not applicable)
@@ -242,7 +253,7 @@ Include a "Company Name" verification category for every job posting. If the com
 
 Only include verification categories that are relevant to this job posting. Skip categories that do not apply.
 
-After the verification blocks, ALWAYS output these two sections:
+After all verification blocks, output these sections:
 
 REPORT:
 2-4 short plain sentences summarizing overall verification findings. Write complete sentences only — no markdown, no bullet points, no headers, no horizontal rules, no asterisks.
@@ -250,7 +261,45 @@ END REPORT
 
 RECOMMENDATION:
 1-2 short plain sentences stating whether to apply, proceed with caution, or avoid this job. Write complete sentences only — no markdown, no bullet points, no headers, no horizontal rules, no asterisks.
-END RECOMMENDATION"""
+END RECOMMENDATION
+
+Finally, output the calculated risk assessment:
+
+RISK_SCORE: integer 0-100 (calculated from verification items: red items add to risk, yellow items add partial risk, green items add none)
+RISK_LEVEL: low | moderate | high | critical (0-30=low, 31-50=moderate, 51-75=high, 76-100=critical)
+END RISK"""
+
+
+def _calculate_risk_score_from_verify(items: list[VerificationItem]) -> tuple[int, str]:
+    """Calculate risk score from verification items. Each category contributes based on status.
+    Red = full weight, Yellow = half weight, Green = none. Returns (score, riskLevel)."""
+    category_weights = {
+        "Company Name": 30,
+        "Company Existence": 25,
+        "SEC Registration": 15,
+        "Scam Reports": 30,
+        "Online Presence": 15,
+        "Social Reputation": 25,
+    }
+    total_weight = sum(category_weights.values())  # 140
+    penalty = 0
+    for item in items:
+        label = item.label.strip()
+        weight = category_weights.get(label, 10)
+        if item.status == "red":
+            penalty += weight
+        elif item.status == "yellow":
+            penalty += weight // 2
+    score = min(100, round(penalty / total_weight * 100))
+    if score <= 30:
+        level = "low"
+    elif score <= 50:
+        level = "moderate"
+    elif score <= 75:
+        level = "high"
+    else:
+        level = "critical"
+    return score, level
 
 
 def _build_verify_prompt(req: VerifyRequest, search_context: str = "") -> str:
@@ -310,57 +359,20 @@ def _red_flags(flags: list) -> list[RedFlag]:
     return out
 
 
-# Weighted scoring — placeholder weights (to be replaced with AHP-derived weights after expert survey)
-# HIGH=3, MID=2, LOW=1 → max possible = 3×N flags, normalized to 0-100
-SEVERITY_WEIGHTS = {"high": 3, "mid": 2, "low": 1}
-
-
-def _calculate_score(flags: list[RedFlag]) -> tuple[int, dict]:
-    """Calculate weighted scam score from red flags. Returns (score, breakdown)."""
-    high_count = sum(1 for f in flags if f.severity == "high")
-    mid_count = sum(1 for f in flags if f.severity == "mid")
-    low_count = sum(1 for f in flags if f.severity == "low")
-    raw = (high_count * SEVERITY_WEIGHTS["high"] +
-           mid_count * SEVERITY_WEIGHTS["mid"] +
-           low_count * SEVERITY_WEIGHTS["low"])
-    # Normalize to 0-100: 1 HIGH=3→25, 2 HIGH=6→50, 3 HIGH=9→75
-    # Minimum score of 20 when any flags exist so it never reads as "legitimate"
-    score = min(100, raw * 25 // 3) if raw > 0 else 0
-    if flags and score < 20:
-        score = 20
-    breakdown = {
-        "high_count": high_count,
-        "mid_count": mid_count,
-        "low_count": low_count,
-        "high_weight": SEVERITY_WEIGHTS["high"],
-        "mid_weight": SEVERITY_WEIGHTS["mid"],
-        "low_weight": SEVERITY_WEIGHTS["low"],
-        "formula": f"({high_count}×3) + ({mid_count}×2) + ({low_count}×1) = {raw}",
-        "normalized_score": score,
-    }
-    return score, breakdown
-
-
 def _language_instruction(language: str) -> str:
     lang = (language or "").strip().lower()
     if lang in ("tagalog", "filipino", "tl"):
-        return "Respond in Tagalog. Write the ANALYSIS, JOB SUMMARY, and all RED FLAG label/reasoning in Tagalog. Keep the VALID, VERDICT_PERCENTAGE, and section labels exactly as shown above."
+        return "Respond in Tagalog. Write the JOB SUMMARY, and all RED FLAG label/reasoning in Tagalog. Keep the VALID and section labels exactly as shown above."
     return "Respond in English."
 
 
-def _scan_response(result: dict) -> ScanResponse:
+def _scan_response(result: dict, company_name: str = "") -> ScanResponse:
     flags = _red_flags(result.get("red_flags", []))
-    calc_score, breakdown = _calculate_score(flags)
-    ai_score = result.get("verdict_percentage")
-    verdict_percentage = ai_score if ai_score is not None else calc_score
     return ScanResponse(
         valid=result.get("valid", False),
-        verdict_percentage=verdict_percentage,
         red_flags=flags,
-        analysis=result.get("analysis", ""),
         job_summary=result.get("job_summary", ""),
         error=result.get("error"),
-        score_breakdown=breakdown,
     )
 
 
@@ -434,13 +446,13 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
             return
 
         log.info("[%s] Parsed result: %s", endpoint, result)
-        log.info("[%s] valid=%s, verdict_percentage=%s, job_summary_len=%d, red_flags=%d", endpoint, result.get("valid"), result.get("verdict_percentage"), len(str(result.get("job_summary", ""))), len(_red_flags(result.get("red_flags", []))))
+        log.info("[%s] valid=%s, job_summary_len=%d, red_flags=%d", endpoint, result.get("valid"), len(str(result.get("job_summary", ""))), len(_red_flags(result.get("red_flags", []))))
         yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
 
         is_invalid = early_exit or not result.get("valid", True)
 
         email_data: list[dict] = []
-        verify_text = original_text or (result.get("job_summary", "") + " " + result.get("analysis", ""))
+        verify_text = original_text or result.get("job_summary", "")
         if not is_invalid and verify_text.strip():
             email_checks = verify_emails_in_text(verify_text)
             email_data = [
@@ -450,17 +462,18 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
                 for c in email_checks
             ]
 
-        resp = _scan_response(result).model_dump()
+        company_name = ""
+        if company_data:
+            company_name = company_data.get("company_name", "")
+        if not company_name:
+            company_name = extract_company_name(verify_text) or ""
+
+        resp = _scan_response(result, company_name=company_name).model_dump()
         if company_data:
             resp.update(company_data)
         resp["email_verifications"] = email_data
 
         if not is_invalid:
-            company_name = ""
-            if company_data:
-                company_name = company_data.get("company_name", "")
-            if not company_name:
-                company_name = extract_company_name(verify_text) or ""
             log.info("[%s] is_valid=%s, company_name='%s', verify_text_len=%d", endpoint, not is_invalid, company_name, len(verify_text))
             if company_name:
                 resp["verification_context"] = {
@@ -515,7 +528,7 @@ async def scan(req: ScanRequest, request: Request, _auth: None = Depends(require
 @limiter.limit("5/minute")
 async def scan_text(req: ScanTextRequest, request: Request, _auth: None = Depends(require_client_key)):
     if not req.text.strip():
-        return ScanResponse(valid=False, verdict_percentage=100, analysis="No text provided.")
+        return ScanResponse(valid=False)
     log.info("Text scan: %d chars to LM Studio", len(req.text))
 
     # Pre-search: try to find company info before sending to AI
@@ -638,58 +651,43 @@ async def _match_event_stream(messages: list, max_tokens: int | None = None, end
 
         yield _sse({"type": "progress", "percent": 95, "stage": "Parsing result"})
 
-        result = _parse_custom(message_content) if message_content else None
-        if not isinstance(result, dict):
+        result = _parse_match_custom(message_content) if message_content else None
+        if not isinstance(result, list):
             log.error("[%s] Parse failed after %d tokens. Raw: %s", endpoint, token_count, message_content[:500])
             result = _parse_json(message_content) if message_content else None
-        if not isinstance(result, dict):
-            yield _sse({"type": "error", "error": "The AI returned an unreadable response. Please try again."})
-            return
+            if isinstance(result, dict):
+                result = [result]
+            elif not isinstance(result, list):
+                yield _sse({"type": "error", "error": "The AI returned an unreadable response. Please try again."})
+                return
 
-        # Post-process into match result format
-        analysis = result.get("analysis", "")
-        job_summary = result.get("job_summary", "")
-        verdict = result.get("verdict_percentage", 0)
-        score = max(0, min(100, int(verdict) if verdict else 0))
-        label = "High Compatibility" if score >= 80 else "Medium Compatibility" if score >= 50 else "Low Compatibility"
+        matches = []
+        for item in result:
+            if not isinstance(item, dict) or not item.get("job_id"):
+                continue
+            analysis = item.get("reasoning", "")
+            score_val = item.get("score", 0)
+            score = max(0, min(100, int(score_val) if score_val else 0))
+            label = item.get("label") or ("High Compatibility" if score >= 80 else "Medium Compatibility" if score >= 50 else "Low Compatibility")
+            skill_gaps = item.get("skill_gaps", []) if isinstance(item.get("skill_gaps"), list) else []
+            matched_skills = item.get("matched_skills", []) if isinstance(item.get("matched_skills"), list) else []
+            experience_fit = item.get("experience_fit", "") or "Moderate"
+            industry_fit = item.get("industry_fit", "") or "Moderate"
+            recommended_actions = item.get("recommended_actions", []) if isinstance(item.get("recommended_actions"), list) else []
 
-        skill_gaps: list[str] = []
-        matched_skills: list[str] = []
-        recommended_actions: list[str] = []
-        experience_fit = ""
-        if job_summary:
-            parts = [p.strip() for p in re.split(r"[.;]", job_summary) if p.strip()]
-            for p in parts:
-                p_lower = p.lower()
-                if "gap" in p_lower or "missing" in p_lower:
-                    items = re.split(r":", p, maxsplit=1)
-                    if len(items) > 1:
-                        skill_gaps = [x.strip() for x in re.split(r"[,;]", items[1]) if x.strip()]
-                elif "match" in p_lower:
-                    items = re.split(r":", p, maxsplit=1)
-                    if len(items) > 1:
-                        matched_skills = [x.strip() for x in re.split(r"[,;]", items[1]) if x.strip()]
-                elif "fit" in p_lower:
-                    experience_fit = p.strip()
-                elif "action" in p_lower or "step" in p_lower:
-                    items = re.split(r":", p, maxsplit=1)
-                    if len(items) > 1:
-                        recommended_actions = [x.strip() for x in re.split(r"[,;]", items[1]) if x.strip()]
-
-        data = {
-            "matches": [{
-                "job_id": "",
+            matches.append({
+                "job_id": item["job_id"],
                 "score": score,
                 "label": label,
                 "skill_gaps": skill_gaps,
                 "matched_skills": matched_skills,
                 "reasoning": analysis,
                 "experience_fit": experience_fit,
-                "industry_fit": "Moderate",
+                "industry_fit": industry_fit,
                 "recommended_actions": recommended_actions,
-            }],
-        }
+            })
 
+        data = {"matches": matches}
         yield _sse({"type": "result", "data": data})
     except Exception as e:  # noqa: BLE001
         log.error("[%s] Post-processing error: %s: %s", endpoint, type(e).__name__, e)
@@ -754,7 +752,7 @@ async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None
 @router.post("/api/verify")
 @limiter.limit("10/minute")
 async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends(require_client_key)):
-    """External verification: one DuckDuckGo search + one AI call. SSE stream."""
+    """External verification: extended DuckDuckGo searches + one AI call. SSE stream."""
 
     async def _verify_stream():
         await ai_limiter.acquire()
@@ -762,11 +760,19 @@ async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends
             yield _sse({"type": "progress", "percent": 5, "stage": "Preparing verification"})
 
             search_context = ""
+            search_log = []
             if req.company_name:
-                yield _sse({"type": "progress", "percent": 15, "stage": "Searching the web"})
+                yield _sse({"type": "progress", "percent": 10, "stage": "Searching company info"})
                 yield _sse({"type": "search", "query": f"{req.company_name} Philippines", "round": 1})
-                search_context = await asyncio.to_thread(search_job_posting, req.company_name)
-                yield _sse({"type": "progress", "percent": 40, "stage": "AI analyzing"})
+                yield _sse({"type": "search", "query": f'site:facebook.com "{req.company_name}" reviews', "round": 2})
+                yield _sse({"type": "search", "query": f'site:reddit.com "{req.company_name}" Philippines', "round": 3})
+                search_context = await asyncio.to_thread(verify_company, req.company_name)
+                search_log = [
+                    {"query": f"{req.company_name} Philippines", "round": 1},
+                    {"query": f'site:facebook.com "{req.company_name}" reviews', "round": 2},
+                    {"query": f'site:reddit.com "{req.company_name}" Philippines', "round": 3},
+                ]
+                yield _sse({"type": "progress", "percent": 45, "stage": "AI analyzing"})
 
             verify_prompt = _build_verify_prompt(req, search_context)
             messages = [
@@ -782,7 +788,9 @@ async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends
             report = _parse_verify_section(final_text, "REPORT")
             recommendation = _parse_verify_section(final_text, "RECOMMENDATION")
 
-            log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d", len(items), len(report), len(recommendation))
+            risk_score, risk_level = _calculate_risk_score_from_verify(items)
+
+            log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, risk_score=%d, risk_level=%s", len(items), len(report), len(recommendation), risk_score, risk_level)
             if items:
                 log.info("[verify] Items: %s", items)
             if report:
@@ -796,7 +804,9 @@ async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends
                 "items": [item.model_dump() for item in items],
                 "report": report,
                 "recommendation": recommendation,
-                "search_log": [{"query": f"{req.company_name} Philippines", "round": 1}] if req.company_name else [],
+                "riskScore": risk_score,
+                "riskLevel": risk_level,
+                "search_log": search_log if req.company_name else [],
             }})
         except Exception as e:  # noqa: BLE001
             log.error("[verify] Error: %s: %s", type(e).__name__, e)

@@ -375,7 +375,7 @@ async function consumeSseStreamMatch(
 }
 
 export interface VerifyStreamResult {
-  result?: VerificationResult;
+  result?: VerificationResult & { riskScore?: number; riskLevel?: string };
   timedOut?: boolean;
 }
 
@@ -438,12 +438,14 @@ export async function verifyJobStream(
         } else if (event.type === 'search') {
           onSearch(String(event.query ?? ''), Number(event.round ?? 0));
         } else if (event.type === 'result') {
-          const data = event.data as { items: VerificationResult['items']; report: string; recommendation: string; search_log: unknown[] };
+          const data = event.data as { items: VerificationResult['items']; report: string; recommendation: string; riskScore?: number; riskLevel?: string; search_log: unknown[] };
           return {
             result: {
               items: data.items ?? [],
               report: data.report ?? '',
               recommendation: data.recommendation ?? '',
+              riskScore: data.riskScore,
+              riskLevel: data.riskLevel as 'low' | 'moderate' | 'high' | 'critical' | undefined,
               searchLog: data.search_log as VerificationResult['searchLog'],
             },
           };

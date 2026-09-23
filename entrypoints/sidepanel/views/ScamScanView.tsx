@@ -19,6 +19,16 @@ function getRiskLabel(score: number): string {
   return 'Low Risk';
 }
 
+function riskLevelLabel(level: string): string {
+  switch (level) {
+    case 'low': return 'Low Risk';
+    case 'moderate': return 'Moderate Risk';
+    case 'high': return 'High Risk';
+    case 'critical': return 'Critical Risk';
+    default: return 'Low Risk';
+  }
+}
+
 export interface ScamScanViewProps {
   onScanComplete?: (job: ScannedJob) => void;
   onScanProgressChange?: (progress: ScanProgress | null) => void;
@@ -30,11 +40,12 @@ const SEVERITY_ICONS: Record<string, IconName> = {
   high: 'warning',
 };
 
-let jobIdCounter = 0;
+function generateJobId(): string {
+  return `job-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 function mapApiResponse(data: ApiScanResponse): ScanResult {
   const isJobPosting = data.valid;
-  const score = data.verdict_percentage ?? 50;
   const flags = data.red_flags ?? [];
   const hasCritical = flags.some((f) => f.severity === 'high');
   const flagCount = flags.length;
@@ -44,20 +55,22 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
     status = 'legitimate';
   } else if (hasCritical || flagCount >= 2) {
     status = 'scam';
-  } else if (flagCount === 1 || score >= 40) {
+  } else if (flagCount === 1) {
     status = 'suspicious';
   } else {
     status = 'legitimate';
   }
+  const riskLevel = status === 'scam' ? 'critical' : status === 'suspicious' ? 'high' : 'low';
+  const riskScore = riskLevel === 'critical' ? 80 : riskLevel === 'high' ? 50 : 10;
   return {
     status,
-    riskLevel: getRiskLevel(score),
-    riskLabel: getRiskLabel(score),
-    statusTitle: getRiskLabel(score),
+    riskLevel,
+    riskLabel: riskLevelLabel(riskLevel),
+    statusTitle: riskLevelLabel(riskLevel),
     scanningTarget: 'Scanned Element',
-    riskScore: score,
-    riskDescription: data.analysis || 'Analysis completed.',
-    redFlags: (data.red_flags ?? []).map((f, i) => ({
+    riskScore,
+    riskDescription: data.job_summary || 'Scan completed.',
+    redFlags: flags.map((f, i) => ({
       id: `flag-${i}`,
       title: f.flag,
       description: f.reasoning,
@@ -80,6 +93,9 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
       reason: e.reason,
     })),
     scoreBreakdown: data.score_breakdown || undefined,
+    verificationResult: data.verificationResult,
+    verificationLoading: data.verification_context ? true : data.verificationLoading,
+    verificationError: data.verificationError,
   };
 }
 
@@ -113,6 +129,7 @@ export function ScamScanView({
   const { toasts, showToast, removeToast } = useToastManager();
   const verifyAbortRef = useRef<AbortController | null>(null);
   const [currentSearchQuery, setCurrentSearchQuery] = useState('');
+  const [verificationFailed, setVerificationFailed] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -171,6 +188,7 @@ export function ScamScanView({
     setScanResult(null);
     setIsValidJob(false);
     setProgress(null);
+    setVerificationFailed(false);
     onScanProgressChange?.(null);
     setPickerCancelPhase((p) => p + 1);
   }, [onScanProgressChange]);
@@ -196,6 +214,7 @@ export function ScamScanView({
       setScanResult(null);
       setIsValidJob(false);
       setProgress(null);
+      setVerificationFailed(false);
       onScanProgressChange?.(null);
     }
   }, [screenshots.length, onScanProgressChange]);
@@ -243,7 +262,7 @@ export function ScamScanView({
           ? data.job_summary.slice(0, 60).replace(/\s+\S*$/, '')
           : mapped.scanningTarget;
         onScanComplete?.({
-          id: `job-${++jobIdCounter}`,
+          id: generateJobId(),
           title: jobTitle,
           summary: data.job_summary,
           timestamp: new Date().toISOString(),
@@ -283,6 +302,7 @@ export function ScamScanView({
 
     setScanResult(prev => prev ? { ...prev, verificationLoading: true, verificationError: false } : null);
     setCurrentSearchQuery('');
+    setVerificationFailed(false);
 
     try {
       const verifyResult = await verifyJobStream(
@@ -296,18 +316,26 @@ export function ScamScanView({
 
       if (verifyResult.result) {
         console.log('[verify] Result received:', verifyResult.result);
+        const result = verifyResult.result;
         setScanResult(prev => prev ? {
           ...prev,
-          verificationResult: verifyResult.result,
+          verificationResult: result,
           verificationLoading: false,
+          verificationFailed: false,
+          riskScore: result.riskScore ?? prev.riskScore,
+          riskLevel: (result.riskLevel as ScanResult['riskLevel']) ?? prev.riskLevel,
+          riskLabel: riskLevelLabel((result.riskLevel as ScanResult['riskLevel']) ?? prev.riskLevel),
+          statusTitle: riskLevelLabel((result.riskLevel as ScanResult['riskLevel']) ?? prev.riskLevel),
         } : null);
       } else {
         console.warn('[verify] Empty result from verifyJobStream');
-        setScanResult(prev => prev ? { ...prev, verificationLoading: false } : null);
+        setVerificationFailed(true);
+        setScanResult(prev => prev ? { ...prev, verificationLoading: true } : null);
       }
     } catch (e) {
       console.error('[verify] Error:', e);
-      setScanResult(prev => prev ? { ...prev, verificationLoading: false, verificationError: true } : null);
+      setVerificationFailed(true);
+      setScanResult(prev => prev ? { ...prev, verificationLoading: true, verificationError: true } : null);
     }
   }, []);
 
@@ -321,7 +349,7 @@ export function ScamScanView({
       if (e.status === 422) return 'The image could not be processed. Try selecting a different area.';
       if (e.status >= 500) return 'The AI service encountered an error. Please try again later.';
     }
-    return 'Something went wrong during the scan. Please try again.';
+    return 'Something went wrong during the scan. Please try again later.';
   }
 
   return (
@@ -345,38 +373,32 @@ export function ScamScanView({
 
       {hasScanned && scanResult && isValidJob && (
         <>
-          <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} riskLevel={scanResult.riskLevel} riskLabel={scanResult.riskLabel} />
-
-          {scanResult.scoreBreakdown && (scanResult.scoreBreakdown.high_count + scanResult.scoreBreakdown.mid_count + scanResult.scoreBreakdown.low_count) > 0 && (
-            <div className="flex flex-col gap-2 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
-              <div className="flex items-center gap-2">
-                <Icon name="architecture" className="text-secondary" />
-                <h3 className="text-label-md font-bold text-on-surface">Score Calculation</h3>
+          {scanResult.verificationLoading || verificationFailed ? (
+            <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card">
+              <div className="flex flex-col items-center gap-4 text-center">
+                <div className="relative w-[132px] h-[132px] flex items-center justify-center shrink-0">
+                  <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 128 128">
+                    <circle cx="64" cy="64" fill="transparent" r={52} stroke="currentColor" strokeWidth={14} className="text-surface-container-high" />
+                    <circle cx="64" cy="64" fill="transparent" r={52} stroke="currentColor" strokeWidth={14} strokeLinecap="round" strokeDasharray={327} strokeDashoffset={327} className="animate-spin" style={{ color: 'hsl(45, 78%, 44%)' }} />
+                  </svg>
+                  <div className="flex flex-col items-center">
+                    <span className="text-3xl font-extrabold tracking-tight leading-none animate-pulse">—</span>
+                    <span className="font-label-md text-label-md text-on-surface-variant mt-0.5">RISK</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5 min-w-0">
+                  <span className="font-headline-xs font-bold inline-flex items-center justify-center gap-1.5 text-on-surface-variant">
+                    <span className="w-2 h-2 rounded-full shrink-0 bg-secondary animate-ping" />
+                    {verificationFailed ? 'Verification Unavailable' : 'Verifying...'}
+                  </span>
+                  <span className="text-body-sm text-on-surface-variant">
+                    {verificationFailed ? 'Could not verify this company. Retry may be needed.' : 'Please wait while we verify this company.'}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-3 text-body-sm text-on-surface-variant">
-                {scanResult.scoreBreakdown.high_count > 0 && (
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-error" />
-                    {scanResult.scoreBreakdown.high_count} HIGH × {scanResult.scoreBreakdown.high_weight} = {scanResult.scoreBreakdown.high_count * scanResult.scoreBreakdown.high_weight}
-                  </span>
-                )}
-                {scanResult.scoreBreakdown.mid_count > 0 && (
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-secondary" />
-                    {scanResult.scoreBreakdown.mid_count} MID × {scanResult.scoreBreakdown.mid_weight} = {scanResult.scoreBreakdown.mid_count * scanResult.scoreBreakdown.mid_weight}
-                  </span>
-                )}
-                {scanResult.scoreBreakdown.low_count > 0 && (
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-outline" />
-                    {scanResult.scoreBreakdown.low_count} LOW × {scanResult.scoreBreakdown.low_weight} = {scanResult.scoreBreakdown.low_count * scanResult.scoreBreakdown.low_weight}
-                  </span>
-                )}
-              </div>
-              <span className="text-body-sm text-on-surface-variant font-mono break-all">
-                {scanResult.scoreBreakdown.formula} → <span className="font-bold text-on-surface">{scanResult.scoreBreakdown.normalized_score}/100</span>
-              </span>
-            </div>
+            </section>
+          ) : (
+            <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} riskLevel={scanResult.riskLevel} riskLabel={scanResult.riskLabel} />
           )}
 
           {hasScanned && (
@@ -395,131 +417,13 @@ export function ScamScanView({
 
           <RedFlagsList flags={scanResult.redFlags} critical={scanResult.flagsCritical} />
 
-          {scanResult.jobSummary && (
-            <div className="flex flex-col gap-2 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
-              <div className="flex items-center gap-2">
-                <Icon name="description" className="text-secondary" />
-                <h3 className="text-label-md font-bold text-on-surface">Job Summary</h3>
-              </div>
-              <p className="text-body-sm text-on-surface-variant leading-relaxed text-justify">
-                {scanResult.jobSummary}
-              </p>
-            </div>
-          )}
-
-          {(scanResult.companyName || (scanResult.secRegistration && scanResult.secRegistration.length > 0) || (scanResult.webSearch && (scanResult.webSearch.legitimacy?.length || scanResult.webSearch.scam_reports?.length))) && (
-            <div className="flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
-              <div className="flex items-center gap-2">
-                <Icon name="business" className="text-secondary" />
-                <h3 className="text-label-md font-bold text-on-surface">Company Information</h3>
-              </div>
-
-              {scanResult.companyName && (
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="text-body-sm text-on-surface-variant">Company:</span>
-                  <span className="text-body-sm font-bold text-on-surface break-words min-w-0">{scanResult.companyName}</span>
-                </div>
-              )}
-
-              {scanResult.secRegistration && scanResult.secRegistration.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-label-sm font-bold text-on-surface-variant">SEC Registration</span>
-                  {scanResult.secRegistration.map((sec, i) => (
-                    <div key={i} className="flex flex-col gap-0.5 p-2 rounded-lg bg-surface-container-highest/50">
-                      <span className="text-body-sm text-on-surface">{sec.company_name}</span>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-on-surface-variant">
-                        {sec.sec_no && <span className="break-all">SEC# {sec.sec_no}</span>}
-                        {sec.status && <span className={`font-bold ${sec.status.toLowerCase().includes('active') ? 'text-green-400' : 'text-amber-400'}`}>{sec.status}</span>}
-                        {sec.date_approved && <span>{sec.date_approved}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {scanResult.webSearch?.legitimacy && scanResult.webSearch.legitimacy.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-label-sm font-bold text-on-surface-variant">Web Results</span>
-                  {scanResult.webSearch.legitimacy.map((r, i) => (
-                    <div key={i} className="flex flex-col gap-0.5">
-                      <span className="text-body-sm text-on-surface line-clamp-1">{r.title}</span>
-                      <span className="text-body-sm text-on-surface-variant line-clamp-2">{r.snippet}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {scanResult.webSearch?.scam_reports && scanResult.webSearch.scam_reports.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-label-sm font-bold text-error">Scam Reports</span>
-                  {scanResult.webSearch.scam_reports.map((r, i) => (
-                    <div key={i} className="flex flex-col gap-0.5 p-2 rounded-lg bg-error-container/10 border border-error/20">
-                      <span className="text-body-sm text-on-surface line-clamp-1">{r.title}</span>
-                      <span className="text-body-sm text-on-surface-variant line-clamp-2">{r.snippet}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {scanResult.webSearch?.linkedin && scanResult.webSearch.linkedin.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-label-sm font-bold text-on-surface-variant">LinkedIn</span>
-                  {scanResult.webSearch.linkedin.map((r, i) => (
-                    <div key={i} className="flex flex-col gap-0.5">
-                      <span className="text-body-sm text-on-surface line-clamp-1">{r.title}</span>
-                      <span className="text-body-sm text-on-surface-variant line-clamp-2">{r.snippet}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {scanResult.webSearch?.dole && scanResult.webSearch.dole.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-label-sm font-bold text-on-surface-variant">DOLE Licensed Agency</span>
-                  {scanResult.webSearch.dole.map((r, i) => (
-                    <div key={i} className="flex flex-col gap-0.5">
-                      <span className="text-body-sm text-on-surface line-clamp-1">{r.title}</span>
-                      <span className="text-body-sm text-on-surface-variant line-clamp-2">{r.snippet}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {scanResult.emailVerifications && scanResult.emailVerifications.length > 0 && (
-            <div className="flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low border border-outline-variant/20">
-              <div className="flex items-center gap-2">
-                <Icon name="alternate_email" className="text-secondary" />
-                <h3 className="text-label-md font-bold text-on-surface">Email Verification</h3>
-              </div>
-              {scanResult.emailVerifications.map((ev, i) => (
-                <div key={i} className={`flex flex-col gap-1 p-2.5 rounded-lg border ${ev.risk === 'high' ? 'bg-error-container/10 border-error/20' :
-                    ev.risk === 'medium' ? 'bg-secondary-container/10 border-secondary/20' :
-                      'bg-surface-container-highest/50 border-outline-variant/10'
-                  }`}>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-body-sm font-bold text-on-surface font-mono break-all">{ev.email}</span>
-                    <span className={`text-body-sm font-bold px-1.5 py-0.5 rounded ${ev.risk === 'high' ? 'bg-error/20 text-error' :
-                        ev.risk === 'medium' ? 'bg-secondary/20 text-secondary' :
-                          'bg-green-500/20 text-green-400'
-                      }`}>
-                      {ev.risk === 'high' ? 'HIGH RISK' : ev.risk === 'medium' ? 'MEDIUM' : 'VALID'}
-                    </span>
-                  </div>
-                  <span className="text-body-sm text-on-surface-variant break-words">{ev.reason}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-<VerificationSection
-              result={scanResult.verificationResult}
-              loading={scanResult.verificationLoading}
-              error={scanResult.verificationError}
-              currentQuery={currentSearchQuery}
-              noCompanyName={isValidJob && !scanResult.verificationResult && !scanResult.verificationLoading && !scanResult.verificationError}
-            />
+          <VerificationSection
+            result={scanResult.verificationResult}
+            loading={scanResult.verificationLoading}
+            error={scanResult.verificationError}
+            currentQuery={currentSearchQuery}
+            noCompanyName={isValidJob && !scanResult.verificationResult && !scanResult.verificationLoading && !scanResult.verificationError}
+          />
         </>
       )}
 
