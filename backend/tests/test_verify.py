@@ -221,3 +221,40 @@ async def test_verify_sse_stream_format():
     assert "data: " in body
     # Should contain progress or result events
     assert '"type"' in body
+
+
+@pytest.mark.asyncio
+async def test_verify_stops_early_when_no_company_name():
+    """Verify endpoint terminates early without DDG search or AI call when company name is missing/placeholder."""
+    with patch("app.routers.scan.verify_company") as mock_verify_company, \
+         patch("app.routers.scan.chat") as mock_chat:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post("/api/verify", json={
+                "company_name": "",
+                "job_summary": "Looking for Virtual Assistant",
+            }, headers=HEADERS)
+
+        assert resp.status_code == 200
+        mock_verify_company.assert_not_called()
+        mock_chat.assert_not_called()
+        body = resp.text
+        assert "Cannot verify company name" in body
+        assert "no_company_name" in body
+
+
+@pytest.mark.asyncio
+async def test_verify_failsafe_when_nothing_to_parse():
+    """Verify endpoint failsafe kicks in when AI output cannot be parsed."""
+    with patch("app.routers.scan.verify_company", return_value="some search context"), \
+         patch("app.routers.scan.chat", return_value="Random gibberish that has no verify blocks"):
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post("/api/verify", json={
+                "company_name": "Acme Corp",
+                "job_summary": "Developer at Acme Corp",
+            }, headers=HEADERS)
+
+        assert resp.status_code == 200
+        body = resp.text
+        assert "Cannot verify company name" in body
+        assert "Company Name" in body
+

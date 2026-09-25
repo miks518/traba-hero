@@ -94,6 +94,7 @@ export interface VerificationResult {
   riskScore?: number;
   riskLevel?: ScanRiskLevel;
   searchLog?: { query: string; round: number; result_preview: string }[];
+  noCompanyName?: boolean;
 }
 
 export type ScanRiskLevel = 'low' | 'moderate' | 'high' | 'critical';

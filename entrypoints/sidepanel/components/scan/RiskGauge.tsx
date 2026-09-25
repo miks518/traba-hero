@@ -1,10 +1,8 @@
 import React from 'react';
-import { FormattedText } from '../common/FormattedText';
 import type { ScanRiskLevel } from '../../types';
 
 export interface RiskGaugeProps {
   score: number;
-  description: string;
   maxScore?: number;
   riskLevel?: ScanRiskLevel;
   riskLabel?: string;
@@ -25,7 +23,7 @@ function levelColor(level: ScanRiskLevel): string {
   }
 }
 
-export function RiskGauge({ score, description, maxScore = 100, riskLevel = 'low', riskLabel = 'Low Risk', status }: RiskGaugeProps) {
+export function RiskGauge({ score, maxScore = 100, riskLevel = 'low', riskLabel = 'Low Risk', status }: RiskGaugeProps) {
   const normalized = Math.min(score / maxScore, 1);
   const pct = Math.round(normalized * 100);
   const color = levelColor(riskLevel);
@@ -74,7 +72,6 @@ export function RiskGauge({ score, description, maxScore = 100, riskLevel = 'low
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
             {riskLabel}
           </span>
-          <FormattedText text={description} className="font-body-md" />
         </div>
       </div>
     </section>

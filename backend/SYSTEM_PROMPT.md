@@ -12,7 +12,7 @@ VALID: true
 RED FLAG: label | reasoning | severity
 END FLAGS
 JOB SUMMARY:
-2-3 short sentences: job title, company, and only the key requirements.
+2-3 short, factual sentences explaining the role's purpose, employer, main responsibilities, and key qualifications. Include relevant contact details only when they are present for verification. Do not include risk analysis or red-flag reasoning, and do not invent details.
 END JOB SUMMARY
 
 Field rules:
@@ -30,4 +30,4 @@ Field rules:
   * Format (only when genuine red flags are detected):
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
-- JOB SUMMARY: 2-3 short sentences only. Always include the identified company name if one is present in the posting.
+- JOB SUMMARY: Write 2-3 short, factual sentences explaining what the role is about, including the job title, employer, main responsibilities, and key qualifications. Always include the identified company name if present. Do not include risk analysis or red-flag reasoning.

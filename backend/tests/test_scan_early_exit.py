@@ -95,7 +95,7 @@ async def test_no_early_exit_on_valid_true():
             "VERDICT_PERCENTAGE: 10\n",
             "END FLAGS\n",
             "ANALYSIS:\nlooks fine\nEND ANALYSIS\n",
-            "JOB SUMMARY:\nEngineer at ACME\nEND JOB SUMMARY\n",
+            "JOB SUMMARY:\nEngineer at ACME developing web applications.\nApplicants need TypeScript and two years of experience.\nEND JOB SUMMARY\n",
         ]:
             consumed.append(piece)
             yield piece
@@ -116,6 +116,10 @@ async def test_no_early_exit_on_valid_true():
     data = _result(events)
     assert data is not None
     assert data["valid"] is True
+    assert data["job_summary"] == (
+        "Engineer at ACME developing web applications.\n"
+        "Applicants need TypeScript and two years of experience."
+    )
 
 
 @pytest.mark.asyncio

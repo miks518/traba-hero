@@ -52,6 +52,34 @@ async def throttled_search(query: str, max_results: int = 5) -> list[dict]:
         return await asyncio.to_thread(ddg_search, query, max_results)
 
 
+INVALID_COMPANY_NAMES = {
+    "none", "n/a", "na", "unknown", "null", "undefined",
+    "not specified", "unspecified", "unclear", "not provided",
+    "not mentioned", "not available", "no company", "no company name",
+    "unnamed", "anonymous", "company name", "employer",
+    "various", "confidential", "tbd", "pending",
+}
+
+
+def is_valid_company_name(name: str | None) -> bool:
+    """Check if an extracted company name is plausible and not a placeholder."""
+    if not name or not isinstance(name, str):
+        return False
+    clean = name.strip()
+    if len(clean) < 2 or len(clean) > 80:
+        return False
+    lower = clean.lower()
+    if lower in INVALID_COMPANY_NAMES:
+        return False
+    for prefix in (
+        "not specified", "not provided", "not mentioned", "not available",
+        "no company", "company name unclear", "company unclear", "unknown company",
+    ):
+        if lower.startswith(prefix) or lower == prefix:
+            return False
+    return True
+
+
 def extract_company_name(text: str) -> str | None:
     """Try to extract a company name from job posting text."""
     import re
@@ -69,8 +97,9 @@ def extract_company_name(text: str) -> str | None:
         match = re.search(pattern, text)
         if match:
             name = match.group(1).strip()
+            name = re.sub(r"^[^\w]+|[^\w]+$", "", name).strip()
             words = name.lower().split()
-            if words and words[0] not in skip_words and len(name) > 3:
+            if words and words[0] not in skip_words and len(name) > 3 and is_valid_company_name(name):
                 return name
     return None
 
@@ -147,6 +176,8 @@ def search_job_posting(text: str) -> str:
 
 def verify_company(company_name: str) -> str:
     """Run extended company verification searches and return formatted context."""
+    if not company_name or not is_valid_company_name(company_name):
+        return ""
     log.info("[ddg] Verifying company '%s' with extended search", company_name)
     data = search_company(company_name)
     return format_search_context(data)

@@ -438,7 +438,15 @@ export async function verifyJobStream(
         } else if (event.type === 'search') {
           onSearch(String(event.query ?? ''), Number(event.round ?? 0));
         } else if (event.type === 'result') {
-          const data = event.data as { items: VerificationResult['items']; report: string; recommendation: string; riskScore?: number; riskLevel?: string; search_log: unknown[] };
+          const data = event.data as {
+            items: VerificationResult['items'];
+            report: string;
+            recommendation: string;
+            riskScore?: number;
+            riskLevel?: string;
+            search_log: unknown[];
+            no_company_name?: boolean;
+          };
           return {
             result: {
               items: data.items ?? [],
@@ -447,6 +455,7 @@ export async function verifyJobStream(
               riskScore: data.riskScore,
               riskLevel: data.riskLevel as 'low' | 'moderate' | 'high' | 'critical' | undefined,
               searchLog: data.search_log as VerificationResult['searchLog'],
+              noCompanyName: Boolean(data.no_company_name),
             },
           };
         } else if (event.type === 'error') {

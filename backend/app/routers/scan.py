@@ -20,7 +20,7 @@ from app.models.schemas import (
 )
 from app.services.image import decode_base64_image
 from app.services.lm_client import chat, chat_json, chat_match, chat_resume, chat_stream_pieces, _parse_custom, _parse_json, _parse_resume_custom, _parse_match_custom
-from app.services.ddg_search import extract_company_name, search_job_posting, search_job_posting_data, verify_company
+from app.services.ddg_search import extract_company_name, is_valid_company_name, search_job_posting, search_job_posting_data, verify_company
 from app.services.email_verifier import verify_emails_in_text
 from app.exceptions import InvalidImageError
 from app.rate_limit import limiter
@@ -66,7 +66,7 @@ VALID: true
 RED FLAG: label | reasoning | severity
 END FLAGS
 JOB SUMMARY:
-Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification.
+Explain what the role is about in 2-3 short, factual sentences, including the job title, employer, main responsibilities, key qualifications, and any contact details found in the posting. These details are needed for verification; do not include risk analysis or red-flag reasoning, and do not invent details.
 END JOB SUMMARY
 
 Be concise: no greetings, no preamble, no repetition, no markdown.
@@ -86,7 +86,7 @@ Field rules:
   * Format (only when genuine red flags are detected):
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
-- JOB SUMMARY: Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."""
+- JOB SUMMARY: Explain what the role is about in 2-3 short, factual sentences, including the job title, employer, main responsibilities, key qualifications, and any contact details found in the posting. These details are needed for verification; do not include risk analysis or red-flag reasoning, and do not invent details."""
 
 SCAN_OUTPUT_FORMAT = """\
 Respond strictly using this labeled section format:
@@ -95,7 +95,7 @@ VALID: true
 RED FLAG: label | reasoning | severity
 END FLAGS
 JOB SUMMARY:
-Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification.
+Explain what the role is about in 2-3 short, factual sentences, including the job title, employer, main responsibilities, key qualifications, and any contact details found in the posting. These details are needed for verification; do not include risk analysis or red-flag reasoning, and do not invent details.
 END JOB SUMMARY
 
 Be concise: no greetings, no preamble, no repetition, no markdown.
@@ -114,11 +114,11 @@ Field rules:
   * Format (only when genuine red flags are detected):
     RED FLAG: label | reasoning | severity
     (Severity must be low, mid, or high)
-- JOB SUMMARY: Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."""
+- JOB SUMMARY: Explain what the role is about in 2-3 short, factual sentences, including the job title, employer, main responsibilities, key qualifications, and any contact details found in the posting. These details are needed for verification; do not include risk analysis or red-flag reasoning, and do not invent details."""
 
-IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. First decide if it is actually a job posting (VALID: true) or not (VALID: false). If it is not a job posting, output only the VALID: false line and stop. If it is a job posting, identify the company name and list any obvious scam red flags. Extract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
+IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. First decide if it is actually a job posting (VALID: true) or not (VALID: false). If it is not a job posting, output only the VALID: false line and stop. If it is a job posting, identify the company name and list any obvious scam red flags. Extract a job_summary that explains what the role is about, including the job title, employer, main responsibilities, key qualifications, and any contact details found in the posting. These details are needed for verification; do not include risk analysis or red-flag reasoning, and do not invent details."
 
-TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nFirst decide if it is actually a job posting (VALID: true) or not (VALID: false). If it is not a job posting, output only the VALID: false line and stop. If it is a job posting, identify the company name and list any obvious scam red flags. Extract a job_summary that includes the job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification."
+TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nFirst decide if it is actually a job posting (VALID: true) or not (VALID: false). If it is not a job posting, output only the VALID: false line and stop. If it is a job posting, identify the company name and list any obvious scam red flags. Extract a job_summary that explains what the role is about, including the job title, employer, main responsibilities, key qualifications, and any contact details found in the posting. These details are needed for verification; do not include risk analysis or red-flag reasoning, and do not invent details."
 
 def load_system_prompt() -> str:
     """Load system prompt from SYSTEM_PROMPT.md in the project root with fallback."""
@@ -372,6 +372,7 @@ def _scan_response(result: dict, company_name: str = "") -> ScanResponse:
         valid=result.get("valid", False),
         red_flags=flags,
         job_summary=result.get("job_summary", ""),
+        company_name=company_name if is_valid_company_name(company_name) else None,
         error=result.get("error"),
     )
 
@@ -463,14 +464,25 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
             ]
 
         company_name = ""
-        if company_data:
-            company_name = company_data.get("company_name", "")
-        if not company_name:
-            company_name = extract_company_name(verify_text) or ""
+        if not is_invalid:
+            if company_data:
+                company_name = company_data.get("company_name", "") or ""
+            has_missing_company_flag = any(
+                "company" in (f.get("flag", "") + " " + f.get("reasoning", "")).lower()
+                and any(w in (f.get("flag", "") + " " + f.get("reasoning", "")).lower()
+                        for w in ("missing", "unclear", "not provided", "not specified", "not identified", "unnamed", "no company"))
+                for f in (result.get("red_flags") or [])
+                if isinstance(f, dict)
+            )
+            if not company_name and not has_missing_company_flag:
+                company_name = extract_company_name(verify_text) or ""
+            if not is_valid_company_name(company_name):
+                company_name = ""
 
         resp = _scan_response(result, company_name=company_name).model_dump()
         if company_data:
             resp.update(company_data)
+        resp["company_name"] = company_name or None
         resp["email_verifications"] = email_data
 
         if not is_invalid:
@@ -482,6 +494,7 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
                 }
                 log.info("[%s] verification_context set for: %s", endpoint, company_name)
             else:
+                resp.pop("verification_context", None)
                 log.warning("[%s] No company_name extracted — verification_context NOT set. job_summary first 200 chars: %s", endpoint, str(result.get("job_summary", ""))[:200])
 
         yield _sse({"type": "result", "data": resp})
@@ -759,20 +772,42 @@ async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends
         try:
             yield _sse({"type": "progress", "percent": 5, "stage": "Preparing verification"})
 
-            search_context = ""
-            search_log = []
-            if req.company_name:
-                yield _sse({"type": "progress", "percent": 10, "stage": "Searching company info"})
-                yield _sse({"type": "search", "query": f"{req.company_name} Philippines", "round": 1})
-                yield _sse({"type": "search", "query": f'site:facebook.com "{req.company_name}" reviews', "round": 2})
-                yield _sse({"type": "search", "query": f'site:reddit.com "{req.company_name}" Philippines', "round": 3})
-                search_context = await asyncio.to_thread(verify_company, req.company_name)
-                search_log = [
-                    {"query": f"{req.company_name} Philippines", "round": 1},
-                    {"query": f'site:facebook.com "{req.company_name}" reviews', "round": 2},
-                    {"query": f'site:reddit.com "{req.company_name}" Philippines', "round": 3},
+            company = (req.company_name or "").strip()
+            if not is_valid_company_name(company):
+                log.warning("[verify] No valid company name provided ('%s') — stopping verification endpoint early.", company)
+                yield _sse({"type": "progress", "percent": 100, "stage": "Cannot verify company name"})
+                explanation = "Cannot verify company name: The company or business name was not identified in the job posting."
+                items = [
+                    VerificationItem(
+                        label="Company Name",
+                        status="red",
+                        explanation=explanation,
+                    )
                 ]
-                yield _sse({"type": "progress", "percent": 45, "stage": "AI analyzing"})
+                report = "External verification could not be performed because no company name was identified in the job posting. Legitimate employers clearly identify their organization."
+                recommendation = "Treat this posting as high risk. Avoid applying or proceed with extreme caution until the employer's identity can be verified."
+                yield _sse({"type": "result", "data": {
+                    "items": [item.model_dump() for item in items],
+                    "report": report,
+                    "recommendation": recommendation,
+                    "riskScore": 75,
+                    "riskLevel": "high",
+                    "search_log": [],
+                    "no_company_name": True,
+                }})
+                return
+
+            yield _sse({"type": "progress", "percent": 10, "stage": "Searching company info"})
+            yield _sse({"type": "search", "query": f"{company} Philippines", "round": 1})
+            yield _sse({"type": "search", "query": f'site:facebook.com "{company}" reviews', "round": 2})
+            yield _sse({"type": "search", "query": f'site:reddit.com "{company}" Philippines', "round": 3})
+            search_context = await asyncio.to_thread(verify_company, company)
+            search_log = [
+                {"query": f"{company} Philippines", "round": 1},
+                {"query": f'site:facebook.com "{company}" reviews', "round": 2},
+                {"query": f'site:reddit.com "{company}" Philippines', "round": 3},
+            ]
+            yield _sse({"type": "progress", "percent": 45, "stage": "AI analyzing"})
 
             verify_prompt = _build_verify_prompt(req, search_context)
             messages = [
@@ -788,6 +823,22 @@ async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends
             report = _parse_verify_section(final_text, "REPORT")
             recommendation = _parse_verify_section(final_text, "RECOMMENDATION")
 
+            # Failsafe: when there's nothing to parse or items is empty
+            if not items:
+                log.warning("[verify] Failsafe triggered: No verification items could be parsed from AI response. Raw: %s", final_text[:300])
+                explanation = f"Cannot verify company name: External verification could not parse verification details for '{company}'."
+                items = [
+                    VerificationItem(
+                        label="Company Name",
+                        status="yellow",
+                        explanation=explanation,
+                    )
+                ]
+                if not report:
+                    report = f"External verification details could not be parsed for '{company}'. Search queries were executed, but structured findings were unavailable."
+                if not recommendation:
+                    recommendation = "Proceed with caution. Independently confirm company registration and reputation before submitting personal details."
+
             risk_score, risk_level = _calculate_risk_score_from_verify(items)
 
             log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, risk_score=%d, risk_level=%s", len(items), len(report), len(recommendation), risk_score, risk_level)
@@ -797,8 +848,6 @@ async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends
                 log.info("[verify] Report: %s", report[:200])
             if recommendation:
                 log.info("[verify] Recommendation: %s", recommendation[:200])
-            if not items and not report and not recommendation:
-                log.warning("[verify] All parsed results empty. Raw text first 500 chars: %s", final_text[:500])
 
             yield _sse({"type": "result", "data": {
                 "items": [item.model_dump() for item in items],
@@ -806,7 +855,8 @@ async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends
                 "recommendation": recommendation,
                 "riskScore": risk_score,
                 "riskLevel": risk_level,
-                "search_log": search_log if req.company_name else [],
+                "search_log": search_log,
+                "no_company_name": False,
             }})
         except Exception as e:  # noqa: BLE001
             log.error("[verify] Error: %s: %s", type(e).__name__, e)

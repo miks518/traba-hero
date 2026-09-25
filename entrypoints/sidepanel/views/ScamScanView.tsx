@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError, VerificationSection } from '../components/scan';
-import { Icon, ToastContainer, useToastManager } from '../components/common';
+import { FormattedText, Icon, ToastContainer, useToastManager } from '../components/common';
 import { scanScreenshotStream, verifyJobStream, ApiRequestError, type ScanProgress } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
 import type { ScanResult, IconName, ScannedJob, ApiScanResponse, ScanRiskLevel } from '../types';
@@ -69,7 +69,7 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
     statusTitle: riskLevelLabel(riskLevel),
     scanningTarget: 'Scanned Element',
     riskScore,
-    riskDescription: data.job_summary || 'Scan completed.',
+    riskDescription: '',
     redFlags: flags.map((f, i) => ({
       id: `flag-${i}`,
       title: f.flag,
@@ -94,7 +94,7 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
     })),
     scoreBreakdown: data.score_breakdown || undefined,
     verificationResult: data.verificationResult,
-    verificationLoading: data.verification_context ? true : data.verificationLoading,
+    verificationLoading: Boolean(data.verification_context?.company_name?.trim()),
     verificationError: data.verificationError,
   };
 }
@@ -272,9 +272,9 @@ export function ScamScanView({
         // Trigger async verification if company name is available
         const verifyCtx = data.verification_context;
         console.log('[scan] verifyCtx=', JSON.stringify(verifyCtx));
-        if (verifyCtx?.company_name) {
+        if (verifyCtx?.company_name && verifyCtx.company_name.trim()) {
           startVerification({
-            company_name: verifyCtx.company_name,
+            company_name: verifyCtx.company_name.trim(),
             job_summary: verifyCtx.job_summary || data.job_summary || '',
             red_flags: data.red_flags,
           });
@@ -330,12 +330,12 @@ export function ScamScanView({
       } else {
         console.warn('[verify] Empty result from verifyJobStream');
         setVerificationFailed(true);
-        setScanResult(prev => prev ? { ...prev, verificationLoading: true } : null);
+        setScanResult(prev => prev ? { ...prev, verificationLoading: false, verificationError: true } : null);
       }
     } catch (e) {
       console.error('[verify] Error:', e);
       setVerificationFailed(true);
-      setScanResult(prev => prev ? { ...prev, verificationLoading: true, verificationError: true } : null);
+      setScanResult(prev => prev ? { ...prev, verificationLoading: false, verificationError: true } : null);
     }
   }, []);
 
@@ -398,7 +398,19 @@ export function ScamScanView({
               </div>
             </section>
           ) : (
-            <RiskGauge score={scanResult.riskScore} description={scanResult.riskDescription} riskLevel={scanResult.riskLevel} riskLabel={scanResult.riskLabel} />
+            <RiskGauge score={scanResult.riskScore} riskLevel={scanResult.riskLevel} riskLabel={scanResult.riskLabel} />
+          )}
+
+          {scanResult.jobSummary && (
+            <section className="bg-surface-container-low border border-outline-variant/20 rounded-xl p-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Icon name="description" className="text-secondary" />
+                  <h3 className="text-label-md font-bold text-on-surface">Job Summary</h3>
+                </div>
+                <FormattedText text={scanResult.jobSummary} />
+              </div>
+            </section>
           )}
 
           {hasScanned && (
@@ -422,7 +434,13 @@ export function ScamScanView({
             loading={scanResult.verificationLoading}
             error={scanResult.verificationError}
             currentQuery={currentSearchQuery}
-            noCompanyName={isValidJob && !scanResult.verificationResult && !scanResult.verificationLoading && !scanResult.verificationError}
+            noCompanyName={
+              isValidJob && (
+                Boolean(scanResult.verificationResult?.noCompanyName) ||
+                (!scanResult.companyName && !scanResult.verificationLoading && (!scanResult.verificationResult || scanResult.verificationResult.items.length === 0)) ||
+                (!scanResult.verificationResult && !scanResult.verificationLoading && !scanResult.verificationError)
+              )
+            }
           />
         </>
       )}

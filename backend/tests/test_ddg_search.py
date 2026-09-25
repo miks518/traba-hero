@@ -5,10 +5,31 @@ from app.services.ddg_search import (
     ddg_search,
     extract_company_name,
     format_search_context,
+    is_valid_company_name,
     search_company,
     search_job_posting,
     search_job_posting_data,
 )
+
+
+class TestIsValidCompanyName:
+    def test_valid_company_names(self):
+        assert is_valid_company_name("Acme Corp") is True
+        assert is_valid_company_name("Google Philippines") is True
+        assert is_valid_company_name("San Miguel Brewery Inc.") is True
+
+    def test_invalid_placeholder_names(self):
+        assert is_valid_company_name("None") is False
+        assert is_valid_company_name("none") is False
+        assert is_valid_company_name("N/A") is False
+        assert is_valid_company_name("Unknown") is False
+        assert is_valid_company_name("Not specified") is False
+        assert is_valid_company_name("unclear") is False
+        assert is_valid_company_name("not provided") is False
+        assert is_valid_company_name("no company") is False
+        assert is_valid_company_name("") is False
+        assert is_valid_company_name(None) is False
+
 
 
 # ── extract_company_name ─────────────────────────────────────────────
