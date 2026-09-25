@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { FadeSlide } from '../common/FadeSlide';
 import { Icon } from '../common/Icon';
 import TrabaheroLogo from '../common/TrabaheroLogo';
 
@@ -70,33 +71,34 @@ export function TopAppBar({
               className="cursor-pointer text-on-surface-variant hover:text-secondary transition-colors active:scale-95"
               onClick={() => { setShowTextSize((p) => !p); setShowHelp(false); }}
             />
-            {showTextSize && (
-              <div className="absolute right-0 top-full mt-2 w-44 p-2 rounded-xl bg-surface-container-high border border-outline-variant/30 shadow-xl z-50">
-                <div className="text-label-md font-bold text-on-surface-variant px-2 py-1 mb-1">Text Size</div>
-                {TEXT_SIZE_OPTIONS.map((opt) => (
-                  <div
-                    key={opt.value}
-                    role="radio"
-                    aria-checked={textSize === opt.value}
-                    className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-surface-container-highest/60 transition-colors"
-                    onClick={() => { onTextSizeChange?.(opt.value); setShowTextSize(false); }}
+            <FadeSlide
+              show={showTextSize}
+              className="absolute right-0 top-full mt-2 w-44 p-2 rounded-xl bg-surface-container-high border border-outline-variant/30 shadow-xl z-50"
+            >
+              <div className="text-label-md font-bold text-on-surface-variant px-2 py-1 mb-1">Text Size</div>
+              {TEXT_SIZE_OPTIONS.map((opt) => (
+                <div
+                  key={opt.value}
+                  role="radio"
+                  aria-checked={textSize === opt.value}
+                  className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-surface-container-highest/60 transition-colors"
+                  onClick={() => { onTextSizeChange?.(opt.value); setShowTextSize(false); }}
+                >
+                  <span
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      textSize === opt.value
+                        ? 'border-secondary bg-secondary'
+                        : 'border-outline'
+                    }`}
                   >
-                    <span
-                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                        textSize === opt.value
-                          ? 'border-secondary bg-secondary'
-                          : 'border-outline'
-                      }`}
-                    >
-                      {textSize === opt.value && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-on-secondary" />
-                      )}
-                    </span>
-                    <span className="text-body-sm text-on-surface">{opt.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+                    {textSize === opt.value && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-on-secondary" />
+                    )}
+                  </span>
+                  <span className="text-body-sm text-on-surface">{opt.label}</span>
+                </div>
+              ))}
+            </FadeSlide>
           </div>
         )}
         {onToggleTheme && (
@@ -112,19 +114,20 @@ export function TopAppBar({
             className="cursor-pointer text-on-surface-variant hover:text-secondary transition-colors active:scale-95"
             onClick={() => setShowHelp((p) => !p)}
           />
-          {showHelp && (
-            <div className="absolute right-0 top-full mt-2 w-72 p-4 rounded-xl bg-surface-container-high border border-outline-variant/30 shadow-xl z-50 text-body-sm text-on-surface">
-              <div className="font-headline-md font-bold mb-2 text-secondary">
-                How to Use Trabahero
-              </div>
-              <ol className="list-decimal list-inside space-y-1.5">
-                <li>Click <strong>Pick a Job Post</strong> to select an area on the page</li>
-                <li>Add up to 4 screenshots by picking more areas or using manual crop</li>
-                <li>Click <strong>Scan All</strong> to check for scam indicators</li>
-                <li>Switch to <strong>Match</strong> to compare job posts with your resume</li>
-              </ol>
+          <FadeSlide
+            show={showHelp}
+            className="absolute right-0 top-full mt-2 w-72 p-4 rounded-xl bg-surface-container-high border border-outline-variant/30 shadow-xl z-50 text-body-sm text-on-surface"
+          >
+            <div className="font-headline-md font-bold mb-2 text-secondary">
+              How to Use Trabahero
             </div>
-          )}
+            <ol className="list-decimal list-inside space-y-1.5">
+              <li>Click <strong>Pick a Job Post</strong> to select an area on the page</li>
+              <li>Add up to 4 screenshots by picking more areas or using manual crop</li>
+              <li>Click <strong>Scan All</strong> to check for scam indicators</li>
+              <li>Switch to <strong>Match</strong> to compare job posts with your resume</li>
+            </ol>
+          </FadeSlide>
         </div>
         <Icon
           name="close"

@@ -2,7 +2,7 @@
 
 **Project:** Trabahero — A Universal Visual Job-Scam Detection System for Filipino Job Seekers
 **Version:** 0.3.0
-**Last Updated:** 2026-09-23
+**Last Updated:** 2026-09-25
 
 ---
 
@@ -52,7 +52,8 @@
    - NFR-08: Privacy & Data Protection
    - NFR-09: Localization
    - NFR-10: Configuration & Environment
-5. [Data Models](#5-data-models)
+   - NFR-11: Test Isolation & External Service Safety
+ 5. [Data Models](#5-data-models)
 6. [API Reference](#6-api-reference)
 7. [Traceability Matrix](#7-traceability-matrix)
 
@@ -74,6 +75,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 |-------|-----------|----------|
 | Browser Extension (Frontend) | React 19, TypeScript, Tailwind CSS 3.4, WXT Framework | `entrypoints/` |
 | Backend API | Python 3.10+, FastAPI, Pydantic | `backend/` |
+| Scanner services | Prompt loading, SSE streaming, parsing, risk scoring, and verification workflows | `backend/app/services/scanner/` |
 | AI Provider | OpenRouter (cloud) or LM Studio (local) | External |
 | External Verifiers | DuckDuckGo Search, SEC Philippines API, WHOIS, DNS | External |
 
@@ -218,7 +220,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 |-----------|-------|
 | **ID** | FR-07 |
 | **Priority** | Critical |
-| **Component** | `lm_client.py`, `scan.py`, `SYSTEM_PROMPT.md`, `VERIFY_SYSTEM_PROMPT` |
+| **Component** | `lm_client.py`, `services/scanner/`, `SYSTEM_PROMPT.md`, `verification_prompt.py` |
 
 **Description:** The backend shall use an AI model to analyze job postings for fraud indicators and produce a structured verdict. External verification is performed via a separate `/api/verify` endpoint using DuckDuckGo search + AI analysis.
 
@@ -870,7 +872,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 | Requirement | Description |
 |-------------|-------------|
-| Modular architecture | Backend uses router/service/model separation |
+| Modular architecture | Backend uses router/service/model separation, with scanner workflows under `backend/app/services/scanner/` |
 | TypeScript strict mode | Extension uses TypeScript with strict type checking |
 | Component-based UI | React components with clear separation of concerns |
 | Centralized types | All TypeScript interfaces in `types/index.ts` |
@@ -970,6 +972,25 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Startup order | LM Studio (if local) → Backend → Extension |
 | Dev workflow | `npm run dev` for extension; `uvicorn --reload` for backend |
 | Build output | `.output/` directory (gitignored) contains production extension |
+
+---
+
+### NFR-11: Test Isolation & External Service Safety
+
+| Attribute | Value |
+|-----------|-------|
+| **ID** | NFR-11 |
+| **Category** | Testing & Network Safety |
+
+**Requirements:**
+
+| Requirement | Description |
+|-------------|-------------|
+| Offline default suite | `python -m pytest tests/ -v` uses deterministic fakes and mocks; it makes no live OpenRouter/LLM, DuckDuckGo, SEC, DNS, or other external API calls. |
+| Service-boundary isolation | Tests mock external clients before invoking endpoints, including AI, web search, SEC, and email/DNS services. |
+| Auth and route coverage | Tests that assert authentication, routing, parsing, or SSE format also mock AI and search dependencies. |
+| Explicit live-provider opt-in | Live-provider tests use a separate command or environment flag and never run in the default suite. |
+| Quota protection | Local verification must not spend provider credits or external-service quotas. |
 
 ---
 
@@ -1160,7 +1181,7 @@ Matches a resume against scanned job postings.
 | FR-04 | content.tsx | Implemented |
 | FR-05 | ScamScanView, api.ts, scan.py | Implemented |
 | FR-06 | api.ts, scan.py | Implemented |
-| FR-07 | lm_client.py, scan.py, SYSTEM_PROMPT.md | Implemented |
+| FR-07 | lm_client.py, services/scanner/, SYSTEM_PROMPT.md | Implemented |
 | FR-08 | scan.py, RiskGauge.tsx | Implemented |
 | FR-09 | RedFlagsList, RedFlagCard | Implemented |
 | FR-10 | web_search.py, ScamScanView | Implemented |
@@ -1190,13 +1211,13 @@ Matches a resume against scanned job postings.
 | NFR-03 | wxt.config.ts, config.py, core/auth.py, api.ts | Implemented |
 | NFR-04 | TopAppBar, tailwind.css, Toast | Implemented |
 | NFR-05 | wxt.config.ts, package.json, requirements.txt | Implemented |
-| NFR-06 | Project structure, TypeScript, Tailwind | Implemented |
+| NFR-06 | Project structure, services/scanner, TypeScript, Tailwind | Implemented |
 | NFR-07 | ai_limiter.py, rate_limit.py (_get_client_ip) | Implemented |
 | NFR-08 | No auth, no persistence, local AI option | Implemented |
 | NFR-09 | scan.py (language param), system prompts | Implemented |
 | NFR-10 | .env files, config.py, App.tsx, api.ts | Implemented |
-| NFR-11 | scan.py (/api/verify logging), ScamScanView (debug logs) | Implemented — Raw AI response and parsing logs for /api/verify |
+| NFR-11 | Test suite, service boundaries, provider configuration | Implemented — Default pytest runs offline; live providers require explicit opt-in |
 
 ---
 
-*Document generated from codebase analysis. All requirements reflect the current implemented state of Trabahero v0.2.0.*
+*Document generated from codebase analysis. All requirements reflect the current implemented state of Trabahero v0.3.0.*

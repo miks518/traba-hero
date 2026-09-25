@@ -32,6 +32,14 @@ Copy-Item .env.example .env
 
 **Start order:** backend → extension
 
+## Test Safety
+
+- The default test suite must be fully offline: never make live OpenRouter/LLM, DuckDuckGo, SEC, or other external API calls.
+- Mock external services at their module boundaries before invoking endpoints; use deterministic fake responses and fixtures.
+- Tests that only check authentication, routing, parsing, or streaming must still mock AI and search dependencies.
+- Treat provider credits and external-service quotas as test resources; local verification must not spend them.
+- Never run live-provider tests through `python -m pytest tests/ -v`; put them behind an explicit opt-in command or environment flag.
+
 ## Key Architecture
 
 - `entrypoints/background.ts` — Opens sidepanel on toolbar click
@@ -43,10 +51,11 @@ Copy-Item .env.example .env
 - `entrypoints/sidepanel/views/ResumeMatchView.tsx` — Resume analysis + job matching with progress
 - `entrypoints/sidepanel/components/scan/VerificationSection.tsx` — External verification cards + missing company name guardrail (red "Unable to Verify" banner)
 - `backend/app/services/ddg_search.py` — DuckDuckGo search with rate limiting, `extract_company_name()` for company name extraction
-- `backend/app/routers/scan.py` — All API endpoints + SSE streaming helpers; `/api/verify` includes raw AI response logging
+- `backend/app/routers/scan.py` — Compatibility facade for all API endpoints + SSE streaming helpers; `/api/verify` includes raw AI response logging
+- `backend/app/services/scanner/` — Modular prompts, SSE, scan, resume, match, parsing, risk, and verification workflows
 - `backend/app/services/lm_client.py` — OpenAI-compatible client (OpenRouter) with tool calling support
 - `backend/app/services/ai_tools.py` — Tool schema definitions + execution dispatcher for verification
-- `backend/app/routers/scan.py` (`VERIFY_SYSTEM_PROMPT`) — Verify system prompt inline — requires Company Name verification as first category
+- `backend/app/services/scanner/verification_prompt.py` — Verification system prompt and request prompt; requires Company Name verification as the first category
 - `backend/app/config.py` — Settings via pydantic-settings, loads from `backend/.env`
 - `backend/app/core/auth.py` — Client key validation (`require_client_key` dependency)
 - `backend/app/rate_limit.py` — Rate limiting with proxy-safe IP detection (X-Forwarded-For/X-Real-IP)

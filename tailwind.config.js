@@ -116,6 +116,10 @@ export default {
           '0%':   { opacity: '0', transform: 'translateX(-16px)' },
           '100%': { opacity: '1', transform: 'translateX(0)' },
         },
+        'fade-slide-in': {
+          '0%':   { opacity: '0', transform: 'translateY(-4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
         'loading-bar': {
           '0%':   { transform: 'translateX(-100%)' },
           '100%': { transform: 'translateX(200%)' },
@@ -126,6 +130,7 @@ export default {
         'pulse-ring':  'pulse-ring 2s ease-in-out infinite',
         'slide-in':      'slide-in 0.3s ease-out',
         'slide-in-left': 'slide-in-left 0.25s ease-out',
+        'fade-slide-in': 'fade-slide-in 0.15s ease-out both',
         'loading-bar':   'loading-bar 1.5s ease-in-out infinite',
       },
       // ── Box Shadow (3D tactile) ───────────────────────────────────────
