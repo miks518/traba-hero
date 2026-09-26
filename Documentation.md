@@ -61,7 +61,7 @@
 
 ## 1. Project Overview
 
-Trabahero is a Chrome browser extension that protects Filipino job seekers from employment scams. It uses AI (cloud via OpenRouter or local via LM Studio) to analyze job postings for fraud signals, verifies companies against Philippine government registries, and matches user resumes against scanned job postings.
+Trabahero is a Chrome browser extension that protects Filipino job seekers from employment scams. It uses AI (via OpenRouter) to analyze job postings for fraud signals, verifies companies against Philippine government registries, and matches user resumes against scanned job postings.
 
 **Target Users:** Filipino job seekers browsing online job boards (e.g., JobStreet, Indeed, Facebook Jobs).
 
@@ -76,7 +76,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Browser Extension (Frontend) | React 19, TypeScript, Tailwind CSS 3.4, WXT Framework | `entrypoints/` |
 | Backend API | Python 3.10+, FastAPI, Pydantic | `backend/` |
 | Scanner services | Prompt loading, SSE streaming, parsing, risk scoring, and verification workflows | `backend/app/services/scanner/` |
-| AI Provider | OpenRouter (cloud) or LM Studio (local) | External |
+| AI Provider | OpenRouter (cloud, OpenAI-compatible API) | External |
 | External Verifiers | DuckDuckGo Search, SEC Philippines API, WHOIS, DNS | External |
 
 **Communication:** The extension communicates with the backend via HTTP REST + SSE (Server-Sent Events) for streaming progress updates. The content script communicates with the side panel via Chrome `runtime.sendMessage` / `tabs.sendMessage`.
@@ -232,7 +232,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-05: The AI returns red flags only when genuine scam indicators are found (no false positives by design).
 - AC-06: Each red flag includes a label, reasoning, and severity (low/mid/high).
 - AC-07: The AI returns a 1-2 sentence analysis and a job summary with contact details.
-- AC-08: The backend supports both OpenRouter (cloud) and LM Studio (local) AI providers.
+- AC-08: The backend talks to the AI provider through an OpenAI-compatible client, so any provider or model ID can be configured without code changes.
 - AC-09: The AI response is parsed using custom labeled-section format parser with JSON fallback.
 - AC-10: Unreadable AI responses return a user-friendly error message.
 - AC-11: The system prompt requires the AI to identify the company/business name from the job posting.
@@ -754,7 +754,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Side panel open time | < 500ms | Time from toolbar click to side panel fully rendered |
 | Screenshot capture | < 200ms | Time from element selection to base64 image available |
 | AI scan latency (cloud) | < 60s typical | Time from request to first SSE progress event |
-| AI scan latency (local) | < 30s typical | Time from request to first SSE progress event (LM Studio) |
+| AI scan latency (local model) | < 30s typical | Time from request to first SSE progress event (self-hosted OpenAI-compatible endpoint) |
 | Resume parsing | < 45s typical | Time from upload to structured data returned |
 | Resume matching | < 60s typical | Time from match request to results |
 | UI render (side panel) | < 100ms | Time for view switch animation |
@@ -852,8 +852,8 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Browser | Google Chrome 114+ (sidePanel API support) |
 | OS | Windows, macOS, Linux (Chrome is cross-platform) |
 | Manifest | Manifest V3 (required for sidePanel API) |
-| AI providers | OpenRouter (cloud) and LM Studio (local, OpenAI-compatible API) |
-| AI models | Gemma 3 12B recommended; any OpenAI-compatible model supported |
+| AI providers | OpenRouter (OpenAI-compatible API); any compatible endpoint can be swapped in via config |
+| AI models | Model ID configurable via `MODEL_NAME`; multimodal model required for image scans |
 | File formats | PDF, DOCX, TXT, PNG, JPG, JPEG for resume upload |
 | Python | 3.10+ required for backend |
 | Node.js | 18+ required for extension build |
@@ -899,7 +899,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Concurrent users | Backend supports 2+ simultaneous AI calls (configurable) |
 | Queue depth | Up to 10 queued requests before 503 (configurable) |
 | Horizontal scaling | FastAPI async design supports multiple worker processes |
-| AI provider flexibility | OpenRouter for cloud scale; LM Studio for local/offline |
+| AI provider flexibility | Provider and model are configuration only (`AI_API_URL`, `MODEL_NAME`); no code changes required |
 | Rate limiting | Per-IP rate limits prevent abuse (5-10 req/min); proxy-safe via X-Forwarded-For/X-Real-IP header inspection |
 | Stateless backend | No session state stored server-side |
 | Configurable limits | All concurrency/queue/timeout values in `backend/.env` |
@@ -920,7 +920,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | No user accounts | No authentication or user registration required |
 | No persistent storage | All data stored in-memory or `chrome.storage.local` (session-only) |
 | No analytics tracking | No telemetry, analytics, or tracking scripts |
-| Local AI option | LM Studio enables fully offline scanning (no data leaves the machine) |
+| AI provider isolation | The extension never calls the AI provider directly; all model traffic is proxied through the backend, which holds the API key |
 | Minimal data collection | Only job posting content and resume data are processed |
 | No data sharing | AI provider receives only the scanned content, no user identifiers |
 | Screenshot retention | Screenshots exist only in memory; not saved to disk |
@@ -963,13 +963,13 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Extension env | `WXT_API_BASE` — backend URL (build-time variable) |
 | Extension env | `WXT_CLIENT_KEY` — shared secret for backend auth; must match `CLIENT_SECRET_KEY` |
 | Backend env | `AI_API_KEY`, `AI_API_URL`, `MODEL_NAME` — AI provider config |
-| Backend env | `LM_STUDIO_URL` — local LM Studio fallback URL |
+| Backend env | `DDG_MAX_CONCURRENT`, `DDG_MIN_INTERVAL`, `DDG_MAX_PER_VERIFY` — DuckDuckGo search throttling |
 | Backend env | `AI_TEMPERATURE`, `AI_TOP_P`, `AI_MAX_TOKENS` — generation controls |
 | Backend env | `AI_MAX_CONCURRENT`, `AI_MAX_QUEUE_DEPTH` — concurrency limits |
 | Backend env | `SEC_API_KEY` — SEC Philippines API key (optional) |
 | Backend env | `CLIENT_SECRET_KEY` — shared secret for extension auth; leave empty to disable (dev mode) |
 | Theme persistence | `chrome.storage.local` stores `theme`, `textSize`, `fabEnabled` |
-| Startup order | LM Studio (if local) → Backend → Extension |
+| Startup order | Backend → Extension |
 | Dev workflow | `npm run dev` for extension; `uvicorn --reload` for backend |
 | Build output | `.output/` directory (gitignored) contains production extension |
 

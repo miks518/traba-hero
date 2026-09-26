@@ -12,6 +12,7 @@ export function ResumeUploader({ onFileSelected, disabled }: ResumeUploaderProps
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((file: File) => {
+    if (disabled) return;
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     const reader = new FileReader();
     reader.onload = () => {
@@ -20,28 +21,37 @@ export function ResumeUploader({ onFileSelected, disabled }: ResumeUploaderProps
       onFileSelected(base64, ext, file.name);
     };
     reader.readAsDataURL(file);
-  }, [onFileSelected]);
+  }, [onFileSelected, disabled]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    if (disabled) return;
     const file = e.dataTransfer.files[0];
     if (file) handleFile(file);
-  }, [handleFile]);
+  }, [handleFile, disabled]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     const file = e.target.files?.[0];
     if (file) {
       handleFile(file);
     }
     e.target.value = '';
-  }, [handleFile]);
+  }, [handleFile, disabled]);
 
   return (
     <div
       onDrop={handleDrop}
       onDragOver={(e) => e.preventDefault()}
-      onClick={() => inputRef.current?.click()}
-      className="border-2 border-dashed border-outline-variant/30 rounded-xl p-6 flex flex-col items-center gap-3 cursor-pointer hover:border-secondary/50 transition-colors bg-surface-container-low/50"
+      onClick={() => {
+        if (disabled) return;
+        inputRef.current?.click();
+      }}
+      className={`border-2 border-dashed border-outline-variant/30 rounded-xl p-6 flex flex-col items-center gap-3 ${
+        disabled
+          ? 'opacity-60 cursor-not-allowed bg-surface-container-low/50'
+          : 'cursor-pointer hover:border-secondary/50 transition-colors bg-surface-container-low/50'
+      }`}
     >
       <Icon name="upload_file" className="text-3xl text-on-surface-variant" />
       <span className="text-body-md text-on-surface-variant text-center">

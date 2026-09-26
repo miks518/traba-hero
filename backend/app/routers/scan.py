@@ -126,7 +126,7 @@ async def scan(req: ScanRequest, request: Request, _auth: None = Depends(require
         except ValueError:
             raise InvalidImageError()
 
-    log.info("Scan: sending %d image(s) to LM Studio", len(images))
+    log.info("Scan: sending %d image(s) to %s", len(images), settings.model_name or "AI provider")
     content: list[dict] = [
         {"type": "text", "text": IMAGE_SCAN_INSTRUCTION + "\n\n" + SCAN_OUTPUT_FORMAT + "\n\n" + _language_instruction(req.language)},
     ]
@@ -159,7 +159,7 @@ async def scan(req: ScanRequest, request: Request, _auth: None = Depends(require
 async def scan_text(req: ScanTextRequest, request: Request, _auth: None = Depends(require_client_key)):
     if not req.text.strip():
         return ScanResponse(valid=False)
-    log.info("Text scan: %d chars to LM Studio", len(req.text))
+    log.info("Text scan: %d chars to %s", len(req.text), settings.model_name or "AI provider")
 
     search_context = search_job_posting(req.text)
     web_data = search_job_posting_data(req.text)

@@ -60,13 +60,14 @@
 
 ## Phase 3: Resilience & Fault Tolerance
 
-### [ ] Task 3.1: Offline Mode & Network Health Monitoring
+### [x] Task 3.1: Offline Mode & Network Health Monitoring
 - **Objective:** Provide instant feedback if the backend server or user internet drops, avoiding long 240-second timeout hangs.
 - **Frontend Changes (`entrypoints/sidepanel/`):**
   - Create a health-check polling hook (`useBackendHealth.ts`) that pings `GET /health` periodically.
   - Add a non-intrusive banner (`OfflineBanner.tsx`) at the top of the side panel when the server is unreachable.
   - Disable scan buttons while offline and display a clean "Server Unreachable" message.
 - **Verification:** Shut down the backend service while the extension is open; verify the UI immediately shows offline state without freezing.
+- **Implemented:** `pingHealth()` in `lib/api.ts` (3s timeout, always resolves to a boolean, reuses the client-key header). `useBackendHealth()` polls every 4s (~15/min, under the backend's 30/min `/health` cap), skips probes while `document.hidden`, re-probes on `visibilitychange`, never overlaps requests, and flips offline only after 2 consecutive failures so a single slow response cannot trigger a false alarm. The first successful probe restores the online state, so the banner clears itself on recovery. `OfflineBanner` renders below the top app bar with error-tint styling and a Retry button that triggers an immediate check. `App.tsx` owns the hook and passes `isOnline` to both views; `ScamScanView` disables/relabels the Scan button, `ResumeMatchView` disables Match and the resume uploader, and `ResumeUploader` now honors `disabled` for click, drag, and change (it previously only disabled the hidden input). Element picking, cropping, and history stay usable since they are local-only, and in-flight scans are left to finish on their existing timeouts. No backend changes were needed — `GET /health` already existed. 10 new vitest tests plus `npm run compile` and `npm run build` pass.
 
 ---
 

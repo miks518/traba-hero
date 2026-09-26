@@ -23,6 +23,28 @@ export class ApiRequestError extends Error {
   }
 }
 
+export async function pingHealth(externalSignal?: AbortSignal): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+
+  if (externalSignal) {
+    externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/health`, {
+      method: 'GET',
+      headers: await authHeaders(),
+      signal: controller.signal,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function request<T>(
   method: string,
   path: string,

@@ -15,6 +15,7 @@ export interface ResumeMatchViewProps {
   onProgressChange?: (progress: ScanProgress | null) => void;
   isLocked?: boolean;
   hasWarnings?: boolean;
+  isOnline?: boolean;
 }
 
 const JOB_ICONS: IconName[] = ['work', 'architecture', 'database', 'shield_person', 'search', 'handshake'];
@@ -80,6 +81,7 @@ export function ResumeMatchView({
   onProgressChange,
   isLocked = false,
   hasWarnings = false,
+  isOnline = true,
 }: ResumeMatchViewProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [matching, setMatching] = useState(false);
@@ -150,9 +152,13 @@ export function ResumeMatchView({
   }, [onResumeData, showToast, onProgressChange]);
 
   const handleFileSelected = useCallback((base64: string, fileType: string, fileName: string) => {
+    if (!isOnline) {
+      showToast('Server unreachable. Check your connection and try again.', 'error');
+      return;
+    }
     setPendingResumeFile({ base64, fileType, fileName });
     setShowUploadConfirm(true);
-  }, []);
+  }, [isOnline, showToast]);
 
   const handleConfirmUpload = useCallback(() => {
     if (!pendingResumeFile) return;
@@ -167,6 +173,10 @@ export function ResumeMatchView({
 
   const handleRunMatch = useCallback(async () => {
     if (!resumeData || verifiedJobs.length === 0) return;
+    if (!isOnline) {
+      showToast('Server unreachable. Check your connection and try again.', 'error');
+      return;
+    }
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -214,7 +224,7 @@ export function ResumeMatchView({
       setMatchProgress(null);
       onProgressChange?.(null);
     }
-  }, [resumeData, verifiedJobs, showToast, onProgressChange]);
+  }, [resumeData, verifiedJobs, showToast, onProgressChange, isOnline]);
 
   const hasResume = resumeData !== null;
   const hasJobs = scannedJobs.length > 0;
@@ -521,7 +531,7 @@ export function ResumeMatchView({
       <div className="border-t border-outline-variant/10 pt-3">
         {!hasResume ? (
           <div className="flex flex-col gap-3">
-            <ResumeUploader onFileSelected={handleFileSelected} disabled={analyzing} />
+            <ResumeUploader onFileSelected={handleFileSelected} disabled={analyzing || !isOnline} />
             {analyzing && (
               <div className="flex items-center gap-2 text-on-surface-variant text-body-sm">
                 <span className="w-2 h-2 rounded-full bg-secondary animate-ping" />
@@ -540,13 +550,20 @@ export function ResumeMatchView({
               <div className="flex flex-col gap-2">
                 <button
                   onClick={handleRunMatch}
-                  disabled={matching || verifiedJobs.length === 0}
+                  disabled={matching || verifiedJobs.length === 0 || !isOnline}
+                  title={isOnline ? undefined : 'Server unreachable'}
                   className="w-full tactile-btn-gold py-3 rounded-lg font-headline-md text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:translate-y-[1px]"
                 >
                   <Icon name="handshake" />
 {matches.length > 0 ? 'Re-Match' : 'Match'}
                    {verifiedJobs.length > 0 ? ` (${verifiedJobs.length} Low Risk)` : ''}
                 </button>
+                {!isOnline && (
+                  <p className="text-label-sm text-error text-center flex items-center justify-center gap-1">
+                    <Icon name="cloud_off" className="text-xs shrink-0" />
+                    Server unreachable. Matching is paused.
+                  </p>
+                )}
                 {verifiedJobs.length === 0 && (
                   <p className="text-label-xs text-error/90 text-center flex items-center justify-center gap-1">
                     <Icon name="info" className="text-xs shrink-0" />

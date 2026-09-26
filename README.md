@@ -1,6 +1,6 @@
 # Trabahero
 
-Trabahero helps Filipino job seekers spot job scams. The extension sends screenshots and text to a local LM Studio model, which checks postings for fraud signals.
+Trabahero helps Filipino job seekers spot job scams. The extension sends screenshots and text to a FastAPI backend, which relays them to an AI model through OpenRouter to check postings for fraud signals.
 
 ## Features
 
@@ -16,7 +16,7 @@ Trabahero helps Filipino job seekers spot job scams. The extension sends screens
 |---|---|
 | Node.js ≥ 18 | https://nodejs.org |
 | Python ≥ 3.10 | https://python.org |
-| LM Studio | https://lmstudio.ai |
+| OpenRouter API key | https://openrouter.ai/keys |
 
 ### 1. Clone and install dependencies
 
@@ -36,12 +36,15 @@ python -m venv .venv
 Copy-Item .env.example .env
 ```
 
-### 3. Start LM Studio
+### 3. Configure the AI provider
 
-1. Open LM Studio and go to the Discover tab.
-2. Download Gemma 3 12B.
-3. Open the Developer tab, load the model, and start the server on port 1234.
-4. Paste the contents of `SYSTEM_PROMPT.md` into LM Studio's System Prompt field.
+Open `backend/.env` and fill in three values:
+
+1. `AI_API_KEY` — your key from https://openrouter.ai/keys
+2. `AI_API_URL` — `https://openrouter.ai/api/v1` (already set in `.env.example`)
+3. `MODEL_NAME` — a multimodal model ID from https://openrouter.ai/models
+
+The system prompts (`SYSTEM_PROMPT.md`, `RESUME_PROMPT.md`, `MATCH_PROMPT.md`) live in `backend/` and are loaded by the backend at request time — nothing to paste anywhere.
 
 ### 4. Run the app
 
@@ -68,9 +71,9 @@ entrypoints/          # WXT browser extension (React 19 + TypeScript + Tailwind)
   sidepanel/          # Main React app
     views/            # ScamScanView, ResumeMatchView
     lib/api.ts        # HTTP client → localhost:8000
-backend/              # FastAPI proxy for LM Studio
-  app/routers/        # /api/scan, /api/analyze-resume, /api/match-resume
-  app/services/       # LM Studio client, web search, SEC API
+backend/              # FastAPI proxy for the AI provider (OpenRouter)
+  app/routers/        # /api/scan, /api/analyze-resume, /api/match-resume, /health
+  app/services/       # OpenAI-compatible AI client, web search, SEC API
 ```
 
 ## Commands
@@ -80,6 +83,8 @@ backend/              # FastAPI proxy for LM Studio
 | Dev server | `npm run dev` |
 | Build | `npm run build` |
 | Typecheck | `npm run compile` |
+| Extension tests | `npm test` |
 | Backend dev | `cd backend && uvicorn app.main:app --reload` |
+| Backend tests | `cd backend && python -m pytest tests/ -v` |
 
-**Start order:** LM Studio → backend → extension
+**Start order:** backend → extension

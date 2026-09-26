@@ -39,16 +39,20 @@ Copy-Item .env.example .env
 - Tests that only check authentication, routing, parsing, or streaming must still mock AI and search dependencies.
 - Treat provider credits and external-service quotas as test resources; local verification must not spend them.
 - Never run live-provider tests through `python -m pytest tests/ -v`; put them behind an explicit opt-in command or environment flag.
+- **This is enforced, not just documented.** `backend/tests/conftest.py` installs an autouse `_offline_ai_and_search` fixture that fakes every AI/search entry point, plus a session-scoped `_block_external_dns` guard that raises `ExternalNetworkBlocked` on any non-loopback DNS resolution. `backend/tests/test_offline_suite.py` asserts both. A valid-client-key request therefore returns the fake payload, never a provider response.
+- The frontend suite mocks at the `lib/api` module boundary (`vi.mock`); no test touches `fetch` directly.
 
 ## Key Architecture
 
 - `entrypoints/background.ts` — Opens sidepanel on toolbar click
 - `entrypoints/content.tsx` — Element picker overlay for screenshot capture
 - `entrypoints/sidepanel/` — Main React app (views, components, types)
-- `entrypoints/sidepanel/lib/api.ts` — HTTP client → `backend URL`; sends `X-Trabahero-Client-Key` header on all requests
+- `entrypoints/sidepanel/lib/api.ts` — HTTP client → `backend URL`; sends `X-Trabahero-Client-Key` header on all requests; `pingHealth()` is the `GET /health` reachability probe
+- `entrypoints/sidepanel/hooks/useBackendHealth.ts` — polls `/health` every 4s, flips `isOnline` false after 2 consecutive failures, re-probes on `visibilitychange`
 - `entrypoints/sidepanel/lib/imageUtils.ts` — Screenshot compression (JPEG 0.8, max 1920px)
-- `entrypoints/sidepanel/views/ScamScanView.tsx` — Job scanning with progress streaming + async verification trigger
-- `entrypoints/sidepanel/views/ResumeMatchView.tsx` — Resume analysis + job matching with progress
+- `entrypoints/sidepanel/views/ScamScanView.tsx` — Job scanning with progress streaming + async verification trigger; `isOnline` prop disables the Scan button
+- `entrypoints/sidepanel/views/ResumeMatchView.tsx` — Resume analysis + job matching with progress; `isOnline` prop disables Match and the resume uploader
+- `entrypoints/sidepanel/components/shell/OfflineBanner.tsx` — "Server Unreachable" strip below the top app bar with a Retry button
 - `entrypoints/sidepanel/components/scan/VerificationSection.tsx` — External verification cards + missing company name guardrail (red "Unable to Verify" banner)
 - `backend/app/services/ddg_search.py` — DuckDuckGo search with rate limiting, `extract_company_name()` for company name extraction
 - `backend/app/routers/scan.py` — Compatibility facade for all API endpoints + SSE streaming helpers; `/api/verify` includes raw AI response logging
@@ -70,6 +74,7 @@ Copy-Item .env.example .env
 | `/api/analyze-resume` | POST | Parse resume into structured data (SSE stream) |
 | `/api/match-resume` | POST | Match resume against job postings (SSE stream) |
 | `/api/verify` | POST | External verification via DuckDuckGo + AI (SSE stream) |
+| `/health` | GET | Reachability probe; no client key required, rate limited to 30/minute |
 
 All endpoints return `text/event-stream` with progress events (`percent`, `stage`) and a final `result` event.
 
@@ -127,7 +132,7 @@ See `DESIGN.md` for the full design system: colors (light/dark themes), typograp
 - `WXT_CLIENT_KEY` must match `CLIENT_SECRET_KEY` in `backend/.env` — also a build-time variable
 - OpenRouter model IDs have no `~` prefix — the `~` in the UI copy snippet is decorative
 - Backend prompt files are in `backend/` root, NOT the project root
-- No lint/format/test commands configured — only `npm run compile` for type checking
+- No lint/format commands configured — `npm run compile` (types) and `npm test` (vitest) are the only gates
 - Dark mode is toggled via `document.documentElement.classList.toggle('dark')` — Tailwind uses `darkMode: 'class'`
 
 ## Filter Categories (ResumeMatchView)
@@ -148,3 +153,12 @@ Risk scores (0-100): Low (0-15), Moderate (16-45), High (46-75), Critical (76-10
 - If missing, `VerificationSection` renders a red "Unable to Verify" banner with risk caution
 - `/api/verify` logs raw AI response and parsed items at INFO/WARNING level for debugging
 - `extract_company_name()` in `ddg_search.py` uses regex patterns to find company names; if it fails, verification is skipped silently (intentional guardrail)
+
+## Offline Mode
+
+- `useBackendHealth()` is the single source of truth for reachability and is mounted once in `App.tsx`; views receive `isOnline` as a prop (default `true`)
+- Poll cadence is 4s (~15 requests/min) to stay under the backend's `30/minute` limit on `GET /health`; probes are skipped while `document.hidden` and never overlap
+- `isOnline` starts `true` and flips false only after 2 consecutive failed probes — never surface a false offline banner from one slow response
+- The first successful probe restores online state, so the banner clears itself on recovery; the Retry button only forces an immediate check
+- Offline disables network actions only (Scan, Match, resume upload). Element picking, cropping, and scan history stay usable because they are local-only
+- In-flight scans are **not** aborted when the backend drops; they keep their existing 240s/300s timeouts

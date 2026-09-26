@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { TopAppBar, SideNav, Footer } from './components/shell';
+import { TopAppBar, SideNav, Footer, OfflineBanner } from './components/shell';
 import { ScamScanView } from './views/ScamScanView';
 import { ResumeMatchView } from './views/ResumeMatchView';
+import { useBackendHealth } from './hooks/useBackendHealth';
 import type { ScanProgress } from './lib/api';
 import type { ViewId, ScannedJob, ResumeData } from './types';
 import type { TextSize } from './components/shell/TopAppBar';
@@ -18,6 +19,7 @@ export default function App() {
   const [resumeMatchProgress, setResumeMatchProgress] = useState<ScanProgress | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>(getInitialTheme);
   const [textSize, setTextSize] = useState<TextSize>('default');
+  const { isOnline, isChecking, checkNow } = useBackendHealth();
 
   const handleTabChange = useCallback((id: ViewId) => {
     if (id === activeView) return;
@@ -103,6 +105,7 @@ export default function App() {
   return (
     <div className={`w-full h-screen bg-background text-on-surface flex flex-col overflow-hidden font-body text-body-md ${textSize === 'big' ? 'text-size-big' : textSize === 'largest' ? 'text-size-largest' : 'text-size-default'}`}>
       <TopAppBar onClose={() => window.close()} theme={theme} onToggleTheme={handleToggleTheme} textSize={textSize} onTextSizeChange={handleTextSizeChange} />
+      <OfflineBanner isOnline={isOnline} isChecking={isChecking} onRetry={checkNow} />
       <div className="flex flex-1 overflow-hidden">
         <SideNav
           activeView={activeView}
@@ -115,7 +118,7 @@ export default function App() {
           <div
             className={`h-full flex-col ${activeView === 'scan' ? 'flex' : 'hidden'}`}
           >
-            <ScamScanView onScanComplete={handleScanComplete} onScanProgressChange={setScanProgress} />
+            <ScamScanView onScanComplete={handleScanComplete} onScanProgressChange={setScanProgress} isOnline={isOnline} />
           </div>
           <div
             className={`h-full flex-col ${activeView === 'match' ? 'flex' : 'hidden'}`}
@@ -128,6 +131,7 @@ export default function App() {
               onClearJobs={handleClearJobs}
               onProgressChange={setResumeMatchProgress}
               hasWarnings={hasMediumRisk || hasHighRisk}
+              isOnline={isOnline}
             />
           </div>
         </main>

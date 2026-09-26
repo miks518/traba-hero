@@ -32,6 +32,7 @@ function riskLevelLabel(level: string): string {
 export interface ScamScanViewProps {
   onScanComplete?: (job: ScannedJob) => void;
   onScanProgressChange?: (progress: ScanProgress | null) => void;
+  isOnline?: boolean;
 }
 
 const SEVERITY_ICONS: Record<string, IconName> = {
@@ -102,6 +103,7 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
 export function ScamScanView({
   onScanComplete,
   onScanProgressChange,
+  isOnline = true,
 }: ScamScanViewProps) {
   const [pickerPhase, setPickerPhase] = useState(0);
   const [pickerCancelPhase, setPickerCancelPhase] = useState(0);
@@ -221,6 +223,10 @@ export function ScamScanView({
 
   const handleScan = useCallback(async () => {
     if (screenshots.length === 0) return;
+    if (!isOnline) {
+      showToast('Server unreachable. Check your connection and try again.', 'error');
+      return;
+    }
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -288,7 +294,7 @@ export function ScamScanView({
     } finally {
       setIsLoading(false);
     }
-  }, [screenshots, showToast, onScanComplete, onScanProgressChange]);
+  }, [screenshots, showToast, onScanComplete, onScanProgressChange, isOnline]);
 
   const startVerification = useCallback(async (context: {
     company_name: string;
@@ -499,11 +505,12 @@ export function ScamScanView({
           </div>
           <button
             onClick={handleScan}
-            disabled={isLoading}
-            className="w-full tactile-btn-gold py-3 rounded-lg font-headline-md text-base flex items-center justify-center gap-2 disabled:opacity-70 active:translate-y-[1px]"
+            disabled={isLoading || !isOnline}
+            title={isOnline ? undefined : 'Server unreachable'}
+            className="w-full tactile-btn-gold py-3 rounded-lg font-headline-md text-base flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed active:translate-y-[1px]"
           >
             <Icon name="security" />
-            {isLoading ? 'Scanning...' : `Scan (${screenshots.length})`}
+            {isLoading ? 'Scanning...' : !isOnline ? 'Server Unreachable' : `Scan (${screenshots.length})`}
           </button>
         </div>
       )}

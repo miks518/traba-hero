@@ -12,6 +12,25 @@ log = logging.getLogger("trabahero")
 
 app = FastAPI(title="Trabahero Backend")
 
+
+class DropHealthAccessLogs(logging.Filter):
+    """Silences uvicorn access records for GET /health.
+
+    The extension polls /health every few seconds to detect reachability, which
+    would otherwise bury real requests in the log. Any other path is untouched.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple):
+            for arg in args:
+                if isinstance(arg, str) and arg.split("?", 1)[0] == "/health":
+                    return False
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(DropHealthAccessLogs())
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

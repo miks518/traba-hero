@@ -53,6 +53,7 @@ export type IconName =
   | 'gpp_good'
   | 'gpp_maybe'
   | 'gpp_bad'
+  | 'cloud_off'
 
 export interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
   name: IconName;
