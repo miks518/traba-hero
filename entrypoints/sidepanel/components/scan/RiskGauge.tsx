@@ -2,11 +2,10 @@ import React from 'react';
 import type { ScanRiskLevel } from '../../types';
 
 export interface RiskGaugeProps {
-  score: number;
+  score: number | null;
   maxScore?: number;
-  riskLevel?: ScanRiskLevel;
+  riskLevel?: ScanRiskLevel | null;
   riskLabel?: string;
-  status?: 'scam' | 'suspicious' | 'legitimate';
 }
 
 function scoreColor(score: number): string {
@@ -14,23 +13,58 @@ function scoreColor(score: number): string {
   return `hsl(${hue}, 78%, 44%)`;
 }
 
-function levelColor(level: ScanRiskLevel): string {
+function levelColor(level: ScanRiskLevel | null): string {
   switch (level) {
     case 'critical': return 'hsl(0, 78%, 44%)';
     case 'high': return 'hsl(25, 78%, 44%)';
     case 'moderate': return 'hsl(45, 78%, 44%)';
-    case 'low': return scoreColor(15);
+    default: return scoreColor(15);
   }
 }
 
-export function RiskGauge({ score, maxScore = 100, riskLevel = 'low', riskLabel = 'Low Risk', status }: RiskGaugeProps) {
-  const normalized = Math.min(score / maxScore, 1);
-  const pct = Math.round(normalized * 100);
-  const color = levelColor(riskLevel);
-
+export function RiskGauge({ score, maxScore = 100, riskLevel = null, riskLabel }: RiskGaugeProps) {
   const radius = 52;
   const strokeWidth = 14;
   const circumference = 2 * Math.PI * radius;
+  const isScored = typeof score === 'number';
+
+  if (!isScored) {
+    return (
+      <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="relative w-[132px] h-[132px] flex items-center justify-center shrink-0">
+            <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 128 128">
+              <circle
+                cx="64" cy="64"
+                fill="transparent"
+                r={radius}
+                stroke="currentColor"
+                strokeWidth={strokeWidth}
+                className="text-surface-container-high"
+              />
+            </svg>
+            <div className="flex flex-col items-center">
+              <span className="text-2xl font-extrabold tracking-tight leading-none text-on-surface-variant">—</span>
+              <span className="font-label-md text-label-md text-on-surface-variant mt-0.5">RISK</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5 min-w-0">
+            <span className="font-headline-xs font-bold inline-flex items-center justify-center gap-1.5 text-on-surface-variant">
+              <span className="w-2 h-2 rounded-full shrink-0 bg-surface-container-highest" />
+              Not scored
+            </span>
+            <span className="text-label-sm text-on-surface-variant text-center">
+              A risk score is calculated after external verification.
+            </span>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const normalized = Math.min(score / maxScore, 1);
+  const pct = Math.round(normalized * 100);
+  const color = levelColor(riskLevel);
   const dashOffset = circumference * (1 - normalized);
 
   return (
@@ -70,7 +104,7 @@ export function RiskGauge({ score, maxScore = 100, riskLevel = 'low', riskLabel 
             style={{ color }}
           >
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-            {riskLabel}
+            {riskLabel ?? 'Low Risk'}
           </span>
         </div>
       </div>

@@ -50,6 +50,7 @@ Copy-Item .env.example .env
 - `entrypoints/sidepanel/lib/api.ts` — HTTP client → `backend URL`; sends `X-Trabahero-Client-Key` header on all requests; `pingHealth()` is the `GET /health` reachability probe
 - `entrypoints/sidepanel/hooks/useBackendHealth.ts` — polls `/health` every 4s, flips `isOnline` false after 2 consecutive failures, re-probes on `visibilitychange`
 - `entrypoints/sidepanel/lib/imageUtils.ts` — Screenshot compression (JPEG 0.8, max 1920px)
+- `entrypoints/sidepanel/lib/scanHistory.ts` — `migrateScannedJobs()` clears risk scores stored before external verification became the only source
 - `entrypoints/sidepanel/views/ScamScanView.tsx` — Job scanning with progress streaming + async verification trigger; `isOnline` prop disables the Scan button
 - `entrypoints/sidepanel/views/ResumeMatchView.tsx` — Resume analysis + job matching with progress; `isOnline` prop disables Match and the resume uploader
 - `entrypoints/sidepanel/components/shell/OfflineBanner.tsx` — "Server Unreachable" strip below the top app bar with a Retry button
@@ -78,20 +79,32 @@ Copy-Item .env.example .env
 
 All endpoints return `text/event-stream` with progress events (`percent`, `stage`) and a final `result` event.
 
-**Verification flow:** After a successful scan, the backend adds `verification_context` to the scan response only if a company name was extracted (via `extract_company_name()` or `company_data`). If no company name is found, `verification_context` is absent and the frontend never calls `/api/verify`, instead showing a red "Unable to Verify" warning banner. The `/api/verify` endpoint logs the raw AI response and parsed results for debugging.
+**Verification flow:** After a successful scan, the backend adds `verification_context` to the scan response only if a company name was extracted (via `extract_company_name()` or `company_data`). If no company name is found, `verification_context` is absent and the frontend never calls `/api/verify`, instead showing a neutral "Verification Skipped" notice. The `/api/verify` endpoint logs the raw AI response and parsed results for debugging.
 
 ## System Prompts
 
-| Prompt File | Used By | Loaded By |
+| Prompt | Used By | Loaded By |
 |---|---|---|
 | `SYSTEM_PROMPT.md` | Job scan (scan, scan-text) | `load_system_prompt()` |
-| `VERIFY_SYSTEM_PROMPT` | External verification (/api/verify) | Defined inline in `scan.py` |
+| `VERIFY_SYSTEM_PROMPT` | External verification (/api/verify) | Defined inline in `scanner/verification_prompt.py` |
 | `RESUME_PROMPT.md` | Resume analysis | `load_resume_prompt()` |
 | `MATCH_PROMPT.md` | Resume-job matching | `load_match_prompt()` |
 
 All prompts are in `backend/` root, resolved via `Path(__file__).resolve().parents[2]`.
 
-The `VERIFY_SYSTEM_PROMPT` requires the AI to verify **Company Name** as the first category. If the company name is missing or unclear from the original posting, it returns `red` for that category.
+The `VERIFY_SYSTEM_PROMPT` requires the AI to verify **Company Name** as the first category.
+
+## Prompt Rules (libel guardrail)
+
+These are not stylistic preferences — they keep the product from asserting things
+it cannot support, which is the legal exposure for the project.
+
+- **Observational only.** Every statement must trace to the input. Unknowns are declared, never inferred. All four prompts carry an `OUTPUT RULES` block saying so.
+- **Never accuse.** No prompt may describe a named company or person as a scam, fraud, or criminal — only what a posting asks for or what a search result states.
+- **No hedging, no absolutes.** Banned inference words (likely, appears, suggests, probably…) and banned absolutes (always, never, definitely, 100%).
+- **Absence is never `red`.** In verification, `red` requires a provided search result that actually states a negative, and the `DETAIL` must name that source. "Not found" is `yellow`. See `risk_calculator.py`, which weights `yellow` at half.
+- **The scan prompt's rules live in `prompts.py` as constants** (`OUTPUT_RULES`, `SCAN_FIELD_RULES`) shared with `SCAN_OUTPUT_FORMAT` and `FALLBACK_SYSTEM_PROMPT`. They used to be copy-pasted into three places and drifted. `SYSTEM_PROMPT.md` must be kept in sync with those constants by hand — there is no test enforcing it yet (see `UNFINISHED-WORK.md`).
+- **The wire format is fixed.** `_parse_custom`, `_parse_match_custom`, `_parse_resume_custom`, `_parse_verification_result`, and `_VALID_LINE_RE` define the parsable contract. Tighten the rules, not the labels.
 
 ## Environment Variables
 
@@ -141,10 +154,17 @@ See `DESIGN.md` for the full design system: colors (light/dark themes), typograp
 |---|---|---|
 | All | `work` | Always shown |
 | Verified | `verified` (green) | `riskLevel === 'low'` AND `isJobPosting` |
+| Unverified | `info` (neutral) | `riskLevel === null` — excluded from matching |
 | Moderate | `warning` (amber) | `riskLevel === 'moderate'` |
 | High/Critical | `shield_person` (red) | `riskLevel === 'high'` OR `riskLevel === 'critical'` |
 
-Risk scores (0-100): Low (0-15), Moderate (16-45), High (46-75), Critical (76-100). High/Critical jobs are excluded from resume matching.
+Risk scores (0-100): Low (0-30), Moderate (31-50), High (51-75), Critical (76-100), computed in `risk_calculator.py` from verification item statuses. High/Critical jobs are excluded from resume matching.
+
+A job's score exists **only** after external verification returns one. Before that,
+`ScanResult.riskLevel` is `null` and `riskScore` is `null`; the gauge shows "Not
+scored" and the job is badged `Unverified`. Never synthesise a score from the
+red-flag count — that is a number the system never measured, and presenting it as
+a finding is the exact exposure the prompt rules exist to prevent.
 
 ## Verification Guardrails
 

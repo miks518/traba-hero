@@ -7,19 +7,19 @@ const STATUS_CONFIG: Record<VerificationItem['status'], { dot: string; bg: strin
     dot: 'bg-green-500',
     bg: 'bg-green-500/10',
     icon: 'gpp_good',
-    label: 'Verified',
+    label: 'Found in results',
   },
   yellow: {
     dot: 'bg-secondary',
     bg: 'bg-secondary-container/10',
     icon: 'gpp_maybe',
-    label: 'Partial',
+    label: 'Not confirmed',
   },
   red: {
     dot: 'bg-error',
     bg: 'bg-error-container/10',
     icon: 'gpp_bad',
-    label: 'Issue Found',
+    label: 'Reported in results',
   },
 };
 

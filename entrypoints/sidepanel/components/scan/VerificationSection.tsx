@@ -29,18 +29,14 @@ export function VerificationSection({ result, loading, error, currentQuery, noCo
       </div>
 
       {showNoCompany && (
-        <div className="flex flex-col gap-2 p-3 rounded-lg bg-error/10 border border-error/30">
+        <div className="flex flex-col gap-2 p-3 rounded-lg bg-surface-container border border-outline-variant/20">
           <div className="flex items-center gap-2">
-            <Icon name="shield_person" className="text-error" />
-            <span className="font-label-md font-bold text-error">Unable to Verify</span>
+            <Icon name="info" className="text-secondary" />
+            <span className="font-label-md font-bold text-on-surface">Verification Skipped</span>
           </div>
           <p className="text-body-sm text-on-surface-variant leading-relaxed">
-            The company/business name was not identified in this job posting. Without a verifiable company name, external verification could not be performed.
+            This posting does not name an employer, so there was nothing to look up. The posting itself was still assessed.
           </p>
-          <span className="flex items-center gap-1.5 text-label-sm font-bold text-error">
-            <Icon name="warning" className="text-error text-base shrink-0" />
-            Treat this as a high-risk posting — missing company name is a common scam indicator.
-          </span>
         </div>
       )}
 
@@ -70,10 +66,10 @@ export function VerificationSection({ result, loading, error, currentQuery, noCo
         <div className="flex flex-col gap-2 p-3 rounded-lg bg-surface-container border border-outline-variant/20">
           <div className="flex items-center gap-2">
             <Icon name="info" className="text-secondary" />
-            <span className="font-label-md font-medium text-on-surface">Verification Inconclusive</span>
+            <span className="font-label-md font-medium text-on-surface">Nothing Found</span>
           </div>
           <p className="text-body-sm text-on-surface-variant leading-relaxed">
-            Cannot verify company name: External verification could not parse or retrieve verified records. Please verify the employer independently.
+            The public web results returned nothing for this employer. Please confirm the employer independently.
           </p>
         </div>
       )}
@@ -99,7 +95,7 @@ export function VerificationSection({ result, loading, error, currentQuery, noCo
       {error && !showNoCompany && (
         <div className="flex items-center gap-2 py-2 text-body-sm text-on-surface-variant">
           <Icon name="info" className="text-secondary" />
-          <span>Cannot verify company: Verification unavailable — scan results are still valid.</span>
+          <span>Verification could not be completed. The posting findings above still stand.</span>
         </div>
       )}
     </div>

@@ -100,13 +100,17 @@ export interface VerificationResult {
 export type ScanRiskLevel = 'low' | 'moderate' | 'high' | 'critical';
 
 export interface ScanResult {
-  status: 'scam' | 'suspicious' | 'legitimate';
-  riskLevel: ScanRiskLevel;
+  riskLevel: ScanRiskLevel | null;
   riskLabel: string;
-  statusTitle: string;
-  scanningTarget: string;
-  riskScore: number;
+  /**
+   * True only once external verification has produced a score. The flag-count
+   * heuristics that used to synthesise a score here were removed, so anything
+   * without this marker is unverified and must not display a percentage.
+   */
+  riskScored: boolean;
+  riskScore: number | null;
   riskDescription: string;
+  scanningTarget: string;
   redFlags: RedFlag[];
   flagsCritical: boolean;
   isJobPosting: boolean;
@@ -149,7 +153,7 @@ export interface ScannedJob {
   title: string;
   summary: string;
   timestamp: string;
-  scanResult: ScanResult & { riskLevel: ScanRiskLevel; riskLabel: string };
+  scanResult: ScanResult;
 }
 
 export interface ResumeData {

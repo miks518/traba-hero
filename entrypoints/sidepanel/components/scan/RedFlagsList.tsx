@@ -21,7 +21,7 @@ export function RedFlagsList({ flags, critical }: RedFlagsListProps) {
         </div>
         {critical && (
           <span className="bg-error text-on-error px-2 py-0.5 rounded-full font-label-sm text-[10px] font-bold">
-            CRITICAL
+            HIGH SEVERITY
           </span>
         )}
       </div>

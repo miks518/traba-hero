@@ -58,6 +58,23 @@
 
 ---
 
+### [~] Task 2.3: Defamation-Safe AI Output
+- **Objective:** Stop the assistant from asserting accusations it cannot support, so the tool informs job seekers without exposing its developers to cyber-libel claims. Tighten the system prompts and field rules across all endpoints, and stop the UI from presenting numbers and verdicts the system never measured.
+- **Backend Changes (`backend/`):**
+  - Add a shared observational rule set to every prompt: report only what the input states, declare unknowns as unknown, never infer intent, never name a company or person as a scam/fraud/criminal, and drop hedging and absolutes.
+  - Fix verification status semantics so absence of a result is `yellow` (not confirmed) rather than `red`; reserve `red` for a negative fact a provided search result actually states.
+  - Remove dead or contradictory prompt text: "check the job post online" (the scan endpoint has no tool, so it licensed fabrication), the unused `COMPANY NAME` output field, and the `RISK_SCORE`/`RISK_LEVEL` block the server computes itself and discards.
+  - Reclassify a missing employer name as a low-severity stated fact instead of "a strong scam indicator".
+- **Frontend Changes (`entrypoints/sidepanel/`):**
+  - Delete the client-side risk score that was synthesised from the red-flag count (80/50/10) and presented as a measured percentage. The only risk score shown is the one external verification calculated.
+  - Show an explicit unscored state on the risk gauge until verification completes; mark unscored jobs `Unverified` and exclude them from resume matching.
+  - De-escalate user-facing copy that asserted conclusions ("Risk Protection Active", "Verified safe opportunity", "Treat this as high-risk", "Issue Found") to state findings instead.
+  - Migrate stored scan history so previously synthesised scores are cleared on load rather than displayed as findings.
+- **Verification:** `python -m pytest tests/ -v` (160 pass, fully offline), `npm run compile`, `npm test`, `npm run build`. Output-quality verification requires live provider calls and is tracked in `UNFINISHED-WORK.md`.
+- **Implemented:** All of the above is in place. The wire format and every parser are unchanged — only the rules around them were tightened, so `_parse_custom`, `_parse_match_custom`, `_parse_resume_custom`, `_parse_verification_result`, and `_VALID_LINE_RE` were not touched. The scan prompt's rules were deduplicated into `OUTPUT_RULES` / `SCAN_FIELD_RULES` constants in `prompts.py`, because the same defective text had been copy-pasted into `FALLBACK_SYSTEM_PROMPT` and `SCAN_OUTPUT_FORMAT` and fixing only the markdown file would have left the old rules live in the user message. `riskScore`/`riskLevel` are nullable in `ScanResult`, `status`/`statusTitle` were removed as synthesised values, and the dead `isLocked`/`hasWarnings` props were dropped. Verify `max_tokens` for `/api/verify` was raised from 1024 to 1536 because the prompt grew. Remaining work — the new prompt-contract tests, the frontend mapping tests, and the live output-quality pass — is listed in `UNFINISHED-WORK.md`.
+
+---
+
 ## Phase 3: Resilience & Fault Tolerance
 
 ### [x] Task 3.1: Offline Mode & Network Health Monitoring

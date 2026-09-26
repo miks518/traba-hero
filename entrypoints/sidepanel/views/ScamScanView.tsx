@@ -19,13 +19,13 @@ function getRiskLabel(score: number): string {
   return 'Low Risk';
 }
 
-function riskLevelLabel(level: string): string {
+function riskLevelLabel(level: string | null | undefined): string {
   switch (level) {
     case 'low': return 'Low Risk';
     case 'moderate': return 'Moderate Risk';
     case 'high': return 'High Risk';
     case 'critical': return 'Critical Risk';
-    default: return 'Low Risk';
+    default: return 'Not Scored';
   }
 }
 
@@ -49,28 +49,14 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
   const isJobPosting = data.valid;
   const flags = data.red_flags ?? [];
   const hasCritical = flags.some((f) => f.severity === 'high');
-  const flagCount = flags.length;
 
-  let status: ScanResult['status'];
-  if (!isJobPosting) {
-    status = 'legitimate';
-  } else if (hasCritical || flagCount >= 2) {
-    status = 'scam';
-  } else if (flagCount === 1) {
-    status = 'suspicious';
-  } else {
-    status = 'legitimate';
-  }
-  const riskLevel = status === 'scam' ? 'critical' : status === 'suspicious' ? 'high' : 'low';
-  const riskScore = riskLevel === 'critical' ? 80 : riskLevel === 'high' ? 50 : 10;
   return {
-    status,
-    riskLevel,
-    riskLabel: riskLevelLabel(riskLevel),
-    statusTitle: riskLevelLabel(riskLevel),
-    scanningTarget: 'Scanned Element',
-    riskScore,
+    riskLevel: null,
+    riskLabel: riskLevelLabel(null),
+    riskScored: false,
+    riskScore: null,
     riskDescription: '',
+    scanningTarget: 'Scanned Element',
     redFlags: flags.map((f, i) => ({
       id: `flag-${i}`,
       title: f.flag,
@@ -323,15 +309,18 @@ export function ScamScanView({
       if (verifyResult.result) {
         console.log('[verify] Result received:', verifyResult.result);
         const result = verifyResult.result;
+        const scored = typeof result.riskScore === 'number';
         setScanResult(prev => prev ? {
           ...prev,
           verificationResult: result,
           verificationLoading: false,
           verificationFailed: false,
-          riskScore: result.riskScore ?? prev.riskScore,
-          riskLevel: (result.riskLevel as ScanResult['riskLevel']) ?? prev.riskLevel,
-          riskLabel: riskLevelLabel((result.riskLevel as ScanResult['riskLevel']) ?? prev.riskLevel),
-          statusTitle: riskLevelLabel((result.riskLevel as ScanResult['riskLevel']) ?? prev.riskLevel),
+          // The only risk score the user ever sees is the one external
+          // verification calculated. No local fallback number exists.
+          riskScored: scored,
+          riskScore: scored ? result.riskScore! : null,
+          riskLevel: scored ? (result.riskLevel as ScanResult['riskLevel']) : null,
+          riskLabel: riskLevelLabel(scored ? result.riskLevel : null),
         } : null);
       } else {
         console.warn('[verify] Empty result from verifyJobStream');

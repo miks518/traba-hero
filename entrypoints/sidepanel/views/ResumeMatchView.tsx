@@ -13,8 +13,6 @@ export interface ResumeMatchViewProps {
   onClearResume: () => void;
   onClearJobs: () => void;
   onProgressChange?: (progress: ScanProgress | null) => void;
-  isLocked?: boolean;
-  hasWarnings?: boolean;
   isOnline?: boolean;
 }
 
@@ -43,13 +41,13 @@ function riskColor(score: number): string {
   return 'text-green-500';
 }
 
-function riskLevelLabel(level: string): string {
+function riskLevelLabel(level: string | null | undefined): string {
   switch (level) {
     case 'low': return 'Low Risk';
     case 'moderate': return 'Moderate Risk';
     case 'high': return 'High Risk';
     case 'critical': return 'Critical Risk';
-    default: return 'Low Risk';
+    default: return 'Not Scored';
   }
 }
 
@@ -72,6 +70,11 @@ function isRiskyJob(job: ScannedJob): boolean {
   return job.scanResult.riskLevel === 'high' || job.scanResult.riskLevel === 'critical';
 }
 
+/** Scanned but never scored by external verification, so it cannot be matched. */
+function isUnverifiedJob(job: ScannedJob): boolean {
+  return job.scanResult.riskLevel === null;
+}
+
 export function ResumeMatchView({
   scannedJobs,
   resumeData,
@@ -79,8 +82,6 @@ export function ResumeMatchView({
   onClearResume,
   onClearJobs,
   onProgressChange,
-  isLocked = false,
-  hasWarnings = false,
   isOnline = true,
 }: ResumeMatchViewProps) {
   const [analyzing, setAnalyzing] = useState(false);
@@ -104,6 +105,7 @@ export function ResumeMatchView({
   const verifiedJobs = useMemo(() => scannedJobs.filter(isVerifiedJob), [scannedJobs]);
   const suspiciousJobs = useMemo(() => scannedJobs.filter(isSuspiciousJob), [scannedJobs]);
   const riskyJobs = useMemo(() => scannedJobs.filter(isRiskyJob), [scannedJobs]);
+  const unverifiedJobs = useMemo(() => scannedJobs.filter(isUnverifiedJob), [scannedJobs]);
 
   const filteredJobs = useMemo(() => {
     if (filterCategory === 'verified') return verifiedJobs;
@@ -249,9 +251,9 @@ export function ResumeMatchView({
         <div className="flex items-start gap-3 p-3 rounded-xl bg-error-container/15 border border-error/30">
           <Icon name="shield_person" className="text-error mt-0.5 shrink-0" />
           <div className="flex flex-col gap-1">
-            <p className="text-label-md font-bold text-error">Risk Protection Active</p>
+            <p className="text-label-md font-bold text-error">High-Risk Postings Excluded</p>
             <p className="text-body-xs text-on-surface-variant">
-              {riskyJobs.length} scanned job{riskyJobs.length !== 1 ? 's' : ''} flagged as <span className="font-bold text-error">critical/high risk</span>. They are in the <span className="font-bold text-on-surface">Critical/High Risk</span> category and strictly excluded from resume matching.
+              {riskyJobs.length} scanned job{riskyJobs.length !== 1 ? 's' : ''} scored high or critical risk after verification. They are in the <span className="font-bold text-on-surface">Critical/High Risk</span> category and are not used for resume matching.
             </p>
           </div>
         </div>
@@ -261,9 +263,9 @@ export function ResumeMatchView({
         <div className="flex items-start gap-3 p-3 rounded-xl bg-secondary-container/15 border border-secondary/30">
           <Icon name="warning" className="text-secondary mt-0.5 shrink-0" />
           <div className="flex flex-col gap-1">
-<p className="text-label-md font-bold text-secondary">Moderate Risk Postings Quarantined</p>
+<p className="text-label-md font-bold text-secondary">Moderate-Risk Postings Excluded</p>
              <p className="text-body-xs text-on-surface-variant">
-               {suspiciousJobs.length} scanned job{suspiciousJobs.length !== 1 ? 's' : ''} flagged as moderate risk. They are isolated in the <span className="font-bold text-on-surface">Moderate Risk</span> category and excluded from resume matching.
+               {suspiciousJobs.length} scanned job{suspiciousJobs.length !== 1 ? 's' : ''} scored moderate risk. They are in the <span className="font-bold text-on-surface">Moderate Risk</span> category and are not used for resume matching.
             </p>
           </div>
         </div>
@@ -385,7 +387,13 @@ export function ResumeMatchView({
                       {verified && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] bg-green-950/30 text-green-400 border border-green-500/30 font-medium shrink-0">
                           <Icon name="verified" className="text-[10px]" />
-                          Verified
+                          Low Risk
+                        </span>
+                      )}
+                      {sr.riskLevel === null && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] bg-surface-container-high text-on-surface-variant border border-outline-variant/30 shrink-0 font-medium">
+                          <Icon name="info" className="text-[10px]" />
+                          Unverified
                         </span>
                       )}
                       {sr.riskLevel === 'critical' && (
@@ -422,25 +430,32 @@ export function ResumeMatchView({
                 {isExpanded && sr && (
                   <div className="mx-2 px-3 py-3 bg-surface-container-low border border-outline-variant/10 border-t-0 rounded-b-xl flex flex-col gap-3 animate-slide-in">
                     {suspicious ? (
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-label-xs">
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-label-sm">
                         <Icon name="lock" className="text-xs shrink-0 text-amber-400" />
-                        <span>Protected: Excluded from resume matching to protect your personal information.</span>
+                        <span>Excluded from resume matching.</span>
+                      </div>
+                    ) : sr.riskLevel === null ? (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-surface-container border border-outline-variant/20 text-on-surface-variant text-label-sm">
+                        <Icon name="info" className="text-xs shrink-0" />
+                        <span>Not yet scored. Excluded from resume matching until external verification completes.</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-300 text-label-xs">
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-300 text-label-sm">
                         <Icon name="verified" className="text-xs shrink-0 text-green-400" />
-                        <span>Verified safe opportunity. Included in resume matching.</span>
+                        <span>No high-severity indicators found. Included in resume matching.</span>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between">
-                      <span className="font-label-md text-on-surface-variant">
-                        {sr.riskScore}% Risk
-                      </span>
-                      <span className={`font-label-md font-bold ${riskColor(sr.riskScore)}`}>
-                        {riskLevelLabel(sr.riskLevel)}
-                      </span>
-                    </div>
+                    {sr.riskScored && sr.riskScore !== null && (
+                      <div className="flex items-center justify-between">
+                        <span className="font-label-md text-on-surface-variant">
+                          {sr.riskScore}% Risk
+                        </span>
+                        <span className={`font-label-md font-bold ${riskColor(sr.riskScore)}`}>
+                          {riskLevelLabel(sr.riskLevel)}
+                        </span>
+                      </div>
+                    )}
 
                     {job.summary && (
                       <div className="flex flex-col gap-1">
@@ -501,27 +516,27 @@ export function ResumeMatchView({
           {filterCategory === 'verified' && (
             <>
               <Icon name="verified" className="text-xl text-on-surface-variant/60" />
-              <p className="font-medium text-on-surface">No verified jobs found</p>
+              <p className="font-medium text-on-surface">No low-risk jobs found</p>
               <p className="text-label-sm text-on-surface-variant/70">
-                Only verified non-suspicious jobs appear here and can be matched against your resume.
+                Only jobs that scored low risk after verification appear here.
               </p>
             </>
           )}
           {filterCategory === 'suspicious' && (
             <>
               <Icon name="check_circle" className="text-xl text-green-400" />
-              <p className="font-medium text-on-surface">No suspicious jobs detected</p>
+              <p className="font-medium text-on-surface">No moderate-risk jobs</p>
               <p className="text-label-sm text-on-surface-variant/70">
-                All scanned job opportunities are verified safe!
+                No scanned posting scored moderate risk.
               </p>
             </>
           )}
           {filterCategory === 'risky' && (
             <>
               <Icon name="check_circle" className="text-xl text-green-400" />
-              <p className="font-medium text-on-surface">No risky jobs detected</p>
+              <p className="font-medium text-on-surface">No high-risk jobs</p>
               <p className="text-label-sm text-on-surface-variant/70">
-                No scams or high-risk postings found. Great job staying safe!
+                No scanned posting scored high or critical risk.
               </p>
             </>
           )}
@@ -565,14 +580,14 @@ export function ResumeMatchView({
                   </p>
                 )}
                 {verifiedJobs.length === 0 && (
-                  <p className="text-label-xs text-error/90 text-center flex items-center justify-center gap-1">
+                  <p className="text-label-sm text-on-surface-variant text-center flex items-center justify-center gap-1">
                     <Icon name="info" className="text-xs shrink-0" />
-                    No low risk jobs available. Moderate and high risk jobs are excluded from matching.
+                    No low-risk jobs available. {unverifiedJobs.length > 0 && `${unverifiedJobs.length} unverified. `}Moderate, high, and critical risk postings are not used for matching.
                   </p>
                 )}
                 {suspiciousJobs.length > 0 && verifiedJobs.length > 0 && (
-                  <p className="text-label-xs text-on-surface-variant/80 text-center">
-                    Matching only against {verifiedJobs.length} low risk job{verifiedJobs.length !== 1 ? 's' : ''}. {suspiciousJobs.length} moderate risk job{suspiciousJobs.length !== 1 ? 's' : ''} quarantined.
+                  <p className="text-label-sm text-on-surface-variant/80 text-center">
+                    Matching against {verifiedJobs.length} low risk job{verifiedJobs.length !== 1 ? 's' : ''}. {suspiciousJobs.length} moderate risk job{suspiciousJobs.length !== 1 ? 's' : ''} excluded.
                   </p>
                 )}
               </div>

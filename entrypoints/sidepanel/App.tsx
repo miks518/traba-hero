@@ -3,6 +3,7 @@ import { TopAppBar, SideNav, Footer, OfflineBanner } from './components/shell';
 import { ScamScanView } from './views/ScamScanView';
 import { ResumeMatchView } from './views/ResumeMatchView';
 import { useBackendHealth } from './hooks/useBackendHealth';
+import { migrateScannedJobs } from './lib/scanHistory';
 import type { ScanProgress } from './lib/api';
 import type { ViewId, ScannedJob, ResumeData } from './types';
 import type { TextSize } from './components/shell/TopAppBar';
@@ -39,8 +40,8 @@ export default function App() {
         if (storedSize === 'default' || storedSize === 'big' || storedSize === 'largest') {
           setTextSize(storedSize);
         }
-        const storedJobs = result.scannedJobs as ScannedJob[] | undefined;
-        if (storedJobs && Array.isArray(storedJobs)) {
+        const storedJobs = migrateScannedJobs(result.scannedJobs);
+        if (storedJobs.length > 0) {
           setScannedJobs(storedJobs);
         }
       });
@@ -99,9 +100,6 @@ export default function App() {
     setResumeData(null);
   }, []);
 
-  const hasHighRisk = scannedJobs.some((j) => j.scanResult.status === 'scam');
-  const hasMediumRisk = scannedJobs.some((j) => j.scanResult.status === 'suspicious');
-
   return (
     <div className={`w-full h-screen bg-background text-on-surface flex flex-col overflow-hidden font-body text-body-md ${textSize === 'big' ? 'text-size-big' : textSize === 'largest' ? 'text-size-largest' : 'text-size-default'}`}>
       <TopAppBar onClose={() => window.close()} theme={theme} onToggleTheme={handleToggleTheme} textSize={textSize} onTextSizeChange={handleTextSizeChange} />
@@ -130,7 +128,6 @@ export default function App() {
               onClearResume={handleClearResume}
               onClearJobs={handleClearJobs}
               onProgressChange={setResumeMatchProgress}
-              hasWarnings={hasMediumRisk || hasHighRisk}
               isOnline={isOnline}
             />
           </div>

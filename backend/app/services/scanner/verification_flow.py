@@ -20,22 +20,26 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         if not runtime.get_company_name_is_valid()(company):
             log.warning("[verify] No valid company name provided ('%s') — stopping verification endpoint early.", company)
             yield runtime.get_sse()({"type": "progress", "percent": 100, "stage": "Cannot verify company name"})
-            explanation = "Cannot verify company name: The company or business name was not identified in the job posting."
+            # No company name means there is nothing to search for, so there are
+            # no verification results and therefore no risk score. The finding
+            # is "we could not check", which is absent evidence, not a negative
+            # one, so the status is yellow rather than red.
+            explanation = "The job posting does not name an employer, so there was nothing to look up."
             items = [
                 VerificationItem(
                     label="Company Name",
-                    status="red",
+                    status="yellow",
                     explanation=explanation,
                 )
             ]
-            report = "External verification could not be performed because no company name was identified in the job posting. Legitimate employers clearly identify their organization."
-            recommendation = "Treat this posting as high risk. Avoid applying or proceed with extreme caution until the employer's identity can be verified."
+            report = "External verification was skipped because the job posting does not name an employer. The posting itself was still assessed."
+            recommendation = "Confirm who you would be dealing with through an official channel before sending personal details."
             yield runtime.get_sse()({"type": "result", "data": {
                 "items": [item.model_dump() for item in items],
                 "report": report,
                 "recommendation": recommendation,
-                "riskScore": 75,
-                "riskLevel": "high",
+                "riskScore": None,
+                "riskLevel": None,
                 "search_log": [],
                 "no_company_name": True,
             }})
@@ -59,7 +63,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             {"role": "user", "content": verify_prompt},
         ]
 
-        final_text = await runtime.get_chat()(messages, max_tokens=1024)
+        final_text = await runtime.get_chat()(messages, max_tokens=1536)
         log.info("[verify] Raw AI response (%d chars): %s", len(final_text), final_text[:1000])
         yield runtime.get_sse()({"type": "progress", "percent": 85, "stage": "Analyzing results"})
 
