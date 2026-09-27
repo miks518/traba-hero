@@ -103,14 +103,18 @@ export interface ScanResult {
   riskLevel: ScanRiskLevel | null;
   riskLabel: string;
   /**
-   * True only once external verification has produced a score. The flag-count
-   * heuristics that used to synthesise a score here were removed, so anything
-   * without this marker is unverified and must not display a percentage.
+   * True when a score was actually calculated. The posting's own indicators
+   * always produce one, so this is only false for jobs restored from history
+   * that predate that behaviour — those are shown as unverified rather than
+   * showing a number the system never measured.
    */
   riskScored: boolean;
   riskScore: number | null;
   riskDescription: string;
   scanningTarget: string;
+  scoreBreakdown?: RiskScoreBreakdown;
+  offerAnalysis?: OfferAnalysis;
+  offerAnalysisLoading?: boolean;
   redFlags: RedFlag[];
   flagsCritical: boolean;
   isJobPosting: boolean;
@@ -124,6 +128,7 @@ export interface ScanResult {
     dole?: { title: string; snippet: string; url: string }[];
   };
   jobSummary?: string;
+  postingAnalysis?: string;
   emailVerifications?: {
     email: string;
     domain: string;
@@ -133,16 +138,6 @@ export interface ScanResult {
     risk: 'low' | 'medium' | 'high';
     reason: string;
   }[];
-  scoreBreakdown?: {
-    high_count: number;
-    mid_count: number;
-    low_count: number;
-    high_weight: number;
-    mid_weight: number;
-    low_weight: number;
-    formula: string;
-    normalized_score: number;
-  };
   verificationResult?: VerificationResult;
   verificationLoading?: boolean;
   verificationError?: boolean;
@@ -202,6 +197,8 @@ export interface ApiScanResponse {
   job_summary: string;
   error?: string | null;
   company_name?: string | null;
+  risk_score?: number;
+  risk_level?: ScanRiskLevel;
   sec_registration?: { company_name: string; sec_no: string; status: string; date_approved: string }[];
   web_search?: {
     legitimacy?: { title: string; snippet: string; url: string }[];
@@ -219,16 +216,8 @@ export interface ApiScanResponse {
     risk: 'low' | 'medium' | 'high';
     reason: string;
   }[];
-  score_breakdown?: {
-    high_count: number;
-    mid_count: number;
-    low_count: number;
-    high_weight: number;
-    mid_weight: number;
-    low_weight: number;
-    formula: string;
-    normalized_score: number;
-  };
+  score_breakdown?: RiskScoreBreakdown;
+  posting_analysis?: string;
   verification_context?: {
     company_name?: string;
     job_summary?: string;
@@ -236,4 +225,25 @@ export interface ApiScanResponse {
   verificationResult?: VerificationResult;
   verificationLoading?: boolean;
   verificationError?: boolean;
+}
+
+export interface RiskScoreBreakdown {
+  source?: string;
+  high_count?: number;
+  mid_count?: number;
+  low_count?: number;
+  weights?: Record<string, number>;
+  posting_score?: number;
+  verification_score?: number | null;
+  final_score?: number | null;
+  sources?: string[];
+}
+
+export interface OfferAnalysis {
+  kind: string;
+  verdict: string;
+  whatItAsks: string;
+  whatItOffers: string;
+  whatToCheck: string;
+  isOffer: boolean;
 }

@@ -74,6 +74,32 @@ FAKE_VERIFY_RESPONSE = (
 )
 
 
+class _FakeDDGS:
+    """Stand-in for the ddgs DDGS context manager.
+
+    A bare MagicMock is iterable-but-empty, so every search looked like a total
+    retrieval failure. That made search paths report 'throttled' and, because
+    retries back off in real time, added ~27s to the suite. Returning library-
+    shaped rows keeps the offline tests on the success path and fast, while
+    individual tests still patch `_ddg_once` to exercise the failure paths.
+    """
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def text(self, query, max_results=5, **kwargs):
+        return [
+            {
+                "title": f"OFFLINE FAKE RESULT for {query}",
+                "href": "https://example.invalid/",
+                "body": "OFFLINE FAKE SNIPPET. No network was used.",
+            }
+        ]
+
+
 class ExternalNetworkBlocked(RuntimeError):
     """Raised when a test tries to resolve a non-loopback host."""
 
@@ -134,7 +160,7 @@ def _offline_ai_and_search():
         patch("app.routers.scan.search_job_posting_data", return_value={"company_name": None, "results": {}}),
         patch("app.routers.scan.verify_company", return_value=""),
         patch("app.routers.scan.verify_emails_in_text", return_value=[]),
-        patch("app.services.ddg_search.DDGS"),
+        patch("app.services.ddg_search.DDGS", _FakeDDGS),
     ):
         yield
 

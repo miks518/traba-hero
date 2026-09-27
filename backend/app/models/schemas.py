@@ -17,15 +17,28 @@ class ScanResponse(BaseModel):
     valid: bool
     red_flags: list[RedFlag] = []
     job_summary: str = ""
+    # Assessment of the posting's structure, separate from the role description.
+    posting_analysis: str = ""
     error: str | None = None
     company_name: str | None = None
     sec_registration: list[dict] = []
     web_search: dict = {}
     external_verification: dict = {}
+    # Always populated: the posting's own indicators produce a verdict whether or
+    # not an employer could be identified or looked up.
+    risk_score: int = 0
+    risk_level: str = "low"
+    score_breakdown: dict = {}
 
 
 class ScanTextRequest(BaseModel):
     text: str = Field(..., max_length=50_000)
+    language: str = "english"
+
+
+class AnalyzeOfferRequest(BaseModel):
+    text: str = Field(..., max_length=50_000)
+    company_name: str = ""
     language: str = "english"
 
 

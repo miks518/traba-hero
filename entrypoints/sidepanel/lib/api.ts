@@ -1,4 +1,4 @@
-import type { ApiScanResponse, ResumeData, ScannedJob, VerificationResult } from '../types';
+import type { ApiScanResponse, ResumeData, RiskScoreBreakdown, ScannedJob, VerificationResult } from '../types';
 
 const API_BASE = import.meta.env.WXT_API_BASE;
 const CLIENT_KEY = import.meta.env.WXT_CLIENT_KEY;
@@ -396,8 +396,108 @@ async function consumeSseStreamMatch(
   return null;
 }
 
+export interface OfferAnalysis {
+  kind: string;
+  verdict: string;
+  what_it_asks: string;
+  what_it_offers: string;
+  what_to_check: string;
+  is_offer: boolean;
+}
+
+export interface OfferStreamResult {
+  data?: OfferAnalysis;
+  timedOut?: boolean;
+}
+
+/**
+ * Post-only analysis. Used when a posting names no employer, so external
+ * verification cannot run. Assesses the offer on its own terms and returns a
+ * verdict, so the user is never left without one.
+ */
+export async function analyzeOfferStream(
+  text: string,
+  companyName: string,
+  externalSignal: AbortSignal,
+  onProgress: (progress: ScanProgress) => void,
+  timeoutMs = 90000,
+): Promise<OfferStreamResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  if (externalSignal) {
+    externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/analyze-offer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+      body: JSON.stringify({ text, company_name: companyName }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new ApiRequestError(res.status, text || res.statusText);
+    }
+
+    const data = await consumeSseStreamOffer(res.body, onProgress);
+    return { data: data ?? undefined };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      if (externalSignal.aborted) return { timedOut: false };
+      return { timedOut: true };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function consumeSseStreamOffer(
+  body: ReadableStream<Uint8Array> | null,
+  onProgress: (progress: ScanProgress) => void,
+): Promise<OfferAnalysis | null> {
+  if (!body) return null;
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data: ')) continue;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(trimmed.slice(6));
+      } catch {
+        continue;
+      }
+      if (event.type === 'progress') {
+        onProgress({
+          percent: Number(event.percent ?? 0),
+          stage: String(event.stage ?? 'Reading the offer'),
+        });
+      } else if (event.type === 'result') {
+        return event.data as OfferAnalysis;
+      } else if (event.type === 'error') {
+        throw new Error(String(event.error ?? 'Analysis failed'));
+      }
+    }
+  }
+  return null;
+}
+
 export interface VerifyStreamResult {
-  result?: VerificationResult & { riskScore?: number; riskLevel?: string };
+  result?: VerificationResult & { riskScore?: number; riskLevel?: string; scoreBreakdown?: RiskScoreBreakdown };
   timedOut?: boolean;
 }
 
@@ -466,6 +566,7 @@ export async function verifyJobStream(
             recommendation: string;
             riskScore?: number;
             riskLevel?: string;
+            scoreBreakdown?: RiskScoreBreakdown;
             search_log: unknown[];
             no_company_name?: boolean;
           };
@@ -476,6 +577,7 @@ export async function verifyJobStream(
               recommendation: data.recommendation ?? '',
               riskScore: data.riskScore,
               riskLevel: data.riskLevel as 'low' | 'moderate' | 'high' | 'critical' | undefined,
+              scoreBreakdown: data.scoreBreakdown,
               searchLog: data.search_log as VerificationResult['searchLog'],
               noCompanyName: Boolean(data.no_company_name),
             },

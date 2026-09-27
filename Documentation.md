@@ -761,7 +761,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | SSE progress update interval | ≤ 500ms | Frequency of progress events from backend |
 | Content script injection | < 100ms | Time for FAB to appear after page load |
 | Extension bundle size | < 500KB | Total extension size (excluding AI models) |
-| Screenshot payload | < 1MB per image | JPEG compression at 0.8 quality, max 1920px dimension |
+| Screenshot payload | < 1MB per image | JPEG compression at 0.8 quality, max 1280px dimension |
 
 ---
 

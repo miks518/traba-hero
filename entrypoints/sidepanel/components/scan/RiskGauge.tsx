@@ -6,6 +6,8 @@ export interface RiskGaugeProps {
   maxScore?: number;
   riskLevel?: ScanRiskLevel | null;
   riskLabel?: string;
+  /** Why there is no score yet. Shown instead of the default note. */
+  pendingNote?: string;
 }
 
 function scoreColor(score: number): string {
@@ -22,7 +24,7 @@ function levelColor(level: ScanRiskLevel | null): string {
   }
 }
 
-export function RiskGauge({ score, maxScore = 100, riskLevel = null, riskLabel }: RiskGaugeProps) {
+export function RiskGauge({ score, maxScore = 100, riskLevel = null, riskLabel, pendingNote }: RiskGaugeProps) {
   const radius = 52;
   const strokeWidth = 14;
   const circumference = 2 * Math.PI * radius;
@@ -54,7 +56,7 @@ export function RiskGauge({ score, maxScore = 100, riskLevel = null, riskLabel }
               Not scored
             </span>
             <span className="text-label-sm text-on-surface-variant text-center">
-              A risk score is calculated after external verification.
+              {pendingNote ?? 'A risk score is calculated after external verification.'}
             </span>
           </div>
         </div>

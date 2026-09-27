@@ -18,10 +18,11 @@ export function InvalidContentError({ onRetry }: InvalidContentErrorProps) {
       </div>
 
       <h2 className="text-headline-sm font-headline text-on-surface mb-2">
-        Scanning Interrupted
+        Nothing To Assess
       </h2>
       <p className="text-body-sm text-on-surface-variant max-w-xs mx-auto mb-5">
-        We couldn't detect a job listing. Please ensure that the screenshot contains a valid job listing and try again.
+        This doesn't look like an offer of work or income. Job adverts, chat messages offering work, and
+        recruitment pitches can all be scanned — pick one of those and try again.
       </p>
 
     </section>

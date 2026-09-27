@@ -16,6 +16,7 @@ from app.config import settings
 from app.core.auth import require_client_key
 from app.exceptions import InvalidImageError
 from app.models.schemas import (
+    AnalyzeOfferRequest,
     JobMatchResult,
     MatchRequest,
     MatchResponse,
@@ -30,6 +31,7 @@ from app.models.schemas import (
 )
 from app.rate_limit import limiter
 from app.services.ddg_search import (
+    clean_company_name,
     extract_company_name,
     is_valid_company_name,
     search_job_posting,
@@ -50,6 +52,7 @@ from app.services.lm_client import (
     chat_stream_pieces,
 )
 from app.services.scanner import (
+    ANALYZE_OFFER_SYSTEM_PROMPT,
     FALLBACK_SYSTEM_PROMPT,
     IMAGE_SCAN_INSTRUCTION,
     MATCH_INSTRUCTION,
@@ -58,18 +61,22 @@ from app.services.scanner import (
     TEXT_SCAN_INSTRUCTION,
     VERIFY_SYSTEM_PROMPT,
     _VALID_LINE_RE,
-    _match_event_stream,
-    _resume_event_stream,
-    _scan_event_stream,
+    _build_analyze_offer_prompt,
     _build_verify_prompt,
     _calculate_risk_score_from_verify,
+    _combine_scores,
     _extract_resume_text,
     _language_instruction,
+    _match_event_stream,
+    _parse_analyze_offer,
     _parse_verification_result,
     _parse_verify_section,
+    _posting_risk_from_flags,
     _red_flags,
-    _scan_response,
+    _resume_event_stream,
+    _scan_event_stream,
     _sse,
+    analyze_offer_event_stream,
     load_match_prompt,
     load_resume_prompt,
     load_system_prompt,
@@ -86,6 +93,7 @@ router = APIRouter()
 runtime.get_chat_stream = lambda: chat_stream_pieces
 runtime.get_verify_emails = lambda: verify_emails_in_text
 runtime.get_extract_company = lambda: extract_company_name
+runtime.get_clean_company_name = lambda: clean_company_name
 runtime.get_parse_custom = lambda: _parse_custom
 runtime.get_parse_json = lambda: _parse_json
 runtime.get_company_name_is_valid = lambda: is_valid_company_name
@@ -103,6 +111,11 @@ runtime.get_parse_verify_section = lambda: _parse_verify_section
 runtime.get_calculate_risk = lambda: _calculate_risk_score_from_verify
 runtime.get_verify_system_prompt = lambda: VERIFY_SYSTEM_PROMPT
 runtime.get_ai_limiter = lambda: ai_limiter
+runtime.get_posting_risk = lambda: _posting_risk_from_flags
+runtime.get_combine_scores = lambda: _combine_scores
+runtime.get_analyze_offer_prompt = lambda: ANALYZE_OFFER_SYSTEM_PROMPT
+runtime.get_build_analyze_offer_prompt = lambda: _build_analyze_offer_prompt
+runtime.get_parse_analyze_offer = lambda: _parse_analyze_offer
 
 
 def _scan_response(result: dict, company_name: str = "") -> ScanResponse:
@@ -266,3 +279,30 @@ async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None
 async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends(require_client_key)):
     """External verification: extended DuckDuckGo searches + one AI call. SSE stream."""
     return StreamingResponse(verification_event_stream(req), media_type="text/event-stream")
+
+
+@router.post("/api/analyze-offer")
+@limiter.limit("5/minute")
+async def analyze_offer(req: AnalyzeOfferRequest, request: Request, _auth: None = Depends(require_client_key)):
+    """Post-only analysis: used when a posting names no employer, so there is
+    nothing to look up. Assesses the offer on its own terms and returns a
+    verdict. One AI call, no search."""
+    text = (req.text or "").strip()
+    if not text:
+        return StreamingResponse(
+            iter([_sse({"type": "result", "data": {
+                "kind": "NOT_OFFER",
+                "verdict": "No content was provided to assess.",
+                "what_it_asks": "Nothing",
+                "what_it_offers": "Not stated",
+                "what_to_check": "Provide the text or image of the offer.",
+                "is_offer": False,
+            }})]),
+            media_type="text/event-stream",
+        )
+
+    log.info("[analyze-offer] Assessing %d chars of content", len(text))
+    return StreamingResponse(
+        analyze_offer_event_stream(text, req.company_name or ""),
+        media_type="text/event-stream",
+    )

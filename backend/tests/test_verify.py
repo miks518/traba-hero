@@ -255,6 +255,11 @@ async def test_verify_failsafe_when_nothing_to_parse():
 
         assert resp.status_code == 200
         body = resp.text
-        assert "Cannot verify company name" in body
-        assert "Company Name" in body
+        assert "No structured findings could be read" in body
+        assert "Company Existence" in body
+        # A verdict always exists. The posting carried no indicators, so the
+        # unreadable verification contributes nothing and the posting score
+        # stands on its own rather than the result being left unscored.
+        assert '"riskScore": 0' in body
+        assert '"verification_score": null' in body
 

@@ -3,6 +3,8 @@ import logging
 import re
 import time as _time
 
+from app.services.lm_client import EmptyModelResponse
+
 from .dependencies import runtime
 
 
@@ -47,6 +49,10 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
                             break
         finally:
             await stream.aclose()
+    except EmptyModelResponse as e:
+        log.error("[%s] Provider returned no content: %s", endpoint, e)
+        yield runtime.get_sse()({"type": "error", "error": "The AI service returned no content. This is usually a temporary provider or rate-limit issue — please try again in a moment."})
+        return
     except asyncio.TimeoutError:
         log.error("[%s] AI timed out after 300s (%d tokens received)", endpoint, token_count)
         yield runtime.get_sse()({"type": "error", "error": "The AI service took too long to respond. Please try again."})
@@ -98,8 +104,16 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
                 for f in (result.get("red_flags") or [])
                 if isinstance(f, dict)
             )
+            if not company_name:
+                # Prefer the model's own COMPANY NAME field. The regex over the
+                # prose summary is kept as a fallback for older or unusual
+                # output, but guessing the employer from a sentence is what
+                # produced unrelated search keywords.
+                stated = runtime.get_clean_company_name()(result.get("company_name") or "")
+                if stated:
+                    company_name = stated
             if not company_name and not has_missing_company_flag:
-                company_name = runtime.get_extract_company()(verify_text) or ""
+                company_name = runtime.get_clean_company_name()(runtime.get_extract_company()(verify_text) or "")
             if not runtime.get_company_name_is_valid()(company_name):
                 company_name = ""
 

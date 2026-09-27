@@ -5,9 +5,43 @@ from collections.abc import AsyncIterator
 from app.models.schemas import VerificationItem, VerifyRequest
 
 from .dependencies import runtime
+from .verification_parser import EXPECTED_CATEGORIES
 
 
 log = logging.getLogger("trabahero")
+
+
+def _read_verify_output(text: str) -> tuple[list, str, str, bool]:
+    """Read the verification result, preferring JSON and falling back to text.
+
+    JSON is the intended shape, but the provider may still answer with prose if
+    it does not support structured outputs, so the labeled-text parser remains as
+    a fallback rather than being deleted. Returns (items, report, recommendation,
+    used_json).
+    """
+    payload = runtime.get_parse_json()(text)
+    if isinstance(payload, dict) and isinstance(payload.get("checks"), list):
+        items = []
+        for check in payload["checks"]:
+            if not isinstance(check, dict):
+                continue
+            category = str(check.get("category") or "").strip()
+            status = str(check.get("status") or "").strip().lower()
+            if not category or status not in ("green", "yellow", "red"):
+                log.warning("[verify] Ignoring malformed check entry: %r", check)
+                continue
+            items.append(VerificationItem(
+                label=category,
+                status=status,
+                explanation=str(check.get("detail") or "").strip(),
+            ))
+        return items, str(payload.get("report") or ""), str(payload.get("recommendation") or ""), True
+
+    log.warning("[verify] Response was not JSON; falling back to the labeled-text parser.")
+    items = runtime.get_parse_verification_result()(text)
+    report = runtime.get_parse_verify_section()(text, "REPORT")
+    recommendation = runtime.get_parse_verify_section()(text, "RECOMMENDATION")
+    return items, report, recommendation, False
 
 
 async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
@@ -27,34 +61,46 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             explanation = "The job posting does not name an employer, so there was nothing to look up."
             items = [
                 VerificationItem(
-                    label="Company Name",
+                    label="Company Existence",
                     status="yellow",
                     explanation=explanation,
                 )
             ]
-            report = "External verification was skipped because the job posting does not name an employer. The posting itself was still assessed."
+            report = (
+                "External verification was skipped because the job posting does not name an employer. "
+                "The findings below come only from reading the posting itself."
+            )
             recommendation = "Confirm who you would be dealing with through an official channel before sending personal details."
+            # No employer lookup happened, so the posting's own indicators remain
+            # the whole verdict. The score does not move just because the lookup
+            # was impossible.
+            posting_score, posting_level, breakdown = runtime.get_posting_risk()(req.red_flags or [])
+            breakdown["verification_score"] = None
+            breakdown["final_score"] = posting_score
+            breakdown["sources"] = ["posting"]
             yield runtime.get_sse()({"type": "result", "data": {
                 "items": [item.model_dump() for item in items],
                 "report": report,
                 "recommendation": recommendation,
-                "riskScore": None,
-                "riskLevel": None,
+                "riskScore": posting_score,
+                "riskLevel": posting_level,
+                "scoreBreakdown": breakdown,
                 "search_log": [],
                 "no_company_name": True,
             }})
             return
 
         yield runtime.get_sse()({"type": "progress", "percent": 10, "stage": "Searching company info"})
-        yield runtime.get_sse()({"type": "search", "query": f"{company} Philippines", "round": 1})
-        yield runtime.get_sse()({"type": "search", "query": f'site:facebook.com "{company}" reviews', "round": 2})
-        yield runtime.get_sse()({"type": "search", "query": f'site:reddit.com "{company}" Philippines', "round": 3})
-        search_context = await asyncio.to_thread(runtime.get_verify_company(), company)
         search_log = [
-            {"query": f"{company} Philippines", "round": 1},
-            {"query": f'site:facebook.com "{company}" reviews', "round": 2},
-            {"query": f'site:reddit.com "{company}" Philippines', "round": 3},
+            {"query": f"{company} Philippines company", "round": 1},
+            {"query": f"{company} SEC registration Philippines", "round": 2},
+            {"query": f"{company} scam fraud complaint", "round": 3},
+            {"query": f'"{company}" reviews employee', "round": 4},
         ]
+        for entry in search_log:
+            yield runtime.get_sse()({"type": "search", "query": entry["query"], "round": entry["round"]})
+
+        search_context = await asyncio.to_thread(runtime.get_verify_company(), company)
         yield runtime.get_sse()({"type": "progress", "percent": 45, "stage": "AI analyzing"})
 
         verify_prompt = runtime.get_build_verify_prompt()(req, search_context)
@@ -63,32 +109,57 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             {"role": "user", "content": verify_prompt},
         ]
 
-        final_text = await runtime.get_chat()(messages, max_tokens=1536)
+        final_text = await runtime.get_chat()(
+            messages,
+            max_tokens=2048,
+            response_format=runtime.get_verify_response_format(),
+        )
         log.info("[verify] Raw AI response (%d chars): %s", len(final_text), final_text[:1000])
         yield runtime.get_sse()({"type": "progress", "percent": 85, "stage": "Analyzing results"})
 
-        items = runtime.get_parse_verification_result()(final_text)
-        report = runtime.get_parse_verify_section()(final_text, "REPORT")
-        recommendation = runtime.get_parse_verify_section()(final_text, "RECOMMENDATION")
+        items, report, recommendation, used_json = _read_verify_output(final_text)
+
+        # A partial parse used to be silent: the panel showed one card while the
+        # raw response clearly listed three, with nothing in the log to connect
+        # the two. Name what is missing so the next occurrence is diagnosable.
+        missing = runtime.get_missing_categories()(items)
+        if missing:
+            log.warning(
+                "[verify] Parsed %d of %d expected categories; missing: %s. raw=%s json=%s",
+                len(items),
+                len(EXPECTED_CATEGORIES),
+                ", ".join(missing),
+                used_json,
+                final_text[:800],
+            )
 
         if not items:
             log.warning("[verify] Failsafe triggered: No verification items could be parsed from AI response. Raw: %s", final_text[:300])
-            explanation = f"Cannot verify company name: External verification could not parse verification details for '{company}'."
             items = [
                 VerificationItem(
-                    label="Company Name",
+                    label="Company Existence",
                     status="yellow",
-                    explanation=explanation,
+                    explanation=f"No structured findings could be read from the search results for '{company}'.",
                 )
             ]
             if not report:
-                report = f"External verification details could not be parsed for '{company}'. Search queries were executed, but structured findings were unavailable."
+                report = f"Structured findings could not be parsed from the search results for '{company}', so no risk score was calculated."
             if not recommendation:
-                recommendation = "Proceed with caution. Independently confirm company registration and reputation before submitting personal details."
+                recommendation = "Confirm the employer independently before submitting personal details."
 
-        risk_score, risk_level = runtime.get_calculate_risk()(items)
+        posting_score, _posting_level, breakdown = runtime.get_posting_risk()(req.red_flags or [])
+        verify_score, _verify_level = runtime.get_calculate_risk()(items)
+        risk_score, risk_level = runtime.get_combine_scores()(posting_score, verify_score)
 
-        log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, risk_score=%d, risk_level=%s", len(items), len(report), len(recommendation), risk_score, risk_level)
+        breakdown["verification_score"] = verify_score
+        breakdown["final_score"] = risk_score
+        breakdown["sources"] = [
+            name
+            for name, value in (("posting", posting_score), ("verification", verify_score))
+            if value is not None
+        ]
+
+        log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, posting_score=%s, verify_score=%s, risk_score=%s, risk_level=%s", len(items), len(report), len(recommendation), posting_score, verify_score, risk_score, risk_level)
         if items:
             log.info("[verify] Items: %s", items)
         if report:
@@ -102,6 +173,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "recommendation": recommendation,
             "riskScore": risk_score,
             "riskLevel": risk_level,
+            "scoreBreakdown": breakdown,
             "search_log": search_log,
             "no_company_name": False,
         }})

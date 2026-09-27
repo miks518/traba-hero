@@ -8,6 +8,174 @@ log = logging.getLogger("trabahero")
 
 _client: AsyncOpenAI | None = None
 
+# Request parameters the routed provider has rejected, so they are dropped for
+# the rest of the process instead of costing a failed request every time.
+_unsupported_params: set[str] = set()
+_sent_config_logged = False
+
+
+def _log_sent_config(model: str, eff_max_tokens: int, structured: bool) -> None:
+    """Log the generation config once, so a failure can be read against it."""
+    global _sent_config_logged
+    if _sent_config_logged:
+        return
+    _sent_config_logged = True
+    log.info(
+        "[lm] Generation config in use: model=%s max_tokens=%s structured_output=%s "
+        "reasoning_enabled=%s reasoning_cap=%s effort=%s dropped_params=%s",
+        model,
+        eff_max_tokens,
+        "on" if structured else "off",
+        "unset" if settings.ai_reasoning_enabled is None else settings.ai_reasoning_enabled,
+        settings.ai_reasoning_max_tokens or "off",
+        settings.ai_reasoning_effort or "off",
+        sorted(_unsupported_params) or "none",
+    )
+
+
+def _reasoning_params() -> dict:
+    """Build OpenRouter's normalized `reasoning` body, or {} when not configured.
+
+    Reasoning models otherwise draw deliberation from the same max_tokens budget
+    that has to hold the answer: with a 2048 cap the model spent the entire
+    budget reasoning and returned no content at all. Three ways to stop that:
+
+      enabled: false      turn reasoning off entirely — the cleanest option
+      effort: low         reduce it at the source
+      max_tokens: N       cap it (truncating can make a provider re-attempt)
+
+    `enabled: false` wins over the other two, because the provider rejects a
+    disabled reasoning combined with a high effort level, so sending them
+    together risks a 400 for no benefit.
+    """
+    if settings.ai_reasoning_enabled is False:
+        return {"reasoning": {"enabled": False}}
+
+    reasoning: dict = {}
+    if settings.ai_reasoning_enabled is True:
+        reasoning["enabled"] = True
+    if settings.ai_reasoning_max_tokens and settings.ai_reasoning_max_tokens > 0:
+        reasoning["max_tokens"] = settings.ai_reasoning_max_tokens
+    if settings.ai_reasoning_effort:
+        reasoning["effort"] = settings.ai_reasoning_effort
+    return {"reasoning": reasoning} if reasoning else {}
+
+
+def _structured_output_body(schema: dict, name: str) -> dict:
+    """Build the `response_format` + `provider` body for schema-enforced output.
+
+    `provider.require_parameters` matters here: a model ID can route to several
+    endpoints, and without it the request may land on one that does not support
+    structured outputs and come back with prose instead of JSON.
+    """
+    return {
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": name,
+                "strict": True,
+                "schema": schema,
+            },
+        },
+        "provider": {"require_parameters": True},
+    }
+
+
+def _request_extra_body(structured: dict | None) -> dict:
+    """Assemble the extra request body, omitting anything the provider rejected."""
+    body: dict = {}
+    if "reasoning" not in _unsupported_params:
+        reasoning = _reasoning_params()
+        if reasoning:
+            body.update(reasoning)
+    if structured and "structured" not in _unsupported_params:
+        body.update(structured)
+    return body
+
+
+def _rejected_param(exc: Exception) -> str | None:
+    """Name the request parameter the provider refused, or None if not that."""
+    if getattr(exc, "status_code", None) != 400:
+        return None
+    text = str(exc).lower()
+    if not any(h in text for h in ("reasoning", "response_format", "json_schema", "structured", "schema", "unsupported", "unknown field", "unrecognized", "not allowed", "invalid_request_error")):
+        return None
+    if any(h in text for h in ("response_format", "json_schema", "structured", "schema")):
+        return "structured"
+    if "reasoning" in text:
+        return "reasoning"
+    return None
+
+
+async def _create_completion(**kwargs):
+    """Call the provider, dropping parameters it rejects.
+
+    Not every provider behind an OpenRouter model supports `reasoning` or
+    structured outputs. A 400 naming a parameter is a configuration problem, not
+    a broken request, so it is retried without that parameter and then left out
+    for the rest of the process.
+    """
+    structured = kwargs.pop("_structured", None)
+    _log_sent_config(kwargs.get("model", "?"), kwargs.get("max_tokens", "?"), bool(structured))
+    attempted: set[str] = set()
+    while True:
+        extra_body = _request_extra_body(structured)
+        try:
+            return await _get_client().chat.completions.create(extra_body=extra_body or None, **kwargs)
+        except Exception as e:  # noqa: BLE001
+            culprit = _rejected_param(e)
+            if culprit is None or culprit in attempted:
+                raise
+            attempted.add(culprit)
+            # Record before recomputing, otherwise the retry sends it again.
+            _unsupported_params.add(culprit)
+            log.warning(
+                "[lm] Provider rejected the %s parameter (%s: %s). Continuing without it. %s",
+                culprit,
+                type(e).__name__,
+                e,
+                "Set the relevant setting to 0/blank to silence this warning." if culprit == "reasoning"
+                else "Falling back to plain text output for this process.",
+            )
+
+
+class EmptyModelResponse(RuntimeError):
+    """The provider returned a successful stream that contained no content.
+
+    Raised instead of letting an empty string reach the output parsers, which
+    would otherwise report an "unreadable response" and hide the real cause.
+    """
+
+
+def _chunk_extra(obj) -> dict:
+    """Return the non-schema fields the provider attached to a chunk.
+
+    The OpenAI SDK models do not declare OpenRouter's ``error`` object or the
+    provider-specific ``reasoning`` field, so those arrive as extras and would
+    be invisible unless they are read explicitly.
+    """
+    extra = getattr(obj, "model_extra", None)
+    if isinstance(extra, dict):
+        return extra
+    return {}
+
+
+def _describe_empty_chunk(chunk) -> str:
+    """Best-effort description of a stream chunk that carried no content."""
+    extra = _chunk_extra(chunk)
+    error = getattr(chunk, "error", None) or extra.get("error")
+    if error is not None:
+        if isinstance(error, dict):
+            detail = error.get("message") or error.get("code") or json.dumps(error)[:200]
+        else:
+            detail = str(error)
+        return f"provider error frame: {detail}"
+    return f"chunk with no choices (extra fields: {sorted(extra.keys()) or 'none'})"
+
+
+def _describe_refusal(refusal: str) -> str:
+    return f"model refusal: {refusal}"
+
 
 def _get_client() -> AsyncOpenAI:
     """Return a shared AsyncOpenAI client, creating it on first call."""
@@ -49,9 +217,14 @@ def _parse_json(raw: str) -> dict | list | None:
 _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "critical", "severe", "info"}
 
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|RED\s*FLAG|JOB\s*SUMMARY|END\s*(?:FLAGS|JOB\s*SUMMARY))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|RED\s*FLAG|COMPANY\s*NAME|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
+
+# Sections whose body runs until their END marker. END FLAGS is deliberately not
+# in this set: it is a bare terminator for the red flag lines, and treating it as
+# a section end used to reset the parser's matched_any flag.
+_SECTION_END_KW = ("END JOB SUMMARY", "END POSTING ANALYSIS")
 
 _HIGH_SEVERITY_KEYWORDS = {
     "upfront fee", "processing fee", "training fee", "registration fee",
@@ -106,7 +279,7 @@ def _parse_custom(raw: str) -> dict | None:
             continue
         kw = " ".join(m.group("kw").split()).upper()
         rest = m.group("rest").strip()
-        if kw in ("END JOB SUMMARY",):
+        if kw in _SECTION_END_KW:
             close_section()
             continue
         close_section()
@@ -143,6 +316,19 @@ def _parse_custom(raw: str) -> dict | None:
                 "reasoning": reasoning,
                 "severity": final_severity,
             })
+        elif kw in ("COMPANY NAME", "EMPLOYER NAME"):
+            # The employer name is what the verification step searches on, so the
+            # model states it directly instead of leaving a downstream regex to
+            # fish it out of the prose summary. EMPLOYER NAME is the current
+            # label; COMPANY NAME is still accepted so scans recorded before the
+            # rename still parse.
+            result["company_name"] = rest.strip()
+        elif kw == "POSTING ANALYSIS":
+            # Assessment of the posting's structure, kept separate from the job
+            # summary so the panel can show the verdict and the role separately.
+            section = kw.lower().replace(" ", "_")
+            if rest:
+                buf.append(rest)
         elif kw == "JOB SUMMARY":
             section = kw.lower().replace(" ", "_")
             if rest:
@@ -229,21 +415,42 @@ async def chat(
     max_tokens: int | None = None,
     temperature: float | None = None,
     top_p: float | None = None,
+    response_format: dict | None = None,
 ) -> str:
     model = settings.model_name or "local-model"
     eff_temp = temperature if temperature is not None else settings.ai_temperature
     eff_max_tokens = max_tokens if max_tokens is not None else settings.ai_max_tokens
     eff_top_p = top_p if top_p is not None else settings.ai_top_p
 
-    client = _get_client()
-    completion = await client.chat.completions.create(
+    completion = await _create_completion(
         model=model,
         messages=messages,
         temperature=eff_temp,
         top_p=eff_top_p,
         max_tokens=eff_max_tokens,
+        _structured=response_format,
     )
-    return (completion.choices[0].message.content or "").strip()
+    content = (completion.choices[0].message.content or "").strip()
+    if not content:
+        # A reasoning model can spend the whole budget thinking and return
+        # nothing, on the non-streaming path just as much as the streaming one.
+        extra = getattr(completion.choices[0].message, "model_extra", None) or {}
+        counts = {}
+        for field in ("reasoning", "reasoning_content"):
+            value = extra.get(field)
+            counts[field] = len(value) if isinstance(value, str) else (1 if value else 0)
+        mirrored = (
+            isinstance(extra.get("reasoning"), str)
+            and isinstance(extra.get("reasoning_content"), str)
+            and extra.get("reasoning") == extra.get("reasoning_content")
+        )
+        reasoning_chars = sum(counts.values()) - (min(counts.values()) if mirrored else 0)
+        detail = f"the model returned no content for model={model}"
+        if reasoning_chars:
+            detail += f" (~{reasoning_chars} chars of reasoning-only output; {counts}{', mirrored so counted once' if mirrored else ''})"
+        log.error("[lm] %s", detail)
+        raise EmptyModelResponse(detail)
+    return content
 
 
 async def chat_json(
@@ -410,14 +617,21 @@ async def chat_stream_pieces(
     temperature: float | None = None,
     top_p: float | None = None,
 ):
-    """Async generator yielding each content delta from the AI provider as it arrives."""
+    """Async generator yielding each content delta from the AI provider as it arrives.
+
+    Everything the stream says about why it produced nothing is collected and
+    reported. OpenRouter surfaces an upstream provider failure — a rate limit on
+    the routed provider, for instance — as a data frame inside an otherwise
+    successful 200 response, so a request that was accepted can still end with no
+    content at all. Skipping those frames silently turns that into an empty
+    string, which the callers then report as an unreadable response.
+    """
     model = settings.model_name or "local-model"
     eff_temp = temperature if temperature is not None else settings.ai_temperature
     eff_max_tokens = max_tokens if max_tokens is not None else settings.ai_max_tokens
     eff_top_p = top_p if top_p is not None else settings.ai_top_p
 
-    client = _get_client()
-    stream = await client.chat.completions.create(
+    stream = await _create_completion(
         model=model,
         messages=messages,
         temperature=eff_temp,
@@ -425,12 +639,85 @@ async def chat_stream_pieces(
         max_tokens=eff_max_tokens,
         stream=True,
     )
+
+    notes: list[str] = []
+    finish_reason = None
+    reasoning_by_field = {"reasoning": 0, "reasoning_content": 0}
+    content_chars = 0
+    no_choice_chunks = 0
+    refusals = 0
+    mirrored_chunks = 0
+
     async for chunk in stream:
         if not chunk.choices:
+            no_choice_chunks += 1
+            notes.append(_describe_empty_chunk(chunk))
             continue
-        piece = chunk.choices[0].delta.content or ""
+
+        choice = chunk.choices[0]
+        if choice.finish_reason:
+            finish_reason = choice.finish_reason
+
+        delta = choice.delta
+        extra = _chunk_extra(delta)
+        # Some providers mirror the same text into both reasoning fields. When
+        # they are identical, count the pair once, or every character is counted
+        # twice and a failure looks like the model thinking twice as long. When
+        # they differ, both carry real output and both are counted.
+        first = extra.get("reasoning_content")
+        second = extra.get("reasoning")
+        mirrored = isinstance(first, str) and isinstance(second, str) and first == second
+        for field, value in (("reasoning_content", first), ("reasoning", second)):
+            if value is None:
+                continue
+            if mirrored and field == "reasoning":
+                continue
+            if isinstance(value, str):
+                reasoning_by_field[field] += len(value)
+            elif value:
+                reasoning_by_field[field] += 1
+        if mirrored:
+            mirrored_chunks += 1
+
+        refusal = getattr(delta, "refusal", None)
+        if refusal:
+            refusals += 1
+            notes.append(_describe_refusal(refusal))
+
+        piece = delta.content or ""
         if piece:
+            content_chars += len(piece)
             yield piece
+
+    # A provider that mirrors the two fields would otherwise count every
+    # character twice, which reads as the model thinking twice as long as it did.
+    reasoning_chars = sum(reasoning_by_field.values())
+
+    if content_chars == 0:
+        detail = "; ".join(notes) if notes else "the stream contained no content and no error frame"
+        if reasoning_chars:
+            detail += (
+                f" (~{reasoning_chars} chars of reasoning-only output;"
+                f" reasoning={reasoning_by_field['reasoning']},"
+                f" reasoning_content={reasoning_by_field['reasoning_content']}"
+                f"{f', {mirrored_chunks} chunks mirrored so counted once' if mirrored_chunks else ''})"
+            )
+        log.error(
+            "[lm] Stream produced no content. model=%s finish_reason=%s max_tokens=%s reasoning_enabled=%s reasoning_cap=%s effort=%s "
+            "chunks_without_choices=%d refusals=%d content_chars=%d reasoning_chars=%d detail=%s",
+            model,
+            finish_reason,
+            eff_max_tokens,
+            "unset" if settings.ai_reasoning_enabled is None else settings.ai_reasoning_enabled,
+            settings.ai_reasoning_max_tokens or "off",
+            settings.ai_reasoning_effort or "off",
+            no_choice_chunks,
+            refusals,
+            content_chars,
+            reasoning_chars,
+            detail,
+        )
+        raise EmptyModelResponse(detail)
 
 
 async def chat_with_tools(

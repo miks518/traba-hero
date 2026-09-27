@@ -115,7 +115,7 @@ EXPECTED_SIGNATURES = {
     "load_resume_prompt": "() -> str",
     "load_match_prompt": "() -> str",
     "_extract_resume_text": "(file_base64: str, file_type: str) -> str",
-    "_calculate_risk_score_from_verify": "(items: list[app.models.schemas.VerificationItem]) -> tuple[int, str]",
+    "_calculate_risk_score_from_verify": "(items: list[app.models.schemas.VerificationItem]) -> tuple[int | None, str | None]",
     "_build_verify_prompt": "(req: app.models.schemas.VerifyRequest, search_context: str = '') -> str",
     "_parse_verification_result": "(text: str) -> list[app.models.schemas.VerificationItem]",
     "_parse_verify_section": "(text: str, name: str) -> str",
@@ -194,10 +194,11 @@ def test_scanner_prompt_loaders_resolve_backend_prompt_files():
 def test_scanner_risk_calculator_preserves_weighted_score():
     scanner = importlib.import_module("app.services.scanner")
     items = [
-        scanner.VerificationItem(label="Company Name", status="red", explanation="Missing"),
+        scanner.VerificationItem(label="Company Existence", status="red", explanation="Not found"),
         scanner.VerificationItem(label="SEC Registration", status="yellow", explanation="Unclear"),
     ]
-    assert scanner._calculate_risk_score_from_verify(items) == (26, "low")
+    # Company Existence red = 40, SEC Registration yellow = 25 // 2 = 12, of 100.
+    assert scanner._calculate_risk_score_from_verify(items) == (52, "high")
 
 
 def test_scanner_sse_encoder_preserves_wire_format():

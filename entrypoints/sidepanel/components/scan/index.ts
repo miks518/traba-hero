@@ -6,3 +6,5 @@ export { PickerButton } from './PickerButton';
 export { InvalidContentError } from './InvalidContentError';
 export { VerificationCard } from './VerificationCard';
 export { VerificationSection } from './VerificationSection';
+export { OfferAnalysisCard } from './OfferAnalysisCard';
+export type { OfferAnalysisCardProps } from './OfferAnalysisCard';

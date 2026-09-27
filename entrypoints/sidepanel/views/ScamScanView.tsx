@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError, VerificationSection } from '../components/scan';
+import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError, VerificationSection, OfferAnalysisCard } from '../components/scan';
 import { FormattedText, Icon, ToastContainer, useToastManager } from '../components/common';
-import { scanScreenshotStream, verifyJobStream, ApiRequestError, type ScanProgress } from '../lib/api';
+import { scanScreenshotStream, verifyJobStream, analyzeOfferStream, ApiRequestError, type ScanProgress } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
 import type { ScanResult, IconName, ScannedJob, ApiScanResponse, ScanRiskLevel } from '../types';
 
@@ -49,12 +49,14 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
   const isJobPosting = data.valid;
   const flags = data.red_flags ?? [];
   const hasCritical = flags.some((f) => f.severity === 'high');
+  const score = typeof data.risk_score === 'number' ? data.risk_score : 0;
+  const level = data.risk_level ?? null;
 
   return {
-    riskLevel: null,
-    riskLabel: riskLevelLabel(null),
-    riskScored: false,
-    riskScore: null,
+    riskLevel: level,
+    riskLabel: riskLevelLabel(level),
+    riskScored: true,
+    riskScore: score,
     riskDescription: '',
     scanningTarget: 'Scanned Element',
     redFlags: flags.map((f, i) => ({
@@ -70,6 +72,7 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
     secRegistration: data.sec_registration || [],
     webSearch: data.web_search || {},
     jobSummary: data.job_summary || undefined,
+    postingAnalysis: data.posting_analysis || undefined,
     emailVerifications: (data.email_verifications ?? []).map((e) => ({
       email: e.email,
       domain: e.domain,
@@ -261,7 +264,9 @@ export function ScamScanView({
           scanResult: mapped,
         });
 
-        // Trigger async verification if company name is available
+        // One of two follow-up paths. With a named employer we can look it up;
+        // without one there is nothing to look up, so the offer is assessed on
+        // its own terms instead. Either way the user gets a verdict.
         const verifyCtx = data.verification_context;
         console.log('[scan] verifyCtx=', JSON.stringify(verifyCtx));
         if (verifyCtx?.company_name && verifyCtx.company_name.trim()) {
@@ -270,6 +275,8 @@ export function ScamScanView({
             job_summary: verifyCtx.job_summary || data.job_summary || '',
             red_flags: data.red_flags,
           });
+        } else if (data.job_summary) {
+          startOfferAnalysis(data.job_summary, data.company_name || '');
         }
       }
     } catch (e) {
@@ -281,6 +288,47 @@ export function ScamScanView({
       setIsLoading(false);
     }
   }, [screenshots, showToast, onScanComplete, onScanProgressChange, isOnline]);
+
+  const startOfferAnalysis = useCallback(async (text: string, companyName: string) => {
+    console.log('[analyze-offer] Starting post-only analysis');
+    verifyAbortRef.current?.abort();
+    const controller = new AbortController();
+    verifyAbortRef.current = controller;
+
+    setScanResult(prev => prev ? { ...prev, offerAnalysisLoading: true } : null);
+
+    try {
+      const result = await analyzeOfferStream(
+        text,
+        companyName,
+        controller.signal,
+        (p) => setProgress(p),
+      );
+
+      if (result.data) {
+        const raw = result.data;
+        setScanResult(prev => prev ? {
+          ...prev,
+          offerAnalysisLoading: false,
+          offerAnalysis: {
+            kind: raw.kind,
+            verdict: raw.verdict,
+            whatItAsks: raw.what_it_asks,
+            whatItOffers: raw.what_it_offers,
+            whatToCheck: raw.what_to_check,
+            isOffer: raw.is_offer,
+          },
+        } : null);
+      } else {
+        setScanResult(prev => prev ? { ...prev, offerAnalysisLoading: false } : null);
+      }
+    } catch (e) {
+      // The verdict comes from the indicators already found in the scan, so a
+      // failed analysis pass costs the explanation, not the score.
+      console.error('[analyze-offer] Error:', e);
+      setScanResult(prev => prev ? { ...prev, offerAnalysisLoading: false } : null);
+    }
+  }, []);
 
   const startVerification = useCallback(async (context: {
     company_name: string;
@@ -315,12 +363,13 @@ export function ScamScanView({
           verificationResult: result,
           verificationLoading: false,
           verificationFailed: false,
-          // The only risk score the user ever sees is the one external
-          // verification calculated. No local fallback number exists.
+          // Blended posting + employer score, or the posting score alone when
+          // the lookup found nothing to stand on.
           riskScored: scored,
-          riskScore: scored ? result.riskScore! : null,
-          riskLevel: scored ? (result.riskLevel as ScanResult['riskLevel']) : null,
-          riskLabel: riskLevelLabel(scored ? result.riskLevel : null),
+          riskScore: scored ? result.riskScore! : prev.riskScore,
+          riskLevel: scored ? (result.riskLevel as ScanResult['riskLevel']) : prev.riskLevel,
+          riskLabel: riskLevelLabel(scored ? result.riskLevel : prev.riskLevel),
+          scoreBreakdown: result.scoreBreakdown ?? prev.scoreBreakdown,
         } : null);
       } else {
         console.warn('[verify] Empty result from verifyJobStream');
@@ -393,14 +442,36 @@ export function ScamScanView({
               </div>
             </section>
           ) : (
-            <RiskGauge score={scanResult.riskScore} riskLevel={scanResult.riskLevel} riskLabel={scanResult.riskLabel} />
+            <RiskGauge
+              score={scanResult.riskScore ?? 0}
+              riskLevel={scanResult.riskLevel}
+              riskLabel={scanResult.riskLabel}
+            />
+          )}
+
+          {scanResult.scoreBreakdown?.sources && scanResult.scoreBreakdown.sources.length < 2 && (
+            <p className="text-label-sm text-on-surface-variant text-center -mt-1">
+              Based only on what the offer itself states.
+            </p>
+          )}
+
+          {scanResult.postingAnalysis && (
+            <section className="bg-surface-container-low border border-outline-variant/20 rounded-xl p-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Icon name="description" className="text-secondary" />
+                  <h3 className="text-label-md font-bold text-on-surface">Posting Analysis</h3>
+                </div>
+                <FormattedText text={scanResult.postingAnalysis} />
+              </div>
+            </section>
           )}
 
           {scanResult.jobSummary && (
             <section className="bg-surface-container-low border border-outline-variant/20 rounded-xl p-4">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <Icon name="description" className="text-secondary" />
+                  <Icon name="work" className="text-secondary" />
                   <h3 className="text-label-md font-bold text-on-surface">Job Summary</h3>
                 </div>
                 <FormattedText text={scanResult.jobSummary} />
@@ -423,6 +494,11 @@ export function ScamScanView({
           )}
 
           <RedFlagsList flags={scanResult.redFlags} critical={scanResult.flagsCritical} />
+
+          <OfferAnalysisCard
+            analysis={scanResult.offerAnalysis}
+            loading={scanResult.offerAnalysisLoading}
+          />
 
           <VerificationSection
             result={scanResult.verificationResult}

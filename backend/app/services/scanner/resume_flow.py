@@ -9,6 +9,7 @@ import zipfile
 from fastapi import HTTPException
 
 from app.models.schemas import ResumeData
+from app.services.lm_client import EmptyModelResponse
 
 from .dependencies import runtime
 
@@ -67,6 +68,10 @@ async def _resume_event_stream(messages: list, max_tokens: int | None = None, en
                     yield runtime.get_sse()({"type": "progress", "percent": pct, "stage": "Analyzing"})
         finally:
             await stream.aclose()
+    except EmptyModelResponse as e:
+        log.error("[%s] Provider returned no content: %s", endpoint, e)
+        yield runtime.get_sse()({"type": "error", "error": "The AI service returned no content. This is usually a temporary provider or rate-limit issue — please try again in a moment."})
+        return
     except asyncio.TimeoutError:
         log.error("[%s] AI timed out after 300s (%d tokens received)", endpoint, token_count)
         yield runtime.get_sse()({"type": "error", "error": "The AI service took too long to respond. Please try again."})

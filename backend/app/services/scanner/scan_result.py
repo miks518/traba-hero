@@ -2,6 +2,7 @@ import re
 
 from app.models.schemas import RedFlag, ScanResponse
 from app.services.ddg_search import is_valid_company_name
+from .risk_calculator import _posting_risk_from_flags
 
 
 def _red_flags(flags: list) -> list[RedFlag]:
@@ -37,12 +38,20 @@ def _build_scan_response(
     company_name_validator,
 ) -> ScanResponse:
     flags = red_flags_factory(result.get("red_flags", []))
+    # The posting's own indicators always produce a verdict, so the panel has a
+    # number from the moment the scan returns rather than waiting on an employer
+    # lookup that may not be possible.
+    score, level, breakdown = _posting_risk_from_flags(flags)
     return ScanResponse(
         valid=result.get("valid", False),
         red_flags=flags,
         job_summary=result.get("job_summary", ""),
+        posting_analysis=result.get("posting_analysis", ""),
         company_name=company_name if company_name_validator(company_name) else None,
         error=result.get("error"),
+        risk_score=score,
+        risk_level=level,
+        score_breakdown=breakdown,
     )
 
 
