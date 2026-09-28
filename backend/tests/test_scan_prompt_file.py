@@ -91,6 +91,12 @@ def test_prompt_does_not_instruct_a_missing_name_red_flag():
     in the same list, and it added risk-score weight for an input we lacked
     rather than for something wrong with the post. The frontend asks for the
     name instead.
+
+    Previously this asserted on two exact strings ("company name not stated",
+    "red flag: company name") and so missed a softer instruction elsewhere in
+    the prompt that used different wording. It is a change detector that only
+    caught the phrasing it was written against, so it now checks the severity
+    list, which is where an instruction like this hides.
     """
     for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
         low = body.lower()
@@ -98,10 +104,90 @@ def test_prompt_does_not_instruct_a_missing_name_red_flag():
         assert "red flag: company name" not in low, f"{label} still instructs the flag"
 
 
+def test_severity_list_never_offers_a_missing_name_as_an_example():
+    """The severity list is where this instruction hid.
+
+    "low: something like a missing employer name or a vague job description"
+    sat in the shipped prompt while a later bullet banned exactly that. A model
+    reading the severity examples took it as a sanctioned flag, emitted it at
+    low severity, and the posting scored 4 for an input we simply never had.
+
+    Only the part after each severity's colon is checked, because naming the
+    phrase in order to forbid it is the opposite of instructing it. The low
+    line may say "a missing employer name is NOT a low-severity flag"; what it
+    must not do is offer one as an example of a low-severity finding.
+    """
+    for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
+        block = _severity_block(body)
+        assert block, f"{label} must have a Severity means: block"
+
+        for line in block.splitlines():
+            _, sep, example = line.partition(":")
+            if not sep:
+                continue
+            # Prohibitions are allowed; examples are not.
+            lowered = example.lower()
+            if any(
+                marker in lowered
+                for marker in ("not a", "never", "do not", "don't", "is not")
+            ):
+                continue
+            for phrase in (
+                "missing employer name",
+                "missing company name",
+                "no employer name",
+                "no company name",
+                "employer not stated",
+                "company not stated",
+                "unnamed employer",
+                "unclear employer",
+                "vague job description",
+            ):
+                assert phrase not in lowered, (
+                    f"{label} offers '{phrase}' as a severity example; a missing "
+                    f"employer is a missing input, not a low-severity finding"
+                )
+
+
 def test_prompt_still_asks_for_the_employer_field():
     """The EMPLOYER NAME field is how the frontend detects the state."""
     assert "employer name" in low
     assert "not stated" in low
+
+
+def _severity_block(body: str) -> str:
+    """The text under "Severity means:", sub-bullets included.
+
+    Scoped deliberately: the instruction that shipped lived in a sub-bullet
+    three lines below the heading, so a slice of the heading's own line would
+    not have seen it.
+
+    Nesting depth decides membership rather than the bullet character, because
+    this prompt writes sub-bullets under a `*` bullet as `    - high: ...`.
+    A sub-bullet is therefore still part of the block even though it looks like
+    the start of a new list.
+    """
+    lines = body.splitlines()
+    start = next(
+        (i for i, ln in enumerate(lines) if "severity means:" in ln.lower()),
+        None,
+    )
+    if start is None:
+        return ""
+
+    def indent(ln: str) -> int:
+        return len(ln) - len(ln.lstrip())
+
+    base = indent(lines[start])
+    block = [lines[start]]
+    for ln in lines[start + 1:]:
+        if not ln.strip():
+            continue
+        # Anything at or left of the heading's own level ends the block.
+        if indent(ln) <= base:
+            break
+        block.append(ln)
+    return "\n".join(block)
 
 
 def _posting_analysis_block(body: str) -> str:

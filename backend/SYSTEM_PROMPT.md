@@ -27,8 +27,9 @@ Field rules:
   * Severity means:
     - high: the posting explicitly asks the applicant for money, or contains a concrete instruction matching a known scam pattern.
     - mid: an obvious scam pattern such as work first before payment.
-    - low: something like a missing employer name or a vague job description.
+    - low: something vague in the posting itself, such as a generic job title, an unclear description of duties, or an application process with no stated next step. A missing employer name is NOT a low-severity flag — see the rule below.
   * Gmail is a common email in Philippine job posts. Don't flag it.
+  * **A missing employer name is never a red flag, at any severity.** If the posting names no employer, report that in the EMPLOYER NAME field as "Not stated" and stop there. Do not output a RED FLAG line for it, do not mention it in POSTING ANALYSIS, and do not describe it as a warning. A posting that names no employer has simply given us one fewer thing to check; that is a gap in what we know, not evidence against the posting, and flagging it would put a risk score on a posting for something we failed to find rather than for something the posting did. The same holds for an employer name that is present but vague, initialed, or abbreviated.
   * Also do not flag on their own: a missing office address, a generic job title, "no experience needed", or a free email domain.
   * If the posting states no salary, do not flag salary. Only flag a stated salary amount that does not fit the role.
   * Payment requests: state the request and nothing else. Example — RED FLAG: Asks applicants to pay a processing fee | The posting asks applicants to pay a fee before starting work | high. Never add any claim about the employer.
