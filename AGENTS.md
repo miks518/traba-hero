@@ -34,7 +34,7 @@ Copy-Item .env.example .env
 
 ## Test Safety
 
-- The default test suite must be fully offline: never make live OpenRouter/LLM, DuckDuckGo, SEC, or other external API calls.
+- The default test suite must be fully offline: never make live OpenRouter/LLM, Tavily, or other external API calls. The SEC client was deleted; nothing calls it.
 - Mock external services at their module boundaries before invoking endpoints; use deterministic fake responses and fixtures.
 - Tests that only check authentication, routing, parsing, or streaming must still mock AI and search dependencies.
 - Treat provider credits and external-service quotas as test resources; local verification must not spend them.
@@ -42,6 +42,7 @@ Copy-Item .env.example .env
 - Never run live-provider tests through `python -m pytest tests/ -v`; put them behind an explicit opt-in command or environment flag.
 - **This is enforced, not just documented.** `backend/tests/conftest.py` installs an autouse `_offline_ai_and_search` fixture that fakes every AI/search entry point, plus a session-scoped `_block_external_dns` guard that raises `ExternalNetworkBlocked` on any non-loopback DNS resolution. `backend/tests/test_offline_suite.py` asserts both. A valid-client-key request therefore returns the fake payload, never a provider response.
 - The frontend suite mocks at the `lib/api` module boundary (`vi.mock`); no test touches `fetch` directly.
+- **A test that constructs `Settings()` directly bypasses the offline fixture and reads the real `backend/.env`.** A failing assertion then prints the whole settings object — including the live `AI_API_KEY` — into the test output. Construct settings explicitly, or assert on `mod.settings` with monkeypatch, and never let a secret reach an assertion message.
 
 ## Key Architecture
 
@@ -51,13 +52,16 @@ Copy-Item .env.example .env
 - `entrypoints/sidepanel/lib/api.ts` — HTTP client → `backend URL`; sends `X-Trabahero-Client-Key` header on all requests; `pingHealth()` is the `GET /health` reachability probe
 - `entrypoints/sidepanel/hooks/useBackendHealth.ts` — polls `/health` every 4s, flips `isOnline` false after 2 consecutive failures, re-probes on `visibilitychange`
 - `entrypoints/sidepanel/lib/imageUtils.ts` — Screenshot compression (JPEG 0.8, max 1280px on the long edge). The cap is a token-budget knob as much as a bandwidth one: vision cost scales with pixel area, and the configured model is a reasoning model, so visual input is also what it deliberates over. Raise it only if dense small print starts scanning badly.
-- `entrypoints/sidepanel/lib/scanHistory.ts` — `migrateScannedJobs()` clears risk scores stored before the posting stage produced a real score, so invented numbers are never displayed as findings
-- `entrypoints/sidepanel/views/ScamScanView.tsx` — Job scanning with progress streaming; follows up with `/api/verify` when an employer was named and `/api/analyze-offer` when one was not. `isOnline` prop disables the Scan button
+- `entrypoints/sidepanel/lib/scanHistory.ts` — `migrateScannedJobs()` clears risk scores stored before the posting stage produced a real score, so invented numbers are never displayed as findings. `updateScannedJob()` replaces a stored entry's whole `scanResult` once a later stage produces one
+- `entrypoints/sidepanel/views/ScamScanView.tsx` — Job scanning with progress streaming; follows up with `/api/verify` when an employer was named and `/api/analyze-offer` when one was not. `isOnline` prop disables the Scan button. Owns the evidence-promotion layout described below
 - `entrypoints/sidepanel/views/ResumeMatchView.tsx` — Resume analysis + job matching with progress; `isOnline` prop disables Match and the resume uploader
 - `entrypoints/sidepanel/components/shell/OfflineBanner.tsx` — "Server Unreachable" strip below the top app bar with a Retry button
 - `entrypoints/sidepanel/components/scan/OfferAnalysisCard.tsx` — Verdict for offers that name no employer: what it asks, what it offers, what to check
 - `entrypoints/sidepanel/components/scan/VerificationSection.tsx` - External verification cards, the search-unavailable notice, and the clickable sources list
 - `entrypoints/sidepanel/components/scan/CompanyNameNeeded.tsx` - The prompt shown when a posting names no employer; its dashed border is what separates a missing input from a finding
+- `entrypoints/sidepanel/lib/riskDisplay.ts` — `isUnverifiedEmployer()` and `shouldElevateEvidence()`; the two pure decisions the scan panel's layout turns on
+- `entrypoints/sidepanel/lib/riskAccent.ts` - Token-based risk colour for chrome (headers, borders, button). Never returns a hex or hsl literal; body prose deliberately has no entry
+- `entrypoints/sidepanel/lib/useFlipReorder.ts` — FLIP animation so promoted blocks travel to their new position instead of jumping
 - `UNFINISHED-WORK.md` — **Read this first in a new session.** Canonical list of what is known-incomplete, the manual output-quality checklist, and the reasoning-model notes.
 - `backend/app/services/search.py` � Tavily web search. One function, `search(query) -> SearchOutcome`, plus the company-name helpers (`extract_company_name`, `clean_company_name`, `is_valid_company_name`) the scan resolves the employer through. `build_query(company)` is the only query shape issued: a trailing corporate suffix is stripped and `Philippines` appended. The suffix strip is tail-anchored and word-bounded, so `Incorporated Systems PH` and `Coca-Cola Bottlers` survive intact, and a name that is *only* a suffix is left alone rather than reducing to the geographic term alone.
 
@@ -188,7 +192,9 @@ it cannot support, which is the legal exposure for the project.
 - **No hedging, no absolutes.** Banned inference words (likely, appears, suggests, probably…) and banned absolutes (always, never, definitely, 100%).
 - **Absence is never `red`.** In verification, `red` requires a provided search result that actually states a negative, and the `DETAIL` must name that source. "Not found" is `yellow`. See `risk_calculator.py`, which weights `yellow` at half.
 - **The scan prompt's field rules live in `SYSTEM_PROMPT.md` only.** `SCAN_OUTPUT_FORMAT` is the bare format skeleton. They were once duplicated into the user message, which is wasted context and gives a reasoning model more to deliberate over. `OUTPUT_RULES` and `SCAN_FIELD_RULES` in `prompts.py` now build only `FALLBACK_SYSTEM_PROMPT`, so the two copies can still drift; nothing enforces that yet (see `UNFINISHED-WORK.md`).
-- **The employer name is stated, not inferred.** The scan outputs a dedicated `COMPANY NAME:` field, and `scan_flow` prefers it over the regex fallback. Asking the model to state the name in prose and then regexing a sentence out of the summary is what produced unrelated search keywords. `clean_company_name()` rejects "Not stated" and other placeholders, and drops a leading article so "The company" is judged on the word after it.
+- **The employer name is stated, not inferred.** The scan outputs a dedicated `EMPLOYER NAME:` field, and `scan_flow` prefers it over the regex fallback. Asking the model to state the name in prose and then regexing a sentence out of the summary is what produced unrelated search keywords. `clean_company_name()` rejects "Not stated" and other placeholders, and drops a leading article so "The company" is judged on the word after it.
+- **The recommendation is addressed to a job seeker, not an auditor.** The field rule must name its reader. Without that, the model — steeped in the prompt's own SEC/DTI/PEZA vocabulary — hands the reader a registry lookup: "Confirm the registration number on the SEC site" is technically actionable and practically useless, because nobody applying for a job queries a government portal. The rule says to build on what the results showed and give one step from an ordinary hiring exchange, and forbids naming a registry, a government website, or a permit check. `RETRIEVAL_FAILED` needs the same treatment: it is read as an instruction, so it tells the reader to hold off on money or personal details rather than to "confirm the employer through an official channel".
+- **A prompt may contradict itself, and the severity list is where it hides.** `SYSTEM_PROMPT.md` once offered "low: something like a missing employer name" as an example while a later bullet banned flagging a missing employer — the model followed the example, and low severity scores 4 in `risk_calculator`. A long prompt drifts, so any rule stated in a *list of examples* must be restated as an explicit prohibition at the point of use. `test_severity_list_never_offers_a_missing_name_as_an_example` parses the severity block by indentation and inspects only the text after each severity's colon, so a line may name the phrase to forbid it but not offer it as an example.
 
 ## Environment Variables
 
@@ -206,6 +212,7 @@ it cannot support, which is the legal exposure for the project.
 - `CLIENT_SECRET_KEY` — Shared secret for extension auth; leave empty to disable (dev mode)
 - `TAVILY_API_KEY` - Tavily search key; free tier is 1,000 credits/month, no card (https://tavily.com)
 - `TAVILY_MAX_RESULTS` - Results requested per verification (default: 8)
+- `TAVILY_SEARCH_DEPTH` (`basic` | `advanced`, default advanced) and `TAVILY_COUNTRY` (default `philippines`, blank disables the boost) — the recall-versus-budget trade
 
 ## Reasoning Models
 
@@ -274,6 +281,10 @@ See `DESIGN.md` for the full design system: colors (light/dark themes), typograp
 - `python -m pytest tests/ -v` is fully offline and should stay under a few seconds; if it suddenly takes tens of seconds, a test has started reaching the network
 - `ai_verified` reasoning scripts I wrote as throwaway probes were deleted after use — the cases they covered belong in the suite, not in scratch files
 - No lint/format commands configured — `npm run compile` (types) and `npm test` (vitest) are the only gates
+- **`happy-dom` performs no flex layout and zeroes every `getBoundingClientRect()`.** Visual position, FLIP animation, and ring glow cannot be asserted in a unit test; assert the class or order value that produces the effect instead, and say so in the test's docstring. `@testing-library/user-event` is not installed — use `fireEvent`, as the existing tests do.
+- **Mutation-check a change in both directions.** A test that still passes after you deliberately break the production code was testing nothing. Check the *overcorrection* too: `order-last` and `order-3` both "keep the action bar at the bottom", and only one is right.
+- `Select-String -Path "dir\**\*.py"` does **not** recurse in PowerShell and silently reports nothing found. It once produced a false "this field is never populated" conclusion. Grep or read the file before concluding a symbol is unwired.
+- A `Set-Content` round-trip can normalise an em dash to a hyphen, which turns a mutation into a silent no-op. Print whether the substitution actually changed the file before trusting the result.
 - Dark mode is toggled via `document.documentElement.classList.toggle('dark')` — Tailwind uses `darkMode: 'class'`
 
 ## Filter Categories (ResumeMatchView)
@@ -308,6 +319,23 @@ Never synthesise a score from the red-flag count in the client. The number the
 panel shows is computed in `risk_calculator.py` and sent in `score_breakdown`,
 which records which stages contributed. Presenting a number the system never
 measured is the exact exposure the prompt rules exist to prevent.
+
+## Evidence Promotion (ScamScanView)
+
+A high or critical score reorders the results so the evidence leads:
+
+```
+Normal:        Gauge → Posting Analysis → Job Summary → [shots] → [Red Flags · Offer · Verification]
+High/Critical: Gauge → [Red Flags · Offer · Verification] → Posting Analysis → Job Summary → [shots]
+```
+
+- **A high/critical score moves the reader's answer to their first question.** They open a panel wanting to know why it is dangerous, and the flags and the employer check are what say so. Everything else is context for after that decision.
+- **`shouldElevateEvidence()` waits for the level to settle.** The scan returns a posting-stage score that verification then blends an employer score into, so a posting can read "high" and settle at "moderate". Promoting on the intermediate value would move the evidence out from under the reader and put it back a moment later. `verificationLoading` and `offerAnalysisLoading` both gate it. A *failed* verification still promotes, because the posting stage's score is real.
+- **Both groups stay mounted; `order` on the flex parent decides which leads.** Unmounting to reorder would give FLIP nothing to animate and would reset a collapsed Sources disclosure on every score change. `display: contents` is the trap here: it looks like the tidier way to drop a wrapper, but it generates no box and `order` has no effect on a box that does not exist.
+- **`order` reorders every sibling, not just the pair.** An element with no order value sorts at `0`, so the groups on `order-1`/`order-2` pushed the `sticky bottom-0` action bar above the results. It carries `order-3` and the capture preview `order-4`. `order-last` is not the fix — a later sibling swaps with it.
+- **`useFlipReorder` animates the move, both directions.** A fade cannot express a reorder: the content dissolves and reappears elsewhere, which reads as a glitch. Skipped under `prefers-reduced-motion`, matching `.ring-pulse`.
+- **Colour is chrome, not prose.** `riskAccent()` tints headers, borders, and the primary button. Body prose has no entry on purpose: long blocks of red or amber on a light surface are the hardest thing on the panel to read, and this is where someone reads a verdict carefully enough to act on it. The accent is temporary by construction — it rides on the displayed result, which `resetAll()` already clears when a new element is picked, so there is no timer.
+- **Tests assert the mechanism, not the pixels.** `happy-dom` performs no flex layout and zeroes every rect, so `ScamScanView.elevate.test.tsx` asserts the `order-*` and accent classes. The FLIP delta arithmetic is unit-tested separately, and whether the animation *looks* fluid is not verified by the suite.
 
 ## Verification Guardrails
 

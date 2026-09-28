@@ -1,8 +1,8 @@
 # Trabahero — Functional & Non-Functional Requirements
 
 **Project:** Trabahero — A Universal Visual Job-Scam Detection System for Filipino Job Seekers
-**Version:** 0.4.0
-**Last Updated:** 2026-09-28
+**Version:** 0.5.0
+**Last Updated:** 2026-09-29
 
 ---
 
@@ -42,6 +42,7 @@
    - FR-29: Clear History & Resume
    - FR-30: Popup UI
    - FR-31: Postings With No Employer Name
+   - FR-32: Risk-Ordered Result Layout
 4. [Non-Functional Requirements](#4-non-functional-requirements)
    - NFR-01: Performance
    - NFR-02: Reliability & Fault Tolerance
@@ -298,6 +299,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-06: The system never invents red flags — only genuine scam indicators from the AI are shown.
 - AC-07: Upfront fees are always flagged as HIGH severity (per system prompt rules).
 - AC-08: **A missing company name is NOT a red flag.** It is a missing input, not a finding: it would contradict the "never flag an absence" rule and would add score weight for something wrong with our inputs rather than with the post. It is surfaced separately as the Unverified gauge state and the CompanyNameNeeded panel (FR-31).
+- AC-09: **The severity list must not offer a missing employer as an example.** A rule stated only as a ban elsewhere in the prompt is not enough: the severity list is where the model looks when choosing what to flag, and an example there reads as sanctioned. A test parses the severity block by indentation and checks only the text after each severity's colon, so the phrase may appear in a prohibition but not as an example.
 
 ---
 
@@ -389,6 +391,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-08: **YELLOW is painted neutral grey**, not amber: amber is the `moderate` risk level, and borrowing it would make an inconclusive result read as a mid risk score.
 - AC-09: `search_ok` / `search_error` travel on the wire so a failed lookup is stated by the panel directly, without depending on the model mentioning it.
 - AC-10: When the posting names no employer, `/api/verify` is never called. See FR-31.
+- AC-11: **The recommendation is addressed to a job seeker, not an auditor.** It names what the results actually showed and gives one step from an ordinary hiring exchange. It must not tell the reader to check a registry, a government website, or a permit, and must not ask them to verify a registration number — a reader applying for a job does not query a government portal, so such advice is actionable in form and useless in practice. The retrieval-failure variant gets the same treatment, directing the reader to hold off on money or personal details instead.
 
 ---
 
@@ -447,7 +450,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | **Priority** | Medium |
 | **Component** | `ResumeMatchView.tsx`, `App.tsx` |
 
-**Description:** The system shall maintain a history of scanned jobs within the session.
+**Description:** The system shall maintain a history of scanned jobs, where each entry shows the same score as the panel did.
 
 **Acceptance Criteria:**
 - AC-01: Each completed scan adds a `ScannedJob` to the history array.
@@ -457,6 +460,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-05: The job count is displayed in the side navigation badge.
 - AC-06: Users can clear all job history with a confirmation dialog.
 - AC-07: Job history persists across view switches (scan ↔ match) within the session.
+- AC-08: **A job's stored result is replaced, not re-appended, when a later stage produces one.** Verification runs after the scan has been written to history and blends an employer score into the posting score, so an entry saved at scan time would otherwise keep the earlier figure while the panel shows the later one — the same posting reading as two different scores in two places. The whole result is replaced rather than the score patched, because the stage that moves the score also produces the evidence behind it.
 
 ---
 
@@ -770,6 +774,28 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-06: **There is no text input for the company name.** A typed name flows straight into the verification prompt, which produces a verdict naming a real company. Guidance only, by decision.
 - AC-07: `/api/analyze-offer` still assesses the offer on its own terms, so the user receives what the post asks for, what it offers, and what to check.
 - AC-08: The risk gauge shows "Unverified" (FR-08, AC-09) rather than a score, because the employer was never checked.
+
+### FR-32: Risk-Ordered Result Layout
+
+| Attribute | Value |
+|-----------|-------|
+| **ID** | FR-32 |
+| **Priority** | High |
+| **Component** | `ScamScanView.tsx`, `riskDisplay.ts`, `riskAccent.ts`, `useFlipReorder.ts` |
+
+**Description:** When a settled score is high or critical, the panel shall lead with the evidence for that score rather than with explanatory prose.
+
+**Acceptance Criteria:**
+- AC-01: A high or critical score reorders the results so the evidence group (Red Flags, Offer Analysis, External Verification) sits directly below the risk gauge, above Posting Analysis, Job Summary, and the screenshot thumbnails.
+- AC-02: The reordering applies only once verification and offer analysis have both finished. The scan returns a posting-stage score that the employer stage blends into, so promoting on the intermediate value would move the evidence out from under the reader and then move it back.
+- AC-03: A **failed** verification still promotes. The posting-stage score is real, and what is missing is the employer lookup rather than the red flags.
+- AC-04: An unverified or low or moderate score never promotes, and keeps the normal order.
+- AC-05: Both orderings remain mounted; which one leads is expressed as `order` on the panel's flex column. Remounting would reset a collapsed Sources disclosure and would leave nothing to animate.
+- AC-06: The reorder is animated in both directions so the blocks travel to their new positions. A fade is not used: dissolving and reappearing elsewhere reads as a glitch. The animation is disabled under `prefers-reduced-motion`.
+- AC-07: The action bar remains pinned to the bottom of the panel. `order` applies to every sibling of the flex column, so the bar and the capture preview carry explicit order values ahead of neither the promoted nor the demoted group.
+- AC-08: The risk level is reflected in the chrome — the verification section's header, border, and surface, and the primary action button — using semantic design tokens, never a literal colour value.
+- AC-09: **Body prose is never recoloured by risk level.** Long blocks of red or amber on a light surface are the hardest thing on the panel to read, and the panel is where a reader reads a verdict carefully enough to act on it.
+- AC-10: The accent applies only while a result is displayed and is removed automatically when a new element is picked, with no timer of its own.
 
 ---
 
@@ -1278,6 +1304,7 @@ Assesses an offer that names no employer, so there is nothing to look up. One AI
 | FR-29 | ResumeMatchView, App.tsx | Implemented |
 | FR-30 | entrypoints/popup/ | Implemented |
 | FR-31 | CompanyNameNeeded, OfferAnalysisCard, RiskGauge, riskDisplay.ts | Implemented — missing name is a missing input, not a red flag |
+| FR-32 | ScamScanView, riskDisplay, riskAccent, useFlipReorder, ScanActions | Implemented — high/critical leads with the evidence |
 | NFR-01 | All components, imageUtils.ts | Implemented |
 | NFR-02 | api.ts, ai_limiter.py, scan.py | Implemented |
 | NFR-03 | wxt.config.ts, config.py, core/auth.py, api.ts | Implemented |
@@ -1292,7 +1319,9 @@ Assesses an offer that names no employer, so there is nothing to look up. One AI
 
 ---
 
-*Document generated from codebase analysis. All requirements reflect the current implemented state of Trabahero v0.4.0.*
+*Document generated from codebase analysis. All requirements reflect the current implemented state of Trabahero v0.5.0.*
 
-*Notes on this revision (0.3.0 → 0.4.0): web search moved from DuckDuckGo scraping to the Tavily API; the SEC-only registration check was widened to "Official Registration"; the AI-provided `VERDICT_PERCENTAGE` score was replaced by the two-stage posting/verification blend; a missing employer name is now a distinct state rather than a red flag; search relevance is fixed by the `country` boost and a suffix strip rather than by category tokens; the verification recommendation addresses a job seeker rather than handing over a registry lookup; and the temporary search debug surface (FR-32, `/api/debug/search`, `SearchRawPanel`, `SearchOutcome.raw_response`) was removed once the ranking fix was confirmed by a real run.*
+*Notes on this revision (0.4.0 → 0.5.0): a settled high or critical score now promotes the evidence above the prose and tints the panel chrome (FR-32); the verification recommendation is addressed to a job seeker rather than assigning a registry lookup; the scan prompt's severity list no longer offers a missing employer as an example of a low-severity flag, which had been scoring nameless postings at 4; and a scanned job's stored result is replaced when verification lands, so a history entry no longer disagrees with the panel about the same posting.*
+
+*Earlier revision (0.3.0 → 0.4.0): web search moved from DuckDuckGo scraping to the Tavily API; the SEC-only registration check was widened to "Official Registration"; the AI-provided `VERDICT_PERCENTAGE` score was replaced by the two-stage posting/verification blend; a missing employer name became a distinct state rather than a red flag; search relevance was fixed by the `country` boost and a suffix strip rather than by category tokens; the credit knobs became environment values; and the temporary search debug surface (`/api/debug/search`, `SearchRawPanel`, `SearchOutcome.raw_response`) was removed once the ranking fix was confirmed by a real run.*
 
