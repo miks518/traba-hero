@@ -22,7 +22,6 @@ class ScanResponse(BaseModel):
     error: str | None = None
     company_name: str | None = None
     sec_registration: list[dict] = []
-    web_search: dict = {}
     external_verification: dict = {}
     # Always populated: the posting's own indicators produce a verdict whether or
     # not an employer could be identified or looked up.

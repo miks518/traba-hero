@@ -28,3 +28,6 @@ tui.json
 *.sln
 *.sw?
 risk-preview.html
+
+# Superpowers execution workspace (git-ignored scratch: ledger, briefs, review packages)
+.superpowers/

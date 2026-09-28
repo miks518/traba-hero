@@ -70,7 +70,6 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
     isJobPosting,
     companyName: data.company_name || null,
     secRegistration: data.sec_registration || [],
-    webSearch: data.web_search || {},
     jobSummary: data.job_summary || undefined,
     postingAnalysis: data.posting_analysis || undefined,
     emailVerifications: (data.email_verifications ?? []).map((e) => ({

@@ -126,13 +126,6 @@ export interface ScanResult {
   isJobPosting: boolean;
   companyName?: string | null;
   secRegistration?: { company_name: string; sec_no: string; status: string; date_approved: string }[];
-  webSearch?: {
-    legitimacy?: { title: string; snippet: string; url: string }[];
-    sec?: { title: string; snippet: string; url: string }[];
-    scam_reports?: { title: string; snippet: string; url: string }[];
-    linkedin?: { title: string; snippet: string; url: string }[];
-    dole?: { title: string; snippet: string; url: string }[];
-  };
   jobSummary?: string;
   postingAnalysis?: string;
   emailVerifications?: {
@@ -206,13 +199,6 @@ export interface ApiScanResponse {
   risk_score?: number;
   risk_level?: ScanRiskLevel;
   sec_registration?: { company_name: string; sec_no: string; status: string; date_approved: string }[];
-  web_search?: {
-    legitimacy?: { title: string; snippet: string; url: string }[];
-    sec?: { title: string; snippet: string; url: string }[];
-    scam_reports?: { title: string; snippet: string; url: string }[];
-    linkedin?: { title: string; snippet: string; url: string }[];
-    dole?: { title: string; snippet: string; url: string }[];
-  };
   email_verifications?: {
     email: string;
     domain: string;

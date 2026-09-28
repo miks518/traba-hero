@@ -245,3 +245,25 @@ class TestMaxResultsComesFromSettings:
         mod.search("Jollibee")
 
         assert captured["max_results"] == 8
+
+
+class TestScanPathDoesNotSearch:
+    """Online evidence belongs to /api/verify only.
+
+    The scan reports on the posting. Feeding it web results put two prompts
+    with different guardrail rules on the same data, and cost eight searches
+    per text scan.
+    """
+
+    def test_scan_text_route_body_has_no_search_call(self):
+        import app.routers.scan as router
+
+        source = open(router.__file__, encoding="utf-8").read()
+        body = source.split("async def scan_text")[1].split("\n@router")[0]
+        for banned in ("search_job_posting", "verify_company", "search_job_posting_data"):
+            assert banned not in body, f"the scan-text route still calls {banned}"
+
+    def test_scan_response_has_no_web_search_field(self):
+        from app.models.schemas import ScanResponse
+
+        assert "web_search" not in ScanResponse.model_fields

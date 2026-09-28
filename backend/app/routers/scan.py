@@ -38,10 +38,7 @@ from app.services.ddg_search import (
     clean_company_name,
     extract_company_name,
     is_valid_company_name,
-    search_job_posting,
-    search_job_posting_data,
     search_with_diagnostics,
-    verify_company,
 )
 from app.services.email_verifier import verify_emails_in_text
 from app.services.image import decode_base64_image
@@ -108,7 +105,6 @@ runtime.get_valid_line_re = lambda: _VALID_LINE_RE
 runtime.get_sse = lambda: _sse
 runtime.get_parse_resume = lambda: _parse_resume_custom
 runtime.get_parse_match = lambda: _parse_match_custom
-runtime.get_verify_company = lambda: verify_company
 runtime.get_chat = lambda: chat
 runtime.get_build_verify_prompt = lambda: _build_verify_prompt
 runtime.get_parse_verification_result = lambda: _parse_verification_result
@@ -179,16 +175,7 @@ async def scan_text(req: ScanTextRequest, request: Request, _auth: None = Depend
         return ScanResponse(valid=False)
     log.info("Text scan: %d chars to %s", len(req.text), settings.model_name or "AI provider")
 
-    search_context = search_job_posting(req.text)
-    web_data = search_job_posting_data(req.text)
     user_content = TEXT_SCAN_INSTRUCTION.replace("{text}", req.text) + "\n\n" + SCAN_OUTPUT_FORMAT + "\n\n" + _language_instruction(req.language)
-    if search_context:
-        user_content = search_context + "\n\n" + user_content
-
-    company_payload = {
-        "company_name": web_data.get("company_name"),
-        "web_search": web_data.get("results", {}),
-    }
 
     messages = [
         {"role": "system", "content": load_system_prompt()},
@@ -199,7 +186,7 @@ async def scan_text(req: ScanTextRequest, request: Request, _auth: None = Depend
         await ai_limiter.acquire()
         stream = None
         try:
-            stream = _scan_event_stream(messages, company_data=company_payload, original_text=req.text, endpoint="scan-text")
+            stream = _scan_event_stream(messages, company_data=None, original_text=req.text, endpoint="scan-text")
             async for event in stream:
                 yield event
         finally:

@@ -24,6 +24,11 @@ from .verification_parser import _missing_categories, _parse_verification_result
 from .verification_prompt import VERIFY_SYSTEM_PROMPT, VERIFY_RESPONSE_SCHEMA, _build_verify_prompt
 
 
+def _no_search_context(company: str) -> str:
+    """Stand-in until the verification flow uses the new search module."""
+    return ""
+
+
 class ScannerDependencies:
     get_chat_stream = staticmethod(lambda: chat_stream_pieces)
     get_verify_emails = staticmethod(lambda: verify_emails_in_text)
@@ -38,7 +43,10 @@ class ScannerDependencies:
     get_sse = staticmethod(lambda: _sse)
     get_parse_resume = staticmethod(lambda: _parse_resume_custom)
     get_parse_match = staticmethod(lambda: _parse_match_custom)
-    get_verify_company = staticmethod(lambda: "")
+    # Placeholder until the verification flow is switched to the new search
+    # module. The flow calls this as get_verify_company()(company), so it must
+    # yield a callable, not a value.
+    get_verify_company = staticmethod(lambda: _no_search_context)
     get_chat = staticmethod(lambda: chat)
     get_build_verify_prompt = staticmethod(lambda: _build_verify_prompt)
     get_parse_verification_result = staticmethod(lambda: _parse_verification_result)

@@ -51,8 +51,21 @@ def test_ai_boundary_is_not_the_real_client():
 
 
 def test_search_boundary_is_not_the_real_service():
-    assert scan_router.verify_company is not REAL_VERIFY_COMPANY
-    assert scan_router.search_job_posting is not REAL_SEARCH_JOB_POSTING
+    """The live search boundary is Tavily, reached over httpx.
+
+    It used to be the ddgs DDGS class; the rebuild replaced it, and this test
+    is what proves the suite cannot reach a provider.
+    """
+    from app.services import search as search_mod
+    from app.services import ddg_search as legacy
+    from ddgs import DDGS
+
+    # conftest replaces httpx.post on the shared httpx module, so the real
+    # transport is not what search() would call.
+    assert search_mod.httpx.post.__module__.endswith("conftest")
+    assert search_mod.settings.tavily_api_key == "tvly-offline-test"
+    # The legacy DuckDuckGo path stays mocked until it is deleted.
+    assert legacy.DDGS is not DDGS
 
 
 @pytest.mark.asyncio
