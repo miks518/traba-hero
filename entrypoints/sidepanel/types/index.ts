@@ -1,4 +1,5 @@
-export type ViewId = 'scan' | 'match';
+// 'search' is a TEMPORARY debug tab for the web-search diagnostics panel.
+export type ViewId = 'scan' | 'match' | 'search';
 
 export type IconName =
   | 'security'
@@ -95,6 +96,11 @@ export interface VerificationResult {
   riskLevel?: ScanRiskLevel;
   searchLog?: { query: string; round: number; result_preview: string }[];
   noCompanyName?: boolean;
+  /**
+   * TEMPORARY debug field: the exact prompt sent to the model, including the
+   * formatted search results. Remove with SearchRawPanel.
+   */
+  debugPrompt?: string;
 }
 
 export type ScanRiskLevel = 'low' | 'moderate' | 'high' | 'critical';

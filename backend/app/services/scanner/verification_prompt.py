@@ -10,7 +10,7 @@ not the wording, so every rule about what may be claimed still has to be said.
 from app.models.schemas import VerifyRequest
 
 
-VERIFY_SYSTEM_PROMPT = """You are a job verification assistant. You are given a job posting summary and web search results about the company. Report what those search results actually show, nothing more.
+VERIFY_SYSTEM_PROMPT = """You are a job verification assistant. You are given web search results about a company. Report what those search results actually show, nothing more.
 
 OUTPUT RULES (apply to every field, in any language):
 - Report only what the provided search results state. If a result does not cover a category, say so plainly. Never fill a gap with what you know about the company from training.
@@ -83,14 +83,19 @@ through an official channel before sending personal details.
 
 
 def _build_verify_prompt(req: VerifyRequest, search_context: str = "") -> str:
-    """Build the user prompt for verification."""
+    """Build the user prompt for verification.
+
+    Only the search results go in. The job summary and the posting's red flags
+    used to be sent as well, and both are actively harmful here: the model is
+    asked to report what the search shows about a company, and handing it
+    "Asks applicants to pay a processing fee" invites it to answer about the
+    posting instead of the employer — a red flag about the posting is not a fact
+    about the company, and it belonged to the posting-stage score. The company
+    name is kept because the results are keyed to it.
+    """
     parts = []
     if req.company_name:
         parts.append(f"Company to verify: {req.company_name}")
-    parts.append(f"Job Posting Summary:\n{req.job_summary}")
-    if req.red_flags:
-        flags_text = "\n".join(f"- {f.flag}: {f.reasoning}" for f in req.red_flags)
-        parts.append(f"\nRed flags detected:\n{flags_text}")
     if search_context:
         parts.append(f"\n{search_context}")
     else:

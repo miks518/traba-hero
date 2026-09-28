@@ -57,17 +57,38 @@ class TestBuildVerifyPrompt:
         req = VerifyRequest(company_name="ACME", job_summary="Engineer at ACME")
         prompt = _build_verify_prompt(req)
         assert "Company to verify: ACME" in prompt
-        assert "Engineer at ACME" in prompt
 
-    def test_includes_red_flags(self):
+    def test_excludes_job_summary_and_red_flags(self):
+        """Only the search results go in.
+
+        The model reports what the search says about a company. Handing it the
+        posting's red flags invites it to answer about the posting instead — a
+        red flag about the posting is not a fact about the employer, and it
+        already fed the posting-stage score.
+        """
         req = VerifyRequest(
             company_name="ACME",
-            job_summary="Job",
-            red_flags=[RedFlag(flag="Fee", reasoning="Upfront payment", severity="high")],
+            job_summary="UNIQUE_JOB_SUMMARY_MARKER cook role",
+            red_flags=[RedFlag(flag="UNIQUE_FLAG_MARKER Fee", reasoning="r", severity="high")],
         )
-        prompt = _build_verify_prompt(req)
-        assert "Red flags detected" in prompt
-        assert "Fee" in prompt
+        prompt = _build_verify_prompt(req, "=== SEARCH RESULTS FOR: ACME ===\nfound a site\n=== END SEARCH ===")
+        assert "UNIQUE_JOB_SUMMARY_MARKER" not in prompt
+        assert "UNIQUE_FLAG_MARKER" not in prompt
+        assert "Red flags detected" not in prompt
+        assert "Job Posting Summary" not in prompt
+        assert "found a site" in prompt
+
+    def test_search_context_is_included(self):
+        req = VerifyRequest(company_name="ACME", job_summary="Job")
+        prompt = _build_verify_prompt(req, "=== SEARCH RESULTS FOR: ACME ===\nresult text\n=== END SEARCH ===")
+        assert "result text" in prompt
+
+    def test_states_retrieval_failure_when_no_results(self):
+        """An empty search must not leave the prompt claiming results exist."""
+        req = VerifyRequest(company_name="ACME", job_summary="Job")
+        prompt = _build_verify_prompt(req, "")
+        assert "No search results were returned" in prompt
+        assert "NOT evidence that the company is fraudulent" in prompt
 
     def test_no_company_name(self):
         req = VerifyRequest(job_summary="Some job")

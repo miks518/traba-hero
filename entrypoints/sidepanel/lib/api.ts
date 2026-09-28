@@ -569,6 +569,8 @@ export async function verifyJobStream(
             scoreBreakdown?: RiskScoreBreakdown;
             search_log: unknown[];
             no_company_name?: boolean;
+            // TEMPORARY: raw prompt for debugging retrieval. See SearchRawPanel.
+            debug_prompt?: string;
           };
           return {
             result: {
@@ -580,6 +582,7 @@ export async function verifyJobStream(
               scoreBreakdown: data.scoreBreakdown,
               searchLog: data.search_log as VerificationResult['searchLog'],
               noCompanyName: Boolean(data.no_company_name),
+              debugPrompt: data.debug_prompt,
             },
           };
         } else if (event.type === 'error') {
@@ -594,6 +597,118 @@ export async function verifyJobStream(
       return { timedOut: true };
     }
     throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// TEMPORARY: types for the search-debug tab. Remove with SearchDebugView.
+
+export interface DebugSearchItem {
+  title: string;
+  snippet: string;
+  url: string;
+}
+
+/** One step in the search process, in the order it happened. */
+export type DebugSearchStep =
+  | { kind: 'meta'; query: string; codeVersion: string; backendOrder: string[]; pinnedBackend: string; attempts: number }
+  | { kind: 'engine_start'; backend: string }
+  | { kind: 'engine_done'; backend: string; elapsed: number; count: number }
+  | { kind: 'engine_error'; backend: string; error: string; elapsed: number }
+  | { kind: 'result'; backend: string; item: DebugSearchItem }
+  | { kind: 'stage'; stage: string }
+  | {
+      kind: 'outcome';
+      provider: string;
+      attempts: number;
+      throttled: boolean;
+      ok: boolean;
+      error: string;
+      count: number;
+      results: DebugSearchItem[];
+    }
+  | { kind: 'error'; error: string }
+  | { kind: 'done' };
+
+/**
+ * Run one raw query through the backend search and stream every step: each
+ * engine tried, what it returned, and the final production-path outcome.
+ */
+export async function debugSearchStream(
+  query: string,
+  onStep: (step: DebugSearchStep) => void,
+  externalSignal?: AbortSignal,
+  maxResults = 5,
+  timeoutMs = 120000,
+): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  if (externalSignal) {
+    externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/debug/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+      body: JSON.stringify({ query, max_results: maxResults }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new ApiRequestError(res.status, text || res.statusText);
+    }
+
+    const body = res.body;
+    if (!body) return;
+
+    let finished = false;
+
+    const handleLine = (line: string): boolean => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data: ')) return true;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(trimmed.slice(6));
+      } catch {
+        return true;
+      }
+      onStep(event as unknown as DebugSearchStep);
+      if (event.type === 'done') finished = true;
+      return !finished;
+    };
+
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // The final SSE event often arrives without a trailing newline, so it is
+      // left sitting in `buffer` when the stream ends. Draining the remainder
+      // after the loop is what stops the last event being dropped — without it
+      // the panel appears to stop just before the outcome.
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        if (!handleLine(line)) return;
+      }
+    }
+
+    if (buffer.trim()) handleLine(buffer);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      onStep({ kind: 'error', error: 'Timed out or cancelled.' });
+      return;
+    }
+    onStep({ kind: 'error', error: err instanceof Error ? err.message : String(err) });
   } finally {
     clearTimeout(timer);
   }

@@ -2,6 +2,8 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { TopAppBar, SideNav, Footer, OfflineBanner } from './components/shell';
 import { ScamScanView } from './views/ScamScanView';
 import { ResumeMatchView } from './views/ResumeMatchView';
+// TEMPORARY debug view for the web search. Remove with the 'search' nav tab.
+import { SearchDebugView } from './views/SearchDebugView';
 import { useBackendHealth } from './hooks/useBackendHealth';
 import { migrateScannedJobs } from './lib/scanHistory';
 import type { ScanProgress } from './lib/api';
@@ -130,6 +132,12 @@ export default function App() {
               onProgressChange={setResumeMatchProgress}
               isOnline={isOnline}
             />
+          </div>
+          {/* TEMPORARY debug tab. Remove with SearchDebugView and the 'search' entry in NAV_TABS. */}
+          <div
+            className={`h-full flex-col ${activeView === 'search' ? 'flex' : 'hidden'}`}
+          >
+            <SearchDebugView />
           </div>
         </main>
       </div>

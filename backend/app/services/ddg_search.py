@@ -107,15 +107,18 @@ def _normalise(raw: list[dict]) -> list[dict]:
     ]
 
 
-def _ddg_once(query: str, max_results: int) -> list[dict]:
+def _ddg_once(query: str, max_results: int, only: str | None = None) -> list[dict]:
     """One search, trying each available engine in turn.
 
     The library picks an engine at random when none is given, and the engines are
     not equally reliable from here, so an unpinned call is a coin flip. Each is
     tried in _BACKEND_ORDER and the first that returns rows wins, which turns one
     rate-limited engine into a miss rather than a lost section.
+
+    `only` restricts the search to a single engine, for the debug endpoint that
+    reports on each engine separately.
     """
-    order = [settings.ddg_backend] if settings.ddg_backend else list(_BACKEND_ORDER)
+    order = [only] if only else ([settings.ddg_backend] if settings.ddg_backend else list(_BACKEND_ORDER))
     last_error: Exception | None = None
 
     for backend in order:
@@ -123,7 +126,7 @@ def _ddg_once(query: str, max_results: int) -> list[dict]:
             with DDGS() as client:
                 raw = list(client.text(query, max_results=max_results, backend=backend))
             if raw:
-                if backend != order[0]:
+                if not only and backend != order[0]:
                     log.info("[search] backend %r answered for %r (tried after %r)", backend, query, order[0])
                 return _normalise(raw)
             last_error = RuntimeError(f"backend {backend!r} returned no results")
@@ -510,44 +513,63 @@ def search_company_for_verification(company_name: str) -> dict:
     return results
 
 
+# Bumped whenever the retrieval code changes, and logged once at startup. Stale
+# code in a --reload process produced results from an engine this file no longer
+# uses, and the mismatch was invisible in the logs. This makes the running
+# version identifiable at a glance.
+SEARCH_CODE_VERSION = "2026-09-28.3-raw-dump-rotation"
+log.info("[search] code version %s", SEARCH_CODE_VERSION)
+log.info("[search] backend order: %s", ", ".join(_BACKEND_ORDER))
+log.info("[search] pinned backend: %r", settings.ddg_backend or "(none, rotating)")
+
+
 THROTTLED_NOTICE = """
-NOTE ON RETRIEVAL: no results were retrieved for the following section(s): {sections}.
-This means the search was throttled or failed, NOT that the company has no such
-record. Do not treat these as findings. Report the affected category as yellow
+NOTE ON RETRIEVAL: these queries returned nothing: {sections}.
+That means the search was throttled or failed, NOT that the company has no such
+record. Do not treat them as findings. Report the affected category as yellow
 and say the search returned no results, without implying the company lacks them."""
 
 
 def format_verification_context(data: dict) -> str:
-    """Format lean verification results into the three prompt sections."""
-    if not data or not any(data.get(k) for k, _ in _VERIFY_QUERIES):
+    """A plain, unorganised dump of everything the searches returned.
+
+    No categories, no ranking, no dedupe: each query is shown with its full
+    result set in the order the provider returned it. The category headings used
+    to live here, and they were doing two jobs badly — presenting a generic
+    result page found by a "scam" query as if it were a scam report, and
+    repeating the same result under several headings. Handing the model the
+    queries alongside the results lets it judge what a result actually is.
+    """
+    if not data:
         return ""
 
-    sections = [
-        ("legitimacy", "COMPANY EXISTENCE"),
-        ("sec", "SEC REGISTRATION"),
-        ("scam", "SCAM REPORTS"),
-        ("reviews", "REVIEWS AND REPUTATION"),
-    ]
+    queries = {k: t.format(company=data.get("company", "")) for k, t in _VERIFY_QUERIES}
+    if not any(data.get(k) for k in queries):
+        return ""
 
     lines = [f"=== SEARCH RESULTS FOR: {data.get('company', 'unknown')} ==="]
-    for key, label in sections:
+
+    for key, query in queries.items():
         hits = data.get(key) or []
+        lines.append(f"\n--- QUERY: {query}")
         if not hits:
+            lines.append("(no results returned for this query)")
             continue
-        lines.append(f"\n[{label}]")
-        for i, r in enumerate(hits[:3], 1):
+        for i, r in enumerate(hits, 1):
             lines.append(f"  {i}. {r.get('title', '')}")
+            if r.get("url"):
+                lines.append(f"     url: {r['url']}")
             # ddg_search() returns 'snippet' — it renames the library's 'body'.
             # Reading 'body' here silently dropped every snippet, so the model
             # was shown titles only and correctly reported that nothing mentioned
             # SEC registration.
             if r.get("snippet"):
-                lines.append(f"     {r['snippet'][:200]}")
+                lines.append(f"     {r['snippet'][:300]}")
 
     throttled = data.get("throttled") or []
     if throttled:
-        labels = [label for key, label in sections if key in throttled]
-        lines.append(THROTTLED_NOTICE.format(sections=", ".join(labels)))
+        failed = ", ".join(queries[k] for k in throttled if k in queries)
+        lines.append(THROTTLED_NOTICE.format(sections=failed))
 
     lines.append("\n=== END SEARCH ===")
     return "\n".join(lines)

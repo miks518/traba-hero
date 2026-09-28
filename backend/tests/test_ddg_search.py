@@ -301,24 +301,63 @@ class TestFormatVerificationContext:
         assert all(r["url"] for r in social), "a social result has an empty url"
         assert "Good place to work" in social[0]["snippet"]
 
-    def test_section_labels_present(self):
+    def test_shows_each_query_with_its_results(self):
+        data = {
+            "company": "Acme",
+            "legitimacy": [{"title": "Site", "snippet": "Runs a shop."}],
+            "sec": [{"title": "Registry", "snippet": "SEC 123"}],
+        }
+        out = format_verification_context(data)
+        assert "QUERY: Acme Philippines company" in out
+        assert "QUERY: Acme SEC registration Philippines" in out
+        assert "Runs a shop." in out
+        assert "SEC 123" in out
+
+    def test_shows_every_result_not_just_the_first_three(self):
+        """This is a raw dump: capping at three hid half the evidence."""
+        data = {
+            "company": "Acme",
+            "sec": [{"title": f"T{i}", "snippet": f"S{i}"} for i in range(10)],
+        }
+        out = format_verification_context(data)
+        for i in range(10):
+            assert f"S{i}" in out, f"result {i} missing from the dump"
+
+    def test_includes_urls(self):
+        data = {
+            "company": "Acme",
+            "sec": [{"title": "T", "snippet": "S", "url": "https://example.com/x"}],
+        }
+        assert "https://example.com/x" in format_verification_context(data)
+
+    def test_marks_an_empty_query_rather_than_skipping_it(self):
+        """An empty query must be visible, or it looks like it never ran."""
+        data = {
+            "company": "Acme",
+            "legitimacy": [{"title": "T", "snippet": "S"}],
+            "sec": [],
+        }
+        out = format_verification_context(data)
+        assert "QUERY: Acme SEC registration Philippines" in out
+        assert "(no results returned for this query)" in out
+
+    def test_no_category_headings(self):
+        """The old headings implied a result had been classified for a category."""
         data = {
             "company": "Acme",
             "legitimacy": [{"title": "T", "snippet": "S"}],
             "sec": [{"title": "T", "snippet": "S"}],
         }
         out = format_verification_context(data)
-        assert "COMPANY EXISTENCE" in out
-        assert "SEC REGISTRATION" in out
+        for heading in ("COMPANY EXISTENCE", "SEC REGISTRATION", "SCAM REPORTS", "REVIEWS AND REPUTATION"):
+            assert heading not in out, f"{heading} should no longer be imposed on the results"
 
-    def test_caps_at_three_results_per_section(self):
-        data = {
-            "company": "Acme",
-            "sec": [{"title": f"T{i}", "snippet": f"S{i}"} for i in range(10)],
-        }
+    def test_repeated_results_across_queries_are_both_shown(self):
+        """No dedupe: the model judges whether a repeat is meaningful."""
+        same = [{"title": "Facebook page", "snippet": "23,828 followers"}]
+        data = {"company": "Acme", "legitimacy": same, "sec": same, "scam": same}
         out = format_verification_context(data)
-        assert "S0" in out and "S2" in out
-        assert "S3" not in out
+        assert out.count("23,828 followers") == 3
 
 
 class TestSearchCompanyForVerification:
@@ -361,7 +400,10 @@ class TestSearchCompanyForVerification:
         assert sorted(data["throttled"]) == ["reviews", "sec"]
         out = format_verification_context(data)
         assert "NOTE ON RETRIEVAL" in out
-        assert "SEC REGISTRATION" in out
+        # The notice names the queries that failed, so the model can see which
+        # categories are unknown.
+        assert "Acme SEC registration Philippines" in out
+        assert "Acme scam fraud complaint" in out
         assert "NOT that the company has no such" in out
 
     @patch("app.services.ddg_search.search_with_diagnostics")

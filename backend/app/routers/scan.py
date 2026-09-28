@@ -26,16 +26,21 @@ from app.models.schemas import (
     ScanRequest,
     ScanResponse,
     ScanTextRequest,
+    SearchDebugRequest,
     VerificationItem,
     VerifyRequest,
 )
 from app.rate_limit import limiter
 from app.services.ddg_search import (
+    SEARCH_CODE_VERSION,
+    _BACKEND_ORDER,
+    _ddg_once,
     clean_company_name,
     extract_company_name,
     is_valid_company_name,
     search_job_posting,
     search_job_posting_data,
+    search_with_diagnostics,
     verify_company,
 )
 from app.services.email_verifier import verify_emails_in_text
@@ -279,6 +284,77 @@ async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None
 async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends(require_client_key)):
     """External verification: extended DuckDuckGo searches + one AI call. SSE stream."""
     return StreamingResponse(verification_event_stream(req), media_type="text/event-stream")
+
+
+@router.post("/api/debug/search")
+@limiter.limit("30/minute")
+async def debug_search(req: SearchDebugRequest, request: Request, _auth: None = Depends(require_client_key)):
+    """TEMPORARY: run one raw web-search query and return everything about it.
+
+    Streams so the panel can show which engine is being tried and what it
+    returned, per engine, rather than only the final answer. No AI call, no
+    rate-limit budget beyond this endpoint's own — this exists to diagnose
+    retrieval, so it deliberately does not go through the AI limiter.
+
+    Remove together with SearchDebugView and the 'search' tab in the sidepanel.
+    """
+    query = (req.query or "").strip()
+    if not query:
+        return StreamingResponse(
+            iter([_sse({"type": "error", "error": "Enter a query."})]),
+            media_type="text/event-stream",
+        )
+
+    async def _stream():
+        yield _sse({
+            "type": "meta",
+            "query": query,
+            "codeVersion": SEARCH_CODE_VERSION,
+            "backendOrder": list(_BACKEND_ORDER),
+            "pinnedBackend": settings.ddg_backend or "",
+            "attempts": settings.ddg_search_attempts,
+        })
+
+        # Walk the engines ourselves so each one is reported, including the ones
+        # that returned nothing. The production path hides those.
+        order = [settings.ddg_backend] if settings.ddg_backend else list(_BACKEND_ORDER)
+        for backend in order:
+            yield _sse({"type": "engine_start", "backend": backend})
+            started = _time.monotonic()
+            try:
+                raw = _ddg_once(query, req.max_results, only=backend)
+            except Exception as e:  # noqa: BLE001
+                yield _sse({
+                    "type": "engine_error",
+                    "backend": backend,
+                    "error": f"{type(e).__name__}: {e}",
+                    "elapsed": round(_time.monotonic() - started, 2),
+                })
+                continue
+
+            elapsed = round(_time.monotonic() - started, 2)
+            yield _sse({"type": "engine_done", "backend": backend, "elapsed": elapsed, "count": len(raw)})
+            for r in raw:
+                yield _sse({"type": "result", "backend": backend, "item": r})
+            if raw:
+                break
+
+        # The full retry path, as production runs it.
+        yield _sse({"type": "stage", "stage": "Full production path (retries enabled)"})
+        outcome = search_with_diagnostics(query, req.max_results)
+        yield _sse({
+            "type": "outcome",
+            "provider": outcome.provider,
+            "attempts": outcome.attempts,
+            "throttled": outcome.throttled,
+            "ok": outcome.ok,
+            "error": outcome.error,
+            "count": len(outcome.results),
+            "results": outcome.results,
+        })
+        yield _sse({"type": "done"})
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")
 
 
 @router.post("/api/analyze-offer")

@@ -103,6 +103,9 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         search_context = await asyncio.to_thread(runtime.get_verify_company(), company)
         yield runtime.get_sse()({"type": "progress", "percent": 45, "stage": "AI analyzing"})
 
+        # TEMPORARY debug payload: the exact text handed to the model, so the
+        # search -> prompt -> answer chain can be inspected in the panel. Remove
+        # with the SearchRawPanel component.
         verify_prompt = runtime.get_build_verify_prompt()(req, search_context)
         messages = [
             {"role": "system", "content": runtime.get_verify_system_prompt()},
@@ -175,6 +178,10 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "riskLevel": risk_level,
             "scoreBreakdown": breakdown,
             "search_log": search_log,
+            # TEMPORARY: the prompt as sent, for debugging retrieval. Not part
+            # of the normal response and should be removed once the search
+            # behaviour is settled.
+            "debug_prompt": verify_prompt,
             "no_company_name": False,
         }})
     except Exception as e:  # noqa: BLE001
