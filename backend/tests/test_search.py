@@ -97,7 +97,7 @@ class TestSearchResultShape:
         assert captured["api_key"] == "tvly-test"
         assert captured["query"] == "Jollibee"
         assert captured["max_results"] == 5
-        assert captured["search_depth"] == "basic"
+        assert captured["search_depth"] == "advanced"
 
 
 class TestFailureIsNotAbsence:
@@ -242,6 +242,141 @@ class TestBuildQuery:
         assert q.count("Philippines") == 1
         for banned in ("SEC", "scam", "reviews", "fraud"):
             assert banned not in q
+
+    def test_strips_a_corporate_suffix(self):
+        """A literal 'Corporation' dilutes a rare name.
+
+        Searching the suffix verbatim drags in unrelated companies whose names
+        end the same way, so the distinctive part of the name gets less weight.
+        """
+        assert build_query("MIX Market Integrated Xploration Corporation") == (
+            "MIX Market Integrated Xploration Philippines"
+        )
+
+    def test_strips_each_supported_suffix(self):
+        cases = [
+            ("Jollibee Foods Corporation", "Jollibee Foods"),
+            ("Jollibee Foods Corp", "Jollibee Foods"),
+            ("Jollibee Foods Corp.", "Jollibee Foods"),
+            ("Jollibee Foods Inc", "Jollibee Foods"),
+            ("Jollibee Foods Incorporated", "Jollibee Foods"),
+            ("Jollibee Foods Co", "Jollibee Foods"),
+            ("Jollibee Foods LLC", "Jollibee Foods"),
+        ]
+        for name, expected_stem in cases:
+            assert build_query(name) == f"{expected_stem} Philippines", name
+
+    def test_suffix_stripping_respects_word_boundaries(self):
+        """'Co' is only a suffix as a whole word.
+
+        A substring match would turn 'Coca-Cola' into 'Coca-' and 'Incorporated
+        Data' into 'Data', silently searching a different company.
+        """
+        for name in ("Coca-Cola Bottlers", "Concordia Trading", "Incorporated Systems PH"):
+            assert build_query(name) == f"{name} Philippines", name
+
+    def test_a_name_that_is_only_a_suffix_is_left_intact(self):
+        """Stripping must not empty the query.
+
+        'Corporation' alone strips to nothing, which would search for the
+        geographic term on its own and return results about any company.
+        """
+        for name in ("Corporation", "Inc", "Co"):
+            assert build_query(name) == f"{name} Philippines", name
+
+    def test_does_not_double_the_anchor(self):
+        """A name that already names the country is not anchored twice."""
+        assert build_query("Jollibee Philippines") == "Jollibee Philippines"
+
+
+class TestGeographicBoost:
+    """`country` is the fix for a ranking problem, not a query-syntax problem.
+
+    A browser search from the Philippines surfaces SEC filings, city PESO
+    sites, and local job boards for a small employer. Tavily's own crawl index
+    covers that long tail less well, so a niche name falls through to whatever
+    it indexes strongly — London VC firms, or a product with a similar word.
+    Re-ranking the query cannot fix missing index coverage; boosting Philippine
+    sources can.
+    """
+
+    def test_request_boosts_philippine_results(self, monkeypatch):
+        import app.services.search as mod
+
+        captured = {}
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            captured.update(json or {})
+            return FakeResponse(TAVILY_OK)
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        mod.search("MIX Market Integrated Xploration", 5)
+
+        assert captured["country"] == "philippines"
+
+    def test_boost_does_not_filter_the_result_set(self, monkeypatch):
+        """The goal was to keep JobStreet, Indeed PH, and PESO sites.
+
+        `include_domains` restricts to the listed domains, which would discard
+        exactly the non-government pages this boost is meant to surface. It
+        must stay absent.
+        """
+        import app.services.search as mod
+
+        captured = {}
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            captured.update(json or {})
+            return FakeResponse(TAVILY_OK)
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        mod.search("MIX Market Integrated Xploration", 5)
+
+        assert "include_domains" not in captured
+        assert "exclude_domains" not in captured
+
+    def test_no_synthesised_answer_is_requested(self, monkeypatch):
+        """The model reads the raw snippets; it is not handed a summary.
+
+        `include_answer` makes the provider synthesise an answer, which is
+        retrieval's opinion rather than evidence, and the verification prompt
+        requires source URLs copied from the results.
+        """
+        import app.services.search as mod
+
+        captured = {}
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            captured.update(json or {})
+            return FakeResponse(TAVILY_OK)
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        mod.search("MIX Market Integrated Xploration", 5)
+
+        assert not captured.get("include_answer")
+
+    def test_uses_advanced_depth_for_a_niche_lookup(self, monkeypatch):
+        """Advanced costs 2 credits against 1, and buys broader recall.
+
+        Worth it for a small local employer that basic depth misses; the
+        1,000-credit monthly budget is the trade.
+        """
+        import app.services.search as mod
+
+        captured = {}
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            captured.update(json or {})
+            return FakeResponse(TAVILY_OK)
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        mod.search("MIX Market Integrated Xploration", 5)
+
+        assert captured["search_depth"] == "advanced"
 
 
 class TestRawProviderBody:

@@ -316,11 +316,15 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-01: `search(query) -> SearchOutcome` is the single search entry point. `SearchOutcome.ok` and `SearchOutcome.results` are **independent fields**: `ok=False` with no results means retrieval failed; `ok=True` with no results means the company genuinely has no online footprint.
 - AC-02: No caller may read one state as the other. A failed lookup is reported as unknown, never as a clean company.
 - AC-03: A missing `TAVILY_API_KEY` is a **failure**, not an empty success, so a broken deployment cannot look like a clean employer.
-- AC-04: Exactly **one query per verification**, shaped `"{employer} Philippines"`. There are no category-suffixed queries and no retries, fallback provider, caching, or engine rotation.
+- AC-04: Exactly **one query per verification**, shaped from the employer name with a trailing corporate suffix removed and `Philippines` appended. The strip is tail-anchored and word-bounded, so `Incorporated Systems PH` and `Coca-Cola Bottlers` survive intact, and a name that is only a suffix is left alone rather than reducing to the geographic term alone. There are no category-suffixed queries and no retries, fallback provider, caching, or engine rotation.
 - AC-05: A response with no usable `results` list (error envelope, null, renamed key) is a failure, not a finding — a parse fault must never be reported as an employer with no footprint.
 - AC-06: Search results are passed to the model as a **flat list with URLs and no category headings.** A heading would assert that a result belonged to a category when retrieval only established which query surfaced it.
 - AC-07: Result text is untrusted web content. The system prompt states it is data and never instructions, requires a result to concern the company being verified, and conditions GREEN on that identity; the emitted block is labelled as data and `===` is stripped so a page cannot forge the block terminator.
 - AC-08: Every search failure is logged with its classified reason so a throttled or mis-shaped response is visible rather than inferred.
+- AC-09: **Relevance is treated as a ranking problem, not a query-syntax problem.** A browser search from the Philippines covers a small employer's SEC filing, city PESO listing, and JobStreet page well; Tavily's own crawl index covers that long tail less well, so a niche name falls through to whatever it indexes strongly. The request therefore sends `country="philippines"` (a **boost**) and `search_depth="advanced"`.
+- AC-10: `include_domains` stays unset. It is a **filter**, so restricting to government domains would discard exactly the job boards and PESO pages the boost exists to surface. There is no `include_domains_mode` and no "prefer" mode to request; the boost is the only tool matching the intent.
+- AC-11: Advanced depth costs 2 credits against basic's 1, halving the 1,000/month free budget. That is the accepted trade for a niche lookup.
+- AC-12: `include_answer` is never set. A synthesised answer is retrieval's opinion rather than evidence, and the prompt requires source URLs copied from the results themselves.
 
 ---
 
