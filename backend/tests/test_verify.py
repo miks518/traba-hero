@@ -1,5 +1,6 @@
 """Tests for /api/verify endpoint and verification helpers."""
 import json
+import re
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 from httpx import AsyncClient, ASGITransport
@@ -222,6 +223,144 @@ class TestRegistrationCategory:
         assert set(enum) == {"Company Existence", "Official Registration", "Reputation"}
 
 
+class TestRecommendationIsAddressedToAJobSeeker:
+    """The reader is an applicant, not a compliance officer.
+
+    The model is steeped in registry vocabulary — SEC, DTI, PEZA, BOI, LGU —
+    and the recommendation rule previously said only "a step they can take".
+    Given no other guidance, it handed the reader a registry lookup. Reporting
+    "Confirm the registration number on the SEC site" is technically actionable
+    and practically useless: nobody applying for a job is going to query a
+    government portal, so the one sentence meant to help them does nothing.
+
+    The recommendation has to be about the employer, or about a step the reader
+    takes in an ordinary hiring exchange.
+    """
+
+    def test_recommendation_may_not_assign_registry_research(self):
+        from app.services.scanner.verification_prompt import VERIFY_SYSTEM_PROMPT
+
+        rec_rule = [
+            ln for ln in VERIFY_SYSTEM_PROMPT.splitlines()
+            if ln.strip().startswith("- recommendation:")
+        ]
+        assert len(rec_rule) == 1, "the recommendation field rule must be findable"
+
+        low = rec_rule[0].lower()
+        # It must forbid, not merely fail to mention.
+        assert any(
+            phrase in low
+            for phrase in (
+                "do not tell them to check",
+                "never tell them to check",
+                "do not ask them to look up",
+                "must not ask the reader to look up",
+                "do not tell them to verify",
+            )
+        ), "the rule must explicitly forbid handing the reader a lookup task"
+
+    def test_recommendation_rule_bans_naming_registries_as_the_action(self):
+        """Naming a registry as the thing to do is the failure itself.
+
+        Clause parsing proved unreliable here: a rewrite can carry a
+        prohibition and a bare instruction inside one sentence, and any
+        sentence-level check lets the prohibition cover for the instruction.
+        So this strips the prohibition clauses outright and then asserts that
+        nothing which remains tells the reader to perform a lookup.
+        """
+        from app.services.scanner.verification_prompt import VERIFY_SYSTEM_PROMPT
+
+        rec_rule = [
+            ln for ln in VERIFY_SYSTEM_PROMPT.splitlines()
+            if ln.strip().startswith("- recommendation:")
+        ][0].lower()
+
+        # Remove the "do not tell them to X" clauses, which are the rule working.
+        without_prohibitions = re.sub(
+            r"(?:do not|never|must not)\s+(?:tell|ask)\s+them\s+to\s+[^,.;]*", "", rec_rule
+        )
+
+        for pattern in (
+            r"\b(?:verify|check|confirm|look up|validate)\s+(?:the\s+)?"
+            r"(?:sec\s+)?(?:registration|registry|permit|record)",
+            r"\btell\s+them\s+to\s+(?:verify|check|confirm|look up|validate)",
+            r"\bask\s+them\s+to\s+(?:verify|check|confirm|look up|validate)",
+        ):
+            assert not re.search(pattern, without_prohibitions), (
+                f"the recommendation still assigns a lookup task: /{pattern}/"
+            )
+
+    def test_prompt_states_who_the_reader_is(self):
+        """Saying who the reader is is what keeps the voice out of the jargon."""
+        from app.services.scanner.verification_prompt import VERIFY_SYSTEM_PROMPT
+
+        low = VERIFY_SYSTEM_PROMPT.lower()
+        assert any(
+            phrase in low
+            for phrase in (
+                "job seeker",
+                "person looking for work",
+                "applicant",
+                "person reading the posting",
+                "someone looking for a job",
+            )
+        ), "the prompt must say who the recommendation is addressed to"
+
+    def test_recommendation_should_reference_what_was_actually_found(self):
+        """The recommendation should build on the finding, not restart the audit."""
+        from app.services.scanner.verification_prompt import VERIFY_SYSTEM_PROMPT
+
+        rec_rule = [
+            ln for ln in VERIFY_SYSTEM_PROMPT.splitlines()
+            if ln.strip().startswith("- recommendation:")
+        ][0].lower()
+
+        assert any(
+            phrase in rec_rule
+            for phrase in (
+                "what the results",
+                "what was found",
+                "the finding",
+                "what you found",
+                "above",
+            )
+        ), "the recommendation should follow from the checks rather than the registry"
+
+    def test_retrieval_failure_does_not_send_the_reader_to_a_government_site(self):
+        """The failure template is read as an instruction, so it matters too.
+
+        'Confirm the employer through an official channel' is the same defect
+        in softer wording: it tells an applicant to go and authenticate a
+        company, which is the reader's job only if they run a procurement desk.
+        """
+        from app.services.scanner.verification_prompt import RETRIEVAL_FAILED
+
+        low = RETRIEVAL_FAILED.lower()
+        for banned in ("official channel", "registry", "government website", "verify the employer"):
+            assert banned not in low, f"'{banned}' hands the reader a lookup task"
+
+        # What it must do instead: protect the reader's money or details.
+        assert any(
+            phrase in low
+            for phrase in ("money", "personal detail", "an id", "documents")
+        ), "the fallback should tell the reader to hold off on money or personal details"
+
+    def test_no_results_template_is_also_addressed_to_a_job_seeker(self):
+        """The empty case is the most likely one for a small employer.
+
+        Nothing was found, so the only useful thing to say is something the
+        reader can act on. It must not restart the search as a homework task.
+        """
+        from app.services.scanner.verification_prompt import NO_RESULTS
+
+        low = NO_RESULTS.lower()
+        for banned in ("official channel", "registry", "government website"):
+            assert banned not in low, f"'{banned}' hands the reader a lookup task"
+        assert "not evidence that the company is fraudulent" in re.sub(r"\s+", " ", low), (
+            "an empty result set must not be framed as an adverse finding"
+        )
+
+
 class TestEvidenceSchema:
     """The 20-word detail cap threw away almost everything the search found."""
 
@@ -300,7 +439,7 @@ class TestVerifyOutputReading:
                 {"title": "CAISHEN - companieshouse.ph", "url": "https://companieshouse.ph/acme", "snippet": "SEC CS201500123"},
             ],
             "report": "Public results show an incorporated company.",
-            "recommendation": "Confirm the registration number on the SEC site.",
+            "recommendation": "Ask the employer to confirm the company details in writing before you send an ID.",
         })
 
     def test_reads_finding_and_source(self):

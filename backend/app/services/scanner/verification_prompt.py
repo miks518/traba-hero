@@ -42,7 +42,7 @@ FIELD RULES:
 - source_title and source_url: the single result you relied on, copied exactly as given in the provided results. Never construct, guess, or reconstruct a URL, and never cite a result that is not in the provided list. When the status is yellow, leave both empty strings.
 - evidence: the results a reader would want to check for themselves, with the title, url and snippet exactly as provided. Copy at most the six most relevant. Never invent an entry.
 - report: 2-3 plain sentences describing what the provided results show. No accusations. End by noting that this is based on public web search results only.
-- recommendation: 1-2 plain sentences telling the user what to do next, phrased as a step they can take. Do not tell them what to think about the company."""
+- recommendation: 1-2 plain sentences addressed to a job seeker — someone looking for work, not an investigator. Name what the results above actually showed about this employer, then give one concrete next step this person can take in an ordinary hiring exchange: for example asking the employer to confirm something in writing, arranging to meet someone at an address the employer gives them, or not sending money or personal details before they have spoken with someone. Do not tell them to check a registry, a government website, or a business permit, do not tell them to verify a registration number, and do not tell them what to think about the company. The checking is this tool's job; the reader is looking for a way to respond to a job offer, not for a task to carry out."""
 
 
 # Strict schemas must declare every property required and disallow extras, or
@@ -95,8 +95,10 @@ NOTE ON RETRIEVAL: the search could not be completed ({error}).
 This is NOT evidence that the company is fraudulent. Nothing was retrieved, so
 nothing is known. Report every category as yellow, state in each detail that the
 search did not complete, and do not use anything you know about this company from
-training. Write a recommendation telling the reader to confirm the employer
-through an official channel before sending personal details.
+training. Write a recommendation addressed to a job seeker that tells them not to
+send money, an ID, or other personal details until they have spoken with someone
+who can confirm the employer, and that they can ask the poster to confirm the
+company's details in writing first.
 === END SEARCH ==="""
 
 NO_RESULTS = """=== SEARCH RESULTS FOR: {company} ===
