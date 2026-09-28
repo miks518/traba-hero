@@ -89,12 +89,15 @@
 
 ---
 
-### [ ] Task 3.2: Resilient SEC Philippines Verification
-- **Objective:** Prevent official SEC lookup timeouts from breaking the overall scan flow.
-- **Backend Changes (`backend/app/services/sec_api.py`):**
-  - Wrap SEC API HTTP calls with a strict 5-second timeout.
-  - If the SEC endpoint fails or times out, fall back seamlessly to a Tavily query (`site:sec.gov.ph "<Company Name>"` via `app/services/search.py`) instead of throwing an error. Note the search must be reported as a retrieval failure if the key is missing, never as a clean company.
-- **Verification:** Mock a failed SEC API response and confirm that the company scan still completes successfully using web search fallbacks.
+### [x] Task 3.2: Registration Lookups Survive a Failing Provider
+- **Objective:** Prevent a failing external lookup from breaking the overall scan flow, and never let a failed lookup read as a clean company.
+- **Backend Changes (`backend/app/services/search.py`):**
+  - Tavily is now the only external retrieval path, so there is no separate official-registry client left to time out. The old `sec_api.py` was removed rather than hardened.
+  - A single call, a single outcome, reported honestly. No retries, no fallback provider, no caching, no engine rotation.
+  - `SearchOutcome.ok` and `.results` are independent: `ok=False` with no results is a failure, `ok=True` with no results is a company with no footprint. A missing `TAVILY_API_KEY` is a failure, and a response with no usable `results` list is a failure rather than a finding.
+  - `search_ok` / `search_error` travel on the wire so the panel states the failure itself instead of depending on the model to mention it.
+  - When every category comes back unconfirmed, the verification stage returns no score, so the blend shows the posting stage alone.
+- **Verification:** Covered offline by tests for a missing key, a malformed body, a renamed results key, and a transport error; each asserts the failure is reported and not scored.
 
 ---
 

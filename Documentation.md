@@ -790,6 +790,10 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-06: `SearchRawPanel` shows the exact prompt handed to the model, including the formatted search results, under External Verification.
 - AC-07: Both panels are temporary. They, `/api/debug/search`, and the `search` nav entry are removed together once search behaviour is settled.
 
+---
+
+## 4. Non-Functional Requirements
+
 ### NFR-01: Performance
 
 | Attribute | Value |
@@ -1236,7 +1240,7 @@ Looks up a named employer and reports the three verification categories.
 }
 ```
 
-**Response:** SSE stream. The final `result` event carries `items`, `evidence`, `report`, `recommendation`, `riskScore`, `riskLevel`, `scoreBreakdown`, `search_ok`, and `search_error`.
+**Response:** SSE stream. The final `result` event carries `items`, `evidence`, `report`, `recommendation`, `riskScore`, `riskLevel`, `scoreBreakdown`, `search_ok`, `search_error`, and `search_count`.
 
 Only the search results are sent to the model. The job summary and the posting's red flags are deliberately excluded: the model is asked what the search shows about a *company*, and handing it a posting red flag invites it to answer about the posting instead.
 

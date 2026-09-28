@@ -174,11 +174,19 @@ Not started. Relevant to the work above: `scan_flow.py` and `verification_flow.p
 both log AI output at INFO, including job summaries and company names. That is
 posting data, not applicant PII, but it is not zero-retention either.
 
-## Task 3.2 — Resilient SEC Philippines Verification
+## Task 3.2 — Resilient Registration Lookups
 
-Not started. Note that `backend/app/services/sec_api.py` referenced in
-`CRITICAL.md` and `AGENTS.md` does not exist; no SEC call path is present in the
-code. The task as written has no code to harden.
+**Done, in a different shape than the task asked for.** There is no `sec_api.py`
+in the codebase and no official-registry client to harden. Tavily became the only
+retrieval path, so the question of a failing registry API no longer arises; the
+"fall back to a Tavily query" branch is the only branch. `CRITICAL.md` was
+updated to say this rather than leaving a task pointing at a file that does not
+exist.
+
+What carries over from the original intent: one call, one outcome, reported
+honestly. `SearchOutcome.ok` and `.results` are independent, a missing API key
+is a failure rather than an empty success, and an unusable `results` payload is
+a failure rather than a finding. All offline-tested.
 
 ## Task 4.1 — Misclassification Reporting
 

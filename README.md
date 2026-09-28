@@ -6,7 +6,7 @@ Trabahero helps Filipino job seekers spot job scams. The extension sends screens
 
 - Scan job posting screenshots or pasted text for scam indicators.
 - Match a resume with job openings and review skill gaps.
-- Check company details with DuckDuckGo or the SEC Philippines API.
+- Check company details with Tavily web search, including registration with SEC, DTI, PEZA, BOI, and local government permits.
 
 ## Quick Start
 
