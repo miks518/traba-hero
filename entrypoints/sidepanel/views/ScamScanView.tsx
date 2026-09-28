@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError, VerificationSection, OfferAnalysisCard } from '../components/scan';
+import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError, VerificationSection, OfferAnalysisCard, CompanyNameNeeded } from '../components/scan';
 import { FormattedText, Icon, ToastContainer, useToastManager } from '../components/common';
 import { scanScreenshotStream, verifyJobStream, analyzeOfferStream, ApiRequestError, type ScanProgress } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
@@ -120,6 +120,16 @@ export function ScamScanView({
   const verifyAbortRef = useRef<AbortController | null>(null);
   const [currentSearchQuery, setCurrentSearchQuery] = useState('');
   const [verificationFailed, setVerificationFailed] = useState(false);
+
+  /**
+   * A posting that names no employer cannot be verified, so the panel asks for
+   * the name instead of showing a verification section that will never fill.
+   * Scans are always screenshots, so this is never about a missing image — it
+   * is about the captured region not containing a logo, letterhead or sender.
+   */
+  const needsCompanyName = Boolean(
+    isValidJob && scanResult && !scanResult.companyName && !scanResult.verificationLoading,
+  );
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -499,19 +509,19 @@ export function ScamScanView({
             loading={scanResult.offerAnalysisLoading}
           />
 
-          <VerificationSection
-            result={scanResult.verificationResult}
-            loading={scanResult.verificationLoading}
-            error={scanResult.verificationError}
-            currentQuery={currentSearchQuery}
-            noCompanyName={
-              isValidJob && (
-                Boolean(scanResult.verificationResult?.noCompanyName) ||
-                (!scanResult.companyName && !scanResult.verificationLoading && (!scanResult.verificationResult || scanResult.verificationResult.items.length === 0)) ||
-                (!scanResult.verificationResult && !scanResult.verificationLoading && !scanResult.verificationError)
-              )
-            }
-          />
+          {/* A missing employer is a missing input, not a finding: this replaces
+              the verification section entirely rather than sitting above it,
+              and carries the copy the old "Analysis Only" notice duplicated. */}
+          {needsCompanyName ? (
+            <CompanyNameNeeded />
+          ) : (
+            <VerificationSection
+              result={scanResult.verificationResult}
+              loading={scanResult.verificationLoading}
+              error={scanResult.verificationError}
+              currentQuery={currentSearchQuery}
+            />
+          )}
         </>
       )}
 

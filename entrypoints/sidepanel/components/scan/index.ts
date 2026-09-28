@@ -7,4 +7,5 @@ export { InvalidContentError } from './InvalidContentError';
 export { VerificationCard } from './VerificationCard';
 export { VerificationSection } from './VerificationSection';
 export { OfferAnalysisCard } from './OfferAnalysisCard';
+export { CompanyNameNeeded } from './CompanyNameNeeded';
 export type { OfferAnalysisCardProps } from './OfferAnalysisCard';

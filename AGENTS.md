@@ -56,7 +56,9 @@ Copy-Item .env.example .env
 - `entrypoints/sidepanel/views/ResumeMatchView.tsx` — Resume analysis + job matching with progress; `isOnline` prop disables Match and the resume uploader
 - `entrypoints/sidepanel/components/shell/OfflineBanner.tsx` — "Server Unreachable" strip below the top app bar with a Retry button
 - `entrypoints/sidepanel/components/scan/OfferAnalysisCard.tsx` — Verdict for offers that name no employer: what it asks, what it offers, what to check
-- `entrypoints/sidepanel/components/scan/VerificationSection.tsx` — External verification cards + the "Analysis Only" notice shown when no employer was named
+- `entrypoints/sidepanel/components/scan/VerificationSection.tsx` - External verification cards, the search-unavailable notice, and the clickable sources list
+- `entrypoints/sidepanel/components/scan/CompanyNameNeeded.tsx` - The prompt shown when a posting names no employer; its dashed border is what separates a missing input from a finding
+- `entrypoints/sidepanel/components/scan/SearchRawPanel.tsx` - TEMPORARY raw prompt dump, shown under External Verification
 - `UNFINISHED-WORK.md` — **Read this first in a new session.** Canonical list of what is known-incomplete, the manual output-quality checklist, and the reasoning-model notes.
 - `backend/app/services/search.py` � Tavily web search. One function, `search(query) -> SearchOutcome`, plus the company-name helpers (`extract_company_name`, `clean_company_name`, `is_valid_company_name`) the scan resolves the employer through. `build_query(company)` is the only query shape issued: `"{company} Philippines"`.
 
@@ -307,8 +309,11 @@ measured is the exact exposure the prompt rules exist to prevent.
 ## Verification Guardrails
 
 - If no company name is extracted from the job posting, `verification_context` is absent from the scan response
-- Frontend checks `data.verification_context?.company_name` before calling `/api/verify`
-- If missing, `VerificationSection` renders a neutral "Analysis Only" notice stating the findings come only from the posting, and points the user at the part of the page that names the employer
+- The frontend renders `CompanyNameNeeded` instead of the verification section when `isValidJob && !companyName`
+- **A missing employer is a missing input, not a finding.** It is deliberately not a red flag: it contradicted the "never flag the absence of something" rule in the same prompt list, and it added risk-score weight for an input we lacked rather than for something wrong with the post. The panel asks the reader for the name instead.
+- `CompanyNameNeeded` is styled with a **dashed** border where every result container uses a solid one, so a missing input cannot be misread as a finding. It states what was and was not checked, and says explicitly that it is not a warning about the post — a fact about our own output rather than a claim about how common nameless posts are.
+- **Scans are always screenshots** (`ScamScanView` calls `/api/scan`; `scanTextStream` is exported but has no caller), so this state is never about a missing image. It is about the captured region not containing a logo, letterhead or sender name.
+- There is **no text input** for the company name. A typed name would flow straight into the verification prompt, which produces a verdict naming a real company; guidance only, by decision.
 - `/api/verify` logs raw AI response and parsed items at INFO/WARNING level for debugging
 - `extract_company_name()` in `search.py` runs every pattern over the text as zero-width lookaheads and trims each capture at the first clause boundary, so "Acme Corp. We are hiring" does not become a company name. Evaluate new patterns against that rule — a greedy capture that runs into the next sentence produces a name the search cannot resolve, which then looks like an unverifiable company.
 

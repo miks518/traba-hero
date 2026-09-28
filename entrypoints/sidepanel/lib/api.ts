@@ -584,7 +584,6 @@ export async function verifyJobStream(
               riskScore: data.riskScore,
               riskLevel: data.riskLevel as 'low' | 'moderate' | 'high' | 'critical' | undefined,
               scoreBreakdown: data.scoreBreakdown,
-              noCompanyName: Boolean(data.no_company_name),
               debugPrompt: data.debug_prompt,
               searchOk: data.search_ok,
               searchError: data.search_error,

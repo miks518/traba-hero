@@ -82,3 +82,23 @@ def test_the_fallback_prompt_carries_the_same_guard():
 
 def test_prompt_keeps_the_never_invent_rule():
     assert "never invent" in low
+
+
+def test_prompt_does_not_instruct_a_missing_name_red_flag():
+    """A missing name is a missing input, not a finding.
+
+    Instructing one contradicted the "never flag the absence of something" rule
+    in the same list, and it added risk-score weight for an input we lacked
+    rather than for something wrong with the post. The frontend asks for the
+    name instead.
+    """
+    for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
+        low = body.lower()
+        assert "company name not stated" not in low, f"{label} still instructs the flag"
+        assert "red flag: company name" not in low, f"{label} still instructs the flag"
+
+
+def test_prompt_still_asks_for_the_employer_field():
+    """The EMPLOYER NAME field is how the frontend detects the state."""
+    assert "employer name" in low
+    assert "not stated" in low

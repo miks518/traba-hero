@@ -9,12 +9,10 @@ interface VerificationSectionProps {
   loading?: boolean;
   error?: boolean;
   currentQuery?: string;
-  noCompanyName?: boolean;
 }
 
-export function VerificationSection({ result, loading, error, currentQuery, noCompanyName }: VerificationSectionProps) {
+export function VerificationSection({ result, loading, error, currentQuery }: VerificationSectionProps) {
   const hasItems = Boolean(result && result.items && result.items.length > 0);
-  const showNoCompany = Boolean(noCompanyName || result?.noCompanyName);
 
   return (
     <div className="flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low">
@@ -28,24 +26,6 @@ export function VerificationSection({ result, loading, error, currentQuery, noCo
           </span>
         )}
       </div>
-
-      {showNoCompany && (
-        <div className="flex flex-col gap-2 p-3 rounded-lg bg-surface-container border border-outline-variant/20">
-          <div className="flex items-center gap-2">
-            <Icon name="info" className="text-secondary" />
-            <span className="font-label-md font-bold text-on-surface">Analysis Only</span>
-          </div>
-          <p className="text-body-sm text-on-surface-variant leading-relaxed">
-            This posting does not name an employer, so there is nothing to look up online. The findings
-            above come only from reading the posting itself, and no risk score was calculated.
-          </p>
-          <span className="flex items-start gap-1.5 text-label-sm text-on-surface-variant">
-            <Icon name="touch_app" className="text-secondary text-base shrink-0" />
-            If the employer's name appears elsewhere on the page, pick that part of the posting and scan
-            again to enable external verification.
-          </span>
-        </div>
-      )}
 
       {loading && !hasItems && (
         <div className="flex flex-col items-center gap-3 py-4">
@@ -87,7 +67,7 @@ export function VerificationSection({ result, loading, error, currentQuery, noCo
         </div>
       )}
 
-      {!loading && !hasItems && !error && !showNoCompany && (
+      {!loading && !hasItems && !error && (
         <div className="flex flex-col gap-2 p-3 rounded-lg bg-surface-container border border-outline-variant/20">
           <div className="flex items-center gap-2">
             <Icon name="info" className="text-secondary" />
@@ -151,7 +131,7 @@ export function VerificationSection({ result, loading, error, currentQuery, noCo
       {/* TEMPORARY raw search dump; remove with SearchRawPanel. */}
       <SearchRawPanel result={result} />
 
-      {error && !showNoCompany && (
+      {error && (
         <div className="flex items-center gap-2 py-2 text-body-sm text-on-surface-variant">
           <Icon name="info" className="text-secondary" />
           <span>Verification could not be completed. The posting findings above still stand.</span>
