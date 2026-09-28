@@ -141,13 +141,16 @@ export function RiskGauge({
   const color = levelColor(riskLevel);
   const dashOffset = circumference * (1 - normalized);
 
-  // overflow-hidden for the same reason as the unverified card: the glow must
-  // not bleed past the border and leave a hard line through it.
+  // The card does not clip here, so the ring gives its own glow room to render
+  // in: p-2 inside the card's p-5, against a glow that peaks at 11px. The
+  // unverified card above clips instead; either way the border stays clear.
   return (
-    <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card overflow-hidden">
+    <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card">
       <div className="flex flex-col items-center gap-4 text-center">
-        <div className="relative w-[132px] h-[132px] flex items-center justify-center shrink-0">
-          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 128 128">
+        {/* Added p-2 to give the glowing shadow space around the 132px circle */}
+        <div className="relative w-[132px] h-[132px] p-2 flex items-center justify-center shrink-0">
+          {/* Added overflow-visible so the SVG filter/glow isn't clipped */}
+          <svg className="absolute inset-0 w-full h-full -rotate-90 overflow-visible" viewBox="0 0 128 128">
             <circle
               cx="64" cy="64"
               fill="transparent"

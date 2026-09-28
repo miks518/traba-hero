@@ -82,14 +82,32 @@ describe('RiskGauge ring animation', () => {
     expect(html).toContain('--ring-glow-color');
   });
 
-  it('clips the glow inside the card so the border cannot cut through it', () => {
-    // A drop-shadow bleeds past the element it is on. Left unclipped it escapes
-    // the rounded card and the border draws a hard line across the glow.
+  // ring-breathe peaks at an 11px drop-shadow, so the card border must never
+  // cut through the glow. There are two ways to guarantee that, and the two
+  // rings use different ones: either the card clips the shadow, or the shadow
+  // has room to render before it reaches the border. A ring that does neither
+  // lets the border draw a hard line across the glow.
+  const glowIsContained = (container: HTMLElement) => {
+    const section = container.querySelector('section');
+    if (!section) return false;
+    if (section.className.includes('overflow-hidden')) return true;
+
+    // Not clipped, so the ring wrapper must reserve room for the shadow.
+    const ring = container.querySelector('.ring-pulse')?.closest('.relative');
+    return Boolean(ring?.className.match(/\bp-\d\b/));
+  };
+
+  it('keeps the scored ring glow from being cut by the card border', () => {
     const { container } = render(<RiskGauge score={75} riskLevel="high" riskLabel="High Risk" />);
-    expect(container.querySelector('section')?.className).toContain('overflow-hidden');
+    expect(glowIsContained(container)).toBe(true);
 
     cleanup();
-    const unverified = render(<RiskGauge score={0} riskLevel="low" unverified />);
-    expect(unverified.container.querySelector('section')?.className).toContain('overflow-hidden');
+    const moderate = render(<RiskGauge score={45} riskLevel="moderate" riskLabel="Moderate Risk" />);
+    expect(glowIsContained(moderate.container)).toBe(true);
+  });
+
+  it('keeps the unverified ring glow from being cut by the card border', () => {
+    const { container } = render(<RiskGauge score={0} riskLevel="low" unverified />);
+    expect(glowIsContained(container)).toBe(true);
   });
 });
