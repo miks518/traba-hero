@@ -94,7 +94,6 @@ export interface VerificationResult {
   recommendation: string;
   riskScore?: number;
   riskLevel?: ScanRiskLevel;
-  searchLog?: { query: string; round: number; result_preview: string }[];
   noCompanyName?: boolean;
   /**
    * TEMPORARY debug field: the exact prompt sent to the model, including the

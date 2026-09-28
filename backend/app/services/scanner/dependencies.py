@@ -1,5 +1,5 @@
 from app.ai_limiter import ai_limiter
-from app.services.search import clean_company_name, extract_company_name, is_valid_company_name
+from app.services.search import build_query, clean_company_name, extract_company_name, is_valid_company_name, search
 from app.services.email_verifier import verify_emails_in_text
 from app.services.lm_client import (
     _parse_custom,
@@ -21,12 +21,12 @@ from .risk_calculator import (
 from .scan_result import _VALID_LINE_RE, _red_flags, _scan_response
 from .sse import _sse
 from .verification_parser import _missing_categories, _parse_verification_result, _parse_verify_section
-from .verification_prompt import VERIFY_SYSTEM_PROMPT, VERIFY_RESPONSE_SCHEMA, _build_verify_prompt
-
-
-def _no_search_context(company: str) -> str:
-    """Stand-in until the verification flow uses the new search module."""
-    return ""
+from .verification_prompt import (
+    VERIFY_SYSTEM_PROMPT,
+    VERIFY_RESPONSE_SCHEMA,
+    _build_verify_prompt,
+    format_results,
+)
 
 
 class ScannerDependencies:
@@ -43,10 +43,9 @@ class ScannerDependencies:
     get_sse = staticmethod(lambda: _sse)
     get_parse_resume = staticmethod(lambda: _parse_resume_custom)
     get_parse_match = staticmethod(lambda: _parse_match_custom)
-    # Placeholder until the verification flow is switched to the new search
-    # module. The flow calls this as get_verify_company()(company), so it must
-    # yield a callable, not a value.
-    get_verify_company = staticmethod(lambda: _no_search_context)
+    get_search = staticmethod(lambda: search)
+    get_build_query = staticmethod(lambda: build_query)
+    get_format_results = staticmethod(lambda: format_results)
     get_chat = staticmethod(lambda: chat)
     get_build_verify_prompt = staticmethod(lambda: _build_verify_prompt)
     get_parse_verification_result = staticmethod(lambda: _parse_verification_result)

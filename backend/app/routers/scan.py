@@ -40,6 +40,7 @@ from app.services.ddg_search import (
     is_valid_company_name,
     search_with_diagnostics,
 )
+from app.services.search import build_query, search
 from app.services.email_verifier import verify_emails_in_text
 from app.services.image import decode_base64_image
 from app.services.lm_client import (
@@ -106,6 +107,8 @@ runtime.get_sse = lambda: _sse
 runtime.get_parse_resume = lambda: _parse_resume_custom
 runtime.get_parse_match = lambda: _parse_match_custom
 runtime.get_chat = lambda: chat
+runtime.get_search = lambda: search
+runtime.get_build_query = lambda: build_query
 runtime.get_build_verify_prompt = lambda: _build_verify_prompt
 runtime.get_parse_verification_result = lambda: _parse_verification_result
 runtime.get_parse_verify_section = lambda: _parse_verify_section

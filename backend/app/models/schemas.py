@@ -104,5 +104,3 @@ class VerificationResponse(BaseModel):
     items: list[VerificationItem] = []
     report: str = ""
     recommendation: str = ""
-    search_log: list[dict] = []
-

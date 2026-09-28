@@ -15,8 +15,6 @@ export function SearchRawPanel({ result }: { result?: VerificationResult }) {
 
   if (!raw) return null;
 
-  const queries = result?.searchLog?.map((entry) => entry.query) ?? [];
-
   return (
     <div className="rounded-lg border border-outline-variant/30 bg-surface-container">
       <button
@@ -34,19 +32,6 @@ export function SearchRawPanel({ result }: { result?: VerificationResult }) {
 
       {open && (
         <div className="flex flex-col gap-2 px-3 pb-3">
-          {queries.length > 0 && (
-            <div>
-              <span className="text-label-sm font-bold text-on-surface-variant">Queries sent</span>
-              <ul className="mt-1 flex flex-col gap-0.5">
-                {queries.map((q, i) => (
-                  <li key={i} className="text-label-sm text-on-surface-variant/90 break-all">
-                    {i + 1}. {q}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           <div>
             <span className="text-label-sm font-bold text-on-surface-variant">
               Prompt as sent to the model

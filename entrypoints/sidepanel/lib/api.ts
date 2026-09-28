@@ -567,7 +567,6 @@ export async function verifyJobStream(
             riskScore?: number;
             riskLevel?: string;
             scoreBreakdown?: RiskScoreBreakdown;
-            search_log: unknown[];
             no_company_name?: boolean;
             // TEMPORARY: raw prompt for debugging retrieval. See SearchRawPanel.
             debug_prompt?: string;
@@ -580,7 +579,6 @@ export async function verifyJobStream(
               riskScore: data.riskScore,
               riskLevel: data.riskLevel as 'low' | 'moderate' | 'high' | 'critical' | undefined,
               scoreBreakdown: data.scoreBreakdown,
-              searchLog: data.search_log as VerificationResult['searchLog'],
               noCompanyName: Boolean(data.no_company_name),
               debugPrompt: data.debug_prompt,
             },

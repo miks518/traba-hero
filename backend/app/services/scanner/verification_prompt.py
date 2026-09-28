@@ -70,16 +70,51 @@ VERIFY_RESPONSE_SCHEMA = {
 }
 
 
-NO_SEARCH_RESULTS = """=== SEARCH RESULTS FOR: {company} ===
-No search results were returned for this company. The search produced nothing,
-which may mean the company has no online presence, or that the search failed.
+RETRIEVAL_FAILED = """=== SEARCH RESULTS FOR: {company} ===
+NOTE ON RETRIEVAL: the search could not be completed ({error}).
 
-This is NOT evidence that the company is fraudulent. It is an absence of
-information. Report every category as yellow, state in each detail that the
-search returned no results, and do not use anything you know about this company
-from training. Write a recommendation telling the reader to confirm the employer
+This is NOT evidence that the company is fraudulent. Nothing was retrieved, so
+nothing is known. Report every category as yellow, state in each detail that the
+search did not complete, and do not use anything you know about this company from
+training. Write a recommendation telling the reader to confirm the employer
 through an official channel before sending personal details.
 === END SEARCH ==="""
+
+NO_RESULTS = """=== SEARCH RESULTS FOR: {company} ===
+
+The search completed and returned no results. This is not evidence that the
+company is fraudulent — it may simply have little online presence. Report every
+category as yellow, state in each detail that the search returned no results,
+and do not use anything you know about this company from training.
+=== END SEARCH ==="""
+
+
+def format_results(results: list, company: str, ok: bool, error: str = "") -> str:
+    """Render search results for the model, with no category headings.
+
+    The old formatter stamped each result with the heading matching the query
+    that found it, which asserted something the retrieval never established: a
+    regulator's complaint form surfaced under a "SCAM REPORTS" heading read as
+    a scam report. A flat list cannot misrepresent a result that way.
+
+    Result text is untrusted — it is whatever a web page said. It is passed
+    through verbatim so the system prompt's OUTPUT RULES govern it, rather than
+    filtered here where a filter would silently delete evidence.
+    """
+    if not ok:
+        return RETRIEVAL_FAILED.format(company=company, error=error or "unknown error")
+    if not results:
+        return NO_RESULTS.format(company=company)
+
+    lines = [f"=== SEARCH RESULTS FOR: {company} ===", ""]
+    for i, r in enumerate(results, 1):
+        lines.append(f"{i}. {r.title}")
+        lines.append(f"   url: {r.url}")
+        if r.snippet:
+            lines.append(f"   {r.snippet}")
+        lines.append("")
+    lines.append("=== END SEARCH ===")
+    return "\n".join(lines)
 
 
 def _build_verify_prompt(req: VerifyRequest, search_context: str = "") -> str:
@@ -89,21 +124,15 @@ def _build_verify_prompt(req: VerifyRequest, search_context: str = "") -> str:
     used to be sent as well, and both are actively harmful here: the model is
     asked to report what the search shows about a company, and handing it
     "Asks applicants to pay a processing fee" invites it to answer about the
-    posting instead of the employer — a red flag about the posting is not a fact
-    about the company, and it belonged to the posting-stage score. The company
-    name is kept because the results are keyed to it.
+    posting instead of the employer. A red flag about the posting is not a fact
+    about the company, and it already fed the posting-stage score.
+
+    format_results decides between "the search failed" and "the search found
+    nothing", so this function only has to carry the result through.
     """
     parts = []
     if req.company_name:
         parts.append(f"Company to verify: {req.company_name}")
     if search_context:
         parts.append(f"\n{search_context}")
-    else:
-        # Silently omitting the block left the system prompt claiming results had
-        # been provided when none had. Say so explicitly so a retrieval failure
-        # is reported as missing information rather than as a clean company.
-        parts.append(
-            "\n"
-            + NO_SEARCH_RESULTS.format(company=req.company_name or "the employer")
-        )
     return "\n\n".join(parts)

@@ -91,21 +91,23 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             return
 
         yield runtime.get_sse()({"type": "progress", "percent": 10, "stage": "Searching company info"})
-        search_log = [
-            {"query": f"{company} Philippines company", "round": 1},
-            {"query": f"{company} SEC registration Philippines", "round": 2},
-            {"query": f"{company} scam fraud complaint", "round": 3},
-            {"query": f'"{company}" reviews employee', "round": 4},
-        ]
-        for entry in search_log:
-            yield runtime.get_sse()({"type": "search", "query": entry["query"], "round": entry["round"]})
+        # One query, no category suffixes: the model sorts the results into the
+        # three categories itself, so nothing here decides what a result is.
+        query = runtime.get_build_query()(company)
+        yield runtime.get_sse()({"type": "search", "query": query, "round": 1})
 
-        search_context = await asyncio.to_thread(runtime.get_verify_company(), company)
+        outcome = await asyncio.to_thread(runtime.get_search(), query)
+        search_context = runtime.get_format_results()(
+            outcome.results, company, outcome.ok, outcome.error
+        )
+        if not outcome.ok:
+            log.warning("[verify] Search failed for '%s': %s", company, outcome.error)
+        elif not outcome.results:
+            log.info("[verify] Search for '%s' returned no results", company)
         yield runtime.get_sse()({"type": "progress", "percent": 45, "stage": "AI analyzing"})
 
-        # TEMPORARY debug payload: the exact text handed to the model, so the
-        # search -> prompt -> answer chain can be inspected in the panel. Remove
-        # with the SearchRawPanel component.
+        # The exact text handed to the model, so the search -> prompt -> answer
+        # chain can be inspected in the panel. See SearchRawPanel.
         verify_prompt = runtime.get_build_verify_prompt()(req, search_context)
         messages = [
             {"role": "system", "content": runtime.get_verify_system_prompt()},
@@ -177,10 +179,8 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "riskScore": risk_score,
             "riskLevel": risk_level,
             "scoreBreakdown": breakdown,
-            "search_log": search_log,
-            # TEMPORARY: the prompt as sent, for debugging retrieval. Not part
-            # of the normal response and should be removed once the search
-            # behaviour is settled.
+            # The prompt as sent, so the search -> prompt -> answer chain can be
+            # read directly in the panel. See SearchRawPanel.
             "debug_prompt": verify_prompt,
             "no_company_name": False,
         }})
