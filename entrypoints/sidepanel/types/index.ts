@@ -100,6 +100,13 @@ export interface VerificationResult {
    * formatted search results. Remove with SearchRawPanel.
    */
   debugPrompt?: string;
+  /**
+   * Whether the web search succeeded. False means the categories are unknown,
+   * not that the employer is clean — the panel states this directly rather
+   * than depending on the model mentioning it.
+   */
+  searchOk?: boolean;
+  searchError?: string;
 }
 
 export type ScanRiskLevel = 'low' | 'moderate' | 'high' | 'critical';

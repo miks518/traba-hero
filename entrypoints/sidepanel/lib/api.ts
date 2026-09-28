@@ -570,6 +570,9 @@ export async function verifyJobStream(
             no_company_name?: boolean;
             // TEMPORARY: raw prompt for debugging retrieval. See SearchRawPanel.
             debug_prompt?: string;
+            search_ok?: boolean;
+            search_error?: string;
+            search_count?: number;
           };
           return {
             result: {
@@ -581,6 +584,8 @@ export async function verifyJobStream(
               scoreBreakdown: data.scoreBreakdown,
               noCompanyName: Boolean(data.no_company_name),
               debugPrompt: data.debug_prompt,
+              searchOk: data.search_ok,
+              searchError: data.search_error,
             },
           };
         } else if (event.type === 'error') {
@@ -614,7 +619,7 @@ export type DebugSearchStep =
   | { kind: 'meta'; query: string; provider: string; keyConfigured: boolean; maxResults: number }
   | { kind: 'result'; item: DebugSearchItem }
   | { kind: 'raw'; body: string }
-  | { kind: 'outcome'; ok: boolean; error: string; latency: number; count: number }
+  | { kind: 'outcome'; ok: boolean; error: string; latency: number; count: number; creditsUsed?: number | null }
   | { kind: 'error'; error: string }
   | { kind: 'done' };
 

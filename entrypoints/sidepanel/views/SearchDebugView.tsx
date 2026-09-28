@@ -3,10 +3,10 @@ import { Icon } from '../components/common';
 import { debugSearchStream, type DebugSearchItem, type DebugSearchStep } from '../lib/api';
 
 const SUGGESTIONS = [
-  'Cleanfuel Philippines company',
-  'Vikings Philippines company',
-  'Jollibee SEC registration Philippines',
-  '"Caishen Marketing Services Inc" reviews employee',
+  'Jollibee Philippines',
+  'Caishen Marketing Services Inc Philippines',
+  'Vikings Philippines',
+  'McDonalds Philippines',
 ];
 
 /**
@@ -100,9 +100,9 @@ export function SearchDebugView() {
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-2 p-3 rounded-lg bg-surface-container-low border border-outline-variant/20">
             <p className="text-body-sm text-on-surface-variant leading-relaxed">
-              Sends one query straight to the backend search and streams the process:
-              each engine tried, what it returned, then the production path with retries.
-              No AI call is made.
+              Sends one query to Tavily and streams the result: every hit with its URL, then the
+              provider's raw response body. Production issues one query per verification — the same
+              &ldquo;{'<company>'} Philippines&rdquo; shape these suggestions use. No AI call is made.
             </p>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -167,6 +167,7 @@ export function SearchDebugView() {
               {outcome.count} result{outcome.count === 1 ? '' : 's'}
               {' · '}
               {outcome.latency}s
+              {typeof outcome.creditsUsed === 'number' ? ` · ${outcome.creditsUsed} credit(s)` : ''}
             </div>
             {outcome.error && (
               <div className="mt-1 text-label-sm text-on-surface-variant break-words">{outcome.error}</div>

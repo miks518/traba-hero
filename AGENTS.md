@@ -58,29 +58,21 @@ Copy-Item .env.example .env
 - `entrypoints/sidepanel/components/scan/OfferAnalysisCard.tsx` — Verdict for offers that name no employer: what it asks, what it offers, what to check
 - `entrypoints/sidepanel/components/scan/VerificationSection.tsx` — External verification cards + the "Analysis Only" notice shown when no employer was named
 - `UNFINISHED-WORK.md` — **Read this first in a new session.** Canonical list of what is known-incomplete, the manual output-quality checklist, and the reasoning-model notes.
-- `backend/app/services/search.py` � Tavily web search. One function, `search(query) -> SearchOutcome`, plus the company-name helpers (`extract_company_name`, `clean_company_name`, `is_valid_company_name`) the scan resolves the employer through. `build_query(company)` is the only query shape issued: `"{company} Philippines"`.
+- `backend/app/services/search.py` � Tavily web search. One function, `search(query) -> SearchOutcome`, plus the company-name helpers (`extract_company_name`, `clean_company_name`, `is_valid_company_name`) the scan resolves the employer through. `build_query(company)` is the only query shape issued: `"{company} Philippines"`.
 
   **`SearchOutcome.ok` and `.results` are independent, and that is the whole point.** `ok=False` with no results means the search failed; `ok=True` with no results means the company has no online footprint. The previous module returned `[]` for both, so a throttled query was indistinguishable from a clean company and the model reported "nothing found" when the truth was "we could not look". Never collapse these two states. A missing `TAVILY_API_KEY` is a **failure**, not an empty success, so a broken deployment cannot look like a clean employer.
 
   **No retries, no fallback provider, no caching, no engine rotation.** The old DuckDuckGo module was 620 lines of policy layered on scraping, and the failures were the policy's fault rather than the provider's. One call, one outcome, reported honestly.
 
-  **No category headings in the prompt.** The old `format_verification_context()` stamped each result with the category whose query had found it, which asserted something retrieval never established � a regulator's complaint form under a `[SCAM REPORTS]` heading read as a scam report. `format_results()` emits a flat list with URLs and the model judges each result. Result text is untrusted input reaching a model that produces a libel-sensitive verdict; the system prompt's `OUTPUT RULES` are what constrain it, so do not weaken them to make results look better.
+  **No category headings in the prompt.** The old `format_verification_context()` stamped each result with the category whose query had found it, which asserted something retrieval never established — a regulator's complaint form under a `[SCAM REPORTS]` heading read as a scam report. `format_results()` emits a flat list with URLs and the model judges each result.
 
-  **A recruiter is not the employer.** The scan's employer field is `EMPLOYER NAME:` and the rules require the company the reader would work for, with a staffing agency named only when the posting is for the agency's own staff. `clean_company_name()` still splits a joined name and keeps the last part as a safety net. The parser accepts `COMPANY NAME` as well so scans recorded before the rename still parse.
-  `COMPANY NAME:`, and the model wrote every name it saw, so a posting from a
-  staffing agency read `Vikings / Silvergreen Manpower Services Corporation`. A
-  search engine tokenises that into neither entity, and the SEC query returned
-  Wikipedia's article about the SEC rather than a registration record. The field
-  is now `EMPLOYER NAME:` and the rules require the company the reader would
-  work for, with the agency named only when the posting is for the agency's own
-  staff. `clean_company_name()` still splits a joined name and keeps the last
-  part as a safety net, and logs when it does. The parser accepts both labels so
-  scans recorded before the rename still parse.
+  **A recruiter is not the employer.** The scan's employer field is `EMPLOYER NAME:` and the rules require the company the reader would work for, with a staffing agency named only when the posting is for the agency's own staff. A joined name reaches `clean_company_name()` as `Vikings / Silvergreen Manpower Services Corporation`, and a search engine tokenises the slash into neither entity, so it is split and the last part is looked up. The parser accepts `COMPANY NAME` as well so scans recorded before the rename still parse.
+
+  **Result text is untrusted input.** A search snippet is whatever a page said, and it can read like an instruction or assert a green status. `VERIFY_SYSTEM_PROMPT`'s `OUTPUT RULES` say so explicitly and require a result to concern the same entity as the company being verified — a common-word name returns a mixed bag. `format_results()` labels the block as data and strips `===` from result text so a page cannot forge the block terminator and append its own findings. Do not remove any of the three.
 - `backend/app/routers/scan.py` — Compatibility facade for all API endpoints + SSE streaming helpers; `/api/verify` includes raw AI response logging
 - `backend/app/services/scanner/` — Modular prompts, SSE, scan, resume, match, parsing, risk, and verification workflows
-- `backend/app/services/lm_client.py` — OpenAI-compatible client (OpenRouter) with tool calling support. `chat_stream_pieces` logs and raises `EmptyModelResponse` when a stream yields no content, because a mid-stream provider error frame (rate limits included) arrives inside a successful 200 and is otherwise indistinguishable from an empty answer. `_create_completion` sends OpenRouter's `reasoning` parameter and falls back once if the provider rejects it. See **Reasoning Models** below.
-- `backend/app/services/ai_tools.py` — Tool schema definitions + execution dispatcher for verification
-- `backend/app/services/scanner/verification_prompt.py` — Verification system prompt and request prompt; asks for exactly three categories and forbids inventing a fourth
+- `backend/app/services/lm_client.py` — OpenAI-compatible client (OpenRouter). `chat_stream_pieces` logs and raises `EmptyModelResponse` when a stream yields no content, because a mid-stream provider error frame (rate limits included) arrives inside a successful 200 and is otherwise indistinguishable from an empty answer. `_create_completion` sends OpenRouter's `reasoning` parameter and falls back once if the provider rejects it. See **Reasoning Models** below.
+- `backend/app/services/scanner/verification_prompt.py` — Verification system prompt and request prompt; asks for exactly three categories, forbids inventing a fourth, and treats search results as untrusted data that must concern the company being verified
 - `backend/app/services/scanner/offer_prompt.py`, `offer_parser.py`, `offer_flow.py` — Post-only analysis for offers naming no employer; its own endpoint and parser so it cannot break the scan or verify paths
 - `backend/app/services/scanner/risk_calculator.py` — Two-stage scoring: posting indicators, employer verification, and the 60/40 blend
 - `backend/app/config.py` — Settings via pydantic-settings, loads from `backend/.env`

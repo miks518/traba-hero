@@ -85,7 +85,8 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 "riskScore": posting_score,
                 "riskLevel": posting_level,
                 "scoreBreakdown": breakdown,
-                "search_log": [],
+                "search_ok": False,
+                "search_error": "No employer name was given, so nothing was searched.",
                 "no_company_name": True,
             }})
             return
@@ -179,6 +180,13 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "riskScore": risk_score,
             "riskLevel": risk_level,
             "scoreBreakdown": breakdown,
+            # On the wire, not left to the model. A prompt instruction to "state
+            # that the search did not complete" only works if the model obeys;
+            # a model that omits it would render three yellow cards identical to
+            # a company with no footprint. The panel states this directly.
+            "search_ok": outcome.ok,
+            "search_error": outcome.error,
+            "search_count": len(outcome.results),
             # The prompt as sent, so the search -> prompt -> answer chain can be
             # read directly in the panel. See SearchRawPanel.
             "debug_prompt": verify_prompt,

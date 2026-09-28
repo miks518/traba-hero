@@ -47,12 +47,17 @@ class SearchOutcome:
 
     ok=False, results=[]  -> retrieval failed, the category is unknown
     ok=True,  results=[]  -> the search succeeded and found nothing
+
+    `raw_response` is the provider's own body, kept so the debug tab can show
+    what actually arrived. Without it a parse fault would render as a clean
+    empty result, which is the failure the tab exists to catch.
     """
 
     results: list[SearchResult] = field(default_factory=list)
     ok: bool = True
     error: str = ""
     latency: float = 0.0
+    raw_response: dict = field(default_factory=dict)
 
 
 def build_query(company: str) -> str:
@@ -64,10 +69,27 @@ def build_query(company: str) -> str:
     return f"{company} Philippines"
 
 
-def _normalise(payload: dict) -> list[SearchResult]:
+def _normalise(payload) -> list[SearchResult]:
+    """Map the provider's rows onto ours.
+
+    Raises ValueError when the body has no usable `results` list. The
+    distinction matters: `{"results": []}` is a real answer of "nothing found",
+    while a missing or null `results` means the provider changed its shape or
+    returned an error envelope, and reporting that as a company with no
+    footprint is precisely the defect this module exists to prevent.
+    """
+    if not isinstance(payload, dict):
+        raise ValueError(f"provider returned {type(payload).__name__}, expected an object")
+
+    if "error" in payload and "results" not in payload:
+        raise ValueError(f"provider returned an error envelope: {payload['error']!r}")
+
     rows = payload.get("results")
     if not isinstance(rows, list):
-        return []
+        raise ValueError(
+            f"provider response has no usable 'results' list (got {type(rows).__name__})"
+        )
+
     out: list[SearchResult] = []
     for row in rows:
         if not isinstance(row, dict):
@@ -98,6 +120,7 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
         )
 
     started = time.monotonic()
+    payload = None
     try:
         response = httpx.post(
             TAVILY_ENDPOINT,
@@ -111,6 +134,10 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
         )
         response.raise_for_status()
         payload = response.json()
+        # Normalising inside the try: a shape change is a provider fault, and
+        # search() must report it rather than raise out of the debug endpoint,
+        # which has no exception handler mid-stream.
+        results = _normalise(payload)
     except Exception as exc:  # noqa: BLE001
         latency = round(time.monotonic() - started, 3)
         log.error("[search] [error] '%s' failed: %s: %s", query, type(exc).__name__, exc)
@@ -118,16 +145,18 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
             ok=False,
             error=f"{type(exc).__name__}: {exc}",
             latency=latency,
+            raw_response=payload if isinstance(payload, dict) else {},
         )
 
     latency = round(time.monotonic() - started, 3)
-    results = _normalise(payload)
     if not results:
         # Not an error: the search worked and the company has no footprint.
         log.info("[search] '%s' returned no results in %ss", query, latency)
     else:
         log.info("[search] '%s' returned %d results in %ss", query, len(results), latency)
-    return SearchOutcome(results=results, ok=True, error="", latency=latency)
+    return SearchOutcome(
+        results=results, ok=True, error="", latency=latency, raw_response=payload
+    )
 
 
 # ── Company name helpers ──────────────────────────────────────────────

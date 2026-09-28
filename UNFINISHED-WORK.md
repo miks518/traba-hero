@@ -266,6 +266,19 @@ should be used to check the raw provider response is on-topic.
 
 ### Under investigation: only one verification card rendered
 
+**Status: no longer reproducing; the cause was never confirmed.** This section
+is kept so the log lines it names are the ones to check if it returns.
+
+Reported as: the panel showed only **Company Existence** even though the log
+showed values for the other categories. The frontend was ruled out — it maps
+`result.items` with no filter — and the parser passed every well-formed shape
+tested, so the cause was a deviation in the model's actual output. The parser
+was made block-wise and a partial parse now logs
+`[verify] Parsed N of 3 expected categories; missing: ...`, so if it returns,
+that line plus `[verify] Raw AI response` will identify it. The search
+rebuild may also have removed the trigger: retrieval no longer stamps results
+with category headings.
+
 ### Remaining levers on reasoning volume
 
 

@@ -61,6 +61,24 @@ export function VerificationSection({ result, loading, error, currentQuery, noCo
         </div>
       )}
 
+      {result && result.searchOk === false && (
+        <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-error-container/10 border border-error/40">
+          <div className="flex items-center gap-2">
+            <Icon name="warning" className="text-error" />
+            <span className="font-label-md font-bold text-on-surface">Search Unavailable</span>
+          </div>
+          <p className="text-body-sm text-on-surface-variant leading-relaxed">
+            The web search did not run, so the categories below are unknown rather than clear. This is
+            not a finding about the employer. The findings from reading the posting itself still stand.
+          </p>
+          {result.searchError && (
+            <span className="text-label-sm text-on-surface-variant/80 break-words">
+              {result.searchError}
+            </span>
+          )}
+        </div>
+      )}
+
       {hasItems && (
         <div className="flex flex-col gap-2">
           {result!.items.map((item, i) => (

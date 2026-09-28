@@ -263,7 +263,7 @@ async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None
 @router.post("/api/verify")
 @limiter.limit("10/minute")
 async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends(require_client_key)):
-    """External verification: extended DuckDuckGo searches + one AI call. SSE stream."""
+    """External verification: one Tavily search + one AI call. SSE stream."""
     return StreamingResponse(verification_event_stream(req), media_type="text/event-stream")
 
 
@@ -304,17 +304,12 @@ async def debug_search(req: SearchDebugRequest, request: Request, _auth: None = 
                 "score": r.score,
             }})
 
-        # The provider's own payload, verbatim. The previous tab reported only
-        # parsed results, so a wrong-but-successful SERP could not be told
-        # apart from a parsing mistake — which is how the wrong-results defect
-        # went undiagnosed for a day.
+        # The provider's own body, verbatim. Re-serialising outcome.results
+        # would hide the exact failure this tab exists for: a shape change would
+        # render as a clean empty result and the tab would assert a clean
+        # company while the parse is what broke.
         yield _sse({"type": "raw", "body": json.dumps(
-            [
-                {"title": r.title, "url": r.url, "content": r.snippet, "score": r.score}
-                for r in outcome.results
-            ],
-            indent=2,
-            ensure_ascii=False,
+            outcome.raw_response, indent=2, ensure_ascii=False, default=str
         )})
 
         yield _sse({
@@ -323,6 +318,7 @@ async def debug_search(req: SearchDebugRequest, request: Request, _auth: None = 
             "error": outcome.error,
             "latency": outcome.latency,
             "count": len(outcome.results),
+            "creditsUsed": outcome.raw_response.get("credits_used"),
         })
         yield _sse({"type": "done"})
 

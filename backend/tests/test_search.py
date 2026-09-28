@@ -3,8 +3,13 @@
 The load-bearing property: a failed search and a search that found nothing must
 be distinguishable by the caller. `ok` and `results` are independent.
 """
+import asyncio
+import json
 import time
 
+import httpx
+
+from app.main import app
 from app.services.search import (
     SearchOutcome,
     SearchResult,
@@ -158,18 +163,58 @@ class TestFailureIsNotAbsence:
         assert "connection reset" in outcome.error
 
     def test_malformed_body_is_a_failure(self, monkeypatch):
+        """A body without a usable results list means the provider changed shape.
+
+        Reporting that as "the company has no footprint" is the exact defect
+        this module exists to prevent: a parse fault indistinguishable from a
+        finding about a real employer.
+        """
+        import app.services.search as mod
+
+        for body in (
+            {"unexpected": "shape"},
+            {"results": None},
+            {"error": {"code": "invalid_api_key"}},
+            {"results": {"not": "a list"}},
+        ):
+            def fake_post(url, json=None, timeout=None, headers=None, _b=body):
+                return FakeResponse(_b)
+
+            monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+            monkeypatch.setattr(mod.httpx, "post", fake_post)
+            outcome = mod.search("Jollibee", 5)
+
+            assert outcome.ok is False, f"{body} must not read as a clean company"
+            assert outcome.results == []
+            assert outcome.error
+
+    def test_an_explicitly_empty_list_is_a_success(self, monkeypatch):
+        """{"results": []} is a finding; {"results": None} is a parse fault."""
         import app.services.search as mod
 
         def fake_post(url, json=None, timeout=None, headers=None):
-            return FakeResponse({"unexpected": "shape"})
+            return FakeResponse({"results": [], "credits_used": 1})
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        outcome = mod.search("Nowhere PH", 5)
+
+        assert outcome.ok is True
+        assert outcome.results == []
+
+    def test_a_non_dict_body_does_not_raise(self, monkeypatch):
+        """search() must never raise; the debug endpoint has no exception handler."""
+        import app.services.search as mod
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            return FakeResponse(["a", "list", "not", "an", "object"])
 
         monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
         monkeypatch.setattr(mod.httpx, "post", fake_post)
         outcome = mod.search("Jollibee", 5)
 
-        # 'results' absent is treated as empty-and-ok only when the key is a list.
-        assert outcome.ok is True
-        assert outcome.results == []
+        assert outcome.ok is False
+        assert outcome.error
 
     def test_latency_is_measured(self, monkeypatch):
         import app.services.search as mod
@@ -199,7 +244,45 @@ class TestBuildQuery:
             assert banned not in q
 
 
-class TestCompanyNameHelpers:
+class TestRawProviderBody:
+    """The debug tab must show the provider's body, not our re-serialisation.
+
+    The tab exists to make a mis-ranked or mis-parsed response visible. If it
+    echoed our own normalised output, a parse fault would render as a clean
+    empty result — the failure it was built to catch.
+    """
+
+    def test_outcome_carries_the_provider_body(self, monkeypatch):
+        import app.services.search as mod
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            return FakeResponse({
+                "results": [{"title": "T", "url": "u", "content": "S", "score": 0.5}],
+                "credits_used": 1,
+                "request_id": "abc123",
+            })
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        outcome = mod.search("Jollibee", 5)
+
+        assert outcome.ok is True
+        assert outcome.raw_response.get("request_id") == "abc123"
+        assert outcome.raw_response.get("credits_used") == 1
+
+    def test_raw_body_survives_a_parse_fault(self, monkeypatch):
+        """A shape change must still show the body that caused it."""
+        import app.services.search as mod
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            return FakeResponse({"results": None, "detail": "quota exceeded"})
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        outcome = mod.search("Jollibee", 5)
+
+        assert outcome.ok is False
+        assert outcome.raw_response.get("detail") == "quota exceeded"
     def test_valid_names(self):
         assert is_valid_company_name("Acme Corp") is True
         assert is_valid_company_name("Jollibee Foods Corporation") is True
@@ -287,16 +370,64 @@ class TestDebugEndpoint:
         assert "_ddg_once" not in source, "the debug tab must not walk engines"
 
     def test_raw_body_is_the_verbatim_result_payload(self, monkeypatch):
-        import inspect
+        """The raw event must be the provider's body, not our re-serialisation.
+
+        Echoing our own normalised output would hide the exact failure the tab
+        was built for: a shape change would render as a clean empty result.
+        """
         import app.routers.scan as router
         from app.services import search as mod
         from app.services.search import SearchOutcome, SearchResult
 
-        source = inspect.getsource(router.debug_search)
-        assert "json.dumps" in source, "the raw event must carry serialised JSON"
+        captured = []
 
-        outcome = SearchOutcome(
-            results=[SearchResult("A", "https://a", "sa", 0.5)], ok=True, error=""
+        async def drive():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                async with client.stream(
+                    "POST", "/api/debug/search",
+                    json={"query": "Acme", "max_results": 3},
+                    headers={"X-Trabahero-Client-Key": "test-secret-key"},
+                ) as resp:
+                    async for line in resp.aiter_lines():
+                        if line.startswith("data: "):
+                            captured.append(json.loads(line[6:]))
+
+        provider_body = {
+            "results": [{"title": "A", "url": "https://a", "content": "S", "score": 0.5}],
+            "credits_used": 1,
+            "request_id": "req-123",
+        }
+        monkeypatch.setattr(
+            "app.routers.scan.search",
+            lambda *a, **k: SearchOutcome(
+                results=[SearchResult("A", "https://a", "S", 0.5)],
+                ok=True, latency=0.1, raw_response=provider_body,
+            ),
         )
-        monkeypatch.setattr(mod, "search", lambda *a, **k: outcome)
-        assert "raw" in source
+        asyncio.run(drive())
+
+        raw = [e for e in captured if e.get("type") == "raw"]
+        assert raw, "the endpoint must emit a raw event"
+        body = json.loads(raw[0]["body"])
+        # The provider's own fields survive, not just the ones we parse.
+        assert body["request_id"] == "req-123"
+        assert body["credits_used"] == 1
+
+        outcome = [e for e in captured if e.get("type") == "outcome"]
+        assert outcome and outcome[0]["ok"] is True
+        assert any(e.get("type") == "done" for e in captured), "the stream must terminate"
+
+    def test_a_failed_search_still_streams_outcome_and_done(self):
+        """The debug tab must show the failure, not die mid-stream."""
+        import inspect
+        import app.routers.scan as router
+
+        source = inspect.getsource(router.debug_search)
+        assert "search_with_diagnostics" not in source
+        assert "try:" not in source.split("async def _stream")[1], (
+            "the debug stream must not wrap the search in a bare try that "
+            "swallows the outcome; search() reports failure in the outcome"
+        )
