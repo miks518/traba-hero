@@ -66,8 +66,9 @@ _CORPORATE_SUFFIX = re.compile(
 )
 
 # Tavily's `country` boost, not a query term and not a domain filter. See
-# search() for why ranking rather than phrasing is the lever here.
-TAVILY_COUNTRY = "philippines"
+# search() for why ranking rather than phrasing is the lever here. Configurable
+# via TAVILY_COUNTRY; blank disables the boost.
+_VALID_DEPTHS = frozenset({"basic", "advanced"})
 
 
 def _strip_corporate_suffix(name: str) -> str:
@@ -158,34 +159,51 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
 
     started = time.monotonic()
     payload = None
+
+    depth = settings.tavily_search_depth.strip().lower()
+    if depth not in _VALID_DEPTHS:
+        # A typo would have the provider reject the request, and the user would
+        # be told a company cannot be looked up. Log it, then use the fallback
+        # so a cost setting cannot become a verdict.
+        log.error(
+            "[search] TAVILY_SEARCH_DEPTH=%r is not a Tavily depth; using %r",
+            settings.tavily_search_depth,
+            settings.tavily_search_depth_fallback,
+        )
+        depth = settings.tavily_search_depth_fallback
+
+    body = {
+        "api_key": settings.tavily_api_key,
+        "query": query,
+        "max_results": limit,
+        # Advanced costs 2 credits against basic's 1 and buys broader recall,
+        # which is what a small local employer needs. TAVILY_SEARCH_DEPTH turns
+        # it down when the monthly budget matters more.
+        "search_depth": depth,
+        # No `include_answer`. A synthesised answer is retrieval's opinion
+        # rather than evidence, and the verification prompt requires source URLs
+        # copied from the results themselves.
+    }
+
+    # Boost, do not filter. A browser search from the Philippines surfaces SEC
+    # filings, city PESO sites, and local job boards for a small employer;
+    # Tavily's own crawl index covers that long tail less well, so a niche name
+    # falls through to whatever it indexes strongly — a London VC firm, or an
+    # unrelated product with a similar word. No query rewrite fixes missing
+    # index coverage.
+    #
+    # `include_domains` is deliberately NOT set. It restricts results to the
+    # listed domains, which would discard precisely the JobStreet, Indeed PH,
+    # and PESO pages this boost exists to surface. There is no "prefer" mode;
+    # the boost is the only tool that matches the intent.
+    country = settings.tavily_country.strip()
+    if country:
+        body["country"] = country
+
     try:
         response = httpx.post(
             TAVILY_ENDPOINT,
-            json={
-                "api_key": settings.tavily_api_key,
-                "query": query,
-                "max_results": limit,
-                # Advanced costs 2 credits against basic's 1 and buys broader
-                # recall, which is what a small local employer needs.
-                "search_depth": "advanced",
-                # Boost, do not filter. A browser search from the Philippines
-                # surfaces SEC filings, city PESO sites, and local job boards
-                # for a small employer; Tavily's own crawl index covers that
-                # long tail less well, so a niche name falls through to
-                # whatever it indexes strongly — a London VC firm, or an
-                # unrelated product with a similar word. No query rewrite fixes
-                # missing index coverage.
-                #
-                # `include_domains` is deliberately NOT set. It restricts
-                # results to the listed domains, which would discard precisely
-                # the JobStreet, Indeed PH, and PESO pages this boost exists to
-                # surface. There is no "prefer" mode; the boost is the only
-                # tool that matches the intent.
-                "country": TAVILY_COUNTRY,
-                # No `include_answer`. A synthesised answer is retrieval's
-                # opinion rather than evidence, and the verification prompt
-                # requires source URLs copied from the results themselves.
-            },
+            json=body,
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()

@@ -289,6 +289,93 @@ class TestBuildQuery:
         assert build_query("Jollibee Philippines") == "Jollibee Philippines"
 
 
+class TestSearchSettingsAreConfigurable:
+    """The credit trade is a deployment decision, not a code constant.
+
+    Advanced depth costs 2 credits against basic's 1, which halves the
+    1,000/month free budget. That is the right default for a niche lookup and
+    the wrong default for a deployment being run down its quota, so the knob
+    belongs in the environment where it can be changed without a redeploy of
+    the code.
+    """
+
+    def _capture(self, monkeypatch, **overrides):
+        import app.services.search as mod
+
+        captured = {}
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            captured.update(json or {})
+            return FakeResponse(TAVILY_OK)
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        for key, value in overrides.items():
+            monkeypatch.setattr(mod.settings, key, value)
+        mod.search("Jollibee", 5)
+        return captured
+
+    def test_depth_is_read_from_settings(self, monkeypatch):
+        captured = self._capture(monkeypatch, tavily_search_depth="basic")
+        assert captured["search_depth"] == "basic"
+
+    def test_depth_defaults_to_advanced(self):
+        """A deployment that sets nothing keeps the better recall."""
+        from app.config import Settings
+
+        assert Settings().tavily_search_depth == "advanced"
+
+    def test_country_is_read_from_settings(self, monkeypatch):
+        captured = self._capture(monkeypatch, tavily_country="united kingdom")
+        assert captured["country"] == "united kingdom"
+
+    def test_country_defaults_to_philippines(self):
+        from app.config import Settings
+
+        assert Settings().tavily_country == "philippines"
+
+    def test_an_invalid_depth_falls_back_rather_than_being_sent(self, monkeypatch):
+        """A typo must not become a provider error for every verification.
+
+        Tavily would reject an unrecognised depth, turning a configuration
+        mistake into a search failure reported to the user as a company that
+        cannot be looked up.
+        """
+        import app.services.search as mod
+
+        captured = self._capture(monkeypatch, tavily_search_depth="advnaced")
+
+        assert captured["search_depth"] in {"basic", "advanced"}
+        assert captured["search_depth"] == mod.settings.tavily_search_depth_fallback
+
+    def test_a_blank_country_is_omitted_rather_than_sent_empty(self, monkeypatch):
+        """An empty boost value is a misconfiguration, not a country.
+
+        Sending country="" would either be rejected or silently behave as no
+        boost, so it is dropped and the plain query is issued.
+        """
+        captured = self._capture(monkeypatch, tavily_country="   ")
+
+        assert "country" not in captured
+
+    def test_max_results_is_still_configurable(self, monkeypatch):
+        import app.services.search as mod
+
+        captured = {}
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            captured.update(json or {})
+            return FakeResponse(TAVILY_OK)
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.settings, "tavily_max_results", 3)
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        # No explicit limit, so the value has to come from settings.
+        mod.search("Jollibee")
+
+        assert captured["max_results"] == 3
+
+
 class TestGeographicBoost:
     """`country` is the fix for a ranking problem, not a query-syntax problem.
 

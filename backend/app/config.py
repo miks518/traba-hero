@@ -31,6 +31,24 @@ class Settings(BaseSettings):
     # result, so a broken deployment cannot look like a clean employer.
     tavily_api_key: str = ""
     tavily_max_results: int = 8
+    # Credit cost lives here, not in the code. Advanced depth costs 2 credits
+    # against basic's 1, so it halves the monthly budget in exchange for better
+    # recall on a small local employer. That is the right default and the wrong
+    # one for a deployment being run down its quota, so it is an env value.
+    tavily_search_depth: str = "advanced"
+    # Tavily's `country` boost, which prioritises results from that country.
+    # Blank disables the boost and issues the plain query.
+    tavily_country: str = "philippines"
+
+    @property
+    def tavily_search_depth_fallback(self) -> str:
+        """A depth Tavily accepts, for a configured value it might not.
+
+        Sending "advnaced" would have the provider reject the request, turning
+        a configuration typo into a search failure reported to the user as an
+        employer that cannot be looked up. A typo costs recall, not a verdict.
+        """
+        return "basic" if self.tavily_search_depth.strip().lower() == "basic" else "advanced"
 
     @property
     def effective_ai_api_key(self) -> str:

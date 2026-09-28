@@ -323,7 +323,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-08: Every search failure is logged with its classified reason so a throttled or mis-shaped response is visible rather than inferred.
 - AC-09: **Relevance is treated as a ranking problem, not a query-syntax problem.** A browser search from the Philippines covers a small employer's SEC filing, city PESO listing, and JobStreet page well; Tavily's own crawl index covers that long tail less well, so a niche name falls through to whatever it indexes strongly. The request therefore sends `country="philippines"` (a **boost**) and `search_depth="advanced"`.
 - AC-10: `include_domains` stays unset. It is a **filter**, so restricting to government domains would discard exactly the job boards and PESO pages the boost exists to surface. There is no `include_domains_mode` and no "prefer" mode to request; the boost is the only tool matching the intent.
-- AC-11: Advanced depth costs 2 credits against basic's 1, halving the 1,000/month free budget. That is the accepted trade for a niche lookup.
+- AC-11: Advanced depth costs 2 credits against basic's 1, halving the 1,000/month free budget. That is the accepted trade for a niche lookup, and both the depth and the country are **environment values** (`TAVILY_SEARCH_DEPTH`, `TAVILY_COUNTRY`) so a deployment can change the trade without a code change. An unrecognised depth is logged and falls back rather than being sent, because a rejected request would be reported to the user as a company that cannot be looked up. A blank country is dropped rather than sent as an empty string.
 - AC-12: `include_answer` is never set. A synthesised answer is retrieval's opinion rather than evidence, and the prompt requires source URLs copied from the results themselves.
 
 ---
@@ -1022,6 +1022,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Extension env | `WXT_CLIENT_KEY` — shared secret for backend auth; must match `CLIENT_SECRET_KEY` |
 | Backend env | `AI_API_KEY`, `AI_API_URL`, `MODEL_NAME` — AI provider config |
 | Backend env | `TAVILY_API_KEY`, `TAVILY_MAX_RESULTS` — web search. Free tier is 1,000 credits/month, no card required (https://tavily.com) |
+| Backend env | `TAVILY_SEARCH_DEPTH` (`basic` = 1 credit, `advanced` = 2 credits, default advanced), `TAVILY_COUNTRY` (default `philippines`; blank disables the boost) — the recall-versus-budget trade, configurable per deployment |
 | Backend env | `AI_TEMPERATURE`, `AI_TOP_P`, `AI_MAX_TOKENS` — generation controls |
 | Backend env | `AI_REASONING_ENABLED`, `AI_REASONING_MAX_TOKENS`, `AI_REASONING_EFFORT` — reasoning-model controls, mapped to OpenRouter's `reasoning` parameter. `AI_REASONING_ENABLED=false` turns reasoning off outright and is the cleanest option; blank sends nothing |
 | Backend env | `AI_MAX_CONCURRENT`, `AI_MAX_QUEUE_DEPTH` — concurrency limits |
