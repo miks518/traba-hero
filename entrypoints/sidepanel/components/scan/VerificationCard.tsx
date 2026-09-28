@@ -2,6 +2,13 @@ import React from 'react';
 import { Icon } from '../common';
 import type { VerificationItem, IconName } from '../../types';
 
+/**
+ * `yellow` is a neutral, not a positive: it means the search returned nothing
+ * about this category. It is painted with the neutral grey `outline` rather
+ * than the accent `secondary`, because in the dark theme `secondary` is
+ * #4ade80 — identical to the green a positive finding uses — so the most common
+ * outcome looked identical to a good result.
+ */
 const STATUS_CONFIG: Record<VerificationItem['status'], { dot: string; bg: string; icon: IconName; label: string }> = {
   green: {
     dot: 'bg-green-500',
@@ -10,8 +17,8 @@ const STATUS_CONFIG: Record<VerificationItem['status'], { dot: string; bg: strin
     label: 'Found in results',
   },
   yellow: {
-    dot: 'bg-secondary',
-    bg: 'bg-secondary-container/10',
+    dot: 'bg-outline',
+    bg: 'bg-outline/10',
     icon: 'gpp_maybe',
     label: 'Not confirmed',
   },
@@ -37,7 +44,7 @@ export function VerificationCard({ item }: VerificationCardProps) {
         <span className="text-body-sm font-bold text-on-surface min-w-0">{item.label}</span>
         <span className={`text-label-sm font-bold px-1.5 py-0.5 rounded ml-auto shrink-0 ${
           item.status === 'green' ? 'bg-green-500/20 text-green-400' :
-          item.status === 'yellow' ? 'bg-secondary/20 text-secondary' :
+          item.status === 'yellow' ? 'bg-outline/20 text-outline' :
           'bg-error/20 text-error'
         }`}>
           {config.label}
@@ -46,6 +53,18 @@ export function VerificationCard({ item }: VerificationCardProps) {
       <p className="text-body-sm text-on-surface-variant leading-relaxed pl-5">
         {item.explanation}
       </p>
+      {item.source_url && (
+        <a
+          href={item.source_url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-label-sm text-secondary hover:underline break-all pl-5 flex items-center gap-1"
+          title={item.source_title || item.source_url}
+        >
+          <Icon name="open_in_new" className="text-[10px] shrink-0" />
+          {item.source_title || item.source_url}
+        </a>
+      )}
     </div>
   );
 }

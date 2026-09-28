@@ -66,14 +66,18 @@ def _calculate_risk_score_from_verify(items: list[VerificationItem]) -> tuple[in
 
     category_weights = {
         "Company Existence": 40,
-        "SEC Registration": 25,
+        "Official Registration": 25,
         "Reputation": 35,
     }
+    # Results recorded before the rename used "SEC Registration". It carried the
+    # registration weight then and must carry it now, or a stored verification
+    # would silently rescore from 25 to the default weight of 10.
+    legacy_weights = {"SEC Registration": 25}
     total_weight = sum(category_weights.values())  # 100
     penalty = 0
     for item in items:
         label = item.label.strip()
-        weight = category_weights.get(label, 10)
+        weight = category_weights.get(label) or legacy_weights.get(label) or 10
         if item.status == "red":
             penalty += weight
         elif item.status == "yellow":

@@ -86,10 +86,20 @@ export interface VerificationItem {
   label: string;
   status: 'green' | 'yellow' | 'red';
   explanation: string;
+  /** The result the finding came from, copied from the search results. */
+  source_title?: string;
+  source_url?: string;
+}
+
+export interface VerificationEvidence {
+  title: string;
+  url: string;
+  snippet: string;
 }
 
 export interface VerificationResult {
   items: VerificationItem[];
+  evidence?: VerificationEvidence[];
   report: string;
   recommendation: string;
   riskScore?: number;

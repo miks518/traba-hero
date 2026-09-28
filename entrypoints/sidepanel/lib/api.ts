@@ -562,6 +562,7 @@ export async function verifyJobStream(
         } else if (event.type === 'result') {
           const data = event.data as {
             items: VerificationResult['items'];
+            evidence?: VerificationResult['evidence'];
             report: string;
             recommendation: string;
             riskScore?: number;
@@ -577,6 +578,7 @@ export async function verifyJobStream(
           return {
             result: {
               items: data.items ?? [],
+              evidence: data.evidence ?? [],
               report: data.report ?? '',
               recommendation: data.recommendation ?? '',
               riskScore: data.riskScore,

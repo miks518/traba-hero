@@ -113,12 +113,30 @@ at all.
 All prompts are in `backend/` root, resolved via `Path(__file__).resolve().parents[2]`.
 
 The `VERIFY_SYSTEM_PROMPT` asks for exactly three categories: **Company
-Existence** (weight 40), **SEC Registration** (25), and **Reputation** (35).
+Existence** (weight 40), **Official Registration** (25), and **Reputation** (35).
 "Company Name" and "Online Presence" were removed as redundant — the scan
 already establishes whether a name was present, and the endpoint cannot run at
 all without one — and "Scam Reports" + "Social Reputation" were merged into
-Reputation. Fewer categories means fewer searches (4, down from 8) and less
-invented detail. The prompt explicitly forbids inventing a separate category.
+Reputation. Fewer categories means fewer searches and less invented detail.
+
+**Registration is not the same as the SEC.** The category was `SEC Registration`
+until a test showed a company holding a DTI/PEZA/BOI/LGU registration being
+reported as inconclusive. It is now `Official Registration`, and the prompt names
+SEC, DTI, PEZA, BOI, a local government unit business permit and government portal
+listings as equally valid. Scoring "no SEC number" against a company that has a
+DTI registration is a false negative that made the card useless rather than
+merely cautious. `risk_calculator` maps the legacy `SEC Registration` label to the
+same weight, and `verification_parser._LEGACY_LABELS` keeps stored results from
+logging a phantom missing category.
+
+**Each check returns the fact and its source, not a 20-word summary.** The old
+`detail` cap discarded almost everything retrieval found: roughly 3,000
+characters of results became three details of at most 20 words. The schema now
+carries `finding` (the one fact that decided the status, uncapped),
+`source_title` and `source_url` (copied exactly from the provided results, never
+constructed), plus a top-level `evidence` list the panel renders as clickable
+sources. This is the only channel by which online evidence reaches the user, so
+a fabricated URL here is a fabricated citation.
 
 `verification_parser.py` splits the response into per-`VERIFY` blocks and
 extracts `STATUS` and `DETAIL` from each independently, rather than matching the
@@ -126,9 +144,9 @@ whole shape in one regex — a single missing `END VERIFY` used to make one matc
 span two blocks and swallow a category. It is now the **fallback** parser, used
 only when the provider does not honour structured output. `verification_flow`
 logs `[verify] Parsed N of 3 expected categories; missing: ...` so a partial parse
-is never silent. Note that `risk_calculator`'s weight table only knows the three
-canonical labels; a legacy label such as "Scam Reports" parses and renders but
-falls back to the default weight.
+is never silent. `risk_calculator`'s weight table knows the three canonical labels
+plus the legacy `SEC Registration`; any other legacy label such as "Scam Reports"
+parses and renders but falls back to the default weight.
 
 ## Structured Output
 

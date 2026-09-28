@@ -98,9 +98,20 @@ class VerificationItem(BaseModel):
     label: str
     status: str  # "green" | "yellow" | "red"
     explanation: str
+    # The result the model relied on, copied from the search results. A reader
+    # can click through and check the finding instead of taking it on trust.
+    source_title: str = ""
+    source_url: str = ""
+
+
+class VerificationEvidence(BaseModel):
+    title: str
+    url: str
+    snippet: str
 
 
 class VerificationResponse(BaseModel):
     items: list[VerificationItem] = []
+    evidence: list[VerificationEvidence] = []
     report: str = ""
     recommendation: str = ""

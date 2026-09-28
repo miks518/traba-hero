@@ -178,6 +178,232 @@ class TestFormatResults:
         assert "SEARCH RESULTS FOR: Acme" in out
 
 
+class TestRegistrationCategory:
+    """Registration is broader than the SEC.
+
+    A Philippine company can hold a DTI, PEZA, BOI or LGU business registration
+    and never file with the SEC. Scoring "no SEC number" as inconclusive about a
+    company that does hold a registration is a false negative, and one that
+    makes the card useless rather than merely cautious.
+    """
+
+    def test_schema_offers_official_registration_not_sec(self):
+        from app.services.scanner.verification_prompt import VERIFY_RESPONSE_SCHEMA
+
+        enum = VERIFY_RESPONSE_SCHEMA["properties"]["checks"]["items"]["properties"]["category"]["enum"]
+        assert "Official Registration" in enum
+        assert "SEC Registration" not in enum
+
+    def test_prompt_names_the_registries_beyond_sec(self):
+        from app.services.scanner.verification_prompt import VERIFY_SYSTEM_PROMPT
+
+        low = VERIFY_SYSTEM_PROMPT.lower()
+        for registry in ("sec", "dti", "peza", "boi"):
+            assert registry in low, f"{registry} must be named as a valid registry"
+
+    def test_prompt_says_a_non_sec_registration_still_counts(self):
+        from app.services.scanner.verification_prompt import VERIFY_SYSTEM_PROMPT
+
+        low = VERIFY_SYSTEM_PROMPT.lower()
+        assert any(
+            phrase in low
+            for phrase in (
+                "any government registry",
+                "does not have to be an sec",
+                "any of these counts",
+                "sec, dti, peza",
+            )
+        ), "a DTI or PEZA registration must satisfy the category on its own"
+
+    def test_all_three_categories_are_present(self):
+        from app.services.scanner.verification_prompt import VERIFY_RESPONSE_SCHEMA
+
+        enum = VERIFY_RESPONSE_SCHEMA["properties"]["checks"]["items"]["properties"]["category"]["enum"]
+        assert set(enum) == {"Company Existence", "Official Registration", "Reputation"}
+
+
+class TestEvidenceSchema:
+    """The 20-word detail cap threw away almost everything the search found."""
+
+    def test_check_carries_finding_and_source(self):
+        from app.services.scanner.verification_prompt import VERIFY_RESPONSE_SCHEMA
+
+        props = VERIFY_RESPONSE_SCHEMA["properties"]["checks"]["items"]["properties"]
+        for field in ("category", "status", "finding", "source_title", "source_url"):
+            assert field in props, f"checks[] must carry {field}"
+        required = VERIFY_RESPONSE_SCHEMA["properties"]["checks"]["items"]["required"]
+        for field in ("finding", "source_title", "source_url"):
+            assert field in required, f"{field} must be required, not optional"
+
+    def test_finding_is_not_length_capped_in_the_schema(self):
+        from app.services.scanner.verification_prompt import VERIFY_RESPONSE_SCHEMA
+
+        finding = VERIFY_RESPONSE_SCHEMA["properties"]["checks"]["items"]["properties"]["finding"]
+        assert "maxLength" not in finding, "the 20-word cap is what lost the detail"
+
+    def test_evidence_list_is_present_and_shaped(self):
+        from app.services.scanner.verification_prompt import VERIFY_RESPONSE_SCHEMA
+
+        assert "evidence" in VERIFY_RESPONSE_SCHEMA["properties"]
+        assert "evidence" in VERIFY_RESPONSE_SCHEMA["required"]
+        item = VERIFY_RESPONSE_SCHEMA["properties"]["evidence"]["items"]
+        assert set(item["properties"]) == {"title", "url", "snippet"}
+        assert set(item["required"]) == {"title", "url", "snippet"}
+        assert item["additionalProperties"] is False
+
+    def test_source_url_must_come_from_the_results(self):
+        from app.services.scanner.verification_prompt import VERIFY_SYSTEM_PROMPT
+
+        low = VERIFY_SYSTEM_PROMPT.lower()
+        assert any(
+            phrase in low
+            for phrase in (
+                "must be copied exactly",
+                "exactly as given",
+                "from the provided results",
+                "never construct",
+            )
+        ), "source_url must be a URL from the results, never invented"
+
+    def test_yellow_finding_must_say_the_search_found_nothing(self):
+        """'Searched and not found' must not read as 'assumed absent'."""
+        from app.services.scanner.verification_prompt import VERIFY_SYSTEM_PROMPT
+
+        low = VERIFY_SYSTEM_PROMPT.lower()
+        assert (
+            "results do not mention" in low or "results contain nothing" in low
+        ), "a yellow finding must tell the reader the search returned nothing"
+
+
+class TestVerifyOutputReading:
+    """The flow must surface the evidence, not just a 20-word summary."""
+
+    def _payload(self):
+        return json.dumps({
+            "checks": [
+                {
+                    "category": "Official Registration",
+                    "status": "green",
+                    "finding": "SEC registration number CS201500123, per the companieshouse.ph listing",
+                    "source_title": "CAISHEN MARKETING SERVICES, INC. - companieshouse.ph",
+                    "source_url": "https://companieshouse.ph/acme",
+                },
+                {
+                    "category": "Reputation",
+                    "status": "yellow",
+                    "finding": "The results do not mention any scam report or employee experience.",
+                    "source_title": "",
+                    "source_url": "",
+                },
+            ],
+            "evidence": [
+                {"title": "CAISHEN - companieshouse.ph", "url": "https://companieshouse.ph/acme", "snippet": "SEC CS201500123"},
+            ],
+            "report": "Public results show an incorporated company.",
+            "recommendation": "Confirm the registration number on the SEC site.",
+        })
+
+    def test_reads_finding_and_source(self):
+        from app.services.scanner.verification_flow import _read_verify_output
+        from app.models.schemas import VerificationItem
+
+        items, report, rec, used_json, _evidence = _read_verify_output(self._payload())
+        assert used_json is True
+        reg = next(i for i in items if i.label == "Official Registration")
+        assert isinstance(reg, VerificationItem)
+        assert reg.status == "green"
+        assert "CS201500123" in reg.explanation
+        assert reg.source_url == "https://companieshouse.ph/acme"
+        assert reg.source_title == "CAISHEN MARKETING SERVICES, INC. - companieshouse.ph"
+
+    def test_a_yellow_check_carries_no_source(self):
+        from app.services.scanner.verification_flow import _read_verify_output
+
+        items, *_ = _read_verify_output(self._payload())
+        rep = next(i for i in items if i.label == "Reputation")
+        assert rep.status == "yellow"
+        assert rep.source_url == ""
+
+    def test_reads_the_evidence_list(self):
+        from app.services.scanner.verification_flow import _read_verify_output
+
+        items, report, rec, used_json, evidence = _read_verify_output(self._payload())
+        assert evidence, "the evidence list must reach the flow"
+        assert evidence[0]["url"] == "https://companieshouse.ph/acme"
+        assert evidence[0]["title"].startswith("CAISHEN")
+
+    def test_evidence_defaults_to_empty_when_absent(self):
+        from app.services.scanner.verification_flow import _read_verify_output
+
+        payload = json.dumps({
+            "checks": [{"category": "Reputation", "status": "yellow", "finding": "nothing", "source_title": "", "source_url": ""}],
+            "report": "r", "recommendation": "x",
+        })
+        *_, evidence = _read_verify_output(payload)
+        assert evidence == []
+
+    def test_malformed_check_still_rejected(self):
+        from app.services.scanner.verification_flow import _read_verify_output
+
+        payload = json.dumps({
+            "checks": [{"category": "Reputation", "status": "chartreuse", "finding": "x", "source_title": "", "source_url": ""}],
+            "evidence": [], "report": "r", "recommendation": "x",
+        })
+        items, *_ = _read_verify_output(payload)
+        assert items == []
+
+
+class TestRegistrationCategoryWeighting:
+    """Renaming the category must not silently change the score.
+
+    `risk_calculator` keys its weight table on the literal label. A label it
+    does not know falls back to the default weight of 10, so a stale "SEC
+    Registration" would quietly score 10 instead of 25 — or 5 instead of 12.5
+    once halved as a yellow.
+    """
+
+    def test_official_registration_keeps_the_registration_weight(self):
+        from app.models.schemas import VerificationItem
+        from app.services.scanner.risk_calculator import _calculate_risk_score_from_verify
+
+        # A green item is needed because an all-yellow list short-circuits to
+        # (None, None) by design — absence of evidence produces no score.
+        items = [
+            VerificationItem(label="Company Existence", status="green", explanation=""),
+            VerificationItem(label="Official Registration", status="yellow", explanation=""),
+        ]
+        # 25 // 2 = 12, out of a total weight of 100.
+        assert _calculate_risk_score_from_verify(items) == (12, "low")
+
+    def test_legacy_sec_label_still_scores_as_registration(self):
+        from app.models.schemas import VerificationItem
+        from app.services.scanner.risk_calculator import _calculate_risk_score_from_verify
+
+        legacy = [
+            VerificationItem(label="Company Existence", status="green", explanation=""),
+            VerificationItem(label="SEC Registration", status="yellow", explanation=""),
+        ]
+        assert _calculate_risk_score_from_verify(legacy) == (12, "low")
+
+    def test_expected_categories_use_the_new_label(self):
+        from app.services.scanner.verification_parser import EXPECTED_CATEGORIES
+
+        assert "Official Registration" in EXPECTED_CATEGORIES
+        assert EXPECTED_CATEGORIES == ("Company Existence", "Official Registration", "Reputation")
+
+    def test_legacy_label_is_not_reported_as_missing(self):
+        """A stored result using the old label must not log a phantom gap."""
+        from app.models.schemas import VerificationItem
+        from app.services.scanner.verification_parser import _missing_categories
+
+        items = [
+            VerificationItem(label="Company Existence", status="green", explanation=""),
+            VerificationItem(label="SEC Registration", status="yellow", explanation=""),
+            VerificationItem(label="Reputation", status="yellow", explanation=""),
+        ]
+        assert _missing_categories(items) == []
+
+
 class TestUntrustedRetrieval:
     """The results block is untrusted input reaching a libel-sensitive model.
 

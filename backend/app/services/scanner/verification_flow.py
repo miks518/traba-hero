@@ -11,13 +11,13 @@ from .verification_parser import EXPECTED_CATEGORIES
 log = logging.getLogger("trabahero")
 
 
-def _read_verify_output(text: str) -> tuple[list, str, str, bool]:
+def _read_verify_output(text: str) -> tuple[list, str, str, bool, list]:
     """Read the verification result, preferring JSON and falling back to text.
 
     JSON is the intended shape, but the provider may still answer with prose if
     it does not support structured outputs, so the labeled-text parser remains as
     a fallback rather than being deleted. Returns (items, report, recommendation,
-    used_json).
+    used_json, evidence).
     """
     payload = runtime.get_parse_json()(text)
     if isinstance(payload, dict) and isinstance(payload.get("checks"), list):
@@ -33,15 +33,32 @@ def _read_verify_output(text: str) -> tuple[list, str, str, bool]:
             items.append(VerificationItem(
                 label=category,
                 status=status,
-                explanation=str(check.get("detail") or "").strip(),
+                explanation=str(check.get("finding") or check.get("detail") or "").strip(),
+                source_title=str(check.get("source_title") or "").strip(),
+                source_url=str(check.get("source_url") or "").strip(),
             ))
-        return items, str(payload.get("report") or ""), str(payload.get("recommendation") or ""), True
+
+        evidence = []
+        raw_evidence = payload.get("evidence")
+        if isinstance(raw_evidence, list):
+            for entry in raw_evidence:
+                if not isinstance(entry, dict):
+                    continue
+                url = str(entry.get("url") or "").strip()
+                if not url:
+                    continue
+                evidence.append({
+                    "title": str(entry.get("title") or "").strip(),
+                    "url": url,
+                    "snippet": str(entry.get("snippet") or "").strip(),
+                })
+        return items, str(payload.get("report") or ""), str(payload.get("recommendation") or ""), True, evidence
 
     log.warning("[verify] Response was not JSON; falling back to the labeled-text parser.")
     items = runtime.get_parse_verification_result()(text)
     report = runtime.get_parse_verify_section()(text, "REPORT")
     recommendation = runtime.get_parse_verify_section()(text, "RECOMMENDATION")
-    return items, report, recommendation, False
+    return items, report, recommendation, False, []
 
 
 async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
@@ -123,7 +140,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         log.info("[verify] Raw AI response (%d chars): %s", len(final_text), final_text[:1000])
         yield runtime.get_sse()({"type": "progress", "percent": 85, "stage": "Analyzing results"})
 
-        items, report, recommendation, used_json = _read_verify_output(final_text)
+        items, report, recommendation, used_json, evidence = _read_verify_output(final_text)
 
         # A partial parse used to be silent: the panel showed one card while the
         # raw response clearly listed three, with nothing in the log to connect
@@ -175,6 +192,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
 
         yield runtime.get_sse()({"type": "result", "data": {
             "items": [item.model_dump() for item in items],
+            "evidence": evidence,
             "report": report,
             "recommendation": recommendation,
             "riskScore": risk_score,

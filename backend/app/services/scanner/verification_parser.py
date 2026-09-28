@@ -27,7 +27,12 @@ _LABEL_END_RE = re.compile(r"\b(?:STATUS|DETAIL)\s*:|\bEND\s*VERIFY", re.IGNOREC
 
 # The categories the verify prompt asks for. A category that never arrived is
 # logged rather than silently omitted from the panel.
-EXPECTED_CATEGORIES = ("Company Existence", "SEC Registration", "Reputation")
+EXPECTED_CATEGORIES = ("Company Existence", "Official Registration", "Reputation")
+
+# Results recorded before the rename used "SEC Registration". Without this a
+# stored verification would log a phantom missing category on every run.
+# Values are lower-cased to match the comparison below.
+_LEGACY_LABELS = {"sec registration": "official registration"}
 
 
 def _blocks(text: str) -> list[str]:
@@ -85,5 +90,8 @@ def _parse_verify_section(text: str, name: str) -> str:
 
 def _missing_categories(items: list[VerificationItem]) -> list[str]:
     """Which expected categories the model did not actually report."""
-    present = {i.label.strip().lower() for i in items}
+    present = {
+        _LEGACY_LABELS.get(i.label.strip().lower(), i.label.strip().lower())
+        for i in items
+    }
     return [c for c in EXPECTED_CATEGORIES if c.lower() not in present]
