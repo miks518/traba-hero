@@ -58,7 +58,6 @@ Copy-Item .env.example .env
 - `entrypoints/sidepanel/components/scan/OfferAnalysisCard.tsx` — Verdict for offers that name no employer: what it asks, what it offers, what to check
 - `entrypoints/sidepanel/components/scan/VerificationSection.tsx` - External verification cards, the search-unavailable notice, and the clickable sources list
 - `entrypoints/sidepanel/components/scan/CompanyNameNeeded.tsx` - The prompt shown when a posting names no employer; its dashed border is what separates a missing input from a finding
-- `entrypoints/sidepanel/components/scan/SearchRawPanel.tsx` - TEMPORARY raw prompt dump, shown under External Verification
 - `UNFINISHED-WORK.md` — **Read this first in a new session.** Canonical list of what is known-incomplete, the manual output-quality checklist, and the reasoning-model notes.
 - `backend/app/services/search.py` � Tavily web search. One function, `search(query) -> SearchOutcome`, plus the company-name helpers (`extract_company_name`, `clean_company_name`, `is_valid_company_name`) the scan resolves the employer through. `build_query(company)` is the only query shape issued: a trailing corporate suffix is stripped and `Philippines` appended. The suffix strip is tail-anchored and word-bounded, so `Incorporated Systems PH` and `Coca-Cola Bottlers` survive intact, and a name that is *only* a suffix is left alone rather than reducing to the geographic term alone.
 

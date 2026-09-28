@@ -262,15 +262,19 @@ Four defects compounded:
 
 `app/services/search.py` replaces the 620-line module. `SearchOutcome.ok` and
 `.results` are independent fields, so a caller cannot read "retrieval failed" as
-"nothing found". One query (`"{company} Philippines"`) replaces four, with no
-category headings � the model sorts results into the three categories itself. The
-scan no longer searches at all, so `/api/verify` is the only consumer of online
+"nothing found". One query replaces four, with no category headings — the model
+sorts results into the three categories itself. The query strips a trailing
+corporate suffix and appends `Philippines`. The scan no longer searches at all, so `/api/verify` is the only consumer of online
 evidence. `ai_tools.py` and `chat_with_tools` were dead tool-calling code and are
 gone.
 
-**Not yet validated end to end.** Tavily needs a real run to confirm the SEC card
-turns green with a registration number in its detail, and the Search debug tab
-should be used to check the raw provider response is on-topic.
+**Validated end to end.** A real run confirmed the SEC card turns green with a
+registration number in its detail. The ranking fix that resolved the wrong-entity
+results is the `country="philippines"` boost plus a trailing-suffix strip in
+`build_query()`; both are now env-configurable via `TAVILY_COUNTRY` and
+`TAVILY_SEARCH_DEPTH`. The search debug tab has served its purpose and was
+removed along with `/api/debug/search`, `SearchRawPanel`, and
+`SearchOutcome.raw_response`.
 
 ### Under investigation: only one verification card rendered
 

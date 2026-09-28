@@ -1,5 +1,4 @@
-// 'search' is a TEMPORARY debug tab for the web-search diagnostics panel.
-export type ViewId = 'scan' | 'match' | 'search';
+export type ViewId = 'scan' | 'match';
 
 export type IconName =
   | 'security'
@@ -105,11 +104,6 @@ export interface VerificationResult {
   riskScore?: number;
   riskLevel?: ScanRiskLevel;
   noCompanyName?: boolean;
-  /**
-   * TEMPORARY debug field: the exact prompt sent to the model, including the
-   * formatted search results. Remove with SearchRawPanel.
-   */
-  debugPrompt?: string;
   /**
    * Whether the web search succeeded. False means the categories are unknown,
    * not that the employer is clean — the panel states this directly rather

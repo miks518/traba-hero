@@ -87,13 +87,6 @@ class VerifyRequest(BaseModel):
     red_flags: list[RedFlag] = []
 
 
-# TEMPORARY: request body for POST /api/debug/search, the panel's search-debug
-# tab. Remove with the endpoint and SearchDebugView.
-class SearchDebugRequest(BaseModel):
-    query: str = ""
-    max_results: int = 5
-
-
 class VerificationItem(BaseModel):
     label: str
     status: str  # "green" | "yellow" | "red"

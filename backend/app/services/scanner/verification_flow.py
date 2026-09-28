@@ -205,9 +205,6 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "search_ok": outcome.ok,
             "search_error": outcome.error,
             "search_count": len(outcome.results),
-            # The prompt as sent, so the search -> prompt -> answer chain can be
-            # read directly in the panel. See SearchRawPanel.
-            "debug_prompt": verify_prompt,
             "no_company_name": False,
         }})
     except Exception as e:  # noqa: BLE001

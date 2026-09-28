@@ -466,45 +466,12 @@ class TestGeographicBoost:
         assert captured["search_depth"] == "advanced"
 
 
-class TestRawProviderBody:
-    """The debug tab must show the provider's body, not our re-serialisation.
+class TestCompanyNameHelpers:
+    """These were nested inside TestRawProviderBody by accident, which meant a
+    class documented as being about the debug tab was also the only home for the
+    name-cleaning tests. Deleting the debug tests would have taken these with
+    them, so they now have a class of their own."""
 
-    The tab exists to make a mis-ranked or mis-parsed response visible. If it
-    echoed our own normalised output, a parse fault would render as a clean
-    empty result — the failure it was built to catch.
-    """
-
-    def test_outcome_carries_the_provider_body(self, monkeypatch):
-        import app.services.search as mod
-
-        def fake_post(url, json=None, timeout=None, headers=None):
-            return FakeResponse({
-                "results": [{"title": "T", "url": "u", "content": "S", "score": 0.5}],
-                "credits_used": 1,
-                "request_id": "abc123",
-            })
-
-        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
-        monkeypatch.setattr(mod.httpx, "post", fake_post)
-        outcome = mod.search("Jollibee", 5)
-
-        assert outcome.ok is True
-        assert outcome.raw_response.get("request_id") == "abc123"
-        assert outcome.raw_response.get("credits_used") == 1
-
-    def test_raw_body_survives_a_parse_fault(self, monkeypatch):
-        """A shape change must still show the body that caused it."""
-        import app.services.search as mod
-
-        def fake_post(url, json=None, timeout=None, headers=None):
-            return FakeResponse({"results": None, "detail": "quota exceeded"})
-
-        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
-        monkeypatch.setattr(mod.httpx, "post", fake_post)
-        outcome = mod.search("Jollibee", 5)
-
-        assert outcome.ok is False
-        assert outcome.raw_response.get("detail") == "quota exceeded"
     def test_valid_names(self):
         assert is_valid_company_name("Acme Corp") is True
         assert is_valid_company_name("Jollibee Foods Corporation") is True
@@ -574,82 +541,3 @@ class TestScanPathDoesNotSearch:
         assert "web_search" not in ScanResponse.model_fields
 
 
-class TestDebugEndpoint:
-    def test_streams_the_raw_provider_response(self):
-        """A mis-ranked SERP must be visible, not inferred.
-
-        The previous tab reported only parsed results, so a wrong-but-successful
-        response was indistinguishable from a parsing mistake — which is exactly
-        how the wrong-results bug went undiagnosed.
-        """
-        import inspect
-        import app.routers.scan as router
-
-        source = inspect.getsource(router.debug_search)
-        for event in ('"meta"', '"result"', '"raw"', '"outcome"', '"done"'):
-            assert event in source, f"the debug endpoint must emit {event}"
-        assert "search_with_diagnostics" not in source, "the debug tab must use the new provider"
-        assert "_ddg_once" not in source, "the debug tab must not walk engines"
-
-    def test_raw_body_is_the_verbatim_result_payload(self, monkeypatch):
-        """The raw event must be the provider's body, not our re-serialisation.
-
-        Echoing our own normalised output would hide the exact failure the tab
-        was built for: a shape change would render as a clean empty result.
-        """
-        import app.routers.scan as router
-        from app.services import search as mod
-        from app.services.search import SearchOutcome, SearchResult
-
-        captured = []
-
-        async def drive():
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=app),
-                base_url="http://test",
-            ) as client:
-                async with client.stream(
-                    "POST", "/api/debug/search",
-                    json={"query": "Acme", "max_results": 3},
-                    headers={"X-Trabahero-Client-Key": "test-secret-key"},
-                ) as resp:
-                    async for line in resp.aiter_lines():
-                        if line.startswith("data: "):
-                            captured.append(json.loads(line[6:]))
-
-        provider_body = {
-            "results": [{"title": "A", "url": "https://a", "content": "S", "score": 0.5}],
-            "credits_used": 1,
-            "request_id": "req-123",
-        }
-        monkeypatch.setattr(
-            "app.routers.scan.search",
-            lambda *a, **k: SearchOutcome(
-                results=[SearchResult("A", "https://a", "S", 0.5)],
-                ok=True, latency=0.1, raw_response=provider_body,
-            ),
-        )
-        asyncio.run(drive())
-
-        raw = [e for e in captured if e.get("type") == "raw"]
-        assert raw, "the endpoint must emit a raw event"
-        body = json.loads(raw[0]["body"])
-        # The provider's own fields survive, not just the ones we parse.
-        assert body["request_id"] == "req-123"
-        assert body["credits_used"] == 1
-
-        outcome = [e for e in captured if e.get("type") == "outcome"]
-        assert outcome and outcome[0]["ok"] is True
-        assert any(e.get("type") == "done" for e in captured), "the stream must terminate"
-
-    def test_a_failed_search_still_streams_outcome_and_done(self):
-        """The debug tab must show the failure, not die mid-stream."""
-        import inspect
-        import app.routers.scan as router
-
-        source = inspect.getsource(router.debug_search)
-        assert "search_with_diagnostics" not in source
-        assert "try:" not in source.split("async def _stream")[1], (
-            "the debug stream must not wrap the search in a bare try that "
-            "swallows the outcome; search() reports failure in the outcome"
-        )

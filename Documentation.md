@@ -42,7 +42,6 @@
    - FR-29: Clear History & Resume
    - FR-30: Popup UI
    - FR-31: Postings With No Employer Name
-   - FR-32: Search Debug Panel (TEMPORARY)
 4. [Non-Functional Requirements](#4-non-functional-requirements)
    - NFR-01: Performance
    - NFR-02: Reliability & Fault Tolerance
@@ -106,7 +105,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 **Acceptance Criteria:**
 - AC-01: The side panel opens when the user clicks the extension toolbar icon.
 - AC-02: The top app bar displays the Trabahero logo, help button, text size selector, theme toggle, and close button.
-- AC-03: The side navigation shows three tabs: "Scan" (security icon), "Match" (description icon), and "Search" (search icon, temporary debug panel — see FR-32).
+- AC-03: The side navigation shows two tabs: "Scan" (security icon) and "Match" (description icon).
 - AC-04: The active tab is visually highlighted with a gradient background (`nav-item-active`).
 - AC-05: The footer displays Legal and Privacy links and copyright text.
 - AC-06: Clicking a tab switches the main content view without unmounting the previous view (state preservation).
@@ -645,7 +644,6 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | `/api/match-resume` | POST | 10/min | Match resume against job postings (SSE stream) |
 | `/api/verify` | POST | 10/min | External verification via Tavily + AI (SSE stream) |
 | `/api/analyze-offer` | POST | 5/min | Assess an offer naming no employer (SSE stream) |
-| `/api/debug/search` | POST | 30/min | TEMPORARY search diagnostics; no AI call |
 | `/health` | GET | 30/min | Health check / reachability probe |
 
 **Acceptance Criteria:**
@@ -772,27 +770,6 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-06: **There is no text input for the company name.** A typed name flows straight into the verification prompt, which produces a verdict naming a real company. Guidance only, by decision.
 - AC-07: `/api/analyze-offer` still assesses the offer on its own terms, so the user receives what the post asks for, what it offers, and what to check.
 - AC-08: The risk gauge shows "Unverified" (FR-08, AC-09) rather than a score, because the employer was never checked.
-
----
-
-### FR-32: Search Debug Panel (TEMPORARY)
-
-| Attribute | Value |
-|-----------|-------|
-| **ID** | FR-32 |
-| **Priority** | Low — temporary, for development only |
-| **Component** | `SearchDebugView.tsx`, `/api/debug/search`, `SearchRawPanel.tsx` |
-
-**Description:** A development-only console for inspecting web search and the verification prompt. Built because a wrong-but-successful search response was indistinguishable from correct behaviour in the logs.
-
-**Acceptance Criteria:**
-- AC-01: A third side-navigation tab ("Search") accepts a free-text query, submitted with Enter or a button.
-- AC-02: The endpoint streams the provider's results, the **raw provider response body verbatim**, and the outcome (`ok`, `error`, `latency`, `count`, `credits_used`).
-- AC-03: The raw body is the provider's own payload, not a re-serialisation of parsed output — otherwise a parse fault would render as a clean empty result, hiding the failure the panel exists to catch.
-- AC-04: The panel renders the three states distinctly: search FAILED, search succeeded and found nothing, and results returned.
-- AC-05: The endpoint makes **no AI call** and does not use the AI limiter.
-- AC-06: `SearchRawPanel` shows the exact prompt handed to the model, including the formatted search results, under External Verification.
-- AC-07: Both panels are temporary. They, `/api/debug/search`, and the `search` nav entry are removed together once search behaviour is settled.
 
 ---
 
@@ -1264,17 +1241,6 @@ Assesses an offer that names no employer, so there is nothing to look up. One AI
 
 **Response:** SSE stream carrying `kind`, `verdict`, `what_it_asks`, `what_it_offers`, `what_to_check`, and `is_offer`.
 
-### POST /api/debug/search (TEMPORARY)
-
-Runs one raw search query and streams the process. No AI call.
-
-**Request:**
-```json
-{ "query": "Jollibee Philippines", "max_results": 8 }
-```
-
-**Response:** SSE stream of `meta`, `result` (one per hit), `raw` (the provider's own body), `outcome`, and `done`.
-
 ---
 
 ## 7. Traceability Matrix
@@ -1312,7 +1278,6 @@ Runs one raw search query and streams the process. No AI call.
 | FR-29 | ResumeMatchView, App.tsx | Implemented |
 | FR-30 | entrypoints/popup/ | Implemented |
 | FR-31 | CompanyNameNeeded, OfferAnalysisCard, RiskGauge, riskDisplay.ts | Implemented — missing name is a missing input, not a red flag |
-| FR-32 | SearchDebugView, /api/debug/search, SearchRawPanel | Implemented — TEMPORARY, for development only |
 | NFR-01 | All components, imageUtils.ts | Implemented |
 | NFR-02 | api.ts, ai_limiter.py, scan.py | Implemented |
 | NFR-03 | wxt.config.ts, config.py, core/auth.py, api.ts | Implemented |
@@ -1329,4 +1294,5 @@ Runs one raw search query and streams the process. No AI call.
 
 *Document generated from codebase analysis. All requirements reflect the current implemented state of Trabahero v0.4.0.*
 
-*Notes on this revision (0.3.0 → 0.4.0): web search moved from DuckDuckGo scraping to the Tavily API; the SEC-only registration check was widened to "Official Registration"; the AI-provided `VERDICT_PERCENTAGE` score was replaced by the two-stage posting/verification blend; a missing employer name is now a distinct state rather than a red flag; and FR-32 (search debug panel) is temporary and will be removed with its supporting code.*
+*Notes on this revision (0.3.0 → 0.4.0): web search moved from DuckDuckGo scraping to the Tavily API; the SEC-only registration check was widened to "Official Registration"; the AI-provided `VERDICT_PERCENTAGE` score was replaced by the two-stage posting/verification blend; a missing employer name is now a distinct state rather than a red flag; search relevance is fixed by the `country` boost and a suffix strip rather than by category tokens; the verification recommendation addresses a job seeker rather than handing over a registry lookup; and the temporary search debug surface (FR-32, `/api/debug/search`, `SearchRawPanel`, `SearchOutcome.raw_response`) was removed once the ranking fix was confirmed by a real run.*
+

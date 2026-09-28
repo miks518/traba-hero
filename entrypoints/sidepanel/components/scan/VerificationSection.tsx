@@ -1,7 +1,6 @@
 import React from 'react';
 import { Icon } from '../common';
 import { VerificationCard } from './VerificationCard';
-import { SearchRawPanel } from './SearchRawPanel';
 import type { VerificationResult } from '../../types';
 
 interface VerificationSectionProps {
@@ -127,9 +126,6 @@ export function VerificationSection({ result, loading, error, currentQuery }: Ve
           </p>
         </div>
       )}
-
-      {/* TEMPORARY raw search dump; remove with SearchRawPanel. */}
-      <SearchRawPanel result={result} />
 
       {error && (
         <div className="flex items-center gap-2 py-2 text-body-sm text-on-surface-variant">

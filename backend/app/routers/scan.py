@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import io
 import json
@@ -26,7 +25,6 @@ from app.models.schemas import (
     ScanRequest,
     ScanResponse,
     ScanTextRequest,
-    SearchDebugRequest,
     VerificationItem,
     VerifyRequest,
 )
@@ -265,64 +263,6 @@ async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None
 async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends(require_client_key)):
     """External verification: one Tavily search + one AI call. SSE stream."""
     return StreamingResponse(verification_event_stream(req), media_type="text/event-stream")
-
-
-@router.post("/api/debug/search")
-@limiter.limit("30/minute")
-async def debug_search(req: SearchDebugRequest, request: Request, _auth: None = Depends(require_client_key)):
-    """Run one raw web-search query and stream everything about it.
-
-    No AI call, and it deliberately does not go through the AI limiter: this
-    exists to diagnose retrieval, and it reports the provider's raw response so
-    a mis-ranked SERP is visible rather than inferred.
-
-    Remove together with SearchDebugView and the 'search' tab in the sidepanel.
-    """
-    query = (req.query or "").strip()
-    if not query:
-        return StreamingResponse(
-            iter([_sse({"type": "error", "error": "Enter a query."})]),
-            media_type="text/event-stream",
-        )
-
-    async def _stream():
-        yield _sse({
-            "type": "meta",
-            "query": query,
-            "provider": "tavily",
-            "keyConfigured": bool(settings.tavily_api_key.strip()),
-            "maxResults": req.max_results,
-        })
-
-        outcome = await asyncio.to_thread(search, query, req.max_results)
-
-        for r in outcome.results:
-            yield _sse({"type": "result", "item": {
-                "title": r.title,
-                "url": r.url,
-                "snippet": r.snippet,
-                "score": r.score,
-            }})
-
-        # The provider's own body, verbatim. Re-serialising outcome.results
-        # would hide the exact failure this tab exists for: a shape change would
-        # render as a clean empty result and the tab would assert a clean
-        # company while the parse is what broke.
-        yield _sse({"type": "raw", "body": json.dumps(
-            outcome.raw_response, indent=2, ensure_ascii=False, default=str
-        )})
-
-        yield _sse({
-            "type": "outcome",
-            "ok": outcome.ok,
-            "error": outcome.error,
-            "latency": outcome.latency,
-            "count": len(outcome.results),
-            "creditsUsed": outcome.raw_response.get("credits_used"),
-        })
-        yield _sse({"type": "done"})
-
-    return StreamingResponse(_stream(), media_type="text/event-stream")
 
 
 @router.post("/api/analyze-offer")

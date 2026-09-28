@@ -206,7 +206,7 @@ def test_scanner_sse_encoder_preserves_wire_format():
     assert scanner._sse({"type": "progress"}) == 'data: {"type": "progress"}\n\n'
 
 
-@pytest.mark.parametrize("name", ("asyncio", "base64", "io", "re", "zipfile", "Path", "HTTPException", "_time"))
+@pytest.mark.parametrize("name", ("base64", "io", "re", "zipfile", "Path", "HTTPException", "_time"))
 def test_scan_facade_preserves_legacy_module_bindings(name):
     scan_router = importlib.import_module("app.routers.scan")
     assert hasattr(scan_router, name)

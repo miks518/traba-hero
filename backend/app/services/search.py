@@ -48,16 +48,14 @@ class SearchOutcome:
     ok=False, results=[]  -> retrieval failed, the category is unknown
     ok=True,  results=[]  -> the search succeeded and found nothing
 
-    `raw_response` is the provider's own body, kept so the debug tab can show
-    what actually arrived. Without it a parse fault would render as a clean
-    empty result, which is the failure the tab exists to catch.
+    `error` is the classified reason, which is what a log needs to tell a
+    throttled query from a malformed one.
     """
 
     results: list[SearchResult] = field(default_factory=list)
     ok: bool = True
     error: str = ""
     latency: float = 0.0
-    raw_response: dict = field(default_factory=dict)
 
 
 _CORPORATE_SUFFIX = re.compile(
@@ -209,8 +207,8 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
         response.raise_for_status()
         payload = response.json()
         # Normalising inside the try: a shape change is a provider fault, and
-        # search() must report it rather than raise out of the debug endpoint,
-        # which has no exception handler mid-stream.
+        # search() must report it rather than raise out of the verification
+        # stream, which has no exception handler mid-flight.
         results = _normalise(payload)
     except Exception as exc:  # noqa: BLE001
         latency = round(time.monotonic() - started, 3)
@@ -219,7 +217,6 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
             ok=False,
             error=f"{type(exc).__name__}: {exc}",
             latency=latency,
-            raw_response=payload if isinstance(payload, dict) else {},
         )
 
     latency = round(time.monotonic() - started, 3)
@@ -228,9 +225,7 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
         log.info("[search] '%s' returned no results in %ss", query, latency)
     else:
         log.info("[search] '%s' returned %d results in %ss", query, len(results), latency)
-    return SearchOutcome(
-        results=results, ok=True, error="", latency=latency, raw_response=payload
-    )
+    return SearchOutcome(results=results, ok=True, error="", latency=latency)
 
 
 # ── Company name helpers ──────────────────────────────────────────────
