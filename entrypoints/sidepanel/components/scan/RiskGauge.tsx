@@ -22,9 +22,8 @@ function scoreColor(score: number): string {
   return `hsl(${hue}, 78%, 44%)`;
 }
 
-// The same amber the 'moderate' level already uses, so the gauge has one
-// warning colour rather than two.
-const UNVERIFIED_COLOR = 'hsl(45, 78%, 44%)';
+// The unverified ring uses the neutral outline grey rather than a level colour:
+// nothing was measured, and amber already means the 'moderate' level.
 
 function levelColor(level: ScanRiskLevel | null): string {
   switch (level) {
@@ -58,17 +57,27 @@ export function RiskGauge({
                 cx="64" cy="64"
                 fill="transparent"
                 r={radius}
-                stroke={UNVERIFIED_COLOR}
+                stroke="currentColor"
+                strokeWidth={strokeWidth}
+                className="text-surface-container-high"
+              />
+              {/* Grey, not amber: nothing was measured, and amber already means
+                  the 'moderate' level. Full circle, gently pulsing. */}
+              <circle
+                cx="64" cy="64"
+                fill="transparent"
+                r={radius}
+                stroke="currentColor"
                 strokeWidth={strokeWidth}
                 strokeDasharray={circumference}
-                strokeDashoffset={circumference}
                 strokeLinecap="round"
+                className="ring-pulse text-outline"
+                style={{ ['--ring-glow-color' as string]: 'var(--color-outline)' }}
               />
             </svg>
             <div className="flex flex-col items-center">
               <span
-                className="text-2xl font-extrabold tracking-tight leading-none"
-                style={{ color: UNVERIFIED_COLOR }}
+                className="text-2xl font-extrabold tracking-tight leading-none text-on-surface-variant"
               >
                 &mdash;
               </span>
@@ -76,14 +85,8 @@ export function RiskGauge({
             </div>
           </div>
           <div className="flex flex-col gap-1.5 min-w-0">
-            <span
-              className="font-headline-xs font-bold inline-flex items-center justify-center gap-1.5"
-              style={{ color: UNVERIFIED_COLOR }}
-            >
-              <span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: UNVERIFIED_COLOR }}
-              />
+            <span className="font-headline-xs font-bold inline-flex items-center justify-center gap-1.5 text-on-surface">
+              <span className="w-2 h-2 rounded-full shrink-0 bg-outline" />
               Unverified
             </span>
             <span className="text-label-sm text-on-surface-variant text-center max-w-[240px]">
@@ -157,8 +160,8 @@ export function RiskGauge({
               strokeLinecap="round"
               strokeDasharray={circumference}
               strokeDashoffset={dashOffset}
-              className="transition-all duration-1000 ease-out drop-shadow-[0_0_6px_var(--tw-shadow-color)]"
-              style={{ filter: `drop-shadow(0 0 6px ${color}40)` }}
+              className="ring-pulse transition-all duration-1000 ease-out"
+              style={{ ['--ring-glow-color' as string]: color }}
             />
           </svg>
           <div className="flex flex-col items-center">

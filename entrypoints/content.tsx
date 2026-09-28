@@ -48,7 +48,7 @@ function syncToastTheme() {
   } catch { }
 }
 
-function showToast(message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info', duration = 3500) {
+function showToast(message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info', duration = 1100) {
   if (toastTimer) clearTimeout(toastTimer);
   if (currentToastEl) {
     currentToastEl.remove();

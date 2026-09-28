@@ -38,12 +38,47 @@ describe('RiskGauge unverified state', () => {
     expect(screen.getByText('Low Risk')).not.toBeNull();
   });
 
-  it('keeps the unverified colour amber, not red or green', () => {
+  it('paints the unverified state grey, not amber', () => {
+    // Amber is the 'moderate' level. Nothing was measured here, so borrowing
+    // amber would read as a mid risk score rather than an unchecked one.
     const { container } = render(<RiskGauge score={0} riskLevel="low" unverified />);
 
     const html = container.innerHTML;
-    // The moderate level already uses this amber; reusing it keeps one warning
-    // colour in the gauge rather than two.
-    expect(html).toContain('hsl(45, 78%, 44%)');
+    expect(html).not.toContain('hsl(45, 78%, 44%)');
+    expect(html).toContain('text-outline');
+  });
+});
+
+/**
+ * The gauge is the first thing a reader looks at, so it should read as live.
+ * The unverified ring is grey rather than amber: nothing was measured, and
+ * amber is already spoken for by the 'moderate' level.
+ */
+describe('RiskGauge ring animation', () => {
+  it('shows a grey ring in the unverified state, not an empty one', () => {
+    const { container } = render(<RiskGauge score={0} riskLevel="low" unverified />);
+
+    const progress = container.querySelectorAll('circle')[1];
+    expect(progress).toBeTruthy();
+    // A fully-offset ring is invisible, which is what lost the ring before.
+    expect(progress?.getAttribute('stroke-dashoffset')).not.toBe(
+      progress?.getAttribute('stroke-dasharray'),
+    );
+  });
+
+  it('pulses the unverified ring in grey', () => {
+    const { container } = render(<RiskGauge score={0} riskLevel="low" unverified />);
+
+    expect(container.innerHTML).toContain('ring-pulse');
+    expect(container.innerHTML).toMatch(/var\(--color-outline\)|outline/);
+  });
+
+  it('glows and pulses the scored ring in its risk colour', () => {
+    const { container } = render(<RiskGauge score={75} riskLevel="high" riskLabel="High Risk" />);
+
+    const html = container.innerHTML;
+    expect(html).toContain('ring-pulse');
+    // The glow takes its colour from the level, so it tracks the score.
+    expect(html).toContain('--ring-glow-color');
   });
 });

@@ -102,3 +102,40 @@ def test_prompt_still_asks_for_the_employer_field():
     """The EMPLOYER NAME field is how the frontend detects the state."""
     assert "employer name" in low
     assert "not stated" in low
+
+
+def _posting_analysis_block(body: str) -> str:
+    """The text under the POSTING ANALYSIS field rule, sub-bullets included."""
+    lines = body.splitlines()
+    start = next(
+        (i for i, ln in enumerate(lines) if ln.strip().startswith("- POSTING ANALYSIS")),
+        None,
+    )
+    if start is None:
+        return ""
+    block = []
+    for ln in lines[start + 1:]:
+        # A new top-level field rule ends the block; an indented sub-bullet does not.
+        if ln.strip() and not ln.startswith("  ") and ln.strip().startswith("- "):
+            break
+        block.append(ln)
+    return "\n".join(block)
+
+
+def test_posting_analysis_cannot_say_legitimate_or_scam():
+    """A verdict naming a post a scam, or a company legitimate, is the libel risk.
+
+    The opening line of the prompt lists these words, but a long prompt drifts:
+    the rule has to be repeated in the field that produces the verdict, next to
+    the instruction to base it on the reported flags.
+    """
+    for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
+        block = _posting_analysis_block(body).lower()
+        assert block, f"{label}: could not find the POSTING ANALYSIS field rule"
+        assert "legitimate" in block and "scam" in block, (
+            f"{label}: the POSTING ANALYSIS rule must name the words it forbids"
+        )
+        # It must also say what to write instead, or the model has no alternative.
+        assert "what the posting asks for" in block, (
+            f"{label}: the rule must give the model an allowed phrasing"
+        )

@@ -456,3 +456,27 @@
     transition: background 0.3s ease-out, border-color 0.3s ease-out, box-shadow 0.3s ease-out, color 0.3s ease-out, opacity 0.3s ease-out;
   }
 }
+/* "? Risk gauge ring: a slow breathing glow so the gauge reads as live. The glow
+   colour is set per-ring through the --ring-glow-color custom property, so one
+   keyframe serves every risk level and the unverified state. "? */
+@keyframes ring-breathe {
+  0%, 100% {
+    filter: drop-shadow(0 0 3px var(--ring-glow-color, transparent));
+  }
+  50% {
+    filter: drop-shadow(0 0 11px var(--ring-glow-color, transparent));
+  }
+}
+
+.ring-pulse {
+  animation: ring-breathe 2.6s ease-in-out infinite;
+}
+
+/* Motion is decoration here, not information. Someone who has asked their
+   system to reduce motion should get a still gauge with the same colour. */
+@media (prefers-reduced-motion: reduce) {
+  .ring-pulse {
+    animation: none;
+    filter: drop-shadow(0 0 6px var(--ring-glow-color, transparent));
+  }
+}
