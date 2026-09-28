@@ -154,6 +154,42 @@ describe('evidence leads for a high or critical score', () => {
     expect(container.querySelector('[data-group="prose"]')).toBeTruthy();
   });
 
+  it('keeps the action bar last so it stays stuck to the bottom', async () => {
+    // The action bar is `sticky bottom-0` with `mt-auto`: both only hold it low
+    // in the column. Promoting the evidence with `order-1` pushed the bar above
+    // the results, because an element with no order value sorts at 0 and so
+    // ahead of them. `order-last` would overcorrect and drop it below the
+    // capture preview, so it takes an explicit order just past both groups.
+    const { ScamScanView } = await import('./ScamScanView');
+    const { container } = render(
+      React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true })
+    );
+    await scanAndSettle();
+
+    const bar = container.querySelector('.sticky') as HTMLElement;
+    expect(bar).toBeTruthy();
+    expect(bar.className).toContain('order-3');
+  });
+
+  it('orders the whole column, so nothing lands under the action bar', async () => {
+    // The two result groups and the action bar share a flex column. Only their
+    // relative order is asserted, but the bar's own position depends on every
+    // sibling being ordered — an un-ordered sibling would jump above it.
+    const { ScamScanView } = await import('./ScamScanView');
+    const { container } = render(
+      React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true })
+    );
+    await scanAndSettle();
+
+    const bar = container.querySelector('.sticky') as HTMLElement;
+    const barOrder = Number(bar.className.match(/order-(\d+)/)![1]);
+    for (const group of container.querySelectorAll('[data-group]')) {
+      const order = Number(group.className.match(/order-(\d+)/)![1]);
+      expect(order, `${group.getAttribute('data-group')} must sort before the action bar`)
+        .toBeLessThan(barOrder);
+    }
+  });
+
   it('marks the verification section with the risk accent for a critical score', async () => {
     const { ScamScanView } = await import('./ScamScanView');
     const { container } = render(

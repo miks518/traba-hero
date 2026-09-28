@@ -61,7 +61,10 @@ export function ScanActions({
   };
 
   return (
-    <div className="sticky bottom-0 left-0 right-0 z-30 p-3 -mx-container-padding mt-auto">
+    // order-3, with the reasoning recorded at the call site: the parent is a
+    // flex column whose result groups carry order-1/order-2, so an un-ordered
+    // child would sort ahead of them and break this bar's stickiness.
+    <div className="sticky bottom-0 left-0 right-0 z-30 order-3 p-3 -mx-container-padding mt-auto">
       <div className="flex gap-2">
         <button
           onClick={handlePickToggle}

@@ -624,6 +624,12 @@ export function ScamScanView({
         <InvalidContentError onRetry={resetAll} />
       )}
 
+      {/* order-3, and it must stay ahead of the capture preview below.
+          This bar is `sticky bottom-0` with `mt-auto`, and both only hold it
+          low in the column. An element with no order value sorts at 0, so the
+          two result groups on order-1/order-2 pushed the bar above them and the
+          "Pick again" control floated mid-panel. `order-last` would overcorrect
+          and put it below the preview, which is not where it was. */}
       <ScanActions
         onPickElement={handlePickElement}
         onCancelPick={() => setPickerCancelPhase((p) => p + 1)}
@@ -639,7 +645,7 @@ export function ScamScanView({
       />
 
       {screenshots.length > 0 && !hasScanned && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 order-4">
           <div className={`grid gap-2 ${screenshots.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {screenshots.map((ss, i) => (
               <div key={i} className={`relative rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container cursor-pointer group ${screenshots.length === 1 ? 'max-h-80' : 'aspect-square'
