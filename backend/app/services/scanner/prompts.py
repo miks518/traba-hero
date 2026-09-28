@@ -43,9 +43,11 @@ END JOB SUMMARY"""
 SCAN_FIELD_RULES = """Field rules:
 - VALID: true if the content makes an offer of work, income, a job, a business opportunity, or training for work — whether it is a formal advertisement, a screenshot, a chat message, a forwarded message, or a short recruitment pitch. Set VALID: false only when there is no offer of work or income in the content at all. If VALID: false, output ONLY the VALID line and stop immediately — do not generate any other fields.
 - RED FLAGS:
-  * Output a RED FLAG line only for something you can point to in the posting.
-  * If the posting has no red flags, output no RED FLAG lines at all — go straight to END FLAGS.
-  * Never invent a flag, and never output a placeholder or default flag.
+  * Output a RED FLAG line only for something you can point to in the posting. A flag describes what the posting contains, says, or asks for.
+  * Never flag the absence of something. Do not output a flag because the posting does not ask for a processing fee, does not mention a contract, or does not include some other thing a posting might have included. The absence of an element is never evidence of anything, and "it does not ask for money" is a clean posting, not a warning.
+  * Never output a flag about a scam pattern unless the posting actually contains that pattern's element. An advance-fee pattern exists only where the posting asks the applicant for money. A money-mule pattern exists only where the posting asks the applicant to receive, pass on, or bank money. If the posting contains none of these, name no pattern.
+  * If the posting has no red flags, output no RED FLAG lines at all — go straight to END FLAGS. This is the expected outcome for most postings and is not a failure.
+  * Never invent a flag, and never output a placeholder or default flag. Every flag must quote or closely paraphrase text actually present in the posting.
   * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high.
   * Severity means:
     - high: the posting explicitly asks the applicant for money, or contains a concrete instruction matching a known scam pattern.
@@ -60,7 +62,7 @@ SCAN_FIELD_RULES = """Field rules:
   * The client or end-user company can be a large brand, a restaurant, a store, or a small business. Output it even though it is a brand name and even when the posting never uses the words "employer" or "hiring company".
   * If the content names no employer anywhere, including a logo or letterhead, output exactly "Not stated". This field is used to look the employer up, so a name that is not in the content is worse than useless here: output "Not stated" instead of a guess. A recruiter name on its own does not make the agency the employer — if the posting names only the agency and no company the reader would work for, output the agency name anyway, because the agency is then the party the reader would deal with.
 - POSTING ANALYSIS: your verdict on the posting, in 2-3 short sentences, written for someone deciding whether to reply. It has two parts and must have both.
-  * Part 1 — the judgement: what this posting looks like based on the red flags you reported. Say which pattern it fits when the red flags fit a known one, naming the pattern: advance-fee fraud, a recruitment pretext, a task or money-mule arrangement, a too-good-to-be-true offer. Where the red flags are weak or minor, say the posting looks unremarkable or has nothing that rules it out, rather than inflating it. Do not pad a clean posting into a warning.
+  * Part 1 — the judgement: what this posting looks like based on the red flags you reported, naming the pattern only when you reported a flag containing that pattern's element, and otherwise saying the posting states nothing alarming when you reported no red flags. Do not pad a clean posting into a warning.
   * Part 2 — the action: what the reader should actually do, in one sentence. "Do not send any money or ID photos" is useful. "Be careful" is not — name the specific step to take or avoid.
   * Base the verdict only on red flags you actually reported. If you reported no red flags, the verdict must say the posting states nothing alarming. Never describe a named employer or person as a scammer, a criminal, or dishonest — the verdict is about what this posting asks for, and a reader decides who the employer is.
   * Do not repeat the red flag list item by item, and do not repeat the job summary.
