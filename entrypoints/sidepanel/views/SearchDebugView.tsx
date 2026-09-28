@@ -124,16 +124,14 @@ export function SearchDebugView() {
       {meta && (
         <div className="p-2 rounded-lg bg-surface-container-low border border-outline-variant/20">
           <div className="text-label-sm text-on-surface-variant">
-            <span className="font-bold">code version</span> {meta.codeVersion}
-          </div>
-          <div className="text-label-sm text-on-surface-variant break-all">
-            <span className="font-bold">pinned</span> {meta.pinnedBackend || '(none — rotating)'}
-          </div>
-          <div className="text-label-sm text-on-surface-variant break-all">
-            <span className="font-bold">engine order</span> {meta.backendOrder.join(' → ')}
+            <span className="font-bold">provider</span> {meta.provider}
           </div>
           <div className="text-label-sm text-on-surface-variant">
-            <span className="font-bold">retry attempts</span> {meta.attempts}
+            <span className="font-bold">api key</span>{' '}
+            {meta.keyConfigured ? 'configured' : 'MISSING — searches will report as failed'}
+          </div>
+          <div className="text-label-sm text-on-surface-variant">
+            <span className="font-bold">max results</span> {meta.maxResults}
           </div>
         </div>
       )}
@@ -152,18 +150,28 @@ export function SearchDebugView() {
             }`}
           >
             <div className="text-on-surface">
-              <span className="font-bold">{outcome.ok ? 'Results returned' : 'No results'}</span>
+              {/*
+                A successful search with no results is NOT a failure — the
+                company may simply have no online footprint. The two states
+                must stay visibly distinct, because collapsing them is the
+                defect the rebuild exists to remove.
+              */}
+              <span className="font-bold">
+                {!outcome.ok
+                  ? 'Search FAILED'
+                  : outcome.count === 0
+                    ? 'Search succeeded, found nothing'
+                    : 'Results returned'}
+              </span>
               {' · '}
               {outcome.count} result{outcome.count === 1 ? '' : 's'}
               {' · '}
-              {outcome.attempts} attempt{outcome.attempts === 1 ? '' : 's'}
-              {outcome.throttled ? ' · throttled' : ''}
+              {outcome.latency}s
             </div>
             {outcome.error && (
               <div className="mt-1 text-label-sm text-on-surface-variant break-words">{outcome.error}</div>
             )}
           </div>
-          {outcome.results.map((r, i) => <ResultCard key={i} item={r} backend="final" />)}
         </div>
       )}
 
@@ -180,32 +188,33 @@ function StepRow({ step }: { step: DebugSearchStep }) {
   const cls = 'text-label-sm px-2 py-1 rounded font-mono';
 
   switch (step.kind) {
-    case 'engine_start':
-      return <div className={`${cls} bg-surface-container text-on-surface-variant`}>→ trying {step.backend}…</div>;
-    case 'engine_done':
+    case 'result':
+      return <ResultCard item={step.item} />;
+    case 'raw':
       return (
-        <div className={`${cls} ${step.count ? 'bg-green-500/10 text-green-400' : 'bg-surface-container text-on-surface-variant'}`}>
-          ← {step.backend}: {step.count} result{step.count === 1 ? '' : 's'} in {step.elapsed}s
-        </div>
+        <details className="p-2 rounded bg-surface-container border border-outline-variant/20">
+          <summary className={`${cls} cursor-pointer bg-surface-container-high text-on-surface`}>
+            raw provider response ({step.body.length} chars)
+          </summary>
+          <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words text-label-sm text-on-surface">
+            {step.body}
+          </pre>
+        </details>
       );
-    case 'engine_error':
-      return <div className={`${cls} bg-secondary-container/20 text-secondary`}>✕ {step.backend}: {step.error}</div>;
-    case 'stage':
-      return <div className={`${cls} bg-surface-container-high text-on-surface font-bold`}>— {step.stage}</div>;
-    case 'meta':
-      return null;
     default:
       return null;
   }
 }
 
-function ResultCard({ item, backend }: { item: DebugSearchItem; backend: string }) {
+function ResultCard({ item }: { item: DebugSearchItem }) {
   return (
     <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-surface-container-low border border-outline-variant/20">
       <div className="flex items-start gap-2">
-        <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-surface-container-high text-on-surface-variant shrink-0 mt-0.5">
-          {backend}
-        </span>
+        {typeof item.score === 'number' && (
+          <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-surface-container-high text-on-surface-variant shrink-0 mt-0.5">
+            {item.score.toFixed(2)}
+          </span>
+        )}
         <span className="text-body-sm font-bold text-on-surface min-w-0 break-words">{item.title}</span>
       </div>
       {item.url && (

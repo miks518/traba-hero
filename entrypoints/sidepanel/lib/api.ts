@@ -606,26 +606,15 @@ export interface DebugSearchItem {
   title: string;
   snippet: string;
   url: string;
+  score?: number;
 }
 
 /** One step in the search process, in the order it happened. */
 export type DebugSearchStep =
-  | { kind: 'meta'; query: string; codeVersion: string; backendOrder: string[]; pinnedBackend: string; attempts: number }
-  | { kind: 'engine_start'; backend: string }
-  | { kind: 'engine_done'; backend: string; elapsed: number; count: number }
-  | { kind: 'engine_error'; backend: string; error: string; elapsed: number }
-  | { kind: 'result'; backend: string; item: DebugSearchItem }
-  | { kind: 'stage'; stage: string }
-  | {
-      kind: 'outcome';
-      provider: string;
-      attempts: number;
-      throttled: boolean;
-      ok: boolean;
-      error: string;
-      count: number;
-      results: DebugSearchItem[];
-    }
+  | { kind: 'meta'; query: string; provider: string; keyConfigured: boolean; maxResults: number }
+  | { kind: 'result'; item: DebugSearchItem }
+  | { kind: 'raw'; body: string }
+  | { kind: 'outcome'; ok: boolean; error: string; latency: number; count: number }
   | { kind: 'error'; error: string }
   | { kind: 'done' };
 

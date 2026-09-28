@@ -279,12 +279,11 @@ async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends
 @router.post("/api/debug/search")
 @limiter.limit("30/minute")
 async def debug_search(req: SearchDebugRequest, request: Request, _auth: None = Depends(require_client_key)):
-    """TEMPORARY: run one raw web-search query and return everything about it.
+    """Run one raw web-search query and stream everything about it.
 
-    Streams so the panel can show which engine is being tried and what it
-    returned, per engine, rather than only the final answer. No AI call, no
-    rate-limit budget beyond this endpoint's own — this exists to diagnose
-    retrieval, so it deliberately does not go through the AI limiter.
+    No AI call, and it deliberately does not go through the AI limiter: this
+    exists to diagnose retrieval, and it reports the provider's raw response so
+    a mis-ranked SERP is visible rather than inferred.
 
     Remove together with SearchDebugView and the 'search' tab in the sidepanel.
     """
@@ -299,48 +298,40 @@ async def debug_search(req: SearchDebugRequest, request: Request, _auth: None = 
         yield _sse({
             "type": "meta",
             "query": query,
-            "codeVersion": SEARCH_CODE_VERSION,
-            "backendOrder": list(_BACKEND_ORDER),
-            "pinnedBackend": settings.ddg_backend or "",
-            "attempts": settings.ddg_search_attempts,
+            "provider": "tavily",
+            "keyConfigured": bool(settings.tavily_api_key.strip()),
+            "maxResults": req.max_results,
         })
 
-        # Walk the engines ourselves so each one is reported, including the ones
-        # that returned nothing. The production path hides those.
-        order = [settings.ddg_backend] if settings.ddg_backend else list(_BACKEND_ORDER)
-        for backend in order:
-            yield _sse({"type": "engine_start", "backend": backend})
-            started = _time.monotonic()
-            try:
-                raw = _ddg_once(query, req.max_results, only=backend)
-            except Exception as e:  # noqa: BLE001
-                yield _sse({
-                    "type": "engine_error",
-                    "backend": backend,
-                    "error": f"{type(e).__name__}: {e}",
-                    "elapsed": round(_time.monotonic() - started, 2),
-                })
-                continue
+        outcome = await asyncio.to_thread(search, query, req.max_results)
 
-            elapsed = round(_time.monotonic() - started, 2)
-            yield _sse({"type": "engine_done", "backend": backend, "elapsed": elapsed, "count": len(raw)})
-            for r in raw:
-                yield _sse({"type": "result", "backend": backend, "item": r})
-            if raw:
-                break
+        for r in outcome.results:
+            yield _sse({"type": "result", "item": {
+                "title": r.title,
+                "url": r.url,
+                "snippet": r.snippet,
+                "score": r.score,
+            }})
 
-        # The full retry path, as production runs it.
-        yield _sse({"type": "stage", "stage": "Full production path (retries enabled)"})
-        outcome = search_with_diagnostics(query, req.max_results)
+        # The provider's own payload, verbatim. The previous tab reported only
+        # parsed results, so a wrong-but-successful SERP could not be told
+        # apart from a parsing mistake — which is how the wrong-results defect
+        # went undiagnosed for a day.
+        yield _sse({"type": "raw", "body": json.dumps(
+            [
+                {"title": r.title, "url": r.url, "content": r.snippet, "score": r.score}
+                for r in outcome.results
+            ],
+            indent=2,
+            ensure_ascii=False,
+        )})
+
         yield _sse({
             "type": "outcome",
-            "provider": outcome.provider,
-            "attempts": outcome.attempts,
-            "throttled": outcome.throttled,
             "ok": outcome.ok,
             "error": outcome.error,
+            "latency": outcome.latency,
             "count": len(outcome.results),
-            "results": outcome.results,
         })
         yield _sse({"type": "done"})
 

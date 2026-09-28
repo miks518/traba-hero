@@ -267,3 +267,36 @@ class TestScanPathDoesNotSearch:
         from app.models.schemas import ScanResponse
 
         assert "web_search" not in ScanResponse.model_fields
+
+
+class TestDebugEndpoint:
+    def test_streams_the_raw_provider_response(self):
+        """A mis-ranked SERP must be visible, not inferred.
+
+        The previous tab reported only parsed results, so a wrong-but-successful
+        response was indistinguishable from a parsing mistake — which is exactly
+        how the wrong-results bug went undiagnosed.
+        """
+        import inspect
+        import app.routers.scan as router
+
+        source = inspect.getsource(router.debug_search)
+        for event in ('"meta"', '"result"', '"raw"', '"outcome"', '"done"'):
+            assert event in source, f"the debug endpoint must emit {event}"
+        assert "search_with_diagnostics" not in source, "the debug tab must use the new provider"
+        assert "_ddg_once" not in source, "the debug tab must not walk engines"
+
+    def test_raw_body_is_the_verbatim_result_payload(self, monkeypatch):
+        import inspect
+        import app.routers.scan as router
+        from app.services import search as mod
+        from app.services.search import SearchOutcome, SearchResult
+
+        source = inspect.getsource(router.debug_search)
+        assert "json.dumps" in source, "the raw event must carry serialised JSON"
+
+        outcome = SearchOutcome(
+            results=[SearchResult("A", "https://a", "sa", 0.5)], ok=True, error=""
+        )
+        monkeypatch.setattr(mod, "search", lambda *a, **k: outcome)
+        assert "raw" in source
