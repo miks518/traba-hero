@@ -27,7 +27,7 @@ export function JobSummary({ text }: { text?: string }) {
   if (!text) return null;
 
   return (
-    <section className="rounded-lg border border-secondary/20 bg-surface-container-low p-4 flex flex-col gap-2">
+    <section className="rounded-lg border border-secondary/20 bg-surface-container-low p-4 py-3.5 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <Icon name="work" className="text-base text-secondary" />
         <h3 className="text-label-md text-secondary">Job Summary</h3>

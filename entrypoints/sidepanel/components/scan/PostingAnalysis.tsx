@@ -33,8 +33,8 @@ export function PostingAnalysis({ text }: { text?: string }) {
   if (!text) return null;
 
   return (
-    <section className="rounded-xl border border-secondary bg-secondary-container tactile-card">
-      <header className="flex items-center gap-2 rounded-t-xl bg-secondary px-4 py-2.5">
+    <section className="rounded-xl border border-secondary tactile-card">
+      <header className="flex items-center gap-2 rounded-t-xl bg-secondary px-4 py-2">
         <Icon name="description" className="text-base text-on-secondary" />
         <h3 className="text-label-md text-on-secondary">Posting Analysis</h3>
       </header>
