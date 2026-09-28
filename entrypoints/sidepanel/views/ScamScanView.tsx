@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError, VerificationSection, OfferAnalysisCard, CompanyNameNeeded } from '../components/scan';
-import { FormattedText, Icon, ToastContainer, useToastManager } from '../components/common';
+import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError, VerificationSection, OfferAnalysisCard, CompanyNameNeeded, PostingAnalysis, JobSummary } from '../components/scan';
+import { Icon, ToastContainer, useToastManager } from '../components/common';
 import { scanScreenshotStream, verifyJobStream, analyzeOfferStream, ApiRequestError, type ScanProgress } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
 import { isUnverifiedEmployer } from '../lib/riskDisplay';
@@ -32,6 +32,13 @@ function riskLevelLabel(level: string | null | undefined): string {
 
 export interface ScamScanViewProps {
   onScanComplete?: (job: ScannedJob) => void;
+  /**
+   * Called when a stage that runs after the scan finishes produces a new
+   * result. Verification blends its employer score into the posting score
+   * after the job has already been saved to history, so without this the panel
+   * and the history entry disagree about the same posting.
+   */
+  onScanResultUpdate?: (jobId: string, scanResult: ScanResult) => void;
   onScanProgressChange?: (progress: ScanProgress | null) => void;
   isOnline?: boolean;
 }
@@ -96,6 +103,7 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
 
 export function ScamScanView({
   onScanComplete,
+  onScanResultUpdate,
   onScanProgressChange,
   isOnline = true,
 }: ScamScanViewProps) {
@@ -121,6 +129,14 @@ export function ScamScanView({
   const progressPercent = progress?.percent ?? 0;
 
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  // Written at the two points that matter — when a scan lands and when a later
+  // stage patches it — so the verification callback can read the current result
+  // synchronously. Deliberately not mirrored from render state: a render
+  // between the scan and verification would restore a stale value, and
+  // verification can fail before the first render commits. Calling a parent
+  // callback from inside a state updater would also fire twice under
+  // StrictMode.
+  const scanResultRef = useRef<ScanResult | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const { toasts, showToast, removeToast } = useToastManager();
   const verifyAbortRef = useRef<AbortController | null>(null);
@@ -263,6 +279,11 @@ export function ScamScanView({
       const mapped = mapApiResponse(data);
       console.log('[scan] data.valid=%s, data.verification_context=%s', data.valid, JSON.stringify(data.verification_context));
       setScanResult(mapped);
+      // Set synchronously, not by mirroring render state. Verification can
+      // reject before React commits the render above — a backend that is down
+      // fails on the first attempt — and a ref that tracks state would still be
+      // null at that point, leaving history stranded on the posting score.
+      scanResultRef.current = mapped;
       setHasScanned(true);
       setIsValidJob(mapped.isJobPosting);
       setProgress(null);
@@ -271,8 +292,9 @@ export function ScamScanView({
         const jobTitle = data.job_summary
           ? data.job_summary.slice(0, 60).replace(/\s+\S*$/, '')
           : mapped.scanningTarget;
+        const jobId = generateJobId();
         onScanComplete?.({
-          id: generateJobId(),
+          id: jobId,
           title: jobTitle,
           summary: data.job_summary,
           timestamp: new Date().toISOString(),
@@ -289,7 +311,7 @@ export function ScamScanView({
             company_name: verifyCtx.company_name.trim(),
             job_summary: verifyCtx.job_summary || data.job_summary || '',
             red_flags: data.red_flags,
-          });
+          }, jobId);
         } else if (data.job_summary) {
           startOfferAnalysis(data.job_summary, data.company_name || '');
         }
@@ -345,11 +367,27 @@ export function ScamScanView({
     }
   }, []);
 
+  /**
+   * Apply a patch to the current result and tell the parent, so the history
+   * entry the scan already wrote shows the same score as this panel.
+   */
+  const applyResult = useCallback((patch: Partial<ScanResult>, jobId?: string) => {
+    setScanResult(prev => (prev ? { ...prev, ...patch } : null));
+    if (!jobId) return;
+    const current = scanResultRef.current;
+    if (!current) return;
+    // Compose onto the ref as well, so a later patch builds on this one rather
+    // than on the value from before it.
+    const merged = { ...current, ...patch };
+    scanResultRef.current = merged;
+    onScanResultUpdate?.(jobId, merged);
+  }, [onScanResultUpdate]);
+
   const startVerification = useCallback(async (context: {
     company_name: string;
     job_summary: string;
     red_flags?: { flag: string; reasoning: string; severity: string }[];
-  }) => {
+  }, jobId?: string) => {
     console.log('[verify] Starting verification for:', context.company_name);
     verifyAbortRef.current?.abort();
     const controller = new AbortController();
@@ -373,30 +411,31 @@ export function ScamScanView({
         console.log('[verify] Result received:', verifyResult.result);
         const result = verifyResult.result;
         const scored = typeof result.riskScore === 'number';
-        setScanResult(prev => prev ? {
-          ...prev,
+        setVerificationFailed(false);
+        // Blended posting + employer score, or the posting score alone when the
+        // lookup found nothing to stand on.
+        applyResult({
           verificationResult: result,
           verificationLoading: false,
-          verificationFailed: false,
-          // Blended posting + employer score, or the posting score alone when
-          // the lookup found nothing to stand on.
           riskScored: scored,
-          riskScore: scored ? result.riskScore! : prev.riskScore,
-          riskLevel: scored ? (result.riskLevel as ScanResult['riskLevel']) : prev.riskLevel,
-          riskLabel: riskLevelLabel(scored ? result.riskLevel : prev.riskLevel),
-          scoreBreakdown: result.scoreBreakdown ?? prev.scoreBreakdown,
-        } : null);
+          riskScore: scored ? result.riskScore! : scanResultRef.current?.riskScore ?? null,
+          riskLevel: (scored ? result.riskLevel : scanResultRef.current?.riskLevel) as ScanResult['riskLevel'],
+          riskLabel: riskLevelLabel(scored ? result.riskLevel : scanResultRef.current?.riskLevel),
+          scoreBreakdown: result.scoreBreakdown ?? scanResultRef.current?.scoreBreakdown,
+        }, jobId);
       } else {
         console.warn('[verify] Empty result from verifyJobStream');
         setVerificationFailed(true);
-        setScanResult(prev => prev ? { ...prev, verificationLoading: false, verificationError: true } : null);
+        applyResult({ verificationLoading: false, verificationError: true }, jobId);
       }
     } catch (e) {
       console.error('[verify] Error:', e);
       setVerificationFailed(true);
-      setScanResult(prev => prev ? { ...prev, verificationLoading: false, verificationError: true } : null);
+      // The posting-stage score still stands, so history keeps a real number
+      // rather than being left showing a verification that never resolved.
+      applyResult({ verificationLoading: false, verificationError: true }, jobId);
     }
-  }, []);
+  }, [applyResult]);
 
   function friendlyError(e: unknown): string {
     if (e instanceof DOMException && e.name === 'AbortError') return 'The scan took too long. Check that the backend is running and try again.';
@@ -471,29 +510,12 @@ export function ScamScanView({
             </p>
           )}
 
-          {scanResult.postingAnalysis && (
-            <section className="bg-surface-container-low border border-outline-variant/20 rounded-xl p-4">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <Icon name="description" className="text-secondary" />
-                  <h3 className="text-label-md font-bold text-on-surface">Posting Analysis</h3>
-                </div>
-                <FormattedText text={scanResult.postingAnalysis} />
-              </div>
-            </section>
-          )}
+          {/* The verdict and the record, in opposite forms: the first is prose we
+              wrote for the reader to act on, the second is the post's own text to
+              check it against. See each component for why they differ. */}
+          <PostingAnalysis text={scanResult.postingAnalysis} />
 
-          {scanResult.jobSummary && (
-            <section className="bg-surface-container-low border border-outline-variant/20 rounded-xl p-4">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <Icon name="work" className="text-secondary" />
-                  <h3 className="text-label-md font-bold text-on-surface">Job Summary</h3>
-                </div>
-                <FormattedText text={scanResult.jobSummary} />
-              </div>
-            </section>
-          )}
+          <JobSummary text={scanResult.jobSummary} />
 
           {hasScanned && (
             <div className="flex flex-wrap gap-2">

@@ -3,9 +3,9 @@ import { TopAppBar, SideNav, Footer, OfflineBanner } from './components/shell';
 import { ScamScanView } from './views/ScamScanView';
 import { ResumeMatchView } from './views/ResumeMatchView';
 import { useBackendHealth } from './hooks/useBackendHealth';
-import { migrateScannedJobs } from './lib/scanHistory';
+import { migrateScannedJobs, updateScannedJob } from './lib/scanHistory';
 import type { ScanProgress } from './lib/api';
-import type { ViewId, ScannedJob, ResumeData } from './types';
+import type { ViewId, ScannedJob, ResumeData, ScanResult } from './types';
 import type { TextSize } from './components/shell/TopAppBar';
 
 function getInitialTheme(): 'dark' | 'light' {
@@ -76,6 +76,15 @@ export default function App() {
     setScannedJobs((prev) => [...prev, job]);
   }, []);
 
+  /**
+   * Verification finishes after the scan has already been written to history,
+   * and it blends an employer score into the posting score. Without this the
+   * same posting shows one number in the panel and another in the history.
+   */
+  const handleScanResultUpdate = useCallback((jobId: string, scanResult: ScanResult) => {
+    setScannedJobs((prev) => updateScannedJob(prev, jobId, scanResult));
+  }, []);
+
   // Persist scanned jobs to storage
   useEffect(() => {
     try {
@@ -116,7 +125,12 @@ export default function App() {
           <div
             className={`h-full flex-col ${activeView === 'scan' ? 'flex' : 'hidden'}`}
           >
-            <ScamScanView onScanComplete={handleScanComplete} onScanProgressChange={setScanProgress} isOnline={isOnline} />
+            <ScamScanView
+              onScanComplete={handleScanComplete}
+              onScanResultUpdate={handleScanResultUpdate}
+              onScanProgressChange={setScanProgress}
+              isOnline={isOnline}
+            />
           </div>
           <div
             className={`h-full flex-col ${activeView === 'match' ? 'flex' : 'hidden'}`}
