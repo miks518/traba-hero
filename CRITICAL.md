@@ -93,7 +93,7 @@
 - **Objective:** Prevent official SEC lookup timeouts from breaking the overall scan flow.
 - **Backend Changes (`backend/app/services/sec_api.py`):**
   - Wrap SEC API HTTP calls with a strict 5-second timeout.
-  - If the SEC endpoint fails or times out, fall back seamlessly to DuckDuckGo search query fallback (`site:sec.gov.ph "<Company Name>"`) instead of throwing an error.
+  - If the SEC endpoint fails or times out, fall back seamlessly to a Tavily query (`site:sec.gov.ph "<Company Name>"` via `app/services/search.py`) instead of throwing an error. Note the search must be reported as a retrieval failure if the key is missing, never as a clean company.
 - **Verification:** Mock a failed SEC API response and confirm that the company scan still completes successfully using web search fallbacks.
 
 ---

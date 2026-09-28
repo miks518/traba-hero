@@ -58,46 +58,15 @@ Copy-Item .env.example .env
 - `entrypoints/sidepanel/components/scan/OfferAnalysisCard.tsx` — Verdict for offers that name no employer: what it asks, what it offers, what to check
 - `entrypoints/sidepanel/components/scan/VerificationSection.tsx` — External verification cards + the "Analysis Only" notice shown when no employer was named
 - `UNFINISHED-WORK.md` — **Read this first in a new session.** Canonical list of what is known-incomplete, the manual output-quality checklist, and the reasoning-model notes.
-- `backend/app/services/ddg_search.py` — DuckDuckGo search with rate limiting, `extract_company_name()` for company name extraction, and `search_company_for_verification()` which runs the 4 lean queries behind the three verification categories. `search_company()` (8 queries) is memoised per company name, because a single text scan otherwise pays for it twice.
+- `backend/app/services/search.py` � Tavily web search. One function, `search(query) -> SearchOutcome`, plus the company-name helpers (`extract_company_name`, `clean_company_name`, `is_valid_company_name`) the scan resolves the employer through. `build_query(company)` is the only query shape issued: `"{company} Philippines"`.
 
-  **Search results use the key `snippet`, not `body`.** `ddg_search()` renames
-  the `ddgs` library's `body` to `snippet` and drops the original, so any
-  formatter reading `r.get("body")` gets `None` and silently emits titles only.
-  This shipped twice: `format_verification_context()` and the `social_results`
-  list in `search_company()` both did it, and the model was shown titles with no
-  snippets — it correctly reported that no result mentioned SEC registration when
-  the top hit plainly did. When touching a search formatter, check the key against
-  `ddg_search()`'s return, not against the library docs — the raw `body`/`href`
-  keys are correct only *inside* `_ddg_once()`, before the rename.
+  **`SearchOutcome.ok` and `.results` are independent, and that is the whole point.** `ok=False` with no results means the search failed; `ok=True` with no results means the company has no online footprint. The previous module returned `[]` for both, so a throttled query was indistinguishable from a clean company and the model reported "nothing found" when the truth was "we could not look". Never collapse these two states. A missing `TAVILY_API_KEY` is a **failure**, not an empty success, so a broken deployment cannot look like a clean employer.
 
-  **An empty result set is not a finding.** DuckDuckGo rate-limits
-  aggressively: the same query returns five results, then nothing, seconds later.
-  The empty answer is indistinguishable from a company with no online presence,
-  so `search_with_diagnostics()` retries it (`ddg_search_attempts` /
-  `ddg_search_backoff`) before believing it, and `search_company_for_verification()`
-  records the sections that stayed empty in `data["throttled"]`.
-  `format_verification_context()` turns that into a `NOTE ON RETRIEVAL` block, so
-  the model reports a retrieval failure instead of "the company has no such
-  record". Every failure is logged as `[search] [throttled]` or
-  `[search] [error]` with the attempt count — grep for these when verification
-  returns all-yellow, because that is what throttling looks like. `TAVILY_API_KEY`
-  optionally adds a second provider, tried only after the primary is exhausted.
+  **No retries, no fallback provider, no caching, no engine rotation.** The old DuckDuckGo module was 620 lines of policy layered on scraping, and the failures were the policy's fault rather than the provider's. One call, one outcome, reported honestly.
 
-  **The throttling settings are honoured on both paths.** `ddg_min_interval` and
-  `ddg_max_concurrent` used to apply only to `throttled_search()`, which nothing
-  in the live request path called, so all four verification queries fired at once
-  against the same throttle window. `_throttle_sync()` now covers the
-  synchronous path too. `ddg_max_per_verify` is still unread.
+  **No category headings in the prompt.** The old `format_verification_context()` stamped each result with the category whose query had found it, which asserted something retrieval never established � a regulator's complaint form under a `[SCAM REPORTS]` heading read as a scam report. `format_results()` emits a flat list with URLs and the model judges each result. Result text is untrusted input reaching a model that produces a libel-sensitive verdict; the system prompt's `OUTPUT RULES` are what constrain it, so do not weaken them to make results look better.
 
-  **A 200 with no rows is the throttle signature.** The provider accepts the
-  request and withholds the results, so nothing raises and no error classifier
-  ever sees it. This is why the first verification query succeeded and the next
-  three came back empty in the same burst. `search_with_diagnostics()` marks
-  every empty ddg response as `throttled` and backs off exponentially
-  (`ddg_search_backoff` doubling up to `ddg_search_backoff_max`) rather than by a
-  flat pause, because a burst needs progressively more room.
-
-  **A recruiter is not the employer.** The scan's employer field used to be
+  **A recruiter is not the employer.** The scan's employer field is `EMPLOYER NAME:` and the rules require the company the reader would work for, with a staffing agency named only when the posting is for the agency's own staff. `clean_company_name()` still splits a joined name and keeps the last part as a safety net. The parser accepts `COMPANY NAME` as well so scans recorded before the rename still parse.
   `COMPANY NAME:`, and the model wrote every name it saw, so a posting from a
   staffing agency read `Vikings / Silvergreen Manpower Services Corporation`. A
   search engine tokenises that into neither entity, and the SEC query returned
@@ -127,7 +96,7 @@ Copy-Item .env.example .env
 | `/api/scan-text` | POST | Scan job posting text (SSE stream) |
 | `/api/analyze-resume` | POST | Parse resume into structured data (SSE stream) |
 | `/api/match-resume` | POST | Match resume against job postings (SSE stream) |
-| `/api/verify` | POST | External verification via DuckDuckGo + AI (SSE stream) |
+| `/api/verify` | POST | External verification via Tavily + AI (SSE stream) |
 | `/api/analyze-offer` | POST | Post-only analysis for offers naming no employer (SSE stream) |
 | `/health` | GET | Reachability probe; no client key required, rate limited to 30/minute |
 
@@ -220,9 +189,8 @@ it cannot support, which is the legal exposure for the project.
 - `AI_REASONING_ENABLED`, `AI_REASONING_MAX_TOKENS`, `AI_REASONING_EFFORT` — Reasoning-model controls, mapped to OpenRouter's normalized `reasoning` parameter. `AI_REASONING_ENABLED=false` turns reasoning off outright and is the cleanest option; blank/blank/0 sends nothing. See Reasoning Models.
 - `AI_MAX_CONCURRENT`, `AI_MAX_QUEUE_DEPTH` — Concurrency limits
 - `CLIENT_SECRET_KEY` — Shared secret for extension auth; leave empty to disable (dev mode)
-- `DDG_MAX_CONCURRENT` — Max concurrent DuckDuckGo searches (default: 2)
-- `DDG_MIN_INTERVAL` — Min seconds between searches (default: 1.5)
-- `DDG_MAX_PER_VERIFY` — Max searches per verification request (default: 10)
+- `TAVILY_API_KEY` - Tavily search key; free tier is 1,000 credits/month, no card (https://tavily.com)
+- `TAVILY_MAX_RESULTS` - Results requested per verification (default: 8)
 
 ## Reasoning Models
 
@@ -332,7 +300,7 @@ measured is the exact exposure the prompt rules exist to prevent.
 - Frontend checks `data.verification_context?.company_name` before calling `/api/verify`
 - If missing, `VerificationSection` renders a neutral "Analysis Only" notice stating the findings come only from the posting, and points the user at the part of the page that names the employer
 - `/api/verify` logs raw AI response and parsed items at INFO/WARNING level for debugging
-- `extract_company_name()` in `ddg_search.py` runs every pattern over the text as zero-width lookaheads and trims each capture at the first clause boundary, so "Acme Corp. We are hiring" does not become a company name. Evaluate new patterns against that rule — a greedy capture that runs into the next sentence produces a name the search cannot resolve, which then looks like an unverifiable company.
+- `extract_company_name()` in `search.py` runs every pattern over the text as zero-width lookaheads and trims each capture at the first clause boundary, so "Acme Corp. We are hiring" does not become a company name. Evaluate new patterns against that rule — a greedy capture that runs into the next sentence produces a name the search cannot resolve, which then looks like an unverifiable company.
 
 ## Offline Mode
 

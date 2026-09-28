@@ -86,7 +86,7 @@ existing suites plus a throwaway extraction script that was removed afterwards.
 |---|---|---|
 | Prompt-contract tests | new `backend/tests/test_prompt_contracts.py` | Asserts all four prompts contain the observational rules and none of the banned patterns. Cheap and fully offline. |
 | `risk_calculator` unit tests | `backend/tests/` | The new all-yellow → `(None, None)` rule deserves a test of its own. Pure function. |
-| `extract_company_name` regression tests | `backend/tests/test_ddg_search.py` | The 10 sample strings I checked were ad hoc and are now lost. They should be permanent. |
+| `extract_company_name` regression tests | `backend/tests/test_search.py` | The 10 sample strings I checked were ad hoc and are now lost. They should be permanent. |
 | Scan-mapping tests | extract `mapApiResponse` out of `ScamScanView.tsx` | Module-private today, so "no synthesised score" cannot be asserted. |
 | History-migration test | `migrateScannedJobs` in `lib/scanHistory.ts` | Extracted and exported for exactly this. |
 | UI copy review | `VerificationSection`, `VerificationCard`, `ResumeMatchView` | Reworded from code, not from reading the rendered panel. |
@@ -225,46 +225,46 @@ on `_VALID_LINE_RE` finding `VALID: false` mid-stream to stop early and save
 tokens. Switching them to JSON would require buffering the whole response,
 giving that up. Worth doing only if the text-parser brittleness bites there too.
 
+### Resolved: the web search was rebuilt on Tavily
+
+The DuckDuckGo module produced results for the wrong query. A search for
+`Cleanfuel Philippines company` returned YouTube TV Help pages; `Vikings`
+returned Knowunity; `Caishen` returned Wikipedia articles about the Chinese god
+of wealth and Philippine senate impeachment news. Every response was
+**successful** � HTTP 200, results present, no throttling flag � so nothing in
+the code or the logs indicated a fault. Two intermediate diagnoses (a "/" in a
+joined company name, and a throttling window) were both wrong.
+
+Four defects compounded:
+
+1. **Category headings asserted facts retrieval never established.** A result
+   found by a `"<company> scam fraud complaint"` query was printed under a
+   `[SCAM REPORTS]` heading. A regulator's complaint form appeared there as if
+   it were a scam report. This was the most serious of the four.
+2. **Snippets were silently dropped** by reading the library's `body` key where
+   the normalised result used `snippet` (twice, in two different formatters). The
+   model was shown titles only and correctly reported that no result mentioned SEC
+   registration.
+3. **Empty results were indistinguishable from failures** � `[]` for both a
+   rate-limited query and a company with no footprint, so a retrieval failure
+   read as a clean company.
+4. **Engine selection was a coin flip.** The `ddgs` library picks an engine at
+   random when none is named; most engines returned nothing from this machine, so
+   an unpinned call frequently hit an engine serving a stale cached page.
+
+`app/services/search.py` replaces the 620-line module. `SearchOutcome.ok` and
+`.results` are independent fields, so a caller cannot read "retrieval failed" as
+"nothing found". One query (`"{company} Philippines"`) replaces four, with no
+category headings � the model sorts results into the three categories itself. The
+scan no longer searches at all, so `/api/verify` is the only consumer of online
+evidence. `ai_tools.py` and `chat_with_tools` were dead tool-calling code and are
+gone.
+
+**Not yet validated end to end.** Tavily needs a real run to confirm the SEC card
+turns green with a registration number in its detail, and the Search debug tab
+should be used to check the raw provider response is on-topic.
+
 ### Under investigation: only one verification card rendered
-
-Reported as: the panel shows only **Company Existence** even though the log
-showed values for the other categories. The frontend was ruled out — it maps
-`result.items` with no filter — and the parser passed every well-formed shape
-tested, so the cause is a deviation in the model's actual output.
-
-Two things were changed, and neither is a confirmed fix until the developer
-reproduces it:
-
-- **The parser is now block-wise.** It located blocks first and extracted
-  `STATUS` and `DETAIL` independently, instead of one combined regex over the
-  whole `VERIFY/STATUS/DETAIL/END VERIFY` shape. The combined regex lost a whole
-  category on two realistic deviations: a block missing `END VERIFY` let the
-  next match span two blocks and swallow the one after it, and a status with
-  trailing commentary after the word (`STATUS: green (confirmed)`) failed to
-  match at all. Both now parse. The existing parser contract tests still pass.
-- **A partial parse is no longer silent.** `verification_flow` logs
-  `[verify] Parsed N of 3 expected categories; missing: ...` with the raw
-  response. Previously the panel could show one card with nothing in the log
-  connecting that to the three the model wrote, which is exactly what made this
-  hard to diagnose.
-
-**Next step for the developer:** re-run a verification and paste the
-`[lm] Generation config in use:` line plus the result. Two outcomes:
-
-- `structured_output=on` and `dropped_params=none` — the model returned JSON and
-  all three cards should appear. If only one still shows, paste
-  `[verify] Raw AI response`, which will now be JSON.
-- `structured_output=off` or `dropped_params=['structured']` — this `:free`
-  model does not support structured outputs, the fallback fired, and the
-  block-wise text parser handled it instead. The output-quality checklist
-  remains the way to validate it.
-
-**One possibility not yet handled:** the model may emit the *old* category names
-("Scam Reports", "Social Reputation") rather than the current ones. Those would
-parse and render fine, but `risk_calculator`'s weight table only knows the three
-canonical labels, so they would silently fall back to the default weight of 10
-instead of Reputation's 35. Worth checking the raw response for old labels, and
-worth normalising legacy labels onto the canonical three if so.
 
 ### Remaining levers on reasoning volume
 
