@@ -8,12 +8,23 @@ export interface RiskGaugeProps {
   riskLabel?: string;
   /** Why there is no score yet. Shown instead of the default note. */
   pendingNote?: string;
+  /**
+   * The posting named no employer, so the employer itself was never checked.
+   * A posting-stage score of 0 would otherwise render as "0 / Low Risk", which
+   * claims the post was cleared rather than unchecked. Shown in the same shape
+   * as an unscored gauge so no number is displayed that we did not measure.
+   */
+  unverified?: boolean;
 }
 
 function scoreColor(score: number): string {
   const hue = Math.max(0, 120 - (score / 100) * 120);
   return `hsl(${hue}, 78%, 44%)`;
 }
+
+// The same amber the 'moderate' level already uses, so the gauge has one
+// warning colour rather than two.
+const UNVERIFIED_COLOR = 'hsl(45, 78%, 44%)';
 
 function levelColor(level: ScanRiskLevel | null): string {
   switch (level) {
@@ -24,11 +35,66 @@ function levelColor(level: ScanRiskLevel | null): string {
   }
 }
 
-export function RiskGauge({ score, maxScore = 100, riskLevel = null, riskLabel, pendingNote }: RiskGaugeProps) {
+export function RiskGauge({
+  score,
+  maxScore = 100,
+  riskLevel = null,
+  riskLabel,
+  pendingNote,
+  unverified = false,
+}: RiskGaugeProps) {
   const radius = 52;
   const strokeWidth = 14;
   const circumference = 2 * Math.PI * radius;
   const isScored = typeof score === 'number';
+
+  if (unverified) {
+    return (
+      <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="relative w-[132px] h-[132px] flex items-center justify-center shrink-0">
+            <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 128 128">
+              <circle
+                cx="64" cy="64"
+                fill="transparent"
+                r={radius}
+                stroke={UNVERIFIED_COLOR}
+                strokeWidth={strokeWidth}
+                strokeDasharray={circumference}
+                strokeDashoffset={circumference}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="flex flex-col items-center">
+              <span
+                className="text-2xl font-extrabold tracking-tight leading-none"
+                style={{ color: UNVERIFIED_COLOR }}
+              >
+                &mdash;
+              </span>
+              <span className="font-label-md text-label-md text-on-surface-variant mt-0.5">RISK</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5 min-w-0">
+            <span
+              className="font-headline-xs font-bold inline-flex items-center justify-center gap-1.5"
+              style={{ color: UNVERIFIED_COLOR }}
+            >
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: UNVERIFIED_COLOR }}
+              />
+              Unverified
+            </span>
+            <span className="text-label-sm text-on-surface-variant text-center max-w-[240px]">
+              This post raised no red flags, but it names no employer either, so the company
+              could not be checked. Applying blind is its own risk.
+            </span>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (!isScored) {
     return (

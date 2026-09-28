@@ -3,6 +3,7 @@ import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError
 import { FormattedText, Icon, ToastContainer, useToastManager } from '../components/common';
 import { scanScreenshotStream, verifyJobStream, analyzeOfferStream, ApiRequestError, type ScanProgress } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
+import { isUnverifiedEmployer } from '../lib/riskDisplay';
 import type { ScanResult, IconName, ScannedJob, ApiScanResponse, ScanRiskLevel } from '../types';
 
 function getRiskLevel(score: number): ScanRiskLevel {
@@ -57,6 +58,11 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
     riskLabel: riskLevelLabel(level),
     riskScored: true,
     riskScore: score,
+    unverifiedEmployer: isUnverifiedEmployer({
+      isJobPosting,
+      companyName: data.company_name || null,
+      redFlagCount: flags.length,
+    }),
     riskDescription: '',
     scanningTarget: 'Scanned Element',
     redFlags: flags.map((f, i) => ({
@@ -455,6 +461,7 @@ export function ScamScanView({
               score={scanResult.riskScore ?? 0}
               riskLevel={scanResult.riskLevel}
               riskLabel={scanResult.riskLabel}
+              unverified={scanResult.unverifiedEmployer}
             />
           )}
 

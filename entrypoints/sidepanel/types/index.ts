@@ -132,6 +132,13 @@ export interface ScanResult {
    */
   riskScored: boolean;
   riskScore: number | null;
+  /**
+   * The posting named no employer and raised no red flags, so the posting
+   * stage scored 0 while the employer was never checked. Shown as "Unverified"
+   * rather than "0 / Low Risk", which would claim the post was cleared.
+   * A red flag is real evidence, so it is scored on severity instead.
+   */
+  unverifiedEmployer?: boolean;
   riskDescription: string;
   scanningTarget: string;
   scoreBreakdown?: RiskScoreBreakdown;
