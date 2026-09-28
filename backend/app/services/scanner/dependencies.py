@@ -1,5 +1,5 @@
 from app.ai_limiter import ai_limiter
-from app.services.ddg_search import clean_company_name, extract_company_name, is_valid_company_name, verify_company
+from app.services.search import clean_company_name, extract_company_name, is_valid_company_name
 from app.services.email_verifier import verify_emails_in_text
 from app.services.lm_client import (
     _parse_custom,
@@ -38,7 +38,7 @@ class ScannerDependencies:
     get_sse = staticmethod(lambda: _sse)
     get_parse_resume = staticmethod(lambda: _parse_resume_custom)
     get_parse_match = staticmethod(lambda: _parse_match_custom)
-    get_verify_company = staticmethod(lambda: verify_company)
+    get_verify_company = staticmethod(lambda: "")
     get_chat = staticmethod(lambda: chat)
     get_build_verify_prompt = staticmethod(lambda: _build_verify_prompt)
     get_parse_verification_result = staticmethod(lambda: _parse_verification_result)

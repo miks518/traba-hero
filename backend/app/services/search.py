@@ -1,0 +1,236 @@
+"""Web search via Tavily.
+
+One provider, one query, no retries, no fallback, no caching. The previous
+DuckDuckGo module was 620 lines whose failures were indistinguishable from
+successes: it returned an empty list both when a search was throttled and when
+a company had no online presence, and it stamped results with category headings
+it had not verified. A regulator's complaint form surfaced under a "SCAM
+REPORTS" heading read as a scam report.
+
+`SearchOutcome` fixes the first problem structurally. `ok` and `results` are
+independent: `ok=False` means the call failed, `ok=True` with no results means
+the company genuinely has no footprint. No caller can read one as the other.
+
+The second problem is fixed by absence. Nothing here categorises results; the
+model receives a flat list and judges each one, so no heading can assert
+something the retrieval did not establish.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import time
+from dataclasses import dataclass, field
+
+import httpx
+
+from app.config import settings
+
+log = logging.getLogger("trabahero")
+
+TAVILY_ENDPOINT = "https://api.tavily.com/search"
+REQUEST_TIMEOUT = 20.0
+
+
+@dataclass(frozen=True)
+class SearchResult:
+    title: str
+    url: str
+    snippet: str
+    score: float
+
+
+@dataclass(frozen=True)
+class SearchOutcome:
+    """`ok` and `results` are deliberately independent.
+
+    ok=False, results=[]  -> retrieval failed, the category is unknown
+    ok=True,  results=[]  -> the search succeeded and found nothing
+    """
+
+    results: list[SearchResult] = field(default_factory=list)
+    ok: bool = True
+    error: str = ""
+    latency: float = 0.0
+
+
+def build_query(company: str) -> str:
+    """The one query issued per verification.
+
+    No category suffixes. The model sorts results into the three categories
+    itself, so a result is never labelled as belonging to one.
+    """
+    return f"{company} Philippines"
+
+
+def _normalise(payload: dict) -> list[SearchResult]:
+    rows = payload.get("results")
+    if not isinstance(rows, list):
+        return []
+    out: list[SearchResult] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        out.append(
+            SearchResult(
+                title=str(row.get("title") or ""),
+                url=str(row.get("url") or ""),
+                # Tavily names the snippet 'content'.
+                snippet=str(row.get("content") or ""),
+                score=float(row.get("score") or 0.0),
+            )
+        )
+    return out
+
+
+def search(query: str, max_results: int | None = None) -> SearchOutcome:
+    """Run one search. Never raises; a failure is reported in the outcome."""
+    limit = max_results if max_results is not None else settings.tavily_max_results
+
+    if not settings.tavily_api_key.strip():
+        # A missing key must be visible, or every category reads as "no
+        # information" and a broken deployment looks like a clean company.
+        log.error("[search] TAVILY_API_KEY is not configured; cannot search")
+        return SearchOutcome(
+            ok=False,
+            error="TAVILY_API_KEY is not configured on the backend.",
+        )
+
+    started = time.monotonic()
+    try:
+        response = httpx.post(
+            TAVILY_ENDPOINT,
+            json={
+                "api_key": settings.tavily_api_key,
+                "query": query,
+                "max_results": limit,
+                "search_depth": "basic",
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:  # noqa: BLE001
+        latency = round(time.monotonic() - started, 3)
+        log.error("[search] [error] '%s' failed: %s: %s", query, type(exc).__name__, exc)
+        return SearchOutcome(
+            ok=False,
+            error=f"{type(exc).__name__}: {exc}",
+            latency=latency,
+        )
+
+    latency = round(time.monotonic() - started, 3)
+    results = _normalise(payload)
+    if not results:
+        # Not an error: the search worked and the company has no footprint.
+        log.info("[search] '%s' returned no results in %ss", query, latency)
+    else:
+        log.info("[search] '%s' returned %d results in %ss", query, len(results), latency)
+    return SearchOutcome(results=results, ok=True, error="", latency=latency)
+
+
+# ── Company name helpers ──────────────────────────────────────────────
+#
+# Provider-independent. The scan resolves the employer through these, so they
+# live here alongside the search they feed. The employer is the company the
+# reader would work for: a staffing agency is a recruiter, not the employer.
+
+INVALID_COMPANY_NAMES = {
+    "none", "n/a", "na", "unknown", "null", "undefined",
+    "not specified", "unspecified", "unclear", "not provided",
+    "not mentioned", "not available", "no company", "no company name",
+    "unnamed", "anonymous", "company name", "company", "employer",
+    "various", "confidential", "tbd", "pending",
+}
+
+NOT_STATED_MARKERS = {
+    "not stated", "not mentioned", "not provided", "not specified",
+    "not listed", "not available", "not applicable", "not named",
+    "no name", "none", "n/a", "unknown", "unnamed", "no company",
+    "no company name", "no employer", "no employer name",
+}
+
+
+def is_valid_company_name(name: str | None) -> bool:
+    """Check if an extracted company name is plausible and not a placeholder."""
+    if not name or not isinstance(name, str):
+        return False
+    clean = name.strip()
+    if len(clean) < 2 or len(clean) > 80:
+        return False
+    lower = clean.lower()
+    if lower in INVALID_COMPANY_NAMES or lower in NOT_STATED_MARKERS:
+        return False
+    for prefix in (
+        "not specified", "not provided", "not mentioned", "not available",
+        "no company", "company name unclear", "company unclear", "unknown company",
+    ):
+        if lower.startswith(prefix) or lower == prefix:
+            return False
+    return True
+
+
+def _clean_company_candidate(raw: str) -> str:
+    """Trim a regex capture down to the name itself.
+
+    The extraction patterns use a character class that also matches sentence
+    punctuation, so a raw capture frequently runs on into the rest of the
+    sentence. Cut at the first clause boundary and drop any parenthetical.
+    """
+    name = re.split(r"[.,;]\s", raw.strip(), maxsplit=1)[0]
+    name = re.sub(r"\s*\(.*$", "", name)
+    name = re.sub(r"^[^\w]+|[^\w]+$", "", name).strip()
+    name = re.sub(r"\s+(?:is|are|was|were|has|have|will)$", "", name).strip()
+    return name
+
+
+def extract_company_name(text: str) -> str | None:
+    """Try to extract an employer name from job posting text."""
+    text = text[:3000]
+    patterns = [
+        r"(?:at|for|@)\s+([A-Z][A-Za-z0-9\s&.,'-]{2,40})",
+        r"([A-Z][A-Za-z0-9\s&.,'-]{2,40})\s+(?:is hiring|is looking|seeks|wants|hiring)",
+        r"About\s+([A-Z][A-Za-z0-9\s&.,'-]{2,40})",
+        r"Company:\s*([A-Z][A-Za-z0-9\s&.,'-]{2,40})",
+        r"Company\s+Name\s*:?\s*([A-Z][A-Za-z0-9\s&.,'-]{2,40})",
+        r"Employer:\s*([A-Z][A-Za-z0-9\s&.,'-]{2,40})",
+    ]
+    skip_words = {"the", "this", "our", "your", "we", "you", "they", "his", "her", "a", "an"}
+    for pattern in patterns:
+        for match in re.finditer(f"(?={pattern})", text):
+            name = _clean_company_candidate(match.group(1))
+            if not name:
+                continue
+            words = name.lower().split()
+            if words and words[0] not in skip_words and len(name) > 3 and is_valid_company_name(name):
+                return name
+    return None
+
+
+def clean_company_name(name: str | None) -> str:
+    """Normalise an employer name supplied by the model, returning "" if unusable.
+
+    A joined name is split and the last part kept. Postings that name a
+    recruiter and a client ("Vikings / Silvergreen Manpower Services
+    Corporation") arrive as one string, and a search engine tokenises the slash
+    into neither entity. The client is named after the recruiter in these
+    postings, so the tail is the one to look up.
+    """
+    if not name or not isinstance(name, str):
+        return ""
+    cleaned = _clean_company_candidate(name)
+    cleaned = re.sub(r"^(?:the|a|an)\s+", "", cleaned, flags=re.IGNORECASE).strip()
+
+    for sep in ("/", "|"):
+        if sep in cleaned:
+            parts = [p.strip() for p in cleaned.split(sep) if p.strip()]
+            parts = [p for p in parts if is_valid_company_name(p)]
+            if not parts:
+                return ""
+            log.info("[search] Joined employer name %r; looking up %r instead", cleaned, parts[-1])
+            cleaned = parts[-1]
+
+    if not cleaned or not is_valid_company_name(cleaned):
+        return ""
+    return cleaned
