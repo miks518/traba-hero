@@ -8,14 +8,12 @@ os.environ["CLIENT_SECRET_KEY"] = "test-secret-key"
 
 from httpx import AsyncClient, ASGITransport
 from app.main import app
-from app.services import ddg_search, lm_client
+from app.services import lm_client
 
 # Captured at import time, before any patching, so tests can assert that a
 # boundary is swapped for something other than the real implementation.
 REAL_AI_STREAM = lm_client.chat_stream_pieces
 REAL_AI_CHAT = lm_client.chat
-REAL_VERIFY_COMPANY = ddg_search.verify_company
-REAL_SEARCH_JOB_POSTING = ddg_search.search_job_posting
 
 
 # ── Offline enforcement ────────────────────────────────────────────────────
@@ -104,32 +102,6 @@ def _fake_tavily_post(*args, **kwargs):
     return _FakeTavilyResponse()
 
 
-class _FakeDDGS:
-    """Stand-in for the ddgs DDGS context manager.
-
-    A bare MagicMock is iterable-but-empty, so every search looked like a total
-    retrieval failure. That made search paths report 'throttled' and, because
-    retries back off in real time, added ~27s to the suite. Returning library-
-    shaped rows keeps the offline tests on the success path and fast, while
-    individual tests still patch `_ddg_once` to exercise the failure paths.
-    """
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def text(self, query, max_results=5, **kwargs):
-        return [
-            {
-                "title": f"OFFLINE FAKE RESULT for {query}",
-                "href": "https://example.invalid/",
-                "body": "OFFLINE FAKE SNIPPET. No network was used.",
-            }
-        ]
-
-
 class ExternalNetworkBlocked(RuntimeError):
     """Raised when a test tries to resolve a non-loopback host."""
 
@@ -187,7 +159,6 @@ def _offline_ai_and_search():
         patch("app.services.lm_client.chat_stream_pieces", fake_stream),
         patch("app.services.lm_client.chat", fake_chat),
         patch("app.routers.scan.verify_emails_in_text", return_value=[]),
-        patch("app.services.ddg_search.DDGS", _FakeDDGS),
         patch("app.services.search.httpx.post", _fake_tavily_post),
         patch("app.services.search.settings.tavily_api_key", "tvly-offline-test"),
     ):

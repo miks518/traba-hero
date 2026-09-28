@@ -31,16 +31,6 @@ class Settings(BaseSettings):
     # result, so a broken deployment cannot look like a clean employer.
     tavily_api_key: str = ""
     tavily_max_results: int = 8
-    # DuckDuckGo settings. Read at runtime by app/services/ddg_search.py, which
-    # stays in use until the Tavily rebuild removes it. They are deleted there,
-    # not here: removing them early breaks the live search path.
-    ddg_max_concurrent: int = 2
-    ddg_min_interval: float = 1.5
-    ddg_max_per_verify: int = 10
-    ddg_search_attempts: int = 3
-    ddg_search_backoff: float = 2.5
-    ddg_search_backoff_max: float = 10.0
-    ddg_backend: str = ""
 
     @property
     def effective_ai_api_key(self) -> str:

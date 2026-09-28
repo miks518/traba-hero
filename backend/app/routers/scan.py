@@ -31,16 +31,7 @@ from app.models.schemas import (
     VerifyRequest,
 )
 from app.rate_limit import limiter
-from app.services.ddg_search import (
-    SEARCH_CODE_VERSION,
-    _BACKEND_ORDER,
-    _ddg_once,
-    clean_company_name,
-    extract_company_name,
-    is_valid_company_name,
-    search_with_diagnostics,
-)
-from app.services.search import build_query, search
+from app.services.search import build_query, clean_company_name, extract_company_name, is_valid_company_name, search
 from app.services.email_verifier import verify_emails_in_text
 from app.services.image import decode_base64_image
 from app.services.lm_client import (

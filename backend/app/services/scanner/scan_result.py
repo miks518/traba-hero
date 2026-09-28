@@ -1,7 +1,7 @@
 import re
 
 from app.models.schemas import RedFlag, ScanResponse
-from app.services.ddg_search import is_valid_company_name
+from app.services.search import is_valid_company_name
 from .risk_calculator import _posting_risk_from_flags
 
 
