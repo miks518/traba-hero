@@ -26,24 +26,21 @@ class Settings(BaseSettings):
     ai_acquire_timeout: float = 10.0
     ai_call_timeout: float = 120.0
     client_secret_key: str = ""
+    # Web search. Tavily's free tier is 1,000 credits/month and needs no card.
+    # A missing key makes every search report as a failure rather than an empty
+    # result, so a broken deployment cannot look like a clean employer.
+    tavily_api_key: str = ""
+    tavily_max_results: int = 8
+    # DuckDuckGo settings. Read at runtime by app/services/ddg_search.py, which
+    # stays in use until the Tavily rebuild removes it. They are deleted there,
+    # not here: removing them early breaks the live search path.
     ddg_max_concurrent: int = 2
     ddg_min_interval: float = 1.5
     ddg_max_per_verify: int = 10
-    # DuckDuckGo answers the same query with results or with nothing, depending
-    # on how recently it was asked. An empty result set is therefore retried
-    # before it is believed, and a query that is still empty afterwards is
-    # logged as throttled rather than reported as "nothing found".
     ddg_search_attempts: int = 3
     ddg_search_backoff: float = 2.5
     ddg_search_backoff_max: float = 10.0
-    # Which search engine the ddgs library should use. Blank means "try each
-    # engine in turn", which is the resilient default: the engines are not
-    # equally reliable, and a rate-limited one then costs a miss rather than a
-    # lost verification section. Must be one the installed ddgs accepts.
     ddg_backend: str = ""
-    # Optional secondary provider. When set, it is tried only after the primary
-    # has been retried to no avail, so a throttled query is not lost.
-    tavily_api_key: str = ""
 
     @property
     def effective_ai_api_key(self) -> str:

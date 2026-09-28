@@ -519,8 +519,9 @@ def search_company_for_verification(company_name: str) -> dict:
 # version identifiable at a glance.
 SEARCH_CODE_VERSION = "2026-09-28.3-raw-dump-rotation"
 log.info("[search] code version %s", SEARCH_CODE_VERSION)
-log.info("[search] backend order: %s", ", ".join(_BACKEND_ORDER))
-log.info("[search] pinned backend: %r", settings.ddg_backend or "(none, rotating)")
+# The backend-order and pinned-backend log lines were removed with the ddg_*
+# settings. This module is deleted in the Tavily rebuild; nothing reads its
+# configuration any more.
 
 
 THROTTLED_NOTICE = """

@@ -152,7 +152,13 @@ class TestDdgSearch:
         mock_ctx.text.side_effect = Exception("rate limited")
         mock_ddgs.return_value = mock_ctx
 
-        with patch("app.services.ddg_search.time.sleep"):
+        # The offline conftest configures a Tavily key, and ddg_search() falls
+        # back to it when the primary fails. Clear it so this asserts what it
+        # means to: a failed primary with no fallback configured returns [].
+        with (
+            patch("app.services.ddg_search.settings.tavily_api_key", ""),
+            patch("app.services.ddg_search.time.sleep"),
+        ):
             results = ddg_search("test query")
         assert results == []
 

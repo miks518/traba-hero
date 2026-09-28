@@ -227,3 +227,21 @@ class TestCompanyNameHelpers:
 
     def test_extract_returns_none_when_absent(self):
         assert extract_company_name("Apply now, good salary, call this number") is None
+
+
+class TestMaxResultsComesFromSettings:
+    def test_default_max_results_is_read_from_settings(self, monkeypatch):
+        import app.services.search as mod
+
+        captured = {}
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            captured.update(json or {})
+            return FakeResponse({"results": []})
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.settings, "tavily_max_results", 8)
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        mod.search("Jollibee")
+
+        assert captured["max_results"] == 8

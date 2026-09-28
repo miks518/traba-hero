@@ -73,6 +73,36 @@ FAKE_VERIFY_RESPONSE = (
     f"RECOMMENDATION: {FAKE_RECOMMENDATION} END RECOMMENDATION\n"
 )
 
+# A Tavily response shaped like the real one. The suite must never call the
+# provider, so every search resolves to this through the _offline_ai_and_search
+# fixture. Deliberately non-empty: an always-empty SERP would make every search
+# look like a retrieval failure and hide that path.
+FAKE_SEARCH_PAYLOAD = {
+    "results": [
+        {
+            "title": f"OFFLINE FAKE RESULT for {FAKE_COMPANY_NAME}",
+            "url": "https://example.invalid/acme",
+            "content": "OFFLINE FAKE SNIPPET. No network was used.",
+            "score": 0.9,
+        }
+    ],
+    "credits_used": 1,
+}
+
+
+class _FakeTavilyResponse:
+    status_code = 200
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return FAKE_SEARCH_PAYLOAD
+
+
+def _fake_tavily_post(*args, **kwargs):
+    return _FakeTavilyResponse()
+
 
 class _FakeDDGS:
     """Stand-in for the ddgs DDGS context manager.
@@ -161,6 +191,8 @@ def _offline_ai_and_search():
         patch("app.routers.scan.verify_company", return_value=""),
         patch("app.routers.scan.verify_emails_in_text", return_value=[]),
         patch("app.services.ddg_search.DDGS", _FakeDDGS),
+        patch("app.services.search.httpx.post", _fake_tavily_post),
+        patch("app.services.search.settings.tavily_api_key", "tvly-offline-test"),
     ):
         yield
 
