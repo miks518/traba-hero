@@ -81,4 +81,15 @@ describe('RiskGauge ring animation', () => {
     // The glow takes its colour from the level, so it tracks the score.
     expect(html).toContain('--ring-glow-color');
   });
+
+  it('clips the glow inside the card so the border cannot cut through it', () => {
+    // A drop-shadow bleeds past the element it is on. Left unclipped it escapes
+    // the rounded card and the border draws a hard line across the glow.
+    const { container } = render(<RiskGauge score={75} riskLevel="high" riskLabel="High Risk" />);
+    expect(container.querySelector('section')?.className).toContain('overflow-hidden');
+
+    cleanup();
+    const unverified = render(<RiskGauge score={0} riskLevel="low" unverified />);
+    expect(unverified.container.querySelector('section')?.className).toContain('overflow-hidden');
+  });
 });

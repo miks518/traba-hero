@@ -48,8 +48,11 @@ export function RiskGauge({
   const isScored = typeof score === 'number';
 
   if (unverified) {
+    // overflow-hidden on the card keeps the ring's glow inside it. Without it
+    // the drop-shadow bleeds past the rounded edge and the card's border draws
+    // a hard line across the glow.
     return (
-      <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card">
+      <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card overflow-hidden">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="relative w-[132px] h-[132px] flex items-center justify-center shrink-0">
             <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 128 128">
@@ -138,8 +141,10 @@ export function RiskGauge({
   const color = levelColor(riskLevel);
   const dashOffset = circumference * (1 - normalized);
 
+  // overflow-hidden for the same reason as the unverified card: the glow must
+  // not bleed past the border and leave a hard line through it.
   return (
-    <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card">
+    <section className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5 mb-stack-md tactile-card overflow-hidden">
       <div className="flex flex-col items-center gap-4 text-center">
         <div className="relative w-[132px] h-[132px] flex items-center justify-center shrink-0">
           <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 128 128">
