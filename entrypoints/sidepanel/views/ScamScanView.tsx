@@ -3,7 +3,9 @@ import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError
 import { Icon, ToastContainer, useToastManager } from '../components/common';
 import { scanScreenshotStream, verifyJobStream, analyzeOfferStream, ApiRequestError, type ScanProgress } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
-import { isUnverifiedEmployer } from '../lib/riskDisplay';
+import { isUnverifiedEmployer, shouldElevateEvidence } from '../lib/riskDisplay';
+import { riskAccent } from '../lib/riskAccent';
+import { useFlipReorder } from '../lib/useFlipReorder';
 import type { ScanResult, IconName, ScannedJob, ApiScanResponse, ScanRiskLevel } from '../types';
 
 function getRiskLevel(score: number): ScanRiskLevel {
@@ -152,6 +154,23 @@ export function ScamScanView({
   const needsCompanyName = Boolean(
     isValidJob && scanResult && !scanResult.companyName && !scanResult.verificationLoading,
   );
+
+  /**
+   * A settled high or critical score leads with the evidence, and tints the
+   * chrome to match. Both derive from the same decision so the emphasis and
+   * the colour can never disagree about whether this is a dangerous posting.
+   */
+  const elevate = shouldElevateEvidence({
+    riskLevel: scanResult?.riskLevel ?? null,
+    verificationLoading: scanResult?.verificationLoading,
+    offerAnalysisLoading: scanResult?.offerAnalysisLoading,
+  });
+  const accent = elevate ? riskAccent(scanResult?.riskLevel) : undefined;
+
+  // The FLIP dependency is the flag itself: the blocks move because this
+  // changed, and re-running the measurement on any other change would replay
+  // the animation for reasons unrelated to order.
+  const flip = useFlipReorder(elevate);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -510,47 +529,75 @@ export function ScamScanView({
             </p>
           )}
 
+          {/* The evidence leads when the score is high or critical, because the
+              reader's first question about a dangerous posting is why, and the
+              answer is the flags and the employer check.
+
+              Both groups are always mounted and always in this DOM order; which
+              one leads is decided by `order` on the flex parent, so switching
+              them moves nothing out of the tree. A block that unmounts has
+              nothing to animate and loses its state — a collapsed Sources
+              disclosure would re-expand itself on every score change.
+
+              `contents` would have read as the tidier way to drop the wrapper,
+              but it generates no box, and `order` has no effect on a box that
+              does not exist. Hence two real flex columns. */}
+          <div
+            data-group="evidence"
+            className={`flex flex-col gap-stack-md ${elevate ? 'order-1' : 'order-2'}`}
+            ref={flip.register('evidence')}
+          >
+            {/* Already danger-coloured: a red-flag list has no neutral form. */}
+            <RedFlagsList flags={scanResult.redFlags} critical={scanResult.flagsCritical} />
+
+            <OfferAnalysisCard
+              analysis={scanResult.offerAnalysis}
+              loading={scanResult.offerAnalysisLoading}
+            />
+
+            {/* A missing employer is a missing input, not a finding: this
+                replaces the verification section entirely rather than sitting
+                above it, and carries the copy the old "Analysis Only" notice
+                duplicated. */}
+            {needsCompanyName ? (
+              <CompanyNameNeeded />
+            ) : (
+              <VerificationSection
+                result={scanResult.verificationResult}
+                loading={scanResult.verificationLoading}
+                error={scanResult.verificationError}
+                currentQuery={currentSearchQuery}
+                accent={elevate ? accent : undefined}
+              />
+            )}
+          </div>
+
           {/* The verdict and the record, in opposite forms: the first is prose we
               wrote for the reader to act on, the second is the post's own text to
               check it against. See each component for why they differ. */}
-          <PostingAnalysis text={scanResult.postingAnalysis} />
+          <div
+            data-group="prose"
+            className={`flex flex-col gap-stack-md ${elevate ? 'order-2' : 'order-1'}`}
+            ref={flip.register('prose')}
+          >
+            <PostingAnalysis text={scanResult.postingAnalysis} />
 
-          <JobSummary text={scanResult.jobSummary} />
+            <JobSummary text={scanResult.jobSummary} />
 
-          {hasScanned && (
-            <div className="flex flex-wrap gap-2">
-              {screenshots.map((ss, i) => (
-                <button
-                  key={i}
-                  onClick={() => setLightboxIndex(i)}
-                  className="w-16 h-16 rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container shrink-0 hover:ring-2 hover:ring-secondary transition-all"
-                >
-                  <img src={ss} alt={`Screenshot ${i + 1}`} className="w-full h-full object-cover" />
-                </button>
-              ))}
-            </div>
-          )}
-
-          <RedFlagsList flags={scanResult.redFlags} critical={scanResult.flagsCritical} />
-
-          <OfferAnalysisCard
-            analysis={scanResult.offerAnalysis}
-            loading={scanResult.offerAnalysisLoading}
-          />
-
-          {/* A missing employer is a missing input, not a finding: this replaces
-              the verification section entirely rather than sitting above it,
-              and carries the copy the old "Analysis Only" notice duplicated. */}
-          {needsCompanyName ? (
-            <CompanyNameNeeded />
-          ) : (
-            <VerificationSection
-              result={scanResult.verificationResult}
-              loading={scanResult.verificationLoading}
-              error={scanResult.verificationError}
-              currentQuery={currentSearchQuery}
-            />
-          )}
+            {hasScanned && (
+              <div className="flex flex-wrap gap-2">
+                {screenshots.map((ss, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setLightboxIndex(i)}
+                    className="w-16 h-16 rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container shrink-0 hover:ring-2 hover:ring-secondary transition-all"
+                  >
+                    <img src={ss} alt={`Screenshot ${i + 1}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -588,6 +635,7 @@ export function ScamScanView({
         isCropActivating={cropActivating}
         afterScan={hasScanned}
         disabled={isLoading}
+        accent={accent}
       />
 
       {screenshots.length > 0 && !hasScanned && (

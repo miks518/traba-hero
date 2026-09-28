@@ -6,6 +6,7 @@ import {
   PICK_ELEMENT_CANCEL_LABEL,
   PICK_AGAIN_LABEL,
 } from '../../data/content';
+import type { Accent } from '../../lib/riskAccent';
 
 export interface ScanActionsProps {
   onPickElement?: () => void;
@@ -18,6 +19,16 @@ export interface ScanActionsProps {
   isCropActivating?: boolean;
   afterScan?: boolean;
   disabled?: boolean;
+  /**
+   * Risk colour for the primary button, for as long as a result is on screen.
+   *
+   * Scoped to the currently displayed result, which is what makes it
+   * temporary: picking a new element clears the scan result, the accent prop
+   * goes with it, and the button returns to gold without a timer of its own.
+   * A button that stayed red after the result was gone would describe the
+   * next scan rather than the one on screen.
+   */
+  accent?: Accent;
 }
 
 export function ScanActions({
@@ -31,6 +42,7 @@ export function ScanActions({
   isCropActivating = false,
   afterScan = false,
   disabled = false,
+  accent,
 }: ScanActionsProps) {
   const handlePickToggle = () => {
     if (isPickerActive) {
@@ -57,7 +69,11 @@ export function ScanActions({
           className={`flex-1 py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
             isPickerActive
               ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
-              : 'tactile-btn-gold py-3 rounded-lg text-body-md disabled:opacity-70'
+              : accent?.button
+                // The tactile shadow is dropped with the gold background: it is
+                // an inset highlight sized for that fill, and it reads as a
+                // dirty edge on a flat error wash.
+                || 'tactile-btn-gold py-3 rounded-lg text-body-md disabled:opacity-70'
           }`}
         >
           <Icon

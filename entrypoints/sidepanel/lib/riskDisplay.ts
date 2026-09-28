@@ -24,3 +24,36 @@ export function isUnverifiedEmployer({
   if (redFlagCount > 0) return false;
   return !companyName || companyName.trim().length === 0;
 }
+
+/** The levels that put the evidence above the prose. */
+export const ELEVATED_LEVELS = ['high', 'critical'] as const;
+
+/** Just the fields a decision about layout depends on. */
+export interface ElevationInput {
+  riskLevel: 'low' | 'moderate' | 'high' | 'critical' | null;
+  verificationLoading?: boolean;
+  offerAnalysisLoading?: boolean;
+}
+
+/**
+ * True when a settled high or critical score should lead with the evidence.
+ *
+ * Waiting for the level to settle is the point of the `loading` checks. The
+ * scan returns a posting-stage score, then external verification blends an
+ * employer score into it, so a posting can read "high" and settle at
+ * "moderate". Reordering on the intermediate value would move the reader's
+ * evidence out from under them and then put it back.
+ *
+ * A failed verification still promotes, because the posting stage's score is
+ * real and the evidence is already known — what is missing is the employer
+ * lookup, not the red flags. An unverified level never promotes: "Unverified"
+ * is an absent measurement, not a high one.
+ */
+export function shouldElevateEvidence({
+  riskLevel,
+  verificationLoading,
+  offerAnalysisLoading,
+}: ElevationInput): boolean {
+  if (verificationLoading || offerAnalysisLoading) return false;
+  return riskLevel === 'high' || riskLevel === 'critical';
+}

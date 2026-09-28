@@ -1,6 +1,7 @@
 import React from 'react';
 import { Icon } from '../common';
 import { VerificationCard } from './VerificationCard';
+import type { Accent } from '../../lib/riskAccent';
 import type { VerificationResult } from '../../types';
 
 interface VerificationSectionProps {
@@ -8,16 +9,22 @@ interface VerificationSectionProps {
   loading?: boolean;
   error?: boolean;
   currentQuery?: string;
+  /**
+   * Risk colour for the header and container. Applied only when the evidence
+   * has been promoted to the top of the panel, so the section reads as urgent
+   * only in the case where it is leading the results.
+   */
+  accent?: Accent;
 }
 
-export function VerificationSection({ result, loading, error, currentQuery }: VerificationSectionProps) {
+export function VerificationSection({ result, loading, error, currentQuery, accent }: VerificationSectionProps) {
   const hasItems = Boolean(result && result.items && result.items.length > 0);
 
   return (
-    <div className="flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low">
+    <div className={`flex flex-col gap-3 p-4 rounded-xl ${accent?.surface ?? 'bg-surface-container-low'} ${accent?.border ? `${accent.border} border` : ''}`}>
       <div className="flex items-center gap-2">
-        <Icon name="search" className="text-secondary" />
-        <h3 className="text-label-md font-bold text-on-surface">External Verification</h3>
+        <Icon name="search" className={accent?.text ?? 'text-secondary'} />
+        <h3 className={`text-label-md font-bold ${accent?.text ?? 'text-on-surface'}`}>External Verification</h3>
         {loading && (
           <span className="ml-auto flex items-center gap-1.5 text-label-sm text-on-surface-variant">
             <span className="w-2 h-2 rounded-full bg-secondary animate-ping" />
