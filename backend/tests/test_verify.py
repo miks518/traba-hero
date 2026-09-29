@@ -497,8 +497,13 @@ class TestRegistrationCategoryWeighting:
 
     `risk_calculator` keys its weight table on the literal label. A label it
     does not know falls back to the default weight of 10, so a stale "SEC
-    Registration" would quietly score 10 instead of 25 — or 5 instead of 12.5
-    once halved as a yellow.
+    Registration" would quietly score 10 instead of 25.
+
+    These probe a **red** item rather than a yellow one. They used to use yellow,
+    which contributed half its weight and so exposed the difference — but yellow
+    no longer carries any weight, because added to a posting it would penalise a
+    check that found nothing. Probing it that way would have made both tests pass
+    for the wrong reason and stopped them guarding the rename at all.
     """
 
     def test_official_registration_keeps_the_registration_weight(self):
@@ -506,13 +511,13 @@ class TestRegistrationCategoryWeighting:
         from app.services.scanner.risk_calculator import _calculate_risk_score_from_verify
 
         # A green item is needed because an all-yellow list short-circuits to
-        # (None, None) by design — absence of evidence produces no score.
+        # (None, None) by design - absence of evidence produces no score.
         items = [
             VerificationItem(label="Company Existence", status="green", explanation=""),
-            VerificationItem(label="Official Registration", status="yellow", explanation=""),
+            VerificationItem(label="Official Registration", status="red", explanation=""),
         ]
-        # 25 // 2 = 12, out of a total weight of 100.
-        assert _calculate_risk_score_from_verify(items) == (12, "low")
+        # 25 out of a total weight of 100. The default of 10 would give 10.
+        assert _calculate_risk_score_from_verify(items) == (25, "low")
 
     def test_legacy_sec_label_still_scores_as_registration(self):
         from app.models.schemas import VerificationItem
@@ -520,9 +525,9 @@ class TestRegistrationCategoryWeighting:
 
         legacy = [
             VerificationItem(label="Company Existence", status="green", explanation=""),
-            VerificationItem(label="SEC Registration", status="yellow", explanation=""),
+            VerificationItem(label="SEC Registration", status="red", explanation=""),
         ]
-        assert _calculate_risk_score_from_verify(legacy) == (12, "low")
+        assert _calculate_risk_score_from_verify(legacy) == (25, "low")
 
     def test_expected_categories_use_the_new_label(self):
         from app.services.scanner.verification_parser import EXPECTED_CATEGORIES
@@ -845,6 +850,159 @@ async def test_verify_sse_stream_format():
     assert "data: " in body
     # Should contain progress or result events
     assert '"type"' in body
+
+
+class TestTwoQueriesPerVerification:
+    """One query cannot serve three categories; two can, if neither is rigged.
+
+    The merged result set is what the model judges, so these tests are about what
+    the flow does with the outcomes — not about the query strings, which
+    `test_multi_query.py` covers.
+    """
+
+    AI = json.dumps({
+        "checks": [
+            {"category": "Company Existence", "status": "green", "finding": "A business by that name operates at 12 Katipunan Ave.", "source_title": "Acme", "source_url": "https://example.ph/acme"},
+            {"category": "Official Registration", "status": "green", "finding": "Registered with the SEC as CS201500123.", "source_title": "SEC listing", "source_url": "https://example.ph/sec"},
+            {"category": "Reputation", "status": "yellow", "finding": "The results do not mention this category.", "source_title": "", "source_url": ""},
+        ],
+        "evidence": [{"title": "Acme", "url": "https://example.ph/acme", "snippet": "Staffing firm."}],
+        "report": "The results show a registered business.",
+        "recommendation": "Ask them to confirm the address in writing.",
+    })
+
+    async def _verify(self, client, search_side_effect, chat_response=None):
+        from unittest.mock import patch as _patch
+        with (
+            _patch("app.routers.scan.search", side_effect=search_side_effect) as search,
+            _patch("app.routers.scan.chat", return_value=chat_response or self.AI),
+        ):
+            async with AsyncClient(transport=transport, base_url="http://test") as c:
+                resp = await c.post("/api/verify", json={
+                    "company_name": "Acme Corp",
+                    "job_summary": "Developer at Acme Corp",
+                }, headers=HEADERS)
+        return resp, search
+
+    @pytest.mark.asyncio
+    async def test_two_searches_are_made_and_one_ai_call_follows(self):
+        from app.services.search import SearchOutcome, SearchResult
+
+        hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
+        resp, search = await self._verify(None, [hits, hits])
+
+        assert resp.status_code == 200
+        assert search.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_one_failed_search_is_reported_as_partial_not_clean(self):
+        """The panel must not imply full coverage it does not have.
+
+        One of two searches failed, so some categories are thinner than they
+        look. Reporting `search_ok: true` with no caveat is the silent
+        overstatement this project keeps guarding against.
+        """
+        from app.services.search import SearchOutcome, SearchResult
+
+        hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
+        failed = SearchOutcome(ok=False, error="throttled")
+
+        resp, _ = await self._verify(None, [hits, failed])
+
+        body = resp.text
+        assert '"search_ok": true' in body
+        assert '"search_partial": true' in body
+
+    @pytest.mark.asyncio
+    async def test_both_failing_is_still_a_total_failure(self):
+        """Partial is for one failure. Two failures is the existing state."""
+        from app.services.search import SearchOutcome
+
+        resp, _ = await self._verify(None, [SearchOutcome(ok=False), SearchOutcome(ok=False)])
+
+        assert '"search_ok": false' in resp.text
+        assert '"search_partial": false' in resp.text
+
+    @pytest.mark.asyncio
+    async def test_both_succeeding_is_not_partial(self):
+        from app.services.search import SearchOutcome, SearchResult
+
+        hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
+        resp, _ = await self._verify(None, [hits, hits])
+
+        assert '"search_partial": false' in resp.text
+
+    @pytest.mark.asyncio
+    async def test_the_merged_context_carries_both_result_sets(self):
+        """The second query's page has to reach the model, or it bought nothing."""
+        from app.services.search import SearchOutcome, SearchResult
+
+        first = SearchOutcome(results=[SearchResult("Exists", "https://example.ph/acme", "s", 0.8)], ok=True)
+        second = SearchOutcome(results=[SearchResult("Filed", "https://example.ph/sec", "s", 0.7)], ok=True)
+
+        with patch("app.routers.scan.search", side_effect=[first, second]):
+            with patch("app.routers.scan.chat", return_value=self.AI) as chat:
+                async with AsyncClient(transport=transport, base_url="http://test") as c:
+                    await c.post("/api/verify", json={
+                        "company_name": "Acme Corp",
+                        "job_summary": "Developer at Acme Corp",
+                    }, headers=HEADERS)
+
+        sent = chat.call_args[0][0]
+        user_text = "\n".join(str(m.get("content")) for m in sent)
+        assert "https://example.ph/sec" in user_text
+        assert "https://example.ph/acme" in user_text
+
+    @pytest.mark.asyncio
+    async def test_a_page_found_by_both_queries_is_sent_once(self):
+        """Twice is paid for twice in a budget shared with the model's thinking."""
+        from app.services.search import SearchOutcome, SearchResult
+
+        a = SearchOutcome(results=[SearchResult("Same", "https://example.ph/acme", "s", 0.8)], ok=True)
+        b = SearchOutcome(results=[SearchResult("Same", "https://example.ph/acme?utm=jobstreet", "s", 0.6)], ok=True)
+
+        with patch("app.routers.scan.search", side_effect=[a, b]):
+            with patch("app.routers.scan.chat", return_value=self.AI) as chat:
+                async with AsyncClient(transport=transport, base_url="http://test") as c:
+                    await c.post("/api/verify", json={
+                        "company_name": "Acme Corp",
+                        "job_summary": "Developer at Acme Corp",
+                    }, headers=HEADERS)
+
+        user_text = "\n".join(str(m.get("content")) for m in chat.call_args[0][0])
+        assert user_text.count("example.ph/acme") == 1
+
+    @pytest.mark.asyncio
+    async def test_the_merged_context_carries_no_category_headings(self):
+        """Retrieval never established which category a result belongs to.
+
+        Stamping the registration query's results with a REGISTRATION heading is
+        the bug `format_results` was written to prevent, and doing it again would
+        let a filing page read as a reputation page.
+        """
+        from app.services.search import SearchOutcome, SearchResult
+
+        first = SearchOutcome(results=[SearchResult("Exists", "https://example.ph/acme", "s", 0.8)], ok=True)
+        second = SearchOutcome(results=[SearchResult("Filed", "https://example.ph/sec", "s", 0.7)], ok=True)
+
+        with patch("app.routers.scan.search", side_effect=[first, second]):
+            with patch("app.routers.scan.chat", return_value=self.AI) as chat:
+                async with AsyncClient(transport=transport, base_url="http://test") as c:
+                    await c.post("/api/verify", json={
+                        "company_name": "Acme Corp",
+                        "job_summary": "Developer at Acme Corp",
+                    }, headers=HEADERS)
+
+        # Only the user message. The system prompt legitimately names the banned
+        # phrases in its own rules, so scanning it would assert nothing about
+        # how results are framed.
+        user_text = "\n".join(
+            str(m.get("content"))
+            for m in chat.call_args[0][0]
+            if m.get("role") == "user"
+        ).upper()
+        for heading in ("SCAM REPORTS", "ONLINE PRESENCE", "REGISTRATION RESULTS", "EXISTENCE RESULTS"):
+            assert heading not in user_text, heading
 
 
 @pytest.mark.asyncio

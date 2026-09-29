@@ -26,7 +26,7 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
     valid_seen = False
     try:
         deadline = _time.monotonic() + 300.0
-        stream = runtime.get_chat_stream()(messages, max_tokens=max_tokens)
+        stream = runtime.get_chat_stream()(messages, max_tokens=max_tokens, endpoint="scan")
         try:
             async for piece in stream:
                 if _time.monotonic() > deadline:

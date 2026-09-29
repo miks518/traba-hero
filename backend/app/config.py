@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 import os
 
@@ -9,9 +10,27 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openai_api_key: str = ""
     model_name: str = ""
+    # Per-endpoint model overrides. The scan and the verification ask for very
+    # different things — prose in a labelled format versus a JSON object matching
+    # a schema — and only some models have an endpoint OpenRouter can route a
+    # schema request to. One MODEL_NAME forces the looser call onto the stricter
+    # model's compromises, so these let a deployment choose per call. Blank (the
+    # default) means the shared MODEL_NAME, leaving an existing deployment
+    # unchanged. See resolve_model().
+    ai_model_scan: str = ""
+    ai_model_verify: str = ""
     ai_temperature: float = 0.2
     ai_top_p: float = 1.0
     ai_max_tokens: int = 2048
+    # Per-endpoint budget overrides, mirroring AI_MODEL_SCAN / AI_MODEL_VERIFY.
+    # Every endpoint used to pass a hardcoded max_tokens, so this setting was
+    # honoured by the scan alone and the other four silently ignored it — the
+    # literals were all equal to the default, which is what kept the skew
+    # invisible. Blank (the default) means the shared AI_MAX_TOKENS. The offer
+    # call follows the verify budget: both request schema-enforced JSON.
+    # See resolve_max_tokens().
+    ai_max_tokens_scan: str = ""
+    ai_max_tokens_verify: str = ""
     # Reasoning models draw their deliberation from the same max_tokens budget
     # that must hold the answer, so a long think can end the response with no
     # content at all. OpenRouter's normalized "reasoning" parameter can cap the
@@ -35,11 +54,12 @@ class Settings(BaseSettings):
     # for a model that draws its reasoning from the same AI_MAX_TOKENS budget
     # that has to hold the answer. Env value so a deployment can trade the two.
     tavily_max_results: int = 4
-    # Credit cost lives here, not in the code. Advanced depth costs 2 credits
-    # against basic's 1, so it halves the monthly budget in exchange for better
-    # recall on a small local employer. That is the right default and the wrong
-    # one for a deployment being run down its quota, so it is an env value.
-    tavily_search_depth: str = "advanced"
+    # Credit cost lives here, not in the code. A verification now issues two
+    # queries (existence, then registration), so `basic` is 2 credits per
+    # verification — the same as one `advanced` request was before the split.
+    # `advanced` is therefore twice the price it looks like, and the budget
+    # arithmetic in .env.example assumes the default.
+    tavily_search_depth: str = "basic"
     # Tavily's `country` boost, which prioritises results from that country.
     # Blank disables the boost and issues the plain query.
     tavily_country: str = "philippines"
@@ -54,6 +74,57 @@ class Settings(BaseSettings):
     # facts about a named company — citing one would be a claim nobody can trace
     # back to whoever asserted it. Everything else is a deployment decision.
     tavily_exclude_domains: str = "wikipedia.org"
+
+    @field_validator("ai_reasoning_enabled", mode="before")
+    @classmethod
+    def _blank_optional_bool_is_unset(cls, value):
+        """A blank line in a .env means "not configured", not "invalid".
+
+        `.env.example` ships this key blank and tells the reader to leave it
+        blank, but a bare `bool | None` cannot parse an empty string, so a fresh
+        copy of the example crashed at import. Only blank is coerced: a real
+        value like "maybe" still raises, because silently treating nonsense as
+        unset would leave reasoning at the provider default while the operator
+        believed they had configured it.
+        """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    def resolve_model(self, endpoint: str) -> str:
+        """The model for one endpoint, falling back to the shared MODEL_NAME.
+
+        Blank is treated as unset rather than sent, because an empty model ID is
+        itself a 404 and a blank line in a `.env` is the easiest way to produce
+        one. An unrecognised endpoint name resolves to the shared model too, so a
+        typo in a caller degrades to today's behaviour instead of naming a model
+        that does not exist.
+        """
+        overrides = {
+            "scan": self.ai_model_scan,
+            "verify": self.ai_model_verify,
+            "offer": self.ai_model_verify,
+        }
+        chosen = overrides.get(endpoint, "").strip()
+        return chosen or self.model_name.strip()
+
+    def resolve_max_tokens(self, endpoint: str) -> int:
+        """The token budget for one endpoint, falling back to AI_MAX_TOKENS.
+
+        Anything that is not a positive integer is treated as unset: a blank
+        line, a stray word, or a zero. A bad `max_tokens` is a request the
+        provider may reject outright, so a typo in a cost setting must not
+        become a failure — it costs answer length, nothing else.
+        """
+        overrides = {
+            "scan": self.ai_max_tokens_scan,
+            "verify": self.ai_max_tokens_verify,
+            "offer": self.ai_max_tokens_verify,
+        }
+        chosen = overrides.get(endpoint, "").strip()
+        if chosen.isdigit() and int(chosen) > 0:
+            return int(chosen)
+        return self.ai_max_tokens
 
     @property
     def tavily_search_depth_fallback(self) -> str:

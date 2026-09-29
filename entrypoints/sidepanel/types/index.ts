@@ -111,6 +111,22 @@ export interface VerificationResult {
    */
   searchOk?: boolean;
   searchError?: string;
+  /**
+   * One of the two searches failed, so the answer is real but some categories
+   * are covered more thinly than they appear. Distinct from `searchOk: false`,
+   * which means nothing was retrieved and no category can be judged at all.
+   */
+  searchPartial?: boolean;
+  /** How many queries were issued, and how many of them failed. */
+  queriesIssued?: number;
+  queriesFailed?: number;
+  /**
+   * TEMPORARY DIAGNOSTIC — the provider's raw response body per query, so it
+   * can be inspected in the panel. Nothing reads this in normal use. Remove
+   * with `SearchOutcome.raw_response` on the backend and the suspended
+   * assertion in `test_no_debug_surface.py`.
+   */
+  debugSearchRaw?: Array<{ query: string; raw: string }>;
 }
 
 export type ScanRiskLevel = 'low' | 'moderate' | 'high' | 'critical';

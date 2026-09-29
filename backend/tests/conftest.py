@@ -146,7 +146,12 @@ def _offline_ai_and_search():
     `chat_resume`, `chat_match`, or `chat_custom` — which reach the provider
     through lm_client's own `chat` global — cannot escape the fake.
     """
-    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None):
+    # `**kwargs` on both, deliberately: the provider-facing functions take
+    # keyword arguments that grow over time (`endpoint` selects a per-endpoint
+    # model, `response_format` requests structured output). A fake pinned to the
+    # current signature raises TypeError the next time one is added, which reads
+    # as a production failure rather than a stale double.
+    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         for piece in (FAKE_SCAN_RESPONSE, FAKE_RESUME_RESPONSE, FAKE_MATCH_RESPONSE):
             yield piece
 
@@ -172,6 +177,51 @@ def _set_test_secret():
     auth_mod.EXPECTED_KEY = "test-secret-key"
     yield
     auth_mod.EXPECTED_KEY = ""
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Give every test its own rate-limit budget.
+
+    slowapi's memory storage is process-wide and the limiter keys on the client
+    address, which is the same `testclient` for every request. So the whole suite
+    shares one window — and `test_verify.py` alone makes 16 calls to an endpoint
+    limited to 10/minute. Tests were therefore passing or failing depending on
+    how many earlier tests happened to run first, and adding one endpoint test
+    turned that into a 429 in an unrelated test.
+
+    Resetting per test keeps them independent of each other and of the ordering,
+    and leaves `test_rate_limit.py` — which asserts the limit on purpose — to
+    opt back in by calling the endpoint repeatedly within a single test.
+    """
+    from app.rate_limit import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()
+
+
+# Env vars pydantic-settings reads for this app. A test that asserts a *shipped
+# default* has to be immune to all of them, or it tests the developer's shell
+# rather than the code: `_env_file=None` skips `backend/.env` but a real OS
+# environment variable is applied after the class defaults and still wins.
+_DEPLOYMENT_ENV_PREFIXES = ("AI_", "TAVILY_", "MODEL_NAME", "CLIENT_", "SEND_", "HOST", "PORT")
+
+
+def class_settings(monkeypatch, **overrides):
+    """Settings built from the class defaults only.
+
+    Clears the OS environment for the duration of the test, then skips the
+    `.env` file, so the result is the value a fresh install would get. Use this
+    for every test asserting a default; use `Settings(...)` directly only where
+    the surrounding environment is the subject.
+    """
+    from app.config import Settings
+
+    for name in list(os.environ):
+        if name.startswith(_DEPLOYMENT_ENV_PREFIXES):
+            monkeypatch.delenv(name, raising=False)
+    return Settings(_env_file=None, **overrides)
 
 
 @pytest.fixture

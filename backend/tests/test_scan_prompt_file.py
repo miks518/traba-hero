@@ -104,6 +104,78 @@ def test_prompt_does_not_instruct_a_missing_name_red_flag():
         assert "red flag: company name" not in low, f"{label} still instructs the flag"
 
 
+class TestTaskForEarningIsFlaggable:
+    """A paid-task offer has to have a bucket, or the model has nowhere to put it.
+
+    A screenshot of a DM saying "follow this task and after doing so you will
+    earn your salary/reward" was reported at low risk. The reason is structural,
+    not model quality, and it survives every model: the prompt's severity ladder
+    is anchored on the *employer demanding something* — money, goods, a deposit.
+    A task-for-earning offer asks for no payment, so nothing there matched, and
+    the only things that made it not-a-job were the absences the prompt forbids
+    flagging. The model had a prohibition and no permission.
+
+    The fix is a positive anchor with a concrete element, in the same
+    prohibition-plus-element form the three existing patterns use — not an
+    enumeration of flaggable things, which would just be a whitelist with
+    different clothes.
+    """
+
+    def test_the_pattern_is_named_with_its_element(self):
+        for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
+            low = body.lower()
+            assert "task-for-earning" in low, (
+                f"{label} has no bucket for an offer of paid tasks; without one the "
+                "model can only report the absences, which the prompt forbids"
+            )
+
+    def test_the_element_is_something_the_posting_actually_contains(self):
+        """The element is the unit of work, not the reader's ignorance.
+
+        Naming the absence of a role here would reintroduce the bug where a
+        nameless posting scored 4: the trigger has to be text the posting
+        contains.
+        """
+        for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
+            low = body.lower()
+            assert "discrete tasks" in low or "discrete task" in low, label
+            assert "rather than describing a role" in low, label
+
+    def test_work_then_payment_is_not_itself_a_flag(self):
+        """The ordinary order must stay clean, or every job posting is flagged.
+
+        This is the trap the case exposed: "do this task, then get paid" reads as
+        work-before-money reversed, which is how most jobs are actually paid.
+        What separates the two is the unit of work — a task or an earning event
+        rather than a role.
+        """
+        for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
+            low = body.lower()
+            assert "ordinary order" in low, (
+                f"{label} must say that work followed by payment is not itself a flag"
+            )
+
+    def test_mid_severity_has_this_example(self):
+        """A pattern with no severity example has nowhere to land.
+
+        `mid` carried a single example, so a model reaching for anything else
+        fell back to `low` — which scores 4.
+        """
+        for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
+            mid = _severity_line(body, "mid")
+            assert mid, f"{label}: no mid severity line"
+            assert "task" in mid.lower(), f"{label}: mid does not cover a paid-task offer"
+
+
+def _severity_line(body: str, severity: str) -> str:
+    """The text of one severity's line, or '' if absent."""
+    for ln in body.splitlines():
+        stripped = ln.strip().lstrip("-*").strip()
+        if stripped.lower().startswith(f"{severity}:"):
+            return stripped
+    return ""
+
+
 def test_severity_list_never_offers_a_missing_name_as_an_example():
     """The severity list is where this instruction hid.
 

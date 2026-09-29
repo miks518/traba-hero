@@ -16,7 +16,9 @@ OUTPUT RULES (apply to every field, in any language):
 - Describe the offer, never the people behind them. Never write that a person or company is a scam, a fraud, or a criminal. State what the offer asks for.
 - Do not guess at intent. Do not use: likely, appears, suggests, probably, seemingly, may be, might be, could indicate, often, typically, we think.
 - Do not use absolutes: always, never, definitely, guaranteed, 100%.
-- Plain sentences only. No markdown, no bullets, no headings, no emoji.
+- Plain sentences only inside the values. No markdown, no bullets, no headings, no emoji.
+
+OUTPUT FORMAT: return one JSON object and nothing else, with exactly these keys: "kind", "verdict", "what_it_asks", "what_it_offers", "what_to_check", "is_offer". Say this even if no output schema is supplied to you — the object is the answer, and the plain-sentence rule above applies to what you write inside it, not to the object wrapping it.
 
 Field rules:
 - kind: a short noun phrase describing the content, for example "Job advertisement", "Chat message", "Earnings scheme", "Recruitment pitch". Set it to exactly NOT_OFFER only when there is no offer of work or income in the content at all.

@@ -50,16 +50,23 @@ def _posting_risk_from_flags(flags: list) -> tuple[int, str, dict]:
     }
     return score, _level_for(score), breakdown
 
-
 def _calculate_risk_score_from_verify(items: list[VerificationItem]) -> tuple[int | None, str | None]:
-    """Calculate risk score from verification items. Each category contributes based on status.
-    Red = full weight, Yellow = half weight, Green = none.
+    """The penalty an employer's record adds. Only `red` carries weight.
 
-    Returns (None, None) when nothing was confirmed, i.e. when every item is
-    yellow. A score built entirely out of "we found no information" measures the
-    search, not the posting, so reporting it as a risk figure would put a number
-    on the panel that the system never actually determined. An empty item list
-    means verification produced no findings at all, for the same reason.
+    `yellow` means the search returned nothing about a category. It carried half
+    weight when the two stages were averaged, because something had to pull the
+    average down. It cannot carry weight here: added to the posting it would
+    penalise a check that found nothing, which is precisely what this project
+    has repeatedly refused to do — absence of evidence produces no score. So
+    yellow contributes zero, and a verified-clean or unverified employer leaves
+    the posting's own number alone.
+
+    `green` is zero for the same reason, and a stronger one: green means a result
+    stated a fact, not that the fact was reassuring. On Reputation a green card
+    can be a one-star employee account.
+
+    Returns (None, None) when nothing was confirmed, so an employer nobody could
+    look up leaves the number untouched.
     """
     if not items or all(item.status == "yellow" for item in items):
         return None, None
@@ -76,30 +83,35 @@ def _calculate_risk_score_from_verify(items: list[VerificationItem]) -> tuple[in
     total_weight = sum(category_weights.values())  # 100
     penalty = 0
     for item in items:
+        if item.status != "red":
+            continue
         label = item.label.strip()
         weight = category_weights.get(label) or legacy_weights.get(label) or 10
-        if item.status == "red":
-            penalty += weight
-        elif item.status == "yellow":
-            penalty += weight // 2
+        penalty += weight
     score = min(100, round(penalty / total_weight * 100))
     return score, _level_for(score)
 
 
-# The posting is what the user actually asked about, so it carries the larger
-# share. External verification is corroborating evidence and can move the number
-# in either direction, but it is never allowed to be the whole answer.
-POSTING_SHARE = 0.6
-VERIFICATION_SHARE = 0.4
+def _combine_scores(posting_score: int | None, verify_score: int | None) -> tuple[int, str] | tuple[None, None]:
+    """Add the verification penalty to the posting score, capped at 100.
 
+    This was a 60/40 blend, and the blend was wrong in a way that inverted the
+    meaning of the number. A posting that had already maxed out — three
+    high-severity indicators — was pulled to 60 by a clean employer record,
+    because averaging lets corroborating evidence outvote the thing the reader
+    actually asked about. And a published scam report added 14 points over that
+    clean record, so negative evidence moved the number far less than the
+    absence of it. "We found nothing" scored 100, tying "three damning
+    categories".
 
-def _combine_scores(posting_score: int | None, verify_score: int | None) -> tuple[int | None, str | None]:
-    """Blend the posting score with the external verification score.
+    So verification is now **asymmetric: it can only raise.** What the employer
+    record establishes is that this company exists, is or is not registered, and
+    what has been published about it. None of that makes a posting asking for an
+    advance fee less dangerous, and a clean employer must not be able to pull a
+    maxed posting back down to a number the reader would read as tolerable.
 
-    Whichever stage is missing is simply absent, not treated as zero: a posting
-    that could not be looked up online is not penalised for the missing lookup,
-    and a posting with no reported indicators is not raised by a clean employer
-    record.
+    A missing stage is absent, not zero: a posting that could not be looked up is
+    not penalised for the failed lookup.
     """
     if posting_score is None:
         if verify_score is None:
@@ -107,5 +119,5 @@ def _combine_scores(posting_score: int | None, verify_score: int | None) -> tupl
         return verify_score, _level_for(verify_score)
     if verify_score is None:
         return posting_score, _level_for(posting_score)
-    blended = round(posting_score * POSTING_SHARE + verify_score * VERIFICATION_SHARE)
-    return blended, _level_for(blended)
+    total = min(100, posting_score + verify_score)
+    return total, _level_for(total)

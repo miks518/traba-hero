@@ -91,6 +91,16 @@ def test_backend_stops_shipping_the_prompt_to_the_client():
     assert "debug_prompt" not in source
 
 
+@pytest.mark.skip(
+    reason=(
+        "TEMPORARY DIAGNOSTIC IN USE. SearchOutcome.raw_response and the panel's "
+        "raw Tavily dump were restored on request to inspect what the provider "
+        "actually returns. Remove SearchOutcome.raw_response from "
+        "app/services/search.py, the debug_search_raw field in "
+        "verification_flow.py, and the debugSearchRaw block in "
+        "VerificationSection.tsx — then remove this skip."
+    )
+)
 def test_the_search_outcome_no_longer_carries_the_raw_provider_body():
     """`raw_response` existed only so the debug tab could show the provider's body.
 

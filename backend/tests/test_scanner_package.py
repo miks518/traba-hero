@@ -92,7 +92,7 @@ class _FakeLimiter:
 
 
 def _blocking_provider(state):
-    async def stream(messages, max_tokens=None, temperature=None, top_p=None):
+    async def stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         try:
             yield "VALID: true\n"
             await asyncio.Event().wait()
@@ -195,10 +195,13 @@ def test_scanner_risk_calculator_preserves_weighted_score():
     scanner = importlib.import_module("app.services.scanner")
     items = [
         scanner.VerificationItem(label="Company Existence", status="red", explanation="Not found"),
-        scanner.VerificationItem(label="SEC Registration", status="yellow", explanation="Unclear"),
+        scanner.VerificationItem(label="SEC Registration", status="red", explanation="Filed"),
     ]
-    # Company Existence red = 40, SEC Registration yellow = 25 // 2 = 12, of 100.
-    assert scanner._calculate_risk_score_from_verify(items) == (52, "high")
+    # Company Existence red = 40 and SEC Registration red = 25, of 100. A yellow
+    # no longer contributes, so the weight table is probed with red items: a
+    # yellow would score 0 for either label and the test could not tell the
+    # weight apart from the default of 10.
+    assert scanner._calculate_risk_score_from_verify(items) == (65, "high")
 
 
 def test_scanner_sse_encoder_preserves_wire_format():
@@ -217,7 +220,7 @@ async def test_scan_facade_closes_provider_stream_before_returning():
     scan_router = importlib.import_module("app.routers.scan")
     provider_closed = False
 
-    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None):
+    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         nonlocal provider_closed
         try:
             yield "VALID: true\n"
@@ -240,12 +243,12 @@ async def test_scan_facade_resolves_chat_dependency_at_use_time():
     original_called = False
     replacement_called = False
 
-    async def original_stream(messages, max_tokens=None, temperature=None, top_p=None):
+    async def original_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         nonlocal original_called
         original_called = True
         yield "VALID: true\n"
 
-    async def replacement_stream(messages, max_tokens=None, temperature=None, top_p=None):
+    async def replacement_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         nonlocal replacement_called
         replacement_called = True
         yield "VALID: true\n"

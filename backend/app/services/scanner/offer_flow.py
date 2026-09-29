@@ -33,8 +33,8 @@ async def analyze_offer_event_stream(text: str, company_name: str = "") -> Async
 
         final_text = await runtime.get_chat()(
             messages,
-            max_tokens=1536,
             response_format=runtime.get_analyze_offer_response_format(),
+            endpoint="offer",
         )
         log.info("[analyze-offer] Raw model output (%d chars): %s", len(final_text), final_text[:800])
 

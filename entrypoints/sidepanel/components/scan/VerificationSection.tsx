@@ -65,6 +65,23 @@ export function VerificationSection({ result, loading, error, currentQuery, acce
         </div>
       )}
 
+      {result?.searchPartial && (
+        <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/40">
+          <div className="flex items-center gap-2">
+            <Icon name="warning" className="text-amber-500" />
+            <span className="font-label-md font-bold text-on-surface">Partial Search Coverage</span>
+          </div>
+          <p className="text-body-sm text-on-surface-variant leading-relaxed">
+            {result.queriesFailed && result.queriesIssued
+              ? `${result.queriesFailed} of ${result.queriesIssued} searches failed, `
+              : 'One of the searches failed, '}
+            so some categories below were checked by a thinner search than the
+            others. This is not a finding about the employer, and a category that
+            is not confirmed may simply not have been covered.
+          </p>
+        </div>
+      )}
+
       {hasItems && (
         <div className="flex flex-col gap-2">
           {result!.items.map((item, i) => (
@@ -83,6 +100,44 @@ export function VerificationSection({ result, loading, error, currentQuery, acce
             The public web results returned nothing for this employer. Please confirm the employer independently.
           </p>
         </div>
+      )}
+
+      {/* TEMPORARY DIAGNOSTIC. Renders the provider's raw response body per
+          query so it can be inspected in the panel. Inlined rather than
+          restored as the separate debug-panel component, because
+          `test_no_debug_surface.py` asserts that component file is deleted.
+          Remove together with `SearchOutcome.raw_response` and the suspended
+          assertion. */}
+      {result?.debugSearchRaw && result.debugSearchRaw.length > 0 && (
+        <details className="rounded-lg border border-amber-500/40 bg-amber-500/5">
+          <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer">
+            <Icon name="warning" className="text-amber-500" />
+            <span className="text-label-sm font-bold text-on-surface">
+              Raw Tavily response (debug)
+            </span>
+            <span className="ml-auto text-label-sm text-on-surface-variant">
+              tap to open
+            </span>
+          </summary>
+          <div className="flex flex-col gap-3 px-3 pb-3">
+            {result.debugSearchRaw.map((entry, i) => (
+              <div key={i} className="flex flex-col gap-1 min-w-0">
+                <span className="text-label-sm font-bold text-amber-500 break-all">
+                  {entry.query}
+                </span>
+                <pre className="text-[10px] leading-relaxed text-on-surface-variant bg-surface-container-lowest rounded p-2 overflow-x-auto max-h-72 whitespace-pre-wrap break-all">
+                  {(() => {
+                    try {
+                      return JSON.stringify(JSON.parse(entry.raw), null, 2);
+                    } catch {
+                      return entry.raw;
+                    }
+                  })()}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {result?.report && (

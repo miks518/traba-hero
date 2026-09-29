@@ -572,6 +572,10 @@ export async function verifyJobStream(
             search_ok?: boolean;
             search_error?: string;
             search_count?: number;
+            search_partial?: boolean;
+            queries_issued?: number;
+            queries_failed?: number;
+            debug_search_raw?: Array<{ query: string; raw: string }>;
           };
           return {
             result: {
@@ -584,6 +588,10 @@ export async function verifyJobStream(
               scoreBreakdown: data.scoreBreakdown,
               searchOk: data.search_ok,
               searchError: data.search_error,
+              searchPartial: data.search_partial,
+              queriesIssued: data.queries_issued,
+              queriesFailed: data.queries_failed,
+              debugSearchRaw: data.debug_search_raw,
             },
           };
         } else if (event.type === 'error') {

@@ -10,11 +10,11 @@ import time
 import httpx
 
 from app.main import app
+from tests.conftest import class_settings
 from app.services.search import (
     SearchOutcome,
     SearchResult,
     _parse_domains,
-    build_query,
     clean_company_name,
     extract_company_name,
     is_valid_company_name,
@@ -26,6 +26,9 @@ class FakeResponse:
     def __init__(self, payload, status=200):
         self._payload = payload
         self.status_code = status
+        # TEMPORARY DIAGNOSTIC: search() reads `.text` before `.json()` so a
+        # malformed body is still inspectable. Stands in for httpx's attribute.
+        self.text = json.dumps(payload)
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -93,12 +96,17 @@ class TestSearchResultShape:
 
         monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
         monkeypatch.setattr(mod.httpx, "post", fake_post)
+        # Pinned rather than read from the environment: this test is about the
+        # request shape, and the developer's own .env is not the subject. An
+        # un-pinned `search_depth` assertion reads whatever TAVILY_SEARCH_DEPTH
+        # happens to be locally, so it passes or fails on the machine.
+        monkeypatch.setattr(mod.settings, "tavily_search_depth", "basic")
         mod.search("Jollibee", 5)
 
         assert captured["api_key"] == "tvly-test"
         assert captured["query"] == "Jollibee"
         assert captured["max_results"] == 5
-        assert captured["search_depth"] == "advanced"
+        assert captured["search_depth"] == "basic"
 
 
 class TestFailureIsNotAbsence:
@@ -233,61 +241,24 @@ class TestFailureIsNotAbsence:
         assert outcome.latency >= 0.01, f"latency was {outcome.latency}"
 
 
-class TestBuildQuery:
-    def test_appends_philippines(self):
-        assert build_query("Jollibee") == "Jollibee Philippines"
+class TestQueryBuildingMovedOut:
+    """`build_query` and the corporate-suffix strip are gone.
 
-    def test_is_the_only_query_shape(self):
-        """One query. No category suffixes — that is the point of the rebuild."""
-        q = build_query("Jollibee Foods Corporation")
-        assert q.count("Philippines") == 1
-        for banned in ("SEC", "scam", "reviews", "fraud"):
-            assert banned not in q
+    The single existence query became `build_queries()`, and the suffix strip
+    with it — keeping the legal name turned out to rank better, because a filing
+    and a PESO listing are titled with it. Query construction is now owned by
+    `test_multi_query.py`; these tests stay as a tombstone so a future session
+    re-adding a stripper sees why it was removed.
 
-    def test_strips_a_corporate_suffix(self):
-        """A literal 'Corporation' dilutes a rare name.
+    What remains here is the `search()` request shape, which is this file's
+    subject. `build_queries` is imported in test_multi_query.py.
+    """
 
-        Searching the suffix verbatim drags in unrelated companies whose names
-        end the same way, so the distinctive part of the name gets less weight.
-        """
-        assert build_query("MIX Market Integrated Xploration Corporation") == (
-            "MIX Market Integrated Xploration Philippines"
-        )
+    def test_the_single_query_builder_is_gone(self):
+        from app.services import search as mod
 
-    def test_strips_each_supported_suffix(self):
-        cases = [
-            ("Jollibee Foods Corporation", "Jollibee Foods"),
-            ("Jollibee Foods Corp", "Jollibee Foods"),
-            ("Jollibee Foods Corp.", "Jollibee Foods"),
-            ("Jollibee Foods Inc", "Jollibee Foods"),
-            ("Jollibee Foods Incorporated", "Jollibee Foods"),
-            ("Jollibee Foods Co", "Jollibee Foods"),
-            ("Jollibee Foods LLC", "Jollibee Foods"),
-        ]
-        for name, expected_stem in cases:
-            assert build_query(name) == f"{expected_stem} Philippines", name
-
-    def test_suffix_stripping_respects_word_boundaries(self):
-        """'Co' is only a suffix as a whole word.
-
-        A substring match would turn 'Coca-Cola' into 'Coca-' and 'Incorporated
-        Data' into 'Data', silently searching a different company.
-        """
-        for name in ("Coca-Cola Bottlers", "Concordia Trading", "Incorporated Systems PH"):
-            assert build_query(name) == f"{name} Philippines", name
-
-    def test_a_name_that_is_only_a_suffix_is_left_intact(self):
-        """Stripping must not empty the query.
-
-        'Corporation' alone strips to nothing, which would search for the
-        geographic term on its own and return results about any company.
-        """
-        for name in ("Corporation", "Inc", "Co"):
-            assert build_query(name) == f"{name} Philippines", name
-
-    def test_does_not_double_the_anchor(self):
-        """A name that already names the country is not anchored twice."""
-        assert build_query("Jollibee Philippines") == "Jollibee Philippines"
+        assert not hasattr(mod, "build_query")
+        assert not hasattr(mod, "_strip_corporate_suffix")
 
 
 class TestSettingsDefaultTestsIgnoreTheLocalEnvFile:
@@ -296,24 +267,24 @@ class TestSettingsDefaultTestsIgnoreTheLocalEnvFile:
     `Settings()` loads `backend/.env`, so asserting on it tests the local
     environment rather than the shipped default: it passes only while the two
     happen to agree, and fails the moment a developer edits their own .env.
-    Worse, a failing assertion prints the whole settings repr — including the
-    live `AI_API_KEY` — into the test output. `_env_file=None` reads the class
+    Worse, a failing assertion prints the whole settings repr Ã¢â‚¬â€ including the
+    live `AI_API_KEY` Ã¢â‚¬â€ into the test output. `_env_file=None` reads the class
     defaults instead, which is what each of these needs to assert.
 
     Note what that does and does not bypass: the env *file* is skipped, but a
     real OS environment variable still wins, because pydantic-settings applies
-    those after the class defaults. The production module is unaffected — it
-    wants the deployed value — and only these tests pass `_env_file=None`.
+    those after the class defaults. The production module is unaffected Ã¢â‚¬â€ it
+    wants the deployed value Ã¢â‚¬â€ and only these tests pass `_env_file=None`.
     """
 
-    def test_the_default_is_asserted_without_reading_the_env_file(self, tmp_path):
+    def test_the_default_is_asserted_without_reading_the_env_file(self, tmp_path, monkeypatch):
         from app.config import Settings
 
         disagreeing = tmp_path / ".env"
         disagreeing.write_text("TAVILY_MAX_RESULTS=9\n", encoding="utf-8")
 
         assert Settings(_env_file=disagreeing).tavily_max_results == 9
-        assert Settings(_env_file=None).tavily_max_results == 4
+        assert class_settings(monkeypatch).tavily_max_results == 4
 
     def test_a_real_environment_variable_still_overrides_the_default(self, monkeypatch):
         """`_env_file=None` skips the file, not the environment.
@@ -359,20 +330,25 @@ class TestSearchSettingsAreConfigurable:
         captured = self._capture(monkeypatch, tavily_search_depth="basic")
         assert captured["search_depth"] == "basic"
 
-    def test_depth_defaults_to_advanced(self):
-        """A deployment that sets nothing keeps the better recall."""
+    def test_depth_defaults_to_basic(self, monkeypatch):
+        """Two queries per verification, so `basic` is the old `advanced` price.
+
+        Credits are charged per request: 2 x basic = 2 credits, which is what
+        one advanced request cost before the query split. Defaulting to advanced
+        would quietly double the monthly verification count's cost.
+        """
         from app.config import Settings
 
-        assert Settings(_env_file=None).tavily_search_depth == "advanced"
+        assert class_settings(monkeypatch).tavily_search_depth == "basic"
 
     def test_country_is_read_from_settings(self, monkeypatch):
         captured = self._capture(monkeypatch, tavily_country="united kingdom")
         assert captured["country"] == "united kingdom"
 
-    def test_country_defaults_to_philippines(self):
+    def test_country_defaults_to_philippines(self, monkeypatch):
         from app.config import Settings
 
-        assert Settings(_env_file=None).tavily_country == "philippines"
+        assert class_settings(monkeypatch).tavily_country == "philippines"
 
     def test_an_invalid_depth_falls_back_rather_than_being_sent(self, monkeypatch):
         """A typo must not become a provider error for every verification.
@@ -408,7 +384,7 @@ class TestSearchSettingsAreConfigurable:
         )
         assert captured["exclude_domains"] == ["pinterest.com", "quora.com"]
 
-    def test_exclude_domains_defaults_to_wikipedia_only(self):
+    def test_exclude_domains_defaults_to_wikipedia_only(self, monkeypatch):
         """One entry ships by default; the rest is a deployment decision.
 
         The knob exists so noise can be dropped without touching the sources
@@ -417,25 +393,25 @@ class TestSearchSettingsAreConfigurable:
         """
         from app.config import Settings
 
-        assert _parse_domains(Settings(_env_file=None).tavily_exclude_domains) == [
+        assert _parse_domains(class_settings(monkeypatch).tavily_exclude_domains) == [
             "wikipedia.org"
         ]
 
-    def test_the_default_list_excludes_wikipedia(self):
+    def test_the_default_list_excludes_wikipedia(self, monkeypatch):
         """An encyclopedia page is not a source, whatever it says.
 
         Wikipedia is crowd-editable and unattributed, so a company entry is not
-        evidence of anything about the company — and a panel that cites it puts
+        evidence of anything about the company Ã¢â‚¬â€ and a panel that cites it puts
         a defensible check behind a claim nobody can trace. It is excluded
         without ceremony: the entry is wrong often enough to be noise, and
         citing it invites the question it cannot answer.
         """
         from app.config import Settings
 
-        settings = Settings(_env_file=None)
+        settings = class_settings(monkeypatch)
         assert "wikipedia.org" in _parse_domains(settings.tavily_exclude_domains)
 
-    def test_the_default_list_keeps_the_sources_the_boost_targets(self):
+    def test_the_default_list_keeps_the_sources_the_boost_targets(self, monkeypatch):
         """Excluding noise must not touch what the country boost exists for.
 
         JobStreet, Indeed PH, and city PESO listings are the pages a small
@@ -444,7 +420,7 @@ class TestSearchSettingsAreConfigurable:
         """
         from app.config import Settings
 
-        excluded = _parse_domains(Settings(_env_file=None).tavily_exclude_domains)
+        excluded = _parse_domains(class_settings(monkeypatch).tavily_exclude_domains)
 
         for essential in ("jobstreet.com", "indeed.com", "peso.gov.ph", "sec.gov.ph"):
             assert essential not in excluded, essential
@@ -469,7 +445,7 @@ class TestSearchSettingsAreConfigurable:
         """People paste URLs. Tavily wants the host.
 
         A scheme, a `www.` prefix, or a trailing path would not match the
-        results it filters on, so the exclusion would silently do nothing —
+        results it filters on, so the exclusion would silently do nothing Ã¢â‚¬â€
         which reads as "the setting works" and is worse than an error.
         """
         captured = self._capture(
@@ -509,10 +485,10 @@ class TestSearchSettingsAreConfigurable:
         )
         assert captured["exclude_domains"] == ["quora.com", "reddit.com"]
 
-    def test_default_max_results_is_four(self):
+    def test_default_max_results_is_four(self, monkeypatch):
         """The result count is a token-budget decision, not a recall one.
 
-        Credits are charged per request, so `max_results` is free — asking for
+        Credits are charged per request, so `max_results` is free Ã¢â‚¬â€ asking for
         more results costs nothing. What it costs is context: every snippet
         becomes prompt text for a model that draws its reasoning from the same
         `AI_MAX_TOKENS` budget that has to hold the answer, and a truncated
@@ -521,7 +497,7 @@ class TestSearchSettingsAreConfigurable:
         """
         from app.config import Settings
 
-        assert Settings(_env_file=None).tavily_max_results == 4
+        assert class_settings(monkeypatch).tavily_max_results == 4
 
     def test_max_results_is_still_configurable(self, monkeypatch):
         import app.services.search as mod
@@ -547,7 +523,7 @@ class TestGeographicBoost:
     A browser search from the Philippines surfaces SEC filings, city PESO
     sites, and local job boards for a small employer. Tavily's own crawl index
     covers that long tail less well, so a niche name falls through to whatever
-    it indexes strongly — London VC firms, or a product with a similar word.
+    it indexes strongly Ã¢â‚¬â€ London VC firms, or a product with a similar word.
     Re-ranking the query cannot fix missing index coverage; boosting Philippine
     sources can.
     """
@@ -575,8 +551,8 @@ class TestGeographicBoost:
         must stay absent.
 
         `exclude_domains` removes pages by name, so it does not restrict the
-        result set. The default does send one entry — see
-        test_exclude_domains_defaults_to_wikipedia_only — which is a source
+        result set. The default does send one entry Ã¢â‚¬â€ see
+        test_exclude_domains_defaults_to_wikipedia_only Ã¢â‚¬â€ which is a source
         removed, not a whitelist applied.
         """
         import app.services.search as mod
@@ -615,11 +591,13 @@ class TestGeographicBoost:
 
         assert not captured.get("include_answer")
 
-    def test_uses_advanced_depth_for_a_niche_lookup(self, monkeypatch):
-        """Advanced costs 2 credits against 1, and buys broader recall.
+    def test_the_configured_depth_is_what_is_sent(self, monkeypatch):
+        """The depth knob decides the request; nothing here is hardcoded.
 
-        Worth it for a small local employer that basic depth misses; the
-        1,000-credit monthly budget is the trade.
+        Whichever depth a deployment sets must be the one that goes on the wire.
+        The default is covered separately against the class defaults, because
+        asserting a value read from the developer's own `.env` makes this test
+        pass or fail depending on the machine it runs on.
         """
         import app.services.search as mod
 
@@ -631,6 +609,7 @@ class TestGeographicBoost:
 
         monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
         monkeypatch.setattr(mod.httpx, "post", fake_post)
+        monkeypatch.setattr(mod.settings, "tavily_search_depth", "advanced")
         mod.search("MIX Market Integrated Xploration", 5)
 
         assert captured["search_depth"] == "advanced"

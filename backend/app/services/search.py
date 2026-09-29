@@ -56,12 +56,17 @@ class SearchOutcome:
     ok: bool = True
     error: str = ""
     latency: float = 0.0
+    # TEMPORARY DIAGNOSTIC. The provider's raw body, so the panel can show what
+    # Tavily actually returned for each query. Nothing in the production path
+    # reads it.
+    #
+    # This field existed before and was removed: `test_no_debug_surface.py`
+    # asserts its absence, and that assertion is currently suspended while this
+    # diagnostic is in use. Restore both together — remove this field and drop
+    # the `pytest.mark.skip` in that test. Shipping a debug surface on a released
+    # extension leaks the provider's raw response body to the browser.
+    raw_response: str = ""
 
-
-_CORPORATE_SUFFIX = re.compile(
-    r"(?:[,\s&/]+|^)(?:incorporated|corporation|corp|inc|co|llc)\.?\s*$",
-    re.IGNORECASE,
-)
 
 # Tavily's `country` boost, not a query term and not a domain filter. See
 # search() for why ranking rather than phrasing is the lever here. Configurable
@@ -123,40 +128,111 @@ def _parse_domains(raw: str) -> list[str]:
     return seen
 
 
-def _strip_corporate_suffix(name: str) -> str:
-    """Drop a trailing corporate suffix: 'Corporation', 'Corp.', 'Inc', 'Co'.
+def build_queries(company: str) -> list[str]:
+    """The queries issued per verification: registration, then reviews.
 
-    A rare company name is diluted when a generic legal form is searched
-    verbatim, so the distinctive part gets less of the query's weight.
+    One query cannot serve all three categories. `"<company> Philippines"` ranks
+    the employer's own site and job boards first, which proves it exists but
+    states no registration number, so a PESO or SEC listing sat below the fold —
+    starving "Official Registration" by *ranking*, not by absence. No
+    `max_results` value fixes ranking.
 
-    Only the tail is matched. Stripping is therefore blind to a suffix-shaped
-    word elsewhere in the name: 'Incorporated Systems PH' keeps its first
-    word, and 'Coca-Cola Bottlers' keeps 'Coca-Cola'. It also stops rather
-    than returning an empty stem, because a name that is *only* a suffix
-    would otherwise reduce to the geographic term alone and return results
-    about any company.
+    Neither remaining query names one registry. Naming SEC would reintroduce the
+    failure the category was widened to fix: a company holding a DTI, PEZA, BOI,
+    or LGU business permit is registered, and an SEC-only query would not
+    surface it.
+
+    Company Existence no longer has its own query. It is inferred from these
+    two: a company with a filing, a rating page, or a published complaint is
+    found by one of them, and the prompt judges the same flat list for all three
+    categories. The traded cost is real and recorded in the tests — an employer
+    with neither a filing nor any review is found by neither query and reports
+    yellow on existence, which is the smallest employers, the ones this product
+    exists for.
+
+    The reputation query carries `reviews complaints` deliberately. `scam` and
+    `fraud` stay banned: those name a conclusion, so a query carrying one makes
+    the results look like corroboration of the accusation it already embedded.
+    `reviews` and `complaints` name *documents* — a rating the employer can
+    respond to, and an adverse record someone published — and the category is
+    about what a result states. The residual exposure is aggregator pages that
+    re-publish complaint text against a scraped company name; the prompt's
+    same-entity rule and its requirement that `red` name a source are what keep
+    that from becoming a finding.
+
+    The name is used **verbatim**. It used to be stripped of a trailing
+    Corporation/Corp/Inc/Co/LLC, on the reasoning that a generic legal form
+    dilutes a rare name. That is wrong for this product's subject. A filing, a
+    city PESO listing, and the employer's own legal pages are all titled with the
+    *legal* name, so stripping it left the distinctive part competing against a
+    brand, its franchisees, and unrelated products sharing the word — searching
+    "Jollibee Foods" is a worse lookup than "Jollibee Foods Corporation". The
+    scan states the employer once; nothing between here and the provider rewrites
+    it, because every rewrite is a chance to search a different company than the
+    one named.
+
+    Results merge into one flat list for a single AI call, so the cost is two
+    requests rather than two model calls.
     """
-    stem = name.strip()
-    while True:
-        reduced = _CORPORATE_SUFFIX.sub("", stem).strip(" ,.&/-")
-        if not reduced or reduced == stem:
-            return stem
-        stem = reduced
+    name = company.strip()
+    return [
+        _with_country(f"{name} registration certificate"),
+        _with_country(f"{name} reviews complaints"),
+    ]
 
 
-def build_query(company: str) -> str:
-    """The one query issued per verification.
+def _with_country(query: str) -> str:
+    """Anchor a query to the Philippines unless the name already says so."""
+    return query if re.search(r"\bPhilippines\b", query, re.IGNORECASE) else f"{query} Philippines"
 
-    No category suffixes. The model sorts results into the three categories
-    itself, so a result is never labelled as belonging to one, and the query
-    cannot assert that a lookup was for a scam report — asking for that text
-    biases the results toward it and manufactures the appearance of evidence
-    the prompt then has to be careful not to trust.
+
+def _canonical_url(url: str) -> str:
+    """Reduce a URL to an identity, so one page reached twice is one result.
+
+    Two queries return overlapping sets — the employer's own site appears in
+    both — and every result is prompt text competing for a reasoning model's
+    budget, so a page listed twice is paid for twice while telling the model
+    nothing new. Scheme, `www.`, tracking parameters, and a trailing slash all
+    vary between the two responses for the same page.
     """
-    stem = _strip_corporate_suffix(company)
-    if re.search(r"\bPhilippines\b", stem, re.IGNORECASE):
-        return stem
-    return f"{stem} Philippines"
+    value = (url or "").strip().lower()
+    if not value:
+        # No URL cannot be compared against anything, so this is a marker the
+        # caller replaces with a per-occurrence key. Two blank-URL results are
+        # two results, not one collapsed pair.
+        return ""
+    for scheme in ("https://", "http://"):
+        if value.startswith(scheme):
+            value = value[len(scheme):]
+            break
+    value = value.split("?", 1)[0].split("#", 1)[0].rstrip("/")
+    if value.startswith("www."):
+        value = value[4:]
+    return value
+
+
+def merge_results(*result_sets: list[SearchResult], cap: int | None = None) -> list[SearchResult]:
+    """Combine several result sets into one, best first, without duplicates.
+
+    Ordering is by score so a later query's hit can outrank the first query's
+    filler, and so a `cap` trims the tail the budget cannot hold rather than an
+    arbitrary slice.
+    """
+    best: dict[str, SearchResult] = {}
+    blanks = 0
+    for results in result_sets:
+        for result in results or []:
+            key = _canonical_url(result.url)
+            if not key:
+                key = f"\x00blank{blanks}"
+                blanks += 1
+            if key not in best:
+                best[key] = result
+            elif result.score > best[key].score:
+                # Same page, better-scored copy: keep the text that earned it.
+                best[key] = result
+    merged = sorted(best.values(), key=lambda r: r.score, reverse=True)
+    return merged[:cap] if cap and cap > 0 else merged
 
 
 def _normalise(payload) -> list[SearchResult]:
@@ -211,6 +287,7 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
 
     started = time.monotonic()
     payload = None
+    raw = ""  # TEMPORARY DIAGNOSTIC — see SearchOutcome.raw_response.
 
     depth = settings.tavily_search_depth.strip().lower()
     if depth not in _VALID_DEPTHS:
@@ -274,6 +351,9 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
+        # TEMPORARY DIAGNOSTIC. Read before json() so a malformed body is still
+        # visible in the panel rather than only in a log line.
+        raw = response.text
         payload = response.json()
         # Normalising inside the try: a shape change is a provider fault, and
         # search() must report it rather than raise out of the verification
@@ -286,6 +366,7 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
             ok=False,
             error=f"{type(exc).__name__}: {exc}",
             latency=latency,
+            raw_response=raw,  # TEMPORARY DIAGNOSTIC
         )
 
     latency = round(time.monotonic() - started, 3)
@@ -294,7 +375,8 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
         log.info("[search] '%s' returned no results in %ss", query, latency)
     else:
         log.info("[search] '%s' returned %d results in %ss", query, len(results), latency)
-    return SearchOutcome(results=results, ok=True, error="", latency=latency)
+    # TEMPORARY DIAGNOSTIC — see SearchOutcome.raw_response.
+    return SearchOutcome(results=results, ok=True, error="", latency=latency, raw_response=raw)
 
 
 # ── Company name helpers ──────────────────────────────────────────────

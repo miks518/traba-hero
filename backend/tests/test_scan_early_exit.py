@@ -20,7 +20,7 @@ def _result(events: list[str]) -> dict | None:
     return None
 
 
-# ── _VALID_LINE_RE ───────────────────────────────────────────────────
+# â”€â”€ _VALID_LINE_RE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class TestValidLineRegex:
     def test_matches_false_line(self):
@@ -50,14 +50,14 @@ class TestValidLineRegex:
         assert m and m.group(1).lower() == "false"
 
 
-# ── _scan_event_stream early exit ────────────────────────────────────
+# â”€â”€ _scan_event_stream early exit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @pytest.mark.asyncio
 async def test_early_exit_stops_stream_on_valid_false():
     """Stream with VALID: false stops before consuming later pieces."""
     consumed: list[str] = []
 
-    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None):
+    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         for piece in [
             "VALID: false\n",
             "VERDICT_PERCENTAGE: 0\n",
@@ -89,7 +89,7 @@ async def test_no_early_exit_on_valid_true():
     """VALID: true continues streaming all pieces."""
     consumed: list[str] = []
 
-    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None):
+    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         for piece in [
             "VALID: true\n",
             "VERDICT_PERCENTAGE: 10\n",
@@ -127,7 +127,7 @@ async def test_partial_valid_false_does_not_trigger_early_exit():
     """Incomplete VALID: fal must not cancel the stream."""
     consumed: list[str] = []
 
-    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None):
+    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         for piece in [
             "VALID: fal",
             "se\n",
@@ -147,10 +147,10 @@ async def test_partial_valid_false_does_not_trigger_early_exit():
             events.append(ev)
 
     # "VALID: fal" alone should not early-exit; "se\n" completes the line
-    # and then early-exit fires — so we should get at least 2 pieces.
+    # and then early-exit fires â€” so we should get at least 2 pieces.
     assert len(consumed) >= 2
     # Should not have consumed everything if early exit fired after completion
-    # After "VALID: false\n" is complete (piece 2), early exit → stop.
+    # After "VALID: false\n" is complete (piece 2), early exit â†’ stop.
     assert consumed == ["VALID: fal", "se\n"]
 
     data = _result(events)
@@ -161,7 +161,7 @@ async def test_partial_valid_false_does_not_trigger_early_exit():
 @pytest.mark.asyncio
 async def test_invalid_skips_email_and_company_search():
     """When valid=false (even without early_exit), skip email + company extraction."""
-    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None):
+    async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         # Model ignores stop instruction and emits full output with VALID: false
         yield "VALID: false\n"
         yield "VERDICT_PERCENTAGE: 0\n"

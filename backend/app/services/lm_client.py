@@ -93,11 +93,39 @@ def _request_extra_body(structured: dict | None) -> dict:
     return body
 
 
-def _rejected_param(exc: Exception) -> str | None:
+# OpenRouter reports a request it cannot route as a 404, not the 400 a
+# provider-issued rejection produces. The message is the only signal: the status
+# alone is ambiguous, because 404 is also what a mistyped model ID returns.
+_ROUTING_REJECTION_MARKERS = (
+    "no endpoints found that can handle the requested parameters",
+    "failed_routing_step",
+    "filter by parameters",
+)
+
+# Tried in order when a routing rejection does not say which parameter caused it.
+# `structured` is first because `provider.require_parameters` is the flag that
+# makes routing strict in the first place, and it also travels with
+# `response_format`, so dropping it clears both. Reasoning is far more widely
+# supported and is the last thing to give up.
+_ROUTING_FALLBACK_ORDER = ("structured", "reasoning")
+
+
+def _rejected_param(exc: Exception, attempted: set[str]) -> str | None:
     """Name the request parameter the provider refused, or None if not that."""
-    if getattr(exc, "status_code", None) != 400:
-        return None
+    status = getattr(exc, "status_code", None)
     text = str(exc).lower()
+
+    if status == 404 and any(m in text for m in _ROUTING_REJECTION_MARKERS):
+        # A routing rejection names the step that failed, not the parameter, so
+        # the culprit is worked out from what has already been dropped. When both
+        # are gone there is nothing left to remove and the error propagates.
+        for param in _ROUTING_FALLBACK_ORDER:
+            if param not in attempted:
+                return param
+        return None
+
+    if status != 400:
+        return None
     if not any(h in text for h in ("reasoning", "response_format", "json_schema", "structured", "schema", "unsupported", "unknown field", "unrecognized", "not allowed", "invalid_request_error")):
         return None
     if any(h in text for h in ("response_format", "json_schema", "structured", "schema")):
@@ -111,9 +139,15 @@ async def _create_completion(**kwargs):
     """Call the provider, dropping parameters it rejects.
 
     Not every provider behind an OpenRouter model supports `reasoning` or
-    structured outputs. A 400 naming a parameter is a configuration problem, not
-    a broken request, so it is retried without that parameter and then left out
-    for the rest of the process.
+    structured outputs. A rejection is a configuration problem, not a broken
+    request, so it is retried without that parameter and then left out for the
+    rest of the process.
+
+    Two shapes of rejection arrive. A provider-issued one is a 400 that names the
+    parameter. An unroutable one is a 404 ("No endpoints found that can handle
+    the requested parameters"), which is what a model with no structured-output
+    endpoint produces — and the more common of the two, since a 404 was previously
+    not recognised at all and took the whole request down.
     """
     structured = kwargs.pop("_structured", None)
     _log_sent_config(kwargs.get("model", "?"), kwargs.get("max_tokens", "?"), bool(structured))
@@ -123,7 +157,7 @@ async def _create_completion(**kwargs):
         try:
             return await _get_client().chat.completions.create(extra_body=extra_body or None, **kwargs)
         except Exception as e:  # noqa: BLE001
-            culprit = _rejected_param(e)
+            culprit = _rejected_param(e, attempted)
             if culprit is None or culprit in attempted:
                 raise
             attempted.add(culprit)
@@ -416,10 +450,11 @@ async def chat(
     temperature: float | None = None,
     top_p: float | None = None,
     response_format: dict | None = None,
+    endpoint: str = "",
 ) -> str:
-    model = settings.model_name or "local-model"
+    model = settings.resolve_model(endpoint) or "local-model"
     eff_temp = temperature if temperature is not None else settings.ai_temperature
-    eff_max_tokens = max_tokens if max_tokens is not None else settings.ai_max_tokens
+    eff_max_tokens = max_tokens if max_tokens is not None else settings.resolve_max_tokens(endpoint)
     eff_top_p = top_p if top_p is not None else settings.ai_top_p
 
     completion = await _create_completion(
@@ -616,6 +651,7 @@ async def chat_stream_pieces(
     max_tokens: int | None = None,
     temperature: float | None = None,
     top_p: float | None = None,
+    endpoint: str = "",
 ):
     """Async generator yielding each content delta from the AI provider as it arrives.
 
@@ -626,9 +662,9 @@ async def chat_stream_pieces(
     content at all. Skipping those frames silently turns that into an empty
     string, which the callers then report as an unreadable response.
     """
-    model = settings.model_name or "local-model"
+    model = settings.resolve_model(endpoint) or "local-model"
     eff_temp = temperature if temperature is not None else settings.ai_temperature
-    eff_max_tokens = max_tokens if max_tokens is not None else settings.ai_max_tokens
+    eff_max_tokens = max_tokens if max_tokens is not None else settings.resolve_max_tokens(endpoint)
     eff_top_p = top_p if top_p is not None else settings.ai_top_p
 
     stream = await _create_completion(

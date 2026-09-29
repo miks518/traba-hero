@@ -19,7 +19,7 @@ async def _match_event_stream(messages: list, max_tokens: int | None = None, end
     token_count = 0
     try:
         deadline = _time.monotonic() + 300.0
-        stream = runtime.get_chat_stream()(messages, max_tokens=max_tokens)
+        stream = runtime.get_chat_stream()(messages, max_tokens=max_tokens, endpoint=endpoint)
         try:
             async for piece in stream:
                 if _time.monotonic() > deadline:

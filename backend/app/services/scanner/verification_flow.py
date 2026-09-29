@@ -2,6 +2,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 
+from app.config import settings
 from app.models.schemas import VerificationItem, VerifyRequest
 
 from .dependencies import runtime
@@ -109,19 +110,59 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             return
 
         yield runtime.get_sse()({"type": "progress", "percent": 10, "stage": "Searching company info"})
-        # One query, no category suffixes: the model sorts the results into the
-        # three categories itself, so nothing here decides what a result is.
-        query = runtime.get_build_query()(company)
-        yield runtime.get_sse()({"type": "search", "query": query, "round": 1})
+        # Two queries, no category suffixes: the model sorts the merged results
+        # into the three categories itself, so nothing here decides what a
+        # result is. The second exists because one query cannot serve all three
+        # categories — `"<company> Philippines"` ranks the employer's own site
+        # first, and those pages do not state registration numbers.
+        queries = runtime.get_build_queries()(company)
+        collected: list = []
+        # TEMPORARY DIAGNOSTIC. The provider's raw body per query, so the panel
+        # can show what Tavily actually returned. Remove alongside
+        # SearchOutcome.raw_response and the suspended assertion in
+        # test_no_debug_surface.py.
+        raw_dump: list[dict] = []
+        # (query, error) rather than the query alone: the panel is told *why*
+        # retrieval failed, and a bare query string would report "Acme
+        # Philippines" to the user in place of "TAVILY_API_KEY is not
+        # configured", which is both useless and alarming.
+        failures: list[tuple[str, str]] = []
 
-        outcome = await asyncio.to_thread(runtime.get_search(), query)
-        search_context = runtime.get_format_results()(
-            outcome.results, company, outcome.ok, outcome.error
+        for i, query in enumerate(queries, 1):
+            yield runtime.get_sse()({"type": "search", "query": query, "round": i})
+            outcome = await asyncio.to_thread(runtime.get_search(), query)
+            if outcome.ok:
+                collected.append(outcome.results)
+            else:
+                # One failure is not a total failure: the other query may have
+                # worked, and discarding it would understate what was checked.
+                failures.append((query, outcome.error))
+                log.warning("[verify] Search failed for '%s': %s", query, outcome.error)
+            if outcome.raw_response:  # TEMPORARY DIAGNOSTIC
+                raw_dump.append({"query": query, "raw": outcome.raw_response})
+
+        ok = bool(collected) or not failures
+        partial = bool(failures) and bool(collected)
+        first_error = failures[0][1] if failures else ""
+
+        if not collected and not failures:
+            log.info("[verify] Searches for '%s' returned no results", company)
+        elif partial:
+            log.warning(
+                "[verify] %d of %d searches failed for '%s'; coverage is partial",
+                len(failures), len(queries), company,
+            )
+
+        # Dedupe on canonical URL: the employer's own site appears in both
+        # result sets, and every result is prompt text competing for a budget
+        # shared with the model's reasoning. Capped so the merged list cannot
+        # outgrow what one query produced by much.
+        merged = runtime.get_merge_results()(
+            *collected, cap=settings.tavily_max_results * 2
         )
-        if not outcome.ok:
-            log.warning("[verify] Search failed for '%s': %s", company, outcome.error)
-        elif not outcome.results:
-            log.info("[verify] Search for '%s' returned no results", company)
+        search_context = runtime.get_format_results()(
+            merged, company, ok, first_error
+        )
         yield runtime.get_sse()({"type": "progress", "percent": 45, "stage": "AI analyzing"})
 
         # The exact text handed to the model, so the search -> prompt -> answer
@@ -134,8 +175,8 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
 
         final_text = await runtime.get_chat()(
             messages,
-            max_tokens=2048,
             response_format=runtime.get_verify_response_format(),
+            endpoint="verify",
         )
         log.info("[verify] Raw AI response (%d chars): %s", len(final_text), final_text[:1000])
         yield runtime.get_sse()({"type": "progress", "percent": 85, "stage": "Analyzing results"})
@@ -202,9 +243,19 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # that the search did not complete" only works if the model obeys;
             # a model that omits it would render three yellow cards identical to
             # a company with no footprint. The panel states this directly.
-            "search_ok": outcome.ok,
-            "search_error": outcome.error,
-            "search_count": len(outcome.results),
+            #
+            # `search_partial` is the state a single search never had: one of
+            # two failed, so the answer is real but some categories are thinner
+            # than they look. Reporting `search_ok: true` with no caveat would
+            # overstate the coverage, and reporting a total failure would
+            # discard a search that worked.
+            "search_ok": ok,
+            "search_partial": partial,
+            "search_error": first_error,
+            "search_count": len(merged),
+            "queries_issued": len(queries),
+            "queries_failed": len(failures),
+            "debug_search_raw": raw_dump,  # TEMPORARY DIAGNOSTIC — remove with SearchOutcome.raw_response
             "no_company_name": False,
         }})
     except Exception as e:  # noqa: BLE001

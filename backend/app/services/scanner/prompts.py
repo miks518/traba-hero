@@ -45,13 +45,14 @@ SCAN_FIELD_RULES = """Field rules:
 - RED FLAGS:
   * Output a RED FLAG line only for something you can point to in the posting. A flag describes what the posting contains, says, or asks for.
   * Never flag the absence of something. Do not output a flag because the posting does not ask for a processing fee, does not mention a contract, or does not include some other thing a posting might have included. The absence of an element is never evidence of anything, and "it does not ask for money" is a clean posting, not a warning.
-  * Never output a flag about a scam pattern unless the posting actually contains that pattern's element. An advance-fee pattern exists only where the posting asks the applicant for money. A money-mule pattern exists only where the posting asks the applicant to receive, pass on, or bank money. If the posting contains none of these, name no pattern.
+  * Never output a flag about a scam pattern unless the posting actually contains that pattern's element. An advance-fee pattern exists only where the posting asks the applicant for money. A money-mule pattern exists only where the posting asks the applicant to receive, pass on, or bank money. A task-for-earning pattern exists only where the posting asks the reader to complete discrete tasks, orders, or referrals in order to be paid, rather than describing a role with duties — for example an instruction to do a task and then earn a reward, or an amount stated per order, per signup, or per referral. If the posting contains none of these, name no pattern.
+  * Work followed by payment is the ordinary order and is not a flag by itself; most jobs are paid that way. What separates a task-for-earning offer is the unit of work — a task or an earning event rather than a role. If the posting describes a role and what the person in it does, this pattern does not apply.
   * If the posting has no red flags, output no RED FLAG lines at all — go straight to END FLAGS. This is the expected outcome for most postings and is not a failure.
   * Never invent a flag, and never output a placeholder or default flag. Every flag must quote or closely paraphrase text actually present in the posting.
   * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high.
   * Severity means:
     - high: the posting explicitly asks the applicant for money, or contains a concrete instruction matching a known scam pattern.
-    - mid: a checkable gap or contradiction in the posting, such as contact details that do not match the named employer.
+    - mid: a checkable gap or contradiction in the posting, such as contact details that do not match the named employer, or an offer of paid tasks rather than a role.
     - low: something common in Philippine job postings that is weak evidence on its own.
   * Do not flag any of these on their own: a free email domain (Gmail, Yahoo), a missing office address, a generic job title, "no experience needed".
   * If the posting states no salary, do not flag salary. Only flag a salary amount that is stated and does not fit the role.
