@@ -664,7 +664,7 @@ export function ScamScanView({
             onClick={handleScan}
             disabled={isLoading || !isOnline}
             title={isOnline ? undefined : 'Server unreachable'}
-            className="w-full tactile-btn-gold py-3 rounded-lg font-headline-md text-base flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed active:translate-y-[1px]"
+            className="w-full tactile-btn-accent py-3 rounded-lg font-headline-md text-base flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed active:translate-y-[1px]"
           >
             <Icon name="security" />
             {isLoading ? 'Scanning...' : !isOnline ? 'Server Unreachable' : `Scan (${screenshots.length})`}

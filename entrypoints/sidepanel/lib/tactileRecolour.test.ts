@@ -1,7 +1,7 @@
 // The tactile button must be recolourable, not replaced.
 //
 // `ScanActions` used to swap the whole class string when a high or critical
-// result was on screen, so the button went from a 3D extruded gold key to a flat
+// result was on screen, so the button went from a 3D extruded accent key to a flat
 // error wash. The colour is supposed to carry the risk; the shape is supposed to
 // stay the same control the reader has been pressing all along. A primary action
 // that changes its affordance at the same moment it changes its message is
@@ -13,7 +13,7 @@
 // class bookkeeping.
 //
 // These assert on the stylesheet's structure, because the structure is the fix: a
-// test that only checked the class list would pass while the shadow stayed gold.
+// test that only checked the class list would pass while the shadow stayed accent.
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -30,16 +30,16 @@ const rule = (selector: string): string => {
 };
 
 describe('the tactile button derives its whole treatment from one colour', () => {
-  const gold = rule('.tactile-btn-gold');
+  const accentRule = rule('.tactile-btn-accent');
 
   it('declares the base colour as a variable', () => {
-    // The default is the gold secondary. The point is that it is a *variable*,
+    // The default is the accent colour. The point is that it is a *variable*,
     // so a modifier can move it without this rule changing.
-    expect(gold).toMatch(/--tactile-base:\s*var\(--color-secondary\)/);
+    expect(accentRule).toMatch(/--tactile-base:\s*var\(--color-secondary\)/);
   });
 
   it('builds the gradient from that variable, not from secondary directly', () => {
-    const gradient = gold.slice(gold.indexOf('linear-gradient'));
+    const gradient = accentRule.slice(accentRule.indexOf('linear-gradient'));
     expect(gradient).toMatch(/var\(--tactile-base\)/);
     // A direct reference here would be a second source of truth: the accent
     // would change the fill and leave the highlight and shadow behind.
@@ -47,7 +47,7 @@ describe('the tactile button derives its whole treatment from one colour', () =>
   });
 
   it('builds the extrusion and the top highlight from it too', () => {
-    const shadow = gold.slice(gold.indexOf('box-shadow'));
+    const shadow = accentRule.slice(accentRule.indexOf('box-shadow'));
     expect(shadow).toMatch(/var\(--tactile-base\)/);
     expect(shadow).not.toMatch(/var\(--color-secondary\)/);
   });
@@ -55,7 +55,7 @@ describe('the tactile button derives its whole treatment from one colour', () =>
   it('keeps the press animation, since the affordance must not change', () => {
     // Dropping the :active press is the same defect as dropping the extrusion:
     // the button stops reading as something you push.
-    expect(css).toMatch(/\.tactile-btn-gold:active\s*\{/);
+    expect(css).toMatch(/\.tactile-btn-accent:active\s*\{/);
   });
 });
 
@@ -74,7 +74,7 @@ describe('there is an error-coloured variant of the same button', () => {
   it('is a modifier on the tactile class, not a replacement for it', () => {
     // Modelled as a compound so it must be applied *alongside* the base class.
     // A standalone class would let the two be swapped, which is the bug.
-    expect(css).toMatch(/\.tactile-btn-gold\.tactile-btn-error/);
+    expect(css).toMatch(/\.tactile-btn-accent\.tactile-btn-error/);
   });
 
   it('uses a design token, never a literal colour', () => {

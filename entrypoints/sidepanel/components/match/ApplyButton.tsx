@@ -11,7 +11,7 @@ export function ApplyButton({ label = APPLY_LABEL, onClick }: ApplyButtonProps) 
   return (
     <button
       onClick={onClick}
-      className="w-full tactile-btn-gold py-3.5 px-4 rounded-xl font-headline-md text-base flex items-center justify-center gap-2 shadow-tactile-gold"
+      className="w-full tactile-btn-accent py-3.5 px-4 rounded-xl font-headline-md text-base flex items-center justify-center gap-2 shadow-tactile-accent"
     >
       <Icon name="rocket_launch" />
       {label}

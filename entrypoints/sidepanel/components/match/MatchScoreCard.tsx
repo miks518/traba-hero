@@ -24,7 +24,7 @@ export function MatchScoreCard({
           <span className="font-label-sm text-secondary uppercase font-bold tracking-tighter">
             Match Score
           </span>
-          <h2 className="text-[40px] leading-none text-gold-gradient font-extrabold mt-1">
+          <h2 className="text-[40px] leading-none text-accent-gradient font-extrabold mt-1">
             {score}%
           </h2>
         </div>

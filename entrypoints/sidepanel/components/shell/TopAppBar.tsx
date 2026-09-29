@@ -58,8 +58,8 @@ export function TopAppBar({
   return (
     <header className="bg-surface-container w-full sticky top-0 z-40 border-b border-outline-variant/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] flex justify-between items-center px-4 py-3 shrink-0">
       <div className="flex items-center gap-2">
-        <TrabaheroLogo size={22} className="text-gold-gradient" />
-        <span className="text-headline-sm font-headline font-bold text-gold-gradient">
+        <TrabaheroLogo size={22} className="text-accent-gradient" />
+        <span className="text-headline-sm font-headline font-bold text-accent-gradient">
           {brandText}
         </span>
       </div>

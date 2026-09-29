@@ -24,7 +24,7 @@ export interface ScanActionsProps {
    *
    * Scoped to the currently displayed result, which is what makes it
    * temporary: picking a new element clears the scan result, the accent prop
-   * goes with it, and the button returns to gold without a timer of its own.
+   * goes with it, and the button returns to the accent colour without a timer of its own.
    * A button that stayed red after the result was gone would describe the
    * next scan rather than the one on screen.
    */
@@ -69,7 +69,7 @@ export function ScanActions({
         <button
           onClick={handlePickToggle}
           disabled={isPickerActivating || disabled}
-          className={`flex-1 py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] tactile-btn-gold py-3 rounded-lg text-body-md disabled:opacity-70 ${
+          className={`flex-1 py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] tactile-btn-accent py-3 rounded-lg text-body-md disabled:opacity-70 ${
             isPickerActive
               ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
               // A modifier on the tactile class, applied alongside it. The
@@ -99,7 +99,7 @@ export function ScanActions({
             className={`flex-1 py-2.5 rounded-lg text-label-md font-label flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
               isCropActive
                 ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
-                : 'btn-outline-gold bg-background'
+                : 'btn-outline-accent bg-background'
             }`}
           >
             <Icon

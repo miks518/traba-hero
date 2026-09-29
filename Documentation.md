@@ -292,7 +292,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 **Acceptance Criteria:**
 - AC-01: Red flags are displayed as a list of cards with icon, title, severity badge, and description.
-- AC-02: Severity levels have distinct visual styling: high (red), mid (amber), low (neutral).
+- AC-02: Severity levels have distinct visual styling: high (red), mid (amber), low (green), applied to the **card's own border** as well as its icon. The border was previously `outline-variant/10` on every severity, so a high-severity finding was signalled only by a 32px dot — the smallest thing on the card — and the outline rendered near-white because the translucent class was never generated. A high-severity outline is the panel's alarm and uses full-strength colour.
 - AC-03: A "CRITICAL" badge is shown if any high-severity flags exist.
 - AC-04: The total flag count is displayed.
 - AC-05: Flags are prioritized by severity (high first, then mid, then low).
@@ -798,6 +798,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-06: The reorder is animated in both directions so the blocks travel to their new positions. A fade is not used: dissolving and reappearing elsewhere reads as a glitch. The animation is disabled under `prefers-reduced-motion`.
 - AC-07: The action bar remains pinned to the bottom of the panel. `order` applies to every sibling of the flex column, so the bar and the capture preview carry explicit order values ahead of neither the promoted nor the demoted group.
 - AC-08: The risk level is reflected in the chrome — the verification section's header, border, and surface, and the primary action button — using semantic design tokens, never a literal colour value.
+- AC-08b: **A risk accent may only change the primary action's colour, never its shape.** The button keeps its hard-shadow depth, gradient, top highlight, and `:active` press; a high or critical result moves the accent's base colour rather than replacing the button's class. The affordance is not part of the risk message, and a primary action that changes shape at the same moment it changes message is harder to trust and harder to aim at.
 - AC-09: **Body prose is never recoloured by risk level.** Long blocks of red or amber on a light surface are the hardest thing on the panel to read, and the panel is where a reader reads a verdict carefully enough to act on it.
 - AC-10: The accent applies only while a result is displayed and is removed automatically when a new element is picked, with no timer of its own.
 
@@ -896,6 +897,8 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Text size scaling | Three presets (default/big/largest) for readability |
 | Dark/light themes | High-contrast themes for different lighting conditions |
 | Consistent design | Material Design 3 semantic tokens used throughout |
+| Depth without noise | **Hard shadow** (zero-blur, hard-edged) for elevation. Neumorphism and long shadows are explicitly rejected: neumorphism is too soft for a high-density panel and disappears on this system's near-black dark theme, and long shadows carry no usability information |
+| Interactivity is signalled | **Buttons and containers are structurally different.** A button carries a hard shadow *and* an `:active` press (shadow compresses, element moves down); a container carries the shadow only. The press is the cue that distinguishes an operable element from a decorative panel, so no button may be built without it and no container may respond to hover or press |
 | Responsive layout | Side panel adapts to Chrome's resizable side panel (320-500px) |
 | Keyboard navigation | Escape key cancels picker/crop/lightbox |
 | Click-outside-to-close | Dropdowns and dialogs close on outside click |
