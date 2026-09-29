@@ -69,14 +69,14 @@ export function ScanActions({
         <button
           onClick={handlePickToggle}
           disabled={isPickerActivating || disabled}
-          className={`flex-1 py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] ${
+          className={`flex-1 py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] tactile-btn-gold py-3 rounded-lg text-body-md disabled:opacity-70 ${
             isPickerActive
               ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
-              : accent?.button
-                // The tactile shadow is dropped with the gold background: it is
-                // an inset highlight sized for that fill, and it reads as a
-                // dirty edge on a flat error wash.
-                || 'tactile-btn-gold py-3 rounded-lg text-body-md disabled:opacity-70'
+              // A modifier on the tactile class, applied alongside it. The
+              // accent is only ever the colour: the 3D treatment stays so the
+              // primary action does not change shape at the moment it changes
+              // message.
+              : accent?.button ?? ''
           }`}
         >
           <Icon

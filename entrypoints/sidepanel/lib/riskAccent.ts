@@ -30,7 +30,13 @@ const ELEVATED: Accent = {
   text: 'text-error',
   surface: 'bg-error-container/10',
   border: 'border-error/40',
-  button: 'bg-error-container text-on-error-container border border-error/40',
+  // A *modifier* on `tactile-btn-gold`, not a replacement for it. This used to
+  // be a flat fill, which meant a high or critical result turned the primary
+  // action from an extruded key into a flat button: the affordance changed at
+  // the same moment as the message. `.tactile-btn-gold.tactile-btn-error` moves
+  // one CSS variable instead, so the gradient, the extrusion, the top highlight,
+  // and the press animation are identical in both states by construction.
+  button: 'tactile-btn-error',
 };
 
 const MODERATE: Accent = {

@@ -153,24 +153,36 @@
     transition: all 0.1s ease;
   }
 
-  /* 3D tactile primary CTA button (adapts to theme secondary color) */
+  /* 3D tactile primary CTA button.
+     The whole treatment — gradient, 6px extrusion, top highlight — is built
+     from one variable so a risk accent can move the hue without the shape
+     changing. An earlier version swapped the entire class on the button when a
+     high or critical result was on screen, which flattened it: the colour was
+     carrying the risk message and the affordance was changing with it. */
   .tactile-btn-gold {
+    --tactile-base: var(--color-secondary);
     background: linear-gradient(180deg,
-        color-mix(in srgb, var(--color-secondary), white 20%) 0%,
-        var(--color-secondary) 45%,
-        color-mix(in srgb, var(--color-secondary), black 25%) 100%);
-    border: 1px solid color-mix(in srgb, var(--color-secondary), white 20%);
+        color-mix(in srgb, var(--tactile-base), white 20%) 0%,
+        var(--tactile-base) 45%,
+        color-mix(in srgb, var(--tactile-base), black 25%) 100%);
+    border: 1px solid color-mix(in srgb, var(--tactile-base), white 20%);
     box-shadow:
-      0 6px 0 0 color-mix(in srgb, var(--color-secondary), black 55%),
+      0 6px 0 0 color-mix(in srgb, var(--tactile-base), black 55%),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
     color: var(--color-on-secondary);
     font-weight: 800;
     transition: all 0.1s ease;
   }
 
+  /* Applied *alongside* .tactile-btn-gold, never instead of it. Modelled as a
+     compound so the two cannot be swapped: that is the whole point. */
+  .tactile-btn-gold.tactile-btn-error {
+    --tactile-base: var(--color-error);
+  }
+
   .tactile-btn-gold:active {
     transform: translateY(4px);
-    box-shadow: 0 2px 0 0 color-mix(in srgb, var(--color-secondary), black 55%);
+    box-shadow: 0 2px 0 0 color-mix(in srgb, var(--tactile-base), black 55%);
   }
 
   /* Subtle outline button */
@@ -199,9 +211,38 @@
     border-color: color-mix(in srgb, var(--color-outline-variant) 10%, transparent);
   }
 
+  /* outline — /45 is the dashed "missing input" edge on CompanyNameNeeded */
+  .border-outline\/45 {
+    border-color: color-mix(in srgb, var(--color-outline) 45%, transparent);
+  }
+
   /* secondary */
+  .border-secondary\/50 {
+    border-color: color-mix(in srgb, var(--color-secondary) 50%, transparent);
+  }
+
+  .border-secondary\/30 {
+    border-color: color-mix(in srgb, var(--color-secondary) 30%, transparent);
+  }
+
   .border-secondary\/20 {
     border-color: color-mix(in srgb, var(--color-secondary) 20%, transparent);
+  }
+
+  /* tertiary — the moderate-risk border from riskAccent() */
+  .border-tertiary\/40 {
+    border-color: color-mix(in srgb, var(--color-tertiary) 40%, transparent);
+  }
+
+  /* Hover variants used on the outline buttons. Declared separately from the
+     base classes above because a variant selector is a different rule, and
+     declaring `border-secondary\/50` would not satisfy `hover:border-secondary\/50`. */
+  .hover\:border-secondary\/50:hover {
+    border-color: color-mix(in srgb, var(--color-secondary) 50%, transparent);
+  }
+
+  .hover\:border-error\/50:hover {
+    border-color: color-mix(in srgb, var(--color-error) 50%, transparent);
   }
 
   .border-secondary\/10 {
@@ -225,6 +266,14 @@
   }
 
   /* error */
+  .border-error\/50 {
+    border-color: color-mix(in srgb, var(--color-error) 50%, transparent);
+  }
+
+  .border-error\/40 {
+    border-color: color-mix(in srgb, var(--color-error) 40%, transparent);
+  }
+
   .border-error\/30 {
     border-color: color-mix(in srgb, var(--color-error) 30%, transparent);
   }
