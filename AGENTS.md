@@ -352,6 +352,22 @@ The classes are named `tactile-btn-accent`, `btn-outline-accent`, and `text-acce
 | Moderate | `warning` (amber) | `riskLevel === 'moderate'` |
 | High/Critical | `shield_person` (red) | `riskLevel === 'high'` OR `riskLevel === 'critical'` |
 
+High/Critical jobs are excluded from resume matching.
+
+**Every level but `low` is excluded, and each per-job row has to say so.**
+The exclusion itself is `verifiedJobs` — `isVerifiedJob` is `low` only, and that
+collection is what gets matched. The bug was in the *label*: the per-row status
+branch tested `isSuspiciousJob` (which means **moderate**) and then
+`riskLevel === null`, so `high` and `critical` fell through to the final `else`
+and were told *"No high-severity indicators found. Included in resume matching."*
+The one branch that must never be reassuring was the one the most dangerous job
+took. `isSuspiciousJob`/`suspiciousJobs` are now `isModerateJob`/`moderateJobs`,
+because the old name reads like it covers the risky levels and invites the same
+omission. The `JobFilterCategory` data key is still `'suspicious'` — it is a
+stored union value, not a predicate. `ResumeMatchView.riskMessage.test.tsx` asserts
+the message for all four levels plus unscored, so the `else` cannot swallow a
+level again.
+
 Risk scores (0-100): Low (0-30), Moderate (31-50), High (51-75), Critical (76-100), computed in `risk_calculator.py`. High/Critical jobs are excluded from resume matching.
 
 A job's score always exists. It is built in two stages and **summed** in
