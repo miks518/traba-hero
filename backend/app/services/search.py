@@ -69,6 +69,60 @@ _CORPORATE_SUFFIX = re.compile(
 _VALID_DEPTHS = frozenset({"basic", "advanced"})
 
 
+def _normalise_domain(raw: str) -> str:
+    """Reduce one user-typed entry to a bare host.
+
+    People paste URLs and copy them with a trailing slash. Tavily matches
+    `exclude_domains` against the result host, so a scheme, a `www.` prefix,
+    or a path would not match anything: the exclusion would look configured
+    and silently do nothing, which is worse than an error because the setting
+    appears to be working.
+
+    A leading `*.` is preserved — Tavily reads it as a subdomain wildcard, and
+    stripping it would quietly widen what gets excluded.
+    """
+    value = raw.strip().lower()
+    if not value:
+        return ""
+    for scheme in ("https://", "http://"):
+        if value.startswith(scheme):
+            value = value[len(scheme) :]
+            break
+    # Cut anything after the host: a path, query, or fragment.
+    value = re.split(r"[/?#]", value, maxsplit=1)[0]
+    if value.startswith("*."):
+        host = value[2:]
+        prefix = "*."
+    else:
+        host = value
+        prefix = ""
+    if host.startswith("www."):
+        host = host[4:]
+    return f"{prefix}{host}"
+
+
+def _parse_domains(raw: str) -> list[str]:
+    """Split a configured domain list into the list Tavily expects.
+
+    Split on commas and whitespace so both `a.com, b.com` and a multi-line
+    `.env` value work. Order is preserved and duplicates are collapsed, since
+    two spellings of one host would otherwise be sent as two entries.
+    """
+    if not raw:
+        return []
+    seen: list[str] = []
+    for token in re.split(r"[,\s]+", raw.strip()):
+        domain = _normalise_domain(token)
+        # A host needs a dot. Without this check a stray word in the list —
+        # a note to self in the .env — becomes a domain Tavily rejects, which
+        # turns a config typo into a search failure reported to the user as an
+        # employer that cannot be looked up.
+        if not domain or "." not in domain or domain in seen:
+            continue
+        seen.append(domain)
+    return seen
+
+
 def _strip_corporate_suffix(name: str) -> str:
     """Drop a trailing corporate suffix: 'Corporation', 'Corp.', 'Inc', 'Co'.
 
@@ -197,6 +251,21 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
     country = settings.tavily_country.strip()
     if country:
         body["country"] = country
+
+    # `exclude_domains` is a different lever from `include_domains`: it removes
+    # pages the provider would otherwise return rather than restricting the
+    # search to a whitelist. That distinction is why it can be set without
+    # discarding the local job boards and PESO listings above — a domain is
+    # excluded by name, not everything outside it. It still costs recall, so
+    # it stays opt-in and off by default.
+    #
+    # Sent only when something survives parsing. `exclude_domains: []` would
+    # declare an intent to filter while filtering nothing; blank is a
+    # misconfiguration, so the unfiltered query is issued instead.
+    excluded = _parse_domains(settings.tavily_exclude_domains)
+    if excluded:
+        log.info("[search] excluding %d configured domain(s)", len(excluded))
+        body["exclude_domains"] = excluded
 
     try:
         response = httpx.post(

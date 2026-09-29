@@ -13,6 +13,7 @@ from app.main import app
 from app.services.search import (
     SearchOutcome,
     SearchResult,
+    _parse_domains,
     build_query,
     clean_company_name,
     extract_company_name,
@@ -289,6 +290,45 @@ class TestBuildQuery:
         assert build_query("Jollibee Philippines") == "Jollibee Philippines"
 
 
+class TestSettingsDefaultTestsIgnoreTheLocalEnvFile:
+    """    A default assertion must read the code's default, not the developer's.
+
+    `Settings()` loads `backend/.env`, so asserting on it tests the local
+    environment rather than the shipped default: it passes only while the two
+    happen to agree, and fails the moment a developer edits their own .env.
+    Worse, a failing assertion prints the whole settings repr — including the
+    live `AI_API_KEY` — into the test output. `_env_file=None` reads the class
+    defaults instead, which is what each of these needs to assert.
+
+    Note what that does and does not bypass: the env *file* is skipped, but a
+    real OS environment variable still wins, because pydantic-settings applies
+    those after the class defaults. The production module is unaffected — it
+    wants the deployed value — and only these tests pass `_env_file=None`.
+    """
+
+    def test_the_default_is_asserted_without_reading_the_env_file(self, tmp_path):
+        from app.config import Settings
+
+        disagreeing = tmp_path / ".env"
+        disagreeing.write_text("TAVILY_MAX_RESULTS=9\n", encoding="utf-8")
+
+        assert Settings(_env_file=disagreeing).tavily_max_results == 9
+        assert Settings(_env_file=None).tavily_max_results == 4
+
+    def test_a_real_environment_variable_still_overrides_the_default(self, monkeypatch):
+        """`_env_file=None` skips the file, not the environment.
+
+        Worth pinning because the fix above looks like it isolates settings
+        from the environment, and it does not. A deployment exporting
+        TAVILY_MAX_RESULTS must still win over the shipped default.
+        """
+        from app.config import Settings
+
+        monkeypatch.setenv("TAVILY_MAX_RESULTS", "9")
+
+        assert Settings(_env_file=None).tavily_max_results == 9
+
+
 class TestSearchSettingsAreConfigurable:
     """The credit trade is a deployment decision, not a code constant.
 
@@ -323,7 +363,7 @@ class TestSearchSettingsAreConfigurable:
         """A deployment that sets nothing keeps the better recall."""
         from app.config import Settings
 
-        assert Settings().tavily_search_depth == "advanced"
+        assert Settings(_env_file=None).tavily_search_depth == "advanced"
 
     def test_country_is_read_from_settings(self, monkeypatch):
         captured = self._capture(monkeypatch, tavily_country="united kingdom")
@@ -332,7 +372,7 @@ class TestSearchSettingsAreConfigurable:
     def test_country_defaults_to_philippines(self):
         from app.config import Settings
 
-        assert Settings().tavily_country == "philippines"
+        assert Settings(_env_file=None).tavily_country == "philippines"
 
     def test_an_invalid_depth_falls_back_rather_than_being_sent(self, monkeypatch):
         """A typo must not become a provider error for every verification.
@@ -357,6 +397,131 @@ class TestSearchSettingsAreConfigurable:
         captured = self._capture(monkeypatch, tavily_country="   ")
 
         assert "country" not in captured
+
+    def test_exclude_domains_is_read_from_settings(self, monkeypatch):
+        captured = self._capture(monkeypatch, tavily_exclude_domains="pinterest.com")
+        assert captured["exclude_domains"] == ["pinterest.com"]
+
+    def test_a_comma_separated_list_is_split(self, monkeypatch):
+        captured = self._capture(
+            monkeypatch, tavily_exclude_domains="pinterest.com, quora.com"
+        )
+        assert captured["exclude_domains"] == ["pinterest.com", "quora.com"]
+
+    def test_exclude_domains_defaults_to_wikipedia_only(self):
+        """One entry ships by default; the rest is a deployment decision.
+
+        The knob exists so noise can be dropped without touching the sources
+        the country boost targets, which is why its default is a single
+        unreliable-by-construction domain rather than a broad list.
+        """
+        from app.config import Settings
+
+        assert _parse_domains(Settings(_env_file=None).tavily_exclude_domains) == [
+            "wikipedia.org"
+        ]
+
+    def test_the_default_list_excludes_wikipedia(self):
+        """An encyclopedia page is not a source, whatever it says.
+
+        Wikipedia is crowd-editable and unattributed, so a company entry is not
+        evidence of anything about the company — and a panel that cites it puts
+        a defensible check behind a claim nobody can trace. It is excluded
+        without ceremony: the entry is wrong often enough to be noise, and
+        citing it invites the question it cannot answer.
+        """
+        from app.config import Settings
+
+        settings = Settings(_env_file=None)
+        assert "wikipedia.org" in _parse_domains(settings.tavily_exclude_domains)
+
+    def test_the_default_list_keeps_the_sources_the_boost_targets(self):
+        """Excluding noise must not touch what the country boost exists for.
+
+        JobStreet, Indeed PH, and city PESO listings are the pages a small
+        Philippine employer is actually found on. If one of those were dropped,
+        the recall the boost buys would be spent getting rid of it.
+        """
+        from app.config import Settings
+
+        excluded = _parse_domains(Settings(_env_file=None).tavily_exclude_domains)
+
+        for essential in ("jobstreet.com", "indeed.com", "peso.gov.ph", "sec.gov.ph"):
+            assert essential not in excluded, essential
+
+    def test_a_blank_list_is_omitted_rather_than_sent_empty(self, monkeypatch):
+        """An empty list and an absent key are different requests.
+
+        `exclude_domains: []` tells the provider to filter nothing while still
+        declaring an intent; a blank value is a misconfiguration, so it is
+        dropped and the unfiltered query is issued.
+        """
+        captured = self._capture(monkeypatch, tavily_exclude_domains="   ")
+
+        assert "exclude_domains" not in captured
+
+    def test_a_list_of_separators_alone_is_omitted(self, monkeypatch):
+        captured = self._capture(monkeypatch, tavily_exclude_domains=" , ,")
+
+        assert "exclude_domains" not in captured
+
+    def test_a_full_url_is_reduced_to_a_bare_domain(self, monkeypatch):
+        """People paste URLs. Tavily wants the host.
+
+        A scheme, a `www.` prefix, or a trailing path would not match the
+        results it filters on, so the exclusion would silently do nothing —
+        which reads as "the setting works" and is worse than an error.
+        """
+        captured = self._capture(
+            monkeypatch,
+            tavily_exclude_domains="https://www.Example.com/some/path",
+        )
+        assert captured["exclude_domains"] == ["example.com"]
+
+    def test_empty_entries_are_dropped(self, monkeypatch):
+        """A trailing comma or a double space is a typo, not a domain."""
+        captured = self._capture(
+            monkeypatch, tavily_exclude_domains="quora.com,,  ,reddit.com"
+        )
+        assert captured["exclude_domains"] == ["quora.com", "reddit.com"]
+
+    def test_duplicates_collapse(self, monkeypatch):
+        """Case and `www.` make two entries that filter identically."""
+        captured = self._capture(
+            monkeypatch, tavily_exclude_domains="quora.com, www.quora.com, QUORA.com"
+        )
+        assert captured["exclude_domains"] == ["quora.com"]
+
+    def test_a_wildcard_is_passed_through_intact(self, monkeypatch):
+        """Tavily supports `*.example.com`; parsing must not flatten it."""
+        captured = self._capture(monkeypatch, tavily_exclude_domains="*.example.com")
+        assert captured["exclude_domains"] == ["*.example.com"]
+
+    def test_an_entry_without_a_dot_is_dropped(self, monkeypatch):
+        """A stray word in the .env must not become a provider error.
+
+        Tavily would reject a malformed domain, and a rejected search is
+        reported to the user as a company that cannot be looked up. A typo in
+        a recall setting must not become a verdict.
+        """
+        captured = self._capture(
+            monkeypatch, tavily_exclude_domains="quora.com, scammy, reddit.com"
+        )
+        assert captured["exclude_domains"] == ["quora.com", "reddit.com"]
+
+    def test_default_max_results_is_four(self):
+        """The result count is a token-budget decision, not a recall one.
+
+        Credits are charged per request, so `max_results` is free — asking for
+        more results costs nothing. What it costs is context: every snippet
+        becomes prompt text for a model that draws its reasoning from the same
+        `AI_MAX_TOKENS` budget that has to hold the answer, and a truncated
+        reasoning phase can come back with nothing at all. Four is the ceiling
+        that keeps the verification answer room to exist.
+        """
+        from app.config import Settings
+
+        assert Settings(_env_file=None).tavily_max_results == 4
 
     def test_max_results_is_still_configurable(self, monkeypatch):
         import app.services.search as mod
@@ -408,6 +573,11 @@ class TestGeographicBoost:
         `include_domains` restricts to the listed domains, which would discard
         exactly the non-government pages this boost is meant to surface. It
         must stay absent.
+
+        `exclude_domains` removes pages by name, so it does not restrict the
+        result set. The default does send one entry — see
+        test_exclude_domains_defaults_to_wikipedia_only — which is a source
+        removed, not a whitelist applied.
         """
         import app.services.search as mod
 
@@ -422,7 +592,7 @@ class TestGeographicBoost:
         mod.search("MIX Market Integrated Xploration", 5)
 
         assert "include_domains" not in captured
-        assert "exclude_domains" not in captured
+        assert "include_domains_mode" not in captured
 
     def test_no_synthesised_answer_is_requested(self, monkeypatch):
         """The model reads the raw snippets; it is not handed a summary.

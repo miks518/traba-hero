@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     # A missing key makes every search report as a failure rather than an empty
     # result, so a broken deployment cannot look like a clean employer.
     tavily_api_key: str = ""
-    tavily_max_results: int = 8
+    # Results per verification. Credits are charged per request, so this is
+    # free — what it costs is context, since every snippet becomes prompt text
+    # for a model that draws its reasoning from the same AI_MAX_TOKENS budget
+    # that has to hold the answer. Env value so a deployment can trade the two.
+    tavily_max_results: int = 4
     # Credit cost lives here, not in the code. Advanced depth costs 2 credits
     # against basic's 1, so it halves the monthly budget in exchange for better
     # recall on a small local employer. That is the right default and the wrong
@@ -39,6 +43,17 @@ class Settings(BaseSettings):
     # Tavily's `country` boost, which prioritises results from that country.
     # Blank disables the boost and issues the plain query.
     tavily_country: str = "philippines"
+    # Tavily's `exclude_domains`, as a comma- or space-separated list. Unlike
+    # `include_domains`, this *removes* pages rather than restricting the search
+    # to a whitelist, so it does not fight the country boost: the JobStreet,
+    # Indeed PH and PESO pages the boost exists to surface stay in the result
+    # set unless named here.
+    #
+    # Wikipedia is excluded by default because it is not a source. A crowd-edited
+    # entry is unattributed and often wrong, and this panel is asked to state
+    # facts about a named company — citing one would be a claim nobody can trace
+    # back to whoever asserted it. Everything else is a deployment decision.
+    tavily_exclude_domains: str = "wikipedia.org"
 
     @property
     def tavily_search_depth_fallback(self) -> str:

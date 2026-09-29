@@ -1,8 +1,8 @@
 {
   "name": "trabahero",
-  "description": "A Universal Visual Job-Scam Detection System for Filipino Job Seekers.",
+  "description": "Scan a job posting for scam signals, then check the employer behind it actually exists. For Filipino job seekers.",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
