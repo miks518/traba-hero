@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import type { ScanRiskLevel } from '../../types';
 
 export interface RiskGaugeProps {
@@ -15,6 +15,15 @@ export interface RiskGaugeProps {
    * as an unscored gauge so no number is displayed that we did not measure.
    */
   unverified?: boolean;
+  /**
+   * How many anomalies the posting stage reported.
+   *
+   * Only used for the provenance line. The score is not recomputed here â€” it
+   * travels from `risk_calculator.py` and this panel never synthesises a
+   * number the system did not measure. What this adds is the *reason* the
+   * score is what it is, which is what a reader needs in order to act on it.
+   */
+  anomalyCount?: number;
 }
 
 function scoreColor(score: number): string {
@@ -34,6 +43,25 @@ function levelColor(level: ScanRiskLevel | null): string {
   }
 }
 
+/** Where the level bands start, as a fraction of the full ring. */
+const BAND_STARTS = [30, 50, 75];
+
+/**
+ * One sentence saying what produced the score, in the reader's words.
+ *
+ * This existed nowhere before. A bare number with no stated basis is why a
+ * first-time tester read "12" as meaningless: nothing connected it to
+ * anything about their own posting. The count is not a second score â€” it is
+ * the observable fact the score was built from.
+ */
+function provenanceLine(anomalyCount: number | undefined): string | null {
+  if (anomalyCount === undefined) return null;
+  if (anomalyCount === 0) return "Nothing in this post stands out.";
+  return anomalyCount === 1
+    ? "1 thing in this post differs from normal."
+    : `${anomalyCount} things in this post differ from normal.`;
+}
+
 export function RiskGauge({
   score,
   maxScore = 100,
@@ -41,6 +69,7 @@ export function RiskGauge({
   riskLabel,
   pendingNote,
   unverified = false,
+  anomalyCount,
 }: RiskGaugeProps) {
   const radius = 52;
   const strokeWidth = 14;
@@ -118,7 +147,7 @@ export function RiskGauge({
               />
             </svg>
             <div className="flex flex-col items-center">
-              <span className="text-2xl font-extrabold tracking-tight leading-none text-on-surface-variant">—</span>
+              <span className="text-2xl font-extrabold tracking-tight leading-none text-on-surface-variant">â€”</span>
               <span className="font-label-md text-label-md text-on-surface-variant mt-0.5">RISK</span>
             </div>
           </div>
@@ -137,9 +166,9 @@ export function RiskGauge({
   }
 
   const normalized = Math.min(score / maxScore, 1);
-  const pct = Math.round(normalized * 100);
   const color = levelColor(riskLevel);
   const dashOffset = circumference * (1 - normalized);
+  const provenance = provenanceLine(anomalyCount);
 
   // The card does not clip here, so the ring gives its own glow room to render
   // in: p-2 inside the card's p-5, against a glow that peaks at 11px. The
@@ -159,6 +188,32 @@ export function RiskGauge({
               strokeWidth={strokeWidth}
               className="text-surface-container-high"
             />
+            {/* Band markers. A ring with no marks is a progress bar, so the
+                number in the middle read as a dial position â€” which is why a
+                tester asked what "12" was out of. Three hairlines at the band
+                boundaries make it an instrument with a scale, and they carry
+                the same thresholds `_level_for` uses rather than inventing
+                new ones. Short and low-contrast: they are gradations, not
+                labels, and must not compete with the number. */}
+            {BAND_STARTS.map((band) => {
+              const angle = ((band / 100) * 2 * Math.PI) - Math.PI / 2;
+              const inner = radius - strokeWidth / 2 - 1;
+              const outer = radius + strokeWidth / 2 + 1;
+              return (
+                <line
+                  key={band}
+                  data-band={band}
+                  x1={64 + inner * Math.cos(angle)}
+                  y1={64 + inner * Math.sin(angle)}
+                  x2={64 + outer * Math.cos(angle)}
+                  y2={64 + outer * Math.sin(angle)}
+                  stroke="currentColor"
+                  strokeWidth="1"
+                  className="text-surface-container-lowest"
+                  opacity="0.55"
+                />
+              );
+            })}
             <circle
               cx="64" cy="64"
               fill="transparent"
@@ -172,9 +227,20 @@ export function RiskGauge({
               style={{ ['--ring-glow-color' as string]: color }}
             />
           </svg>
+          {/* The number and the ring show the same quantity, and the unit says
+              so. It reads as `/ 100` rather than a percentage sign on purpose:
+              the score is an index built by summing weighted severities, not a
+              calibrated probability, and a bare "%" would claim the latter. */}
           <div className="flex flex-col items-center">
-            <span className="text-3xl font-extrabold tracking-tight leading-none" style={{ color }}>{pct}</span>
-            <span className="font-label-md text-label-md text-on-surface-variant mt-0.5">RISK</span>
+            <span className="text-3xl font-extrabold tracking-tight leading-none" style={{ color }}>
+              {score}
+              <span className="text-sm font-bold align-baseline opacity-70 ml-0.5">
+                /{maxScore}
+              </span>
+            </span>
+            <span className="font-label-md text-label-md text-on-surface-variant mt-0.5">
+              RISK INDEX
+            </span>
           </div>
         </div>
         <div className="flex flex-col gap-1.5 min-w-0">
@@ -185,6 +251,11 @@ export function RiskGauge({
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
             {riskLabel ?? 'Low Risk'}
           </span>
+          {provenance && (
+            <span className="text-label-sm text-on-surface-variant text-center max-w-[240px]">
+              {provenance}
+            </span>
+          )}
         </div>
       </div>
     </section>

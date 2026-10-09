@@ -5,7 +5,7 @@ import { RiskGauge } from './RiskGauge';
 afterEach(() => cleanup());
 
 /**
- * A posting with no employer name and no red flags has a posting-stage score of
+ * A posting with no employer name and no anomalies has a posting-stage score of
  * 0, which renders as "0 / Low Risk". That reads as "we checked and it's fine",
  * which is not what happened — the employer was never checked at all.
  */
@@ -25,15 +25,15 @@ describe('RiskGauge unverified state', () => {
     expect(note).not.toBeNull();
   });
 
-  it('still shows Low Risk when a red flag put the score above zero', () => {
-    render(<RiskGauge score={40} riskLabel="High Risk" riskLevel="high" />);
+  it('still shows Low Risk when an anomaly put the score above zero', () => {
+    render(<RiskGauge score={40} riskLabel="High Risk" riskLevel="high" anomalyCount={1} />);
 
     expect(screen.getByText('High Risk')).not.toBeNull();
     expect(screen.getByText('40')).not.toBeNull();
   });
 
   it('shows Low Risk normally when not unverified', () => {
-    render(<RiskGauge score={0} riskLabel="Low Risk" riskLevel="low" />);
+    render(<RiskGauge score={0} riskLabel="Low Risk" riskLevel="low" anomalyCount={0} />);
 
     expect(screen.getByText('Low Risk')).not.toBeNull();
   });
@@ -46,6 +46,106 @@ describe('RiskGauge unverified state', () => {
     const html = container.innerHTML;
     expect(html).not.toContain('hsl(45, 78%, 44%)');
     expect(html).toContain('text-outline');
+  });
+});
+
+/**
+ * A bare number with no stated unit or basis is unreadable.
+ *
+ * A tester read "12" as meaningless and asked what it was out of. Two separate
+ * causes, fixed here: the unit was a bare noun (`RISK`) doing a scale's job, and
+ * nothing anywhere said what produced the number.
+ *
+ * `happy-dom` performs no layout and zeroes every `getBoundingClientRect()`, so
+ * these assert the mechanism — the unit text exists, the count line renders — and
+ * not that the ring *looks* like a scale.
+ */
+describe('RiskGauge states the unit and the basis of the number', () => {
+  it('shows the ceiling rather than a bare number', () => {
+    render(<RiskGauge score={12} riskLevel="low" riskLabel="Low Risk" anomalyCount={1} />);
+
+    expect(screen.getByText(/\/100/)).not.toBeNull();
+  });
+
+  it('never renders a percent sign on the score', () => {
+    // The score is an index from summing weighted severities, not a calibrated
+    // probability. "%" would assert the latter, and a reader would take it as a
+    // likelihood that the post is a scam — a claim this panel cannot support.
+    const { container } = render(
+      <RiskGauge score={12} riskLevel="low" riskLabel="Low Risk" anomalyCount={1} />
+    );
+
+    expect(container.innerHTML).not.toMatch(/>12\s*%|<span[^>]*>12%</);
+  });
+
+  it('says what produced the score', () => {
+    // The provenance line is the whole point of the change: without it the
+    // number has no connection to anything in the reader's own posting.
+    render(<RiskGauge score={12} riskLevel="low" riskLabel="Low Risk" anomalyCount={1} />);
+
+    expect(screen.getByText(/1 thing in this post differs from normal/)).not.toBeNull();
+  });
+
+  it('pluralises when more than one was reported', () => {
+    render(<RiskGauge score={28} riskLevel="low" riskLabel="Low Risk" anomalyCount={3} />);
+
+    expect(screen.getByText(/3 things in this post differ from normal/)).not.toBeNull();
+  });
+
+  it('states plainly when nothing stood out', () => {
+    render(<RiskGauge score={0} riskLevel="low" riskLabel="Low Risk" anomalyCount={0} />);
+
+    expect(screen.getByText(/Nothing in this post stands out/)).not.toBeNull();
+  });
+
+  it('omits the line when the count is unknown rather than claiming zero', () => {
+    // "Nothing stands out" is a claim about the posting. Rendering it when the
+    // count was never passed would state something the panel cannot support.
+    const { container } = render(
+      <RiskGauge score={0} riskLevel="low" riskLabel="Low Risk" />
+    );
+
+    expect(container.innerHTML).not.toMatch(/Nothing in this post stands out/);
+  });
+
+  it('shows the score itself, not a rounded percentage of it', () => {
+    // The ring's fill and the number must be the same quantity. They were not:
+    // the fill used score/maxScore while the centre rounded it to a percent.
+    render(<RiskGauge score={12} riskLevel="low" riskLabel="Low Risk" anomalyCount={1} />);
+
+    expect(screen.getByText('12')).not.toBeNull();
+  });
+});
+
+describe('RiskGauge ring reads as an instrument', () => {
+  it('marks the level boundaries', () => {
+    // A ring with no gradations is a progress bar, so its centre number reads
+    // as a dial position. Three hairlines at the same thresholds
+    // `_level_for` uses — a scale, not invented marks.
+    const { container } = render(
+      <RiskGauge score={12} riskLevel="low" riskLabel="Low Risk" anomalyCount={1} />
+    );
+
+    const ticks = container.querySelectorAll('[data-band]');
+    expect(ticks).toHaveLength(3);
+    expect(
+      Array.from(ticks).map((t) => t.getAttribute('data-band')).sort()
+    ).toEqual(['30', '50', '75']);
+  });
+
+  it('fills the ring in proportion to the score it displays', () => {
+    // dashoffset is circumference * (1 - score/maxScore), so a longer arc must
+    // accompany a larger number. Asserted on the attribute rather than pixels.
+    const { container } = render(
+      <RiskGauge score={75} riskLevel="high" riskLabel="High Risk" anomalyCount={2} />
+    );
+
+    const ring = container.querySelector('circle[stroke-dashoffset]');
+    const circumference = Number(ring?.getAttribute('stroke-dasharray'));
+    const offset = Number(ring?.getAttribute('stroke-dashoffset'));
+
+    // 75 of 100 leaves a quarter of the ring unfilled.
+    expect(offset / circumference).toBeCloseTo(0.25, 2);
   });
 });
 

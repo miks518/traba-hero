@@ -524,6 +524,7 @@ export function ScamScanView({
               riskLevel={scanResult.riskLevel}
               riskLabel={scanResult.riskLabel}
               unverified={scanResult.unverifiedEmployer}
+              anomalyCount={scanResult.anomalies.length}
             />
           )}
 
