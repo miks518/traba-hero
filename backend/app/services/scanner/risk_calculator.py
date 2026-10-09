@@ -1,10 +1,23 @@
-from app.models.schemas import RedFlag, VerificationItem
+from app.models.schemas import Anomaly, VerificationItem
 
 # Weights used to turn the indicators reported in a posting into a score. They
 # are deliberately simple and fixed so the number can be explained to the user:
 # a high-severity indicator is a concrete instruction or request inside the
 # posting, a mid is a checkable gap, a low is something common in Philippine
 # postings that is weak on its own.
+#
+# Derivation: the 40/12/4 proportions are reproducible from a Saaty pairwise
+# comparison matrix of 3/9/3 (high:mid, high:low, mid:low), which is perfectly
+# consistent at CR = 0.0000 against a 0.10 threshold. Implemented proportions are
+# 71.4/21.4/7.1 against AHP's 69.2/23.1/7.7 — within 2.2 percentage points. See
+# SCORING-SOURCES.md §1. The remaining free parameter is the scale anchor (one
+# high-severity indicator = 40 points), which AHP cannot derive and which the
+# sensitivity analysis in §5 of that file covers.
+#
+# Deliberately NOT fitted to labelled scam data: fitting would rediscover
+# subtraction, since a verified-legitimate employer plus a clean posting
+# correlates with "legitimate" in labelled data. That would reverse the
+# asymmetry `_combine_scores` was rewritten to enforce.
 POSTING_SEVERITY_WEIGHTS = {"high": 40, "mid": 12, "low": 4}
 
 
@@ -19,7 +32,7 @@ def _level_for(score: int) -> str:
 
 
 def _posting_risk_from_flags(flags: list) -> tuple[int, str, dict]:
-    """Score a posting from the indicators reported in it. Returns (score, level, breakdown).
+    """Score a posting from the anomalies reported in it. Returns (score, level, breakdown).
 
     This is the base verdict and it is always available: it depends on nothing
     but the posting itself, so an offer with no employer name, or one that cannot

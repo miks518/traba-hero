@@ -1,4 +1,4 @@
-import type { ScanResult, ScannedJob } from '../types';
+import type { Anomaly, ScanResult, ScannedJob } from '../types';
 
 /**
  * Replace a stored job's scan result once a later stage produces one.
@@ -33,13 +33,20 @@ export function updateScannedJob(
 }
 
 /**
- * Repairs scan history written before external verification became the only
- * source of a risk score.
+ * Repairs stored scan history: clears invented scores and renames the field
+ * that carried the posting's findings.
  *
- * Those entries carry a synthesised `riskScore` of 80/50/10 that was derived
- * from the number of red flags, not from any measured value. Showing it as a
- * percentage would present an invented number as a finding, so it is cleared on
- * load and the job is presented as unverified until it is scanned again.
+ * **Synthesised scores.** Entries written before external verification became
+ * the only source of a risk score carry an invented `riskScore` of 80/50/10,
+ * derived from the number of findings rather than from any measured value.
+ * Showing it as a percentage would present a made-up number as a finding, so it
+ * is cleared on load and the job reads as unverified until it is scanned again.
+ *
+ * **The field rename.** `redFlags` became `anomalies`. Without this, every
+ * stored scan would render as a clean posting: the findings are still in
+ * storage under the old key, and nothing would read them. The score is left
+ * alone — a stored score was measured and stays measured, whatever the
+ * findings are called now.
  */
 export function migrateScannedJobs(stored: unknown): ScannedJob[] {
   if (!Array.isArray(stored)) return [];
@@ -47,12 +54,27 @@ export function migrateScannedJobs(stored: unknown): ScannedJob[] {
   return (stored as ScannedJob[]).map((job) => {
     const scanResult = job?.scanResult;
     if (!scanResult || typeof scanResult !== 'object') return job;
-    if (scanResult.riskScored === true) return job;
+
+    // `redFlags` is not on the type any more, so it is reached through `unknown`.
+    // Checked for shape rather than cast straight to Anomaly[]: a stored entry
+    // could hold anything, and a malformed list must not become a render crash.
+    const { redFlags: legacyFlags, ...rest } = scanResult as unknown as Record<
+      string,
+      unknown
+    >;
+    // Destructured rather than spread-and-overwrite: a key set to `undefined`
+    // still exists on the object, so `toHaveProperty` would report it and a
+    // stored entry would carry a dead field forever.
+    const renamed: ScanResult = Array.isArray(legacyFlags)
+      ? { ...(rest as unknown as ScanResult), anomalies: legacyFlags as Anomaly[] }
+      : (rest as unknown as ScanResult);
+
+    if (renamed.riskScored === true) return { ...job, scanResult: renamed };
 
     return {
       ...job,
       scanResult: {
-        ...scanResult,
+        ...renamed,
         riskScored: false,
         riskScore: null,
         riskLevel: null,

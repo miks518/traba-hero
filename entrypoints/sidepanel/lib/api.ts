@@ -502,7 +502,7 @@ export interface VerifyStreamResult {
 }
 
 export async function verifyJobStream(
-  context: { company_name: string; job_summary: string; red_flags?: { flag: string; reasoning: string; severity: string }[] },
+  context: { company_name: string; job_summary: string; anomalies?: { flag: string; reasoning: string; severity: string }[] },
   externalSignal: AbortSignal,
   onProgress: (progress: ScanProgress) => void,
   onSearch: (query: string, round: number) => void,

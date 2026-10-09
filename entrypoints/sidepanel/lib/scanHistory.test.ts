@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { updateScannedJob } from './scanHistory';
+import { migrateScannedJobs, updateScannedJob } from './scanHistory';
 import type { ScannedJob, ScanResult } from '../types';
 
 function result(over: Partial<ScanResult> = {}): ScanResult {
@@ -9,7 +9,7 @@ function result(over: Partial<ScanResult> = {}): ScanResult {
     riskScored: true,
     riskScore: 0,
     scanningTarget: 'Scanned Element',
-    redFlags: [],
+    anomalies: [],
     flagsCritical: false,
     isJobPosting: true,
     riskDescription: '',
@@ -84,5 +84,72 @@ describe('updateScannedJob', () => {
 
     expect(next[0].scanResult.verificationLoading).toBe(false);
     expect(next[0].scanResult.verificationError).toBe(true);
+  });
+});
+
+describe('migrateScannedJobs renames the findings field', () => {
+  /** A stored entry written before `redFlags` became `anomalies`. */
+  const legacy = (over: Record<string, unknown> = {}): unknown => [
+    {
+      id: 'a',
+      title: 'Job a',
+      summary: 'summary',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      scanResult: {
+        riskLevel: 'moderate',
+        riskLabel: 'Moderate Risk',
+        riskScored: true,
+        riskScore: 52,
+        scanningTarget: 'Scanned Element',
+        flagsCritical: true,
+        isJobPosting: true,
+        riskDescription: '',
+        redFlags: [
+          { id: 'flag-0', title: 'Asks applicants to pay a processing fee', description: 'r', icon: 'warning', severity: 'high' },
+        ],
+        ...over,
+      },
+    },
+  ];
+
+  it('moves the stored findings onto the new key', () => {
+    // Without this the findings stay in storage under `redFlags` and nothing
+    // reads them, so every scan taken before the rename renders as a clean
+    // posting — the worst possible failure for this product.
+    const next = migrateScannedJobs(legacy());
+
+    expect(next[0].scanResult.anomalies).toHaveLength(1);
+    expect(next[0].scanResult.anomalies[0].severity).toBe('high');
+  });
+
+  it('leaves a measured score alone', () => {
+    // The score was measured. What the findings are called does not change
+    // that, and clearing it would discard real evidence the reader cannot
+    // re-obtain without rescanning.
+    const next = migrateScannedJobs(legacy());
+
+    expect(next[0].scanResult.riskScore).toBe(52);
+    expect(next[0].scanResult.riskLevel).toBe('moderate');
+  });
+
+  it('drops the old key rather than keeping both', () => {
+    const next = migrateScannedJobs(legacy());
+
+    expect(next[0].scanResult).not.toHaveProperty('redFlags');
+  });
+
+  it('ignores a legacy value that is not a list', () => {
+    // Storage can hold anything. A malformed value must not become findings.
+    const next = migrateScannedJobs(legacy({ redFlags: 'not-a-list' }));
+
+    expect(next[0].scanResult.anomalies).toBeUndefined();
+  });
+
+  it('still clears a synthesised score it finds on the way past', () => {
+    // The original purpose of this function is unchanged by the rename.
+    const next = migrateScannedJobs(legacy({ riskScored: false, riskScore: 80 }));
+
+    expect(next[0].scanResult.riskScore).toBeNull();
+    expect(next[0].scanResult.riskLabel).toBe('Not Scored');
   });
 });

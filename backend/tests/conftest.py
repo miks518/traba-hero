@@ -38,7 +38,7 @@ FAKE_RECOMMENDATION = "OFFLINE FAKE RECOMMENDATION"
 # carries a verification_context, exercising that guardrail offline.
 FAKE_SCAN_RESPONSE = (
     "VALID: true\n"
-    "RED FLAG: Application fee requested | Candidates are asked to pay a processing fee before being considered | high\n"
+    "ANOMALY: Application fee requested | Candidates are asked to pay a processing fee before being considered | high\n"
     "JOB SUMMARY:\n"
     f"{FAKE_JOB_SUMMARY}\n"
     "END JOB SUMMARY\n"

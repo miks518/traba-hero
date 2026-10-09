@@ -92,7 +92,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # No employer lookup happened, so the posting's own indicators remain
             # the whole verdict. The score does not move just because the lookup
             # was impossible.
-            posting_score, posting_level, breakdown = runtime.get_posting_risk()(req.red_flags or [])
+            posting_score, posting_level, breakdown = runtime.get_posting_risk()(req.anomalies or [])
             breakdown["verification_score"] = None
             breakdown["final_score"] = posting_score
             breakdown["sources"] = ["posting"]
@@ -211,7 +211,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             if not recommendation:
                 recommendation = "Confirm the employer independently before submitting personal details."
 
-        posting_score, _posting_level, breakdown = runtime.get_posting_risk()(req.red_flags or [])
+        posting_score, _posting_level, breakdown = runtime.get_posting_risk()(req.anomalies or [])
         verify_score, _verify_level = runtime.get_calculate_risk()(items)
         risk_score, risk_level = runtime.get_combine_scores()(posting_score, verify_score)
 

@@ -79,7 +79,7 @@ async def test_fake_stream_yields_the_deterministic_scan_response():
     result = next(e["data"] for e in events if e.get("type") == "result")
     assert result["job_summary"] == FAKE_JOB_SUMMARY
     assert result["valid"] is True
-    # The fake data carries one red flag and a company name, so the mocked
-    # response exercises flag parsing and the verification guardrail.
-    assert [f["flag"] for f in result["red_flags"]] == ["Application fee requested"]
+    # The fake data carries one anomaly and a company name, so the mocked
+    # response exercises anomaly parsing and the verification guardrail.
+    assert [f["flag"] for f in result["anomalies"]] == ["Application fee requested"]
     assert result["verification_context"]["company_name"] == FAKE_COMPANY_NAME

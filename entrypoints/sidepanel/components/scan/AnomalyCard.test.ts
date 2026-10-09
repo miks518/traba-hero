@@ -1,4 +1,4 @@
-// A high-severity flag's container carried a near-invisible border.
+// A high-severity anomaly's container carried a near-invisible border.
 //
 // `SEVERITY_STYLES.border` was defined per severity and applied only to the icon
 // circle, so the card that actually held the finding had `border-outline-variant/10`
@@ -15,11 +15,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const source = readFileSync(
-  join(process.cwd(), 'entrypoints/sidepanel/components/scan/RedFlagCard.tsx'),
+  join(process.cwd(), 'entrypoints/sidepanel/components/scan/AnomalyCard.tsx'),
   'utf-8'
 );
 
-describe('the red flag card is outlined by its severity', () => {
+describe('the anomaly card is outlined by its severity', () => {
   /** The outermost div's className — the card that holds the finding. */
   const containerClass = (): string => {
     const marker = 'className={`bg-surface-container-low';

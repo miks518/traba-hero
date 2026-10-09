@@ -1,6 +1,6 @@
 export { RiskGauge } from './RiskGauge';
-export { RedFlagsList } from './RedFlagsList';
-export { RedFlagCard } from './RedFlagCard';
+export { AnomaliesList } from './AnomaliesList';
+export { AnomalyCard } from './AnomalyCard';
 export { ScanActions } from './ScanActions';
 export { PickerButton } from './PickerButton';
 export { InvalidContentError } from './InvalidContentError';

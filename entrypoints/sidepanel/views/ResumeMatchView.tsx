@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { ResumePreview, JobMatchList, ResumeUploader } from '../components/match';
-import { RedFlagCard } from '../components/scan';
+import { AnomalyCard } from '../components/scan';
 import { ConfirmDialog, Icon, ToastContainer, useToastManager } from '../components/common';
 import { analyzeResumeStream, matchResumeToJobsStream } from '../lib/api';
 import type { ScanProgress } from '../lib/api';
@@ -499,18 +499,18 @@ export function ResumeMatchView({
                       <p className="text-body-sm text-on-surface-variant/70 italic">
                         This wasn't detected as a job posting.
                       </p>
-                    ) : sr.redFlags.length > 0 ? (
+                    ) : sr.anomalies.length > 0 ? (
                       <div className="flex flex-col gap-1.5">
                         <span className="text-label-sm text-on-surface-variant uppercase tracking-wider text-[10px]">
-                          Red Flags ({sr.redFlags.length})
+                          Anomalies ({sr.anomalies.length})
                         </span>
-                        {sr.redFlags.map((flag) => (
-                          <RedFlagCard key={flag.id} flag={flag} />
+                        {sr.anomalies.map((anomaly) => (
+                          <AnomalyCard key={anomaly.id} anomaly={anomaly} />
                         ))}
                       </div>
                     ) : (
                       <p className="text-body-sm text-green-500/90">
-                        No significant red flags detected.
+                        No significant anomalies detected.
                       </p>
                     )}
                   </div>

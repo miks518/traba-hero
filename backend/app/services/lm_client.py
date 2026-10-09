@@ -1,4 +1,4 @@
-import json
+﻿import json
 import re
 import logging
 from openai import AsyncOpenAI
@@ -40,7 +40,7 @@ def _reasoning_params() -> dict:
     that has to hold the answer: with a 2048 cap the model spent the entire
     budget reasoning and returned no content at all. Three ways to stop that:
 
-      enabled: false      turn reasoning off entirely — the cleanest option
+      enabled: false      turn reasoning off entirely â€” the cleanest option
       effort: low         reduce it at the source
       max_tokens: N       cap it (truncating can make a provider re-attempt)
 
@@ -146,7 +146,7 @@ async def _create_completion(**kwargs):
     Two shapes of rejection arrive. A provider-issued one is a 400 that names the
     parameter. An unroutable one is a 404 ("No endpoints found that can handle
     the requested parameters"), which is what a model with no structured-output
-    endpoint produces — and the more common of the two, since a 404 was previously
+    endpoint produces â€” and the more common of the two, since a 404 was previously
     not recognised at all and took the whole request down.
     """
     structured = kwargs.pop("_structured", None)
@@ -251,13 +251,13 @@ def _parse_json(raw: str) -> dict | list | None:
 _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "critical", "severe", "info"}
 
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|RED\s*FLAG|COMPANY\s*NAME|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|COMPANY\s*NAME|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 
-# Sections whose body runs until their END marker. END FLAGS is deliberately not
-# in this set: it is a bare terminator for the red flag lines, and treating it as
-# a section end used to reset the parser's matched_any flag.
+# Sections whose body runs until their END marker. END ANOMALIES is deliberately
+# not in this set: it is a bare terminator for the anomaly lines, and treating it
+# as a section end used to reset the parser's matched_any flag.
 _SECTION_END_KW = ("END JOB SUMMARY", "END POSTING ANALYSIS")
 
 _HIGH_SEVERITY_KEYWORDS = {
@@ -321,17 +321,30 @@ def _parse_custom(raw: str) -> dict | None:
         if kw == "VALID":
             val = rest.lower()
             result["valid"] = val in ("true", "yes", "1", "legitimate", "valid")
-        elif kw == "RED FLAG":
+        elif kw in ("ANOMALY", "ANOMALIES", "RED FLAG"):
+            # RED FLAG is still accepted so a scan recorded before the rename
+            # parses, the same way EMPLOYER NAME remains accepted alongside
+            # COMPANY NAME. The prompt asks for ANOMALY; this is a fallback, not
+            # a second supported spelling.
             parts = [p.strip() for p in re.split(r"\s*\|\s*", rest) if p.strip()]
             if not parts:
                 continue
             flag_title = parts[0]
             flag_lower = flag_title.lower()
+            # Placeholders the model emits to mean "nothing found". Both the
+            # anomaly and the legacy red-flag spellings are listed because a
+            # model asked for one may answer with either, and a placeholder that
+            # survives becomes a finding about nothing.
             if flag_lower in {
                 "none", "no red flags", "no red flags detected", "n/a", "na",
                 "no significant red flags", "none detected", "no flags", "no flags detected",
-                "legitimate", "no issues found", "nil",
-            } or flag_lower.startswith("no red flag") or flag_lower.startswith("no significant"):
+                "no anomalies", "no anomalies detected", "no significant anomalies",
+                "no anomaly", "legitimate", "no issues found", "nil",
+            } or (
+                flag_lower.startswith("no red flag")
+                or flag_lower.startswith("no significant")
+                or flag_lower.startswith("no anomal")
+            ):
                 continue
 
             reasoning = parts[1] if len(parts) >= 3 else ""
@@ -370,7 +383,7 @@ def _parse_custom(raw: str) -> dict | None:
         else:
             matched_any = False
     close_section()
-    result["red_flags"] = flags
+    result["anomalies"] = flags
     return result if matched_any or flags else None
 
 
@@ -548,7 +561,7 @@ def _parse_resume_custom(raw: str) -> dict | None:
         matched_any = True
 
         if kw == "SKILLS":
-            items = [s.strip().strip('"\'') for s in re.split(r"[,;|•\n]+", rest) if s.strip()]
+            items = [s.strip().strip('"\'') for s in re.split(r"[,;|â€¢\n]+", rest) if s.strip()]
             result["skills"].extend([i for i in items if i and i.lower() not in ("none", "n/a")])
         elif kw in ("EXPERIENCE_YEARS", "EXPERIENCE"):
             num = re.search(r"(\d+(?:\.\d+)?)", rest)
@@ -558,10 +571,10 @@ def _parse_resume_custom(raw: str) -> dict | None:
                 except ValueError:
                     pass
         elif kw in ("JOB_TITLES", "TITLES"):
-            items = [s.strip().strip('"\'') for s in re.split(r"[,;|•\n]+", rest) if s.strip()]
+            items = [s.strip().strip('"\'') for s in re.split(r"[,;|â€¢\n]+", rest) if s.strip()]
             result["job_titles"].extend([i for i in items if i and i.lower() not in ("none", "n/a")])
         elif kw == "INDUSTRIES":
-            items = [s.strip().strip('"\'') for s in re.split(r"[,;|•\n]+", rest) if s.strip()]
+            items = [s.strip().strip('"\'') for s in re.split(r"[,;|â€¢\n]+", rest) if s.strip()]
             result["industries"].extend([i for i in items if i and i.lower() not in ("none", "n/a")])
 
     if summary_lines:
@@ -656,8 +669,8 @@ async def chat_stream_pieces(
     """Async generator yielding each content delta from the AI provider as it arrives.
 
     Everything the stream says about why it produced nothing is collected and
-    reported. OpenRouter surfaces an upstream provider failure — a rate limit on
-    the routed provider, for instance — as a data frame inside an otherwise
+    reported. OpenRouter surfaces an upstream provider failure â€” a rate limit on
+    the routed provider, for instance â€” as a data frame inside an otherwise
     successful 200 response, so a request that was accepted can still end with no
     content at all. Skipping those frames silently turns that into an empty
     string, which the callers then report as an unreadable response.

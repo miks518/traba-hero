@@ -6,7 +6,7 @@ import React from 'react';
  * A high or critical score must lead with the evidence.
  *
  * The reader's first question about a dangerous posting is "why", and the
- * answer is the red flags and the employer check. When the panel opens on
+ * answer is the anomalies and the employer check. When the panel opens on
  * "Posting Analysis" and "Job Summary" instead, the two blocks that explain the
  * score are pushed below the fold of a 380px side panel.
  *
@@ -21,7 +21,7 @@ const scanResponse = {
   company_name: 'Acme Trading',
   job_summary: 'Sales associate wanted',
   posting_analysis: 'The post asks for no money before work.',
-  red_flags: [
+  anomalies: [
     { flag: 'Asks applicants to pay a processing fee', reasoning: 'The post asks for a fee', severity: 'high' },
   ],
   verification_context: { company_name: 'Acme Trading', job_summary: 'Sales associate wanted' },
@@ -94,7 +94,7 @@ beforeEach(() => {
 /**
  * Drive the picker and a scan, then wait for the result to land.
  *
- * Waits on a red flag rather than the job summary: the summary text also
+ * Waits on an anomaly rather than the job summary: the summary text also
  * appears in the verification context, so a query on it matches twice and
  * reports a false failure.
  */
@@ -198,7 +198,7 @@ describe('evidence leads for a high or critical score', () => {
     await scanAndSettle();
 
     await waitFor(() => {
-      // Scoped to the verification section, because RedFlagsList is already
+      // Scoped to the verification section, because AnomaliesList is already
       // error-coloured and would satisfy any search over the whole panel.
       const heading = screen.getByText('External Verification');
       const section = heading.closest('div[class*="rounded-xl"]') as HTMLElement;

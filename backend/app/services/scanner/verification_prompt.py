@@ -205,11 +205,11 @@ def _neutralise(text: str) -> str:
 def _build_verify_prompt(req: VerifyRequest, search_context: str = "") -> str:
     """Build the user prompt for verification.
 
-    Only the search results go in. The job summary and the posting's red flags
+    Only the search results go in. The job summary and the posting's anomalies
     used to be sent as well, and both are actively harmful here: the model is
     asked to report what the search shows about a company, and handing it
     "Asks applicants to pay a processing fee" invites it to answer about the
-    posting instead of the employer. A red flag about the posting is not a fact
+    posting instead of the employer. An anomaly about the posting is not a fact
     about the company, and it already fed the posting-stage score.
 
     format_results decides between "the search failed" and "the search found

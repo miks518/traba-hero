@@ -93,7 +93,7 @@ export function RiskGauge({
               Unverified
             </span>
             <span className="text-label-sm text-on-surface-variant text-center max-w-[240px]">
-              This post raised no red flags, but it names no employer either, so the company
+              This post raised no anomalies, but it names no employer either, so the company
               could not be checked. Applying blind is its own risk.
             </span>
           </div>

@@ -22,7 +22,7 @@ const scanResponse = {
   company_name: 'Acme Trading',
   job_summary: 'Sales associate wanted',
   posting_analysis: 'The post asks for no money.',
-  red_flags: [],
+  anomalies: [],
   verification_context: {
     company_name: 'Acme Trading',
     job_summary: 'Sales associate wanted',

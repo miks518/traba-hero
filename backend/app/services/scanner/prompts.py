@@ -30,8 +30,8 @@ NO_ONLINE_ACCESS = (
 # prompt and the user-message skeleton below are built from it; they used to be
 # separate copies and could drift.
 SCAN_FORMAT_BLOCK = """VALID: true
-RED FLAG: label | reasoning | severity
-END FLAGS
+ANOMALY: label | reasoning | severity
+END ANOMALIES
 EMPLOYER NAME: <the company that would employ the reader, or "Not stated">
 POSTING ANALYSIS:
 <2-3 short sentences giving an overall verdict on the posting and what the reader should do>
@@ -42,32 +42,32 @@ END JOB SUMMARY"""
 
 SCAN_FIELD_RULES = """Field rules:
 - VALID: true if the content makes an offer of work, income, a job, a business opportunity, or training for work — whether it is a formal advertisement, a screenshot, a chat message, a forwarded message, or a short recruitment pitch. Set VALID: false only when there is no offer of work or income in the content at all. If VALID: false, output ONLY the VALID line and stop immediately — do not generate any other fields.
-- RED FLAGS:
-  * Output a RED FLAG line only for something you can point to in the posting. A flag describes what the posting contains, says, or asks for.
+- ANOMALIES:
+  * An anomaly is something in the posting that differs from the ordinary case. Output an ANOMALY line only for something you can point to in the posting — an anomaly describes what the posting contains, says, or asks for, and asserts nothing about what it means. A genuine posting can be poorly written and still be entirely legitimate; an anomaly says it differs, not that it is wrong.
   * Never flag the absence of something. Do not output a flag because the posting does not ask for a processing fee, does not mention a contract, or does not include some other thing a posting might have included. The absence of an element is never evidence of anything, and "it does not ask for money" is a clean posting, not a warning.
   * Never output a flag about a scam pattern unless the posting actually contains that pattern's element. An advance-fee pattern exists only where the posting asks the applicant for money. A money-mule pattern exists only where the posting asks the applicant to receive, pass on, or bank money. A task-for-earning pattern exists only where the posting asks the reader to complete discrete tasks, orders, or referrals in order to be paid, rather than describing a role with duties — for example an instruction to do a task and then earn a reward, or an amount stated per order, per signup, or per referral. If the posting contains none of these, name no pattern.
   * Work followed by payment is the ordinary order and is not a flag by itself; most jobs are paid that way. What separates a task-for-earning offer is the unit of work — a task or an earning event rather than a role. If the posting describes a role and what the person in it does, this pattern does not apply.
-  * If the posting has no red flags, output no RED FLAG lines at all — go straight to END FLAGS. This is the expected outcome for most postings and is not a failure.
+  * If the posting has no anomalies, output no ANOMALY lines at all — go straight to END ANOMALIES. This is the expected outcome for most postings and is not a failure.
   * Never invent a flag, and never output a placeholder or default flag. Every flag must quote or closely paraphrase text actually present in the posting.
-  * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high.
+  * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high. An "anomaly" is a description, so the label must not name a conclusion — write "Asks applicants to pay a processing fee", never "Scam fee request".
   * Severity means:
     - high: the posting explicitly asks the applicant for money, or contains a concrete instruction matching a known scam pattern.
     - mid: a checkable gap or contradiction in the posting, such as contact details that do not match the named employer, or an offer of paid tasks rather than a role.
     - low: something common in Philippine job postings that is weak evidence on its own.
   * Do not flag any of these on their own: a free email domain (Gmail, Yahoo), a missing office address, a generic job title, "no experience needed".
   * If the posting states no salary, do not flag salary. Only flag a salary amount that is stated and does not fit the role.
-  * If the posting does not name an employer in its text, check whether a company logo, wordmark, letterhead, or sender name is visible in the image. If one is, treat that as the employer name. Not naming an employer is common in the Philippines and is weak evidence on its own; do not describe it as a scam, and do not output a red flag for it — a missing name is a missing input, and the panel asks the reader for it separately.
-  * Payment requests: state the request and nothing else. Example — RED FLAG: Asks applicants to pay a processing fee | The posting asks applicants to pay a fee before starting work | high. Never add any claim about the employer.
+  * If the posting does not name an employer in its text, check whether a company logo, wordmark, letterhead, or sender name is visible in the image. If one is, treat that as the employer name. Not naming an employer is common in the Philippines and is weak evidence on its own; do not describe it as a scam, and do not output an anomaly for it — a missing name is a missing input, and the panel asks the reader for it separately.
+  * Payment requests: state the request and nothing else. Example — ANOMALY: Asks applicants to pay a processing fee | The posting asks applicants to pay a fee before starting work | high. Never add any claim about the employer.
 - EMPLOYER NAME: the name of the company that would employ the reader, exactly as it is written in the content, and nothing else on the line — no "the", no role, no explanation, no separator, and never two names joined by a slash or an "and".
   * A staffing or manpower agency is NOT the employer when the posting is for work at some other company. In "Vikings / Silvergreen Manpower Services Corporation is hiring", Silvergreen is the recruiter and Vikings is where the reader would work: output "Vikings". If the posting is for the agency's own staff, the agency is the employer and you output the agency name.
   * The client or end-user company can be a large brand, a restaurant, a store, or a small business. Output it even though it is a brand name and even when the posting never uses the words "employer" or "hiring company".
   * If the content names no employer anywhere, including a logo or letterhead, output exactly "Not stated". This field is used to look the employer up, so a name that is not in the content is worse than useless here: output "Not stated" instead of a guess. A recruiter name on its own does not make the agency the employer — if the posting names only the agency and no company the reader would work for, output the agency name anyway, because the agency is then the party the reader would deal with.
 - POSTING ANALYSIS: your verdict on the posting, in 2-3 short sentences, written for someone deciding whether to reply. It has two parts and must have both.
-  * Part 1 — the judgement: what this posting looks like based on the red flags you reported, naming the pattern only when you reported a flag containing that pattern's element, and otherwise saying the posting states nothing alarming when you reported no red flags. Do not pad a clean posting into a warning.
+  * Part 1 — the judgement: what this posting looks like based on the anomalies you reported, naming the pattern only when you reported an anomaly containing that pattern's element, and otherwise saying the posting states nothing alarming when you reported no anomalies. Do not pad a clean posting into a warning.
   * Part 2 — the action: what the reader should actually do, in one sentence. "Do not send any money or ID photos" is useful. "Be careful" is not — name the specific step to take or avoid.
-  * Base the verdict only on red flags you actually reported. If you reported no red flags, the verdict must say the posting states nothing alarming.
+  * Base the verdict only on anomalies you actually reported. If you reported no anomalies, the verdict must say the posting states nothing alarming.
   * Never use the words scam, legitimate, suspicious, genuine, fraudulent, or honest in this field, or any synonym of them. Describe what the posting asks for, not what it is. 'The posting asks the applicant for money before starting work' is allowed; 'this is a scam' and 'this looks legitimate' are not. Never describe a named employer or person as a scammer, a criminal, or dishonest - the verdict is about what this posting asks for, and a reader decides who the employer is.
-  * Do not repeat the red flag list item by item, and do not repeat the job summary.
+  * Do not repeat the anomaly list item by item, and do not repeat the job summary.
 - JOB SUMMARY: 2-3 short, factual sentences covering what the offer is, the employer if one is named, what the reader is asked to do, what the reader is offered, and any contact details present. No risk language, no red-flag reasoning, no invented details."""
 
 
@@ -94,12 +94,12 @@ Respond in exactly this format, with nothing outside it:
 
 {SCAN_FORMAT_BLOCK}
 
-Emit the sections in that order. The red flag section may contain no RED FLAG lines at all."""
+Emit the sections in that order. The anomaly section may contain no ANOMALY lines at all."""
 
 
-IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. Decide whether it makes an offer of work, income, a job, or a business opportunity (VALID: true) or not (VALID: false). A chat message or forwarded message offering work still counts as VALID: true. If it is not an offer, output only the VALID: false line and stop. Otherwise name the employer and list the red flags you can point to. Extract a job_summary explaining what the offer is, what the reader is asked to do, what they are offered, and any contact details present. Also write a posting_analysis giving your verdict on the posting and the specific step the reader should take or avoid, based only on the red flags you reported, and regardless of whether an employer is named. Do not repeat the red flags or the job summary, and do not invent details."
+IMAGE_SCAN_INSTRUCTION = "Verify this job posting screenshot. Decide whether it makes an offer of work, income, a job, or a business opportunity (VALID: true) or not (VALID: false). A chat message or forwarded message offering work still counts as VALID: true. If it is not an offer, output only the VALID: false line and stop. Otherwise name the employer and list the anomalies you can point to. Extract a job_summary explaining what the offer is, what the reader is asked to do, what they are offered, and any contact details present. Also write a posting_analysis giving your verdict on the posting and the specific step the reader should take or avoid, based only on the anomalies you reported, and regardless of whether an employer is named. Do not repeat the anomalies or the job summary, and do not invent details."
 
-TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nDecide whether it makes an offer of work, income, a job, or a business opportunity (VALID: true) or not (VALID: false). A chat message or forwarded message offering work still counts as VALID: true. If it is not an offer, output only the VALID: false line and stop. Otherwise name the employer and list the red flags you can point to. Extract a job_summary explaining what the offer is, what the reader is asked to do, what they are offered, and any contact details present. Also write a posting_analysis giving your verdict on the posting and the specific step the reader should take or avoid, based only on the red flags you reported, and regardless of whether an employer is named. Do not repeat the red flags or the job summary, and do not invent details."
+TEXT_SCAN_INSTRUCTION = "Verify this job posting:\n{text}\n\nDecide whether it makes an offer of work, income, a job, or a business opportunity (VALID: true) or not (VALID: false). A chat message or forwarded message offering work still counts as VALID: true. If it is not an offer, output only the VALID: false line and stop. Otherwise name the employer and list the anomalies you can point to. Extract a job_summary explaining what the offer is, what the reader is asked to do, what they are offered, and any contact details present. Also write a posting_analysis giving your verdict on the posting and the specific step the reader should take or avoid, based only on the anomalies you reported, and regardless of whether an employer is named. Do not repeat the anomalies or the job summary, and do not invent details."
 
 RESUME_INSTRUCTION = """Analyze this resume and extract candidate details. Respond strictly using this labeled format (NO curly braces or JSON):
 

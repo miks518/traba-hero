@@ -7,7 +7,17 @@ class ScanRequest(BaseModel):
     language: str = "english"
 
 
-class RedFlag(BaseModel):
+class Anomaly(BaseModel):
+    """One thing about a posting that differs from the ordinary case.
+
+    Named for what it is — a divergence from expectation — rather than what it
+    is taken to mean. "Red flag" was a conclusion delivered as a category label,
+    so a low-severity observation about formatting was announced with the same
+    force as a request for an advance fee. An anomaly asserts only that the
+    posting contains something unusual; what that means is the reader's to draw.
+    The severity field still carries the weight, unchanged.
+    """
+
     flag: str
     reasoning: str
     severity: str
@@ -15,7 +25,7 @@ class RedFlag(BaseModel):
 
 class ScanResponse(BaseModel):
     valid: bool
-    red_flags: list[RedFlag] = []
+    anomalies: list[Anomaly] = []
     job_summary: str = ""
     # Assessment of the posting's structure, separate from the role description.
     posting_analysis: str = ""
@@ -84,7 +94,7 @@ class MatchResponse(BaseModel):
 class VerifyRequest(BaseModel):
     company_name: str = ""
     job_summary: str = ""
-    red_flags: list[RedFlag] = []
+    anomalies: list[Anomaly] = []
 
 
 class VerificationItem(BaseModel):

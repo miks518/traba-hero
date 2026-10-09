@@ -77,7 +77,7 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
             return
 
         log.info("[%s] Parsed result: %s", endpoint, result)
-        log.info("[%s] valid=%s, job_summary_len=%d, red_flags=%d", endpoint, result.get("valid"), len(str(result.get("job_summary", ""))), len(runtime.get_red_flags()(result.get("red_flags", []))))
+        log.info("[%s] valid=%s, job_summary_len=%d, anomalies=%d", endpoint, result.get("valid"), len(str(result.get("job_summary", ""))), len(runtime.get_anomalies()(result.get("anomalies", result.get("red_flags", [])))))
         yield runtime.get_sse()({"type": "progress", "percent": 95, "stage": "Parsing result"})
 
         is_invalid = early_exit or not result.get("valid", True)
@@ -101,7 +101,7 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
                 "company" in (f.get("flag", "") + " " + f.get("reasoning", "")).lower()
                 and any(w in (f.get("flag", "") + " " + f.get("reasoning", "")).lower()
                         for w in ("missing", "unclear", "not provided", "not specified", "not identified", "unnamed", "no company"))
-                for f in (result.get("red_flags") or [])
+                for f in (result.get("anomalies") or result.get("red_flags") or [])
                 if isinstance(f, dict)
             )
             if not company_name:

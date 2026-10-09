@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { RiskGauge, RedFlagsList, ScanActions, PickerButton, InvalidContentError, VerificationSection, OfferAnalysisCard, CompanyNameNeeded, PostingAnalysis, JobSummary } from '../components/scan';
+import { RiskGauge, AnomaliesList, ScanActions, PickerButton, InvalidContentError, VerificationSection, OfferAnalysisCard, CompanyNameNeeded, PostingAnalysis, JobSummary } from '../components/scan';
 import { Icon, ToastContainer, useToastManager } from '../components/common';
 import { scanScreenshotStream, verifyJobStream, analyzeOfferStream, ApiRequestError, type ScanProgress } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
@@ -57,7 +57,11 @@ function generateJobId(): string {
 
 function mapApiResponse(data: ApiScanResponse): ScanResult {
   const isJobPosting = data.valid;
-  const flags = data.red_flags ?? [];
+  // Falls back to the pre-rename key so a response captured before the rename
+  // still renders its findings rather than showing a clean posting.
+  // The wire key is `anomalies`. An older backend still sends `red_flags`, so
+  // the legacy key is read as a fallback rather than rendering a clean posting.
+  const flags = data.anomalies ?? (data as { red_flags?: typeof data.anomalies }).red_flags ?? [];
   const hasCritical = flags.some((f) => f.severity === 'high');
   const score = typeof data.risk_score === 'number' ? data.risk_score : 0;
   const level = data.risk_level ?? null;
@@ -70,12 +74,12 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
     unverifiedEmployer: isUnverifiedEmployer({
       isJobPosting,
       companyName: data.company_name || null,
-      redFlagCount: flags.length,
+      anomalyCount: flags.length,
     }),
     riskDescription: '',
     scanningTarget: 'Scanned Element',
-    redFlags: flags.map((f, i) => ({
-      id: `flag-${i}`,
+    anomalies: flags.map((f, i) => ({
+      id: `anomaly-${i}`,
       title: f.flag,
       description: f.reasoning,
       icon: SEVERITY_ICONS[f.severity] || 'warning',
@@ -329,7 +333,7 @@ export function ScamScanView({
           startVerification({
             company_name: verifyCtx.company_name.trim(),
             job_summary: verifyCtx.job_summary || data.job_summary || '',
-            red_flags: data.red_flags,
+            anomalies: data.anomalies,
           }, jobId);
         } else if (data.job_summary) {
           startOfferAnalysis(data.job_summary, data.company_name || '');
@@ -405,7 +409,7 @@ export function ScamScanView({
   const startVerification = useCallback(async (context: {
     company_name: string;
     job_summary: string;
-    red_flags?: { flag: string; reasoning: string; severity: string }[];
+    anomalies?: { flag: string; reasoning: string; severity: string }[];
   }, jobId?: string) => {
     console.log('[verify] Starting verification for:', context.company_name);
     verifyAbortRef.current?.abort();
@@ -548,7 +552,7 @@ export function ScamScanView({
             ref={flip.register('evidence')}
           >
             {/* Already danger-coloured: a red-flag list has no neutral form. */}
-            <RedFlagsList flags={scanResult.redFlags} critical={scanResult.flagsCritical} />
+            <AnomaliesList anomalies={scanResult.anomalies} critical={scanResult.flagsCritical} />
 
             <OfferAnalysisCard
               analysis={scanResult.offerAnalysis}

@@ -1,27 +1,27 @@
 export interface UnverifiedEmployerInput {
   isJobPosting: boolean;
   companyName: string | null | undefined;
-  redFlagCount: number;
+  anomalyCount: number;
 }
 
 /**
- * True when a posting names no employer and raised no red flags.
+ * True when a posting names no employer and raised no anomalies.
  *
  * The score from the posting stage is 0 in this case, and rendering "0 / Low
  * Risk" would claim the post was cleared. We did check it and found nothing in
  * it, but the employer itself was never checked, so the panel says so rather
  * than implying a clean bill of health.
  *
- * Deliberately narrow: a red flag is real evidence about the post, so it is
+ * Deliberately narrow: an anomaly is real evidence about the post, so it is
  * scored on its severity, and a named employer can be verified normally.
  */
 export function isUnverifiedEmployer({
   isJobPosting,
   companyName,
-  redFlagCount,
+  anomalyCount,
 }: UnverifiedEmployerInput): boolean {
   if (!isJobPosting) return false;
-  if (redFlagCount > 0) return false;
+  if (anomalyCount > 0) return false;
   return !companyName || companyName.trim().length === 0;
 }
 
@@ -46,7 +46,7 @@ export interface ElevationInput {
  *
  * A failed verification still promotes, because the posting stage's score is
  * real and the evidence is already known — what is missing is the employer
- * lookup, not the red flags. An unverified level never promotes: "Unverified"
+ * lookup, not the anomalies. An unverified level never promotes: "Unverified"
  * is an absent measurement, not a high one.
  */
 export function shouldElevateEvidence({

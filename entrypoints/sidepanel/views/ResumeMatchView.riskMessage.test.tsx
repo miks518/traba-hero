@@ -39,7 +39,7 @@ const job = (level: string | null): ScannedJob =>
       isJobPosting: true,
       postingAnalysis: 'A posting.',
       jobSummary: 'A role.',
-      redFlags: [],
+      anomalies: [],
       companyName: 'Acme',
     },
   }) as unknown as ScannedJob;

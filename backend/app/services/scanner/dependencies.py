@@ -18,7 +18,7 @@ from .risk_calculator import (
     _combine_scores,
     _posting_risk_from_flags,
 )
-from .scan_result import _VALID_LINE_RE, _red_flags, _scan_response
+from .scan_result import _VALID_LINE_RE, _anomalies, _scan_response
 from .sse import _sse
 from .verification_parser import _missing_categories, _parse_verification_result, _parse_verify_section
 from .verification_prompt import (
@@ -38,7 +38,7 @@ class ScannerDependencies:
     get_parse_json = staticmethod(lambda: _parse_json)
     get_company_name_is_valid = staticmethod(lambda: is_valid_company_name)
     get_response_factory = staticmethod(lambda: _scan_response)
-    get_red_flags = staticmethod(lambda: _red_flags)
+    get_anomalies = staticmethod(lambda: _anomalies)
     get_valid_line_re = staticmethod(lambda: _VALID_LINE_RE)
     get_sse = staticmethod(lambda: _sse)
     get_parse_resume = staticmethod(lambda: _parse_resume_custom)

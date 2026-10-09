@@ -16,10 +16,10 @@ from app.core.auth import require_client_key
 from app.exceptions import InvalidImageError
 from app.models.schemas import (
     AnalyzeOfferRequest,
+    Anomaly,
     JobMatchResult,
     MatchRequest,
     MatchResponse,
-    RedFlag,
     ResumeAnalysisRequest,
     ResumeData,
     ScanRequest,
@@ -53,6 +53,7 @@ from app.services.scanner import (
     TEXT_SCAN_INSTRUCTION,
     VERIFY_SYSTEM_PROMPT,
     _VALID_LINE_RE,
+    _anomalies,
     _build_analyze_offer_prompt,
     _build_verify_prompt,
     _calculate_risk_score_from_verify,
@@ -64,7 +65,6 @@ from app.services.scanner import (
     _parse_verification_result,
     _parse_verify_section,
     _posting_risk_from_flags,
-    _red_flags,
     _resume_event_stream,
     _scan_event_stream,
     _sse,
@@ -90,7 +90,7 @@ runtime.get_parse_custom = lambda: _parse_custom
 runtime.get_parse_json = lambda: _parse_json
 runtime.get_company_name_is_valid = lambda: is_valid_company_name
 runtime.get_response_factory = lambda: _scan_response
-runtime.get_red_flags = lambda: _red_flags
+runtime.get_anomalies = lambda: _anomalies
 runtime.get_valid_line_re = lambda: _VALID_LINE_RE
 runtime.get_sse = lambda: _sse
 runtime.get_parse_resume = lambda: _parse_resume_custom
@@ -116,7 +116,7 @@ def _scan_response(result: dict, company_name: str = "") -> ScanResponse:
     return _build_scan_response(
         result,
         company_name,
-        red_flags_factory=_red_flags,
+        anomalies_factory=_anomalies,
         company_name_validator=is_valid_company_name,
     )
 

@@ -1,12 +1,12 @@
 import re
 
-from app.models.schemas import RedFlag, ScanResponse
+from app.models.schemas import Anomaly, ScanResponse
 from app.services.search import is_valid_company_name
 from .risk_calculator import _posting_risk_from_flags
 
 
-def _red_flags(flags: list) -> list[RedFlag]:
-    out: list[RedFlag] = []
+def _anomalies(flags: list) -> list[Anomaly]:
+    out: list[Anomaly] = []
     if not isinstance(flags, list):
         return out
     for f in flags:
@@ -19,14 +19,14 @@ def _red_flags(flags: list) -> list[RedFlag]:
             continue
         reasoning = str(f.get("reasoning") or "").strip()
         severity = str(f.get("severity") or "").strip().lower()
-        out.append(RedFlag(flag=name, reasoning=reasoning, severity=severity or "mid"))
+        out.append(Anomaly(flag=name, reasoning=reasoning, severity=severity or "mid"))
     return out
 
 
 def _language_instruction(language: str) -> str:
     lang = (language or "").strip().lower()
     if lang in ("tagalog", "filipino", "tl"):
-        return "Respond in Tagalog. Write the JOB SUMMARY, and all RED FLAG label/reasoning in Tagalog. Keep the VALID and section labels exactly as shown above."
+        return "Respond in Tagalog. Write the JOB SUMMARY, and all ANOMALY label/reasoning in Tagalog. Keep the VALID and section labels exactly as shown above."
     return "Respond in English."
 
 
@@ -34,17 +34,21 @@ def _build_scan_response(
     result: dict,
     company_name: str,
     *,
-    red_flags_factory,
+    anomalies_factory,
     company_name_validator,
 ) -> ScanResponse:
-    flags = red_flags_factory(result.get("red_flags", []))
+    # Falls back to the pre-rename key so a cached or recorded parse result
+    # still produces its anomalies rather than silently scoring a clean posting.
+    flags = anomalies_factory(
+        result.get("anomalies", result.get("red_flags", []))
+    )
     # The posting's own indicators always produce a verdict, so the panel has a
     # number from the moment the scan returns rather than waiting on an employer
     # lookup that may not be possible.
     score, level, breakdown = _posting_risk_from_flags(flags)
     return ScanResponse(
         valid=result.get("valid", False),
-        red_flags=flags,
+        anomalies=flags,
         job_summary=result.get("job_summary", ""),
         posting_analysis=result.get("posting_analysis", ""),
         company_name=company_name if company_name_validator(company_name) else None,
@@ -59,7 +63,7 @@ def _scan_response(result: dict, company_name: str = "") -> ScanResponse:
     return _build_scan_response(
         result,
         company_name,
-        red_flags_factory=_red_flags,
+        anomalies_factory=_anomalies,
         company_name_validator=is_valid_company_name,
     )
 

@@ -1,4 +1,4 @@
-"""Tests for /api/verify endpoint and verification helpers."""
+﻿"""Tests for /api/verify endpoint and verification helpers."""
 import json
 import re
 import pytest
@@ -6,33 +6,33 @@ from unittest.mock import patch, AsyncMock, MagicMock
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.routers.scan import _build_verify_prompt, _parse_verification_result, _parse_verify_section
-from app.models.schemas import VerifyRequest, VerificationItem, RedFlag
+from app.models.schemas import Anomaly, VerificationItem, VerifyRequest
 
 transport = ASGITransport(app=app)
 HEADERS = {"X-Trabahero-Client-Key": "test-secret-key"}
 WRONG_HEADERS = {"X-Trabahero-Client-Key": "wrong-key"}
 
 
-# ── VerifyRequest model ──────────────────────────────────────────────
+# â”€â”€ VerifyRequest model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class TestVerifyRequest:
     def test_default_values(self):
         req = VerifyRequest()
         assert req.company_name == ""
         assert req.job_summary == ""
-        assert req.red_flags == []
+        assert req.anomalies == []
 
     def test_with_values(self):
         req = VerifyRequest(
             company_name="ACME",
             job_summary="Software Engineer",
-            red_flags=[RedFlag(flag="High salary", reasoning="Too good", severity="high")],
+            anomalies=[Anomaly(flag="High salary", reasoning="Too good", severity="high")],
         )
         assert req.company_name == "ACME"
-        assert len(req.red_flags) == 1
+        assert len(req.anomalies) == 1
 
 
-# ── VerificationItem model ───────────────────────────────────────────
+# â”€â”€ VerificationItem model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class TestVerificationItem:
     def test_valid_item(self):
@@ -51,7 +51,7 @@ class TestVerificationItem:
         assert d["status"] == "yellow"
 
 
-# ── _build_verify_prompt ─────────────────────────────────────────────
+# â”€â”€ _build_verify_prompt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class TestBuildVerifyPrompt:
     def test_includes_company_name(self):
@@ -59,23 +59,23 @@ class TestBuildVerifyPrompt:
         prompt = _build_verify_prompt(req)
         assert "Company to verify: ACME" in prompt
 
-    def test_excludes_job_summary_and_red_flags(self):
+    def test_excludes_job_summary_and_anomalies(self):
         """Only the search results go in.
 
         The model reports what the search says about a company. Handing it the
-        posting's red flags invites it to answer about the posting instead — a
-        red flag about the posting is not a fact about the employer, and it
+        posting's anomalies invites it to answer about the posting instead â€” an
+        anomaly about the posting is not a fact about the employer, and it
         already fed the posting-stage score.
         """
         req = VerifyRequest(
             company_name="ACME",
             job_summary="UNIQUE_JOB_SUMMARY_MARKER cook role",
-            red_flags=[RedFlag(flag="UNIQUE_FLAG_MARKER Fee", reasoning="r", severity="high")],
+            anomalies=[Anomaly(flag="UNIQUE_FLAG_MARKER Fee", reasoning="r", severity="high")],
         )
         prompt = _build_verify_prompt(req, "=== SEARCH RESULTS FOR: ACME ===\nfound a site\n=== END SEARCH ===")
         assert "UNIQUE_JOB_SUMMARY_MARKER" not in prompt
         assert "UNIQUE_FLAG_MARKER" not in prompt
-        assert "Red flags detected" not in prompt
+        assert "Anomalies detected" not in prompt
         assert "Job Posting Summary" not in prompt
         assert "found a site" in prompt
 
@@ -163,7 +163,7 @@ class TestFormatResults:
         """Web text is untrusted input; the guardrails, not the formatter, judge it.
 
         A snippet that reads like an instruction must still reach the model
-        verbatim — filtering here would silently delete evidence. What stops it
+        verbatim â€” filtering here would silently delete evidence. What stops it
         acting as an instruction is the system prompt, which is asserted
         separately in TestUntrustedRetrieval.
         """
@@ -226,7 +226,7 @@ class TestRegistrationCategory:
 class TestRecommendationIsAddressedToAJobSeeker:
     """The reader is an applicant, not a compliance officer.
 
-    The model is steeped in registry vocabulary — SEC, DTI, PEZA, BOI, LGU —
+    The model is steeped in registry vocabulary â€” SEC, DTI, PEZA, BOI, LGU â€”
     and the recommendation rule previously said only "a step they can take".
     Given no other guidance, it handed the reader a registry lookup. Reporting
     "Confirm the registration number on the SEC site" is technically actionable
@@ -500,7 +500,7 @@ class TestRegistrationCategoryWeighting:
     Registration" would quietly score 10 instead of 25.
 
     These probe a **red** item rather than a yellow one. They used to use yellow,
-    which contributed half its weight and so exposed the difference — but yellow
+    which contributed half its weight and so exposed the difference â€” but yellow
     no longer carries any weight, because added to a posting it would penalise a
     check that found nothing. Probing it that way would have made both tests pass
     for the wrong reason and stopped them guarding the rename at all.
@@ -695,7 +695,7 @@ class TestSearchOutcomeReachesTheClient:
                 resp = await client.post("/api/verify", json={
                     "company_name": "Acme Corp",
                     "job_summary": "Developer at Acme Corp",
-                    "red_flags": [{"flag": "Fee", "reasoning": "r", "severity": "high"}],
+                    "anomalies": [{"flag": "Fee", "reasoning": "r", "severity": "high"}],
                 }, headers=HEADERS)
 
         assert resp.status_code == 200
@@ -704,7 +704,7 @@ class TestSearchOutcomeReachesTheClient:
         assert '"final_score": 40' in resp.text
 
 
-# ── _parse_verification_result ───────────────────────────────────────
+# â”€â”€ _parse_verification_result â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class TestParseVerificationResult:
     def test_parses_valid_output(self):
@@ -749,7 +749,7 @@ END VERIFY"""
         assert items[0].status == "red"
 
 
-# ── _parse_verify_section (REPORT / RECOMMENDATION) ──────────────────
+# â”€â”€ _parse_verify_section (REPORT / RECOMMENDATION) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class TestParseVerifySection:
     FULL_OUTPUT = """VERIFY: Company Existence
@@ -796,7 +796,7 @@ END RECOMMENDATION"""
         assert "Avoid this job" not in report
 
 
-# ── POST /api/verify: auth checks ────────────────────────────────────
+# â”€â”€ POST /api/verify: auth checks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @pytest.mark.asyncio
 async def test_verify_missing_key_returns_401():
@@ -856,7 +856,7 @@ class TestTwoQueriesPerVerification:
     """One query cannot serve three categories; two can, if neither is rigged.
 
     The merged result set is what the model judges, so these tests are about what
-    the flow does with the outcomes — not about the query strings, which
+    the flow does with the outcomes â€” not about the query strings, which
     `test_multi_query.py` covers.
     """
 

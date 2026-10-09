@@ -62,7 +62,15 @@ export interface NavTab {
   icon: IconName;
 }
 
-export interface RedFlag {
+/**
+ * Something in a posting that differs from the ordinary case.
+ *
+ * Named for what it is rather than what it is taken to mean: "red flag" was a
+ * conclusion delivered as a category label, so a low-severity note about
+ * formatting was announced with the same force as a request for an advance fee.
+ * Severity carries the weight; this only says the posting differs.
+ */
+export interface Anomaly {
   id: string;
   title: string;
   description: string;
@@ -143,10 +151,10 @@ export interface ScanResult {
   riskScored: boolean;
   riskScore: number | null;
   /**
-   * The posting named no employer and raised no red flags, so the posting
+   * The posting named no employer and raised no anomalies, so the posting
    * stage scored 0 while the employer was never checked. Shown as "Unverified"
    * rather than "0 / Low Risk", which would claim the post was cleared.
-   * A red flag is real evidence, so it is scored on severity instead.
+   * An anomaly is real evidence, so it is scored on severity instead.
    */
   unverifiedEmployer?: boolean;
   riskDescription: string;
@@ -154,7 +162,7 @@ export interface ScanResult {
   scoreBreakdown?: RiskScoreBreakdown;
   offerAnalysis?: OfferAnalysis;
   offerAnalysisLoading?: boolean;
-  redFlags: RedFlag[];
+  anomalies: Anomaly[];
   flagsCritical: boolean;
   isJobPosting: boolean;
   companyName?: string | null;
@@ -225,7 +233,7 @@ export type ApiStatus = 'idle' | 'loading' | 'success' | 'error';
 
 export interface ApiScanResponse {
   valid: boolean;
-  red_flags: { flag: string; reasoning: string; severity: string }[];
+  anomalies: { flag: string; reasoning: string; severity: string }[];
   job_summary: string;
   error?: string | null;
   company_name?: string | null;

@@ -1,9 +1,9 @@
 import React from 'react';
 import { Icon } from '../common/Icon';
-import type { RedFlag } from '../../types';
+import type { Anomaly } from '../../types';
 
-export interface RedFlagCardProps {
-  flag: RedFlag;
+export interface AnomalyCardProps {
+  anomaly: Anomaly;
 }
 
 const SEVERITY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
@@ -17,8 +17,8 @@ const SEVERITY_STYLES: Record<string, { bg: string; text: string; border: string
   low: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30' },
 };
 
-export function RedFlagCard({ flag }: RedFlagCardProps) {
-  const sev = SEVERITY_STYLES[flag.severity || 'mid'] || SEVERITY_STYLES.mid;
+export function AnomalyCard({ anomaly }: AnomalyCardProps) {
+  const sev = SEVERITY_STYLES[anomaly.severity || 'mid'] || SEVERITY_STYLES.mid;
   return (
     // The container carries the severity border, not just the icon. It used to
     // hold `border-outline-variant/10` whatever the severity, so a high-severity
@@ -28,21 +28,21 @@ export function RedFlagCard({ flag }: RedFlagCardProps) {
     // containers elsewhere on the panel are the departure, not this one.
     <div className={`bg-surface-container-low border-2 rounded-lg p-3 flex gap-3 tactile-card hover:bg-surface-container transition-colors ${sev.border}`}>
       <div className={`${sev.bg} ${sev.text} h-8 w-8 rounded-full flex items-center justify-center shrink-0 border ${sev.border}`}>
-        <Icon name={flag.icon} className="text-sm" />
+        <Icon name={anomaly.icon} className="text-sm" />
       </div>
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <h4 className="font-label-md text-on-surface font-bold">{flag.title}</h4>
-          {flag.severity && (
+          <h4 className="font-label-md text-on-surface font-bold">{anomaly.title}</h4>
+          {anomaly.severity && (
             <span className={`text-[10px] font-label uppercase px-1.5 py-0.5 rounded ${sev.bg} ${sev.text}`}>
-              {flag.severity}
+              {anomaly.severity}
             </span>
           )}
         </div>
-        <p className="font-label-sm text-on-surface-variant leading-tight">{flag.description}</p>
+        <p className="font-label-sm text-on-surface-variant leading-tight">{anomaly.description}</p>
       </div>
     </div>
   );
 }
 
-export default RedFlagCard;
+export default AnomalyCard;

@@ -1,8 +1,8 @@
-"""The two-stage risk model: posting indicators plus a verification penalty.
+﻿"""The two-stage risk model: posting indicators plus a verification penalty.
 
 It used to be a 60/40 blend, and three things were wrong with it. At a maxed
 posting (three high-severity flags, 100), a clean employer record pulled the
-number to 60 — clean verification was able to halve a posting that had already
+number to 60 â€” clean verification was able to halve a posting that had already
 maxed out. A published scam report added only 14 points over that clean record,
 so negative evidence moved the number far less than absence of it. And "we
 found nothing at all" scored 100, tying "three damning categories".
@@ -19,7 +19,7 @@ is the thing this project has repeatedly refused to do.
 
 import pytest
 
-from app.models.schemas import RedFlag, VerificationItem
+from app.models.schemas import Anomaly, VerificationItem
 from app.services.scanner.risk_calculator import (
     _calculate_risk_score_from_verify,
     _combine_scores,
@@ -31,7 +31,7 @@ EX, REG, REP = "Company Existence", "Official Registration", "Reputation"
 
 
 def flag(severity):
-    return RedFlag(flag="X", reasoning="r", severity=severity)
+    return Anomaly(flag="X", reasoning="r", severity=severity)
 
 
 def check(label, status):
@@ -80,7 +80,7 @@ class TestNegativeEvidenceRaises:
         assert final(posting_score, verify(*REP_RED)) > before
 
     def test_a_negative_finding_outranks_a_clean_one(self):
-        """Under the blend these were 74 and 60 — 14 apart, and near-reversed
+        """Under the blend these were 74 and 60 â€” 14 apart, and near-reversed
         against a company we merely knew existed.
 
         Compared below the cap, because at posting 100 both readings are 100 and

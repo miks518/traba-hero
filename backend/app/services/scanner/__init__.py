@@ -22,7 +22,7 @@ from .risk_calculator import (
     _posting_risk_from_flags,
 )
 from .scan_flow import _scan_event_stream
-from .scan_result import _VALID_LINE_RE, _language_instruction, _red_flags, _scan_response
+from .scan_result import _VALID_LINE_RE, _anomalies, _language_instruction, _scan_response
 from .sse import _sse
 from .verification_flow import verification_event_stream
 from .verification_parser import _parse_verification_result, _parse_verify_section
@@ -42,7 +42,7 @@ __all__ = [
     "load_system_prompt",
     "load_resume_prompt",
     "load_match_prompt",
-    "_red_flags",
+    "_anomalies",
     "_language_instruction",
     "_scan_response",
     "_sse",

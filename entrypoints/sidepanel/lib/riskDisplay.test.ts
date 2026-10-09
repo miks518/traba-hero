@@ -10,7 +10,7 @@ function result(over: Partial<ScanResult> = {}): ScanResult {
     riskScore: 5,
     riskDescription: '',
     scanningTarget: 'Scanned Element',
-    redFlags: [],
+    anomalies: [],
     flagsCritical: false,
     isJobPosting: true,
     ...over,
