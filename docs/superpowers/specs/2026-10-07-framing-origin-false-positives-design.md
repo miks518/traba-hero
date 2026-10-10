@@ -352,7 +352,143 @@ without knowing how often that flag actually fires.
 
 ---
 
-## 6. The burden-of-proof principle behind the rename
+## 6. Scheme verification — searching the anomaly, not the employer
+
+Status: planning. Nothing built.
+
+### The idea
+
+Verification currently searches for what is published about the **employer**
+(`"<company> reviews complaints"`). That finds nothing for a fake posting made
+in a real company's name: "Now Hiring at Jollibee" on a Facebook page cannot be
+found by searching Jollibee's reputation, because Jollibee's reputation is
+clean. This is Proposal 2's impersonation gap, approached from retrieval rather
+than from a new category.
+
+Search the **scheme** instead. A posting naming Shopee and asking for GCash
+daily-task payments produces a query about that scheme, and results describing
+it as a known scam pattern become third-party corroboration of what the posting
+stage already observed.
+
+**This is the better retrieval strategy and should be built.** What follows is
+what has to be true for it to be correct.
+
+### Decision: queries are built from posting content
+
+Not from the model's anomaly labels.
+
+`search.py` bans `scam` and `fraud` from queries for a specific reason: a query
+carrying a conclusion makes its results look like corroboration of the
+accusation it already embedded. A model's anomaly label is partly a
+characterisation, not only a description — a `high`-severity label such as
+"Claiming to represent Shopee on chat apps" asserts the pattern. Using
+model-written labels as query terms reintroduces the bias the ban exists to
+prevent, one layer up.
+
+The query is therefore built from words the **poster wrote**: the named platform
+if any, the payment mechanism, the task shape. `"Shopee GCash daily task"`. This
+cannot smuggle in a verdict, because the poster is the only author.
+
+### Problem 1: the same fact counted twice
+
+`_combine_scores` is additive by design, so a finding reported by both stages
+scores twice. Concretely:
+
+| Stage | Contribution | Running total |
+|---|---|---|
+| Posting: "Asks applicants to pay a processing fee", high | 40 | 40 |
+| Verification: Reputation red, scheme corroborated | 35 | **75 → critical** |
+
+One anomaly. One scheme article. **Critical**, from a single fee request. The
+category weights make this near-certain rather than possible: posting-stage high
+is 40 and Reputation is 35, so *any* high-severity anomaly corroborated by a
+search result lands between 51 and 100 automatically.
+
+This is structural, not incidental. It will read as the system working.
+
+### Problem 2: scheme results are adversarial by construction
+
+Results for "task-for-earning scheme Philippines" include SEO listicles,
+aggregator reposts, and blogspam describing every such scheme in the country. A
+page saying "these are commonly scams" does not establish anything about *this*
+posting. The existing prompt rules handle this for employers — `red` requires a
+named source, absence is never red — but the prompt asks about the employer and
+would have to ask about the **scheme** instead.
+
+Without that, the new category becomes the place where unverified retrieved
+text becomes points.
+
+### Problem 3: the injection surface widens
+
+These are attacker-adjacent pages by definition. `format_results()` strips `===`
+so a page cannot forge the block terminator, but nothing stops a page whose text
+reads as instructions. Today those results feed a **display** path. Under this
+proposal they feed a **scoring** path, which raises the stakes on every gap in
+that neutralisation.
+
+### Proposed design
+
+**A separate category from Reputation.** Reputation asks what is published about
+this *employer*; this asks whether this *scheme* is a known one. Same employer,
+different subject, different evidence. Folded into Reputation, a clean employer
+record and a confirmed scam pattern cancel out — which is precisely the
+inversion the asymmetry rewrite fixed.
+
+**Two queries, highest severity first.** Cap at 2, taken from `mid`/`high`
+anomalies only. A `low` formatting note is never worth a credit. Dedupe against
+the company queries.
+
+**`red` requires specificity about the scheme.** A result describing task-for-
+earning schemes generally is `yellow`. A result describing *this* mechanism, or
+naming this employer in an advisory, is `red`. The prompt's existing
+same-entity rule extends from entity to scheme.
+
+### Cost
+
+2 company + 2 scheme queries = **4 requests per verification**, against 2
+today. At `basic` depth that halves throughput on a 1,000-credit monthly
+budget — roughly 250 verifications instead of 500. This is a deployment
+decision, not an implementation detail.
+
+### The scoring question this opens
+
+Adopting scheme verification makes the double-counting problem structural, and
+it exposes a weakness in the current model that predates it:
+
+> one `high` anomaly is worth 40 points, which alone reaches "high" risk, and
+> two reach critical. The severity ladder is doing nearly all the work, and the
+> number moves in 40-point jumps.
+
+That is not obviously wrong — a posting demanding an advance fee *should* read
+as serious — but it means the score is close to a lookup of the worst anomaly
+rather than an accumulation of evidence. A model that emits three `low` findings
+scores 12 and reads "Low Risk", while one `high` finding scores 40 and reads
+"high". Whether the panel should reward *quantity* of weak evidence or *strength*
+of the strongest item is a scoring-design decision, and it has not been made.
+
+It interacts directly with Proposal 3: a posting with a single spurious `high`
+scores 40 on its own, so one false positive moves the verdict by two bands. That
+is a stronger argument for measuring the misfire rate than the framing defect was.
+
+Options for the double-counting specifically:
+
+1. **Corroboration confirms, does not re-score.** A new status meaning "this
+   confirms an anomaly the posting already reports". Shown to the reader as
+   confirmation, worth 0 points. A scheme finding the posting stage *missed*
+   still earns weight. Preserves the asymmetry rule exactly: verification adds
+   only what the posting could not have known.
+2. **Rescale** the posting weights to compensate. Changes every score on the
+   panel and weakens the stage that always has data.
+3. **Accept the inflation** and document it. "One fee request plus a scheme
+   article reads as critical" may be the intended behaviour, and the panel would
+   say "confirmed pattern" either way.
+
+Option 1 is the recommendation. It is the only one where the panel can say
+*confirmed* and mean it, rather than saying it while the arithmetic disagrees.
+
+---
+
+## 7. The burden-of-proof principle behind the rename
 
 The rename was decided on reasoning that belongs in the thesis defence, so it is
 recorded here rather than left implicit.
