@@ -534,6 +534,18 @@ export function ScamScanView({
             </p>
           )}
 
+          {/* The split between what the posting says and what the search found is
+              the reader's clearest way to know what a number rests on. The
+              breakdown travels with the response, so this states it rather than
+              re-deriving anything here. */}
+          {scanResult.scoreBreakdown && scanResult.riskScore !== null && (
+            <p className="text-label-sm text-on-surface-variant text-center -mt-1">
+              {scanResult.scoreBreakdown.sources?.includes('verification')
+                ? `Posting findings and web evidence: ${scanResult.riskScore}/100.`
+                : `Posting findings only: ${scanResult.riskScore}/100. The employer was not checked.`}
+            </p>
+          )}
+
           {/* The evidence leads when the score is high or critical, because the
               reader's first question about a dangerous posting is why, and the
               answer is the flags and the employer check.

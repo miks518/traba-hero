@@ -268,6 +268,13 @@ class TestRefutationScoring:
         constant to 200 and the same five refutations score 64, which is still
         "under the cap". What has to hold is that the declared cap is below what
         the weights can actually produce, and that the produced number is the cap.
+
+        The literal 50 is asserted rather than the constant. `MAX_REFUTATION_SCORE`
+        *is* what the implementation compares against, so asserting it equals the
+        constant is the same tautology — a change to either side moves both, and
+        the test stays green while the cap moves. The spec fixes the share: the
+        evidence stage may contribute at most half the scale, so the number is
+        pinned and the constant has to follow it.
         """
         labels = [
             "Channel Match",
@@ -279,6 +286,7 @@ class TestRefutationScoring:
         items = [VerificationItem(label=label, status="red", explanation="") for label in labels]
         uncapped = sum(REFUTATION_WEIGHTS[label] for label in labels)
 
+        assert MAX_REFUTATION_SCORE == 50
         assert uncapped > MAX_REFUTATION_SCORE
         assert _refutation_score_from_verify(items) == MAX_REFUTATION_SCORE
 
