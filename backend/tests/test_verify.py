@@ -546,22 +546,64 @@ class TestRegistrationCategoryWeighting:
         assert _calculate_risk_score_from_verify(legacy) == (25, "low")
 
     def test_expected_categories_use_the_new_label(self):
+        from app.services.scanner.verification_prompt import VERIFY_CLAIM_CATEGORIES
         from app.services.scanner.verification_parser import EXPECTED_CATEGORIES
 
         assert "Official Registration" in EXPECTED_CATEGORIES
-        assert EXPECTED_CATEGORIES == ("Company Existence", "Official Registration", "Reputation")
+        # Derived from the prompt's tuple rather than restated. Three places
+        # naming the categories is how they drifted apart once already, and the
+        # gap this closes is only meaningful if the two lists are the same list.
+        assert EXPECTED_CATEGORIES == VERIFY_CLAIM_CATEGORIES
+
+    def test_the_missing_category_log_covers_the_impersonation_check(self):
+        """A missing Channel Match has to be reportable, or nothing watches for it.
+
+        The diagnostic left at three categories could not name a gap in Channel
+        Match — the only check that can tell a real employer from one borrowing
+        its name — so a response that simply omitted it logged as complete.
+        """
+        from app.models.schemas import VerificationItem
+        from app.services.scanner.verification_parser import _missing_categories
+
+        # Every category but Channel Match.
+        items = [
+            VerificationItem(label=label, status="green", explanation="")
+            for label in ("Company Existence", "Official Registration",
+                          "Location / Branch", "Reputation", "Scheme Corroboration")
+        ]
+        assert _missing_categories(items) == ["Channel Match"]
 
     def test_legacy_label_is_not_reported_as_missing(self):
         """A stored result using the old label must not log a phantom gap."""
         from app.models.schemas import VerificationItem
+        from app.services.scanner.verification_prompt import VERIFY_CLAIM_CATEGORIES
         from app.services.scanner.verification_parser import _missing_categories
 
+        # The old three categories, with the pre-rename registration label.
         items = [
             VerificationItem(label="Company Existence", status="green", explanation=""),
             VerificationItem(label="SEC Registration", status="yellow", explanation=""),
             VerificationItem(label="Reputation", status="yellow", explanation=""),
         ]
-        assert _missing_categories(items) == []
+        # The three the response carries are not gaps; the three new checks are,
+        # and naming them is the point.
+        carried = {"company existence", "official registration", "reputation"}
+        assert _missing_categories(items) == [
+            c for c in VERIFY_CLAIM_CATEGORIES if c.lower() not in carried
+        ]
+        assert "Official Registration" not in _missing_categories(items)
+
+        # A full six-category response carrying the legacy label reports nothing
+        # missing at all, which is the stored-result case this mapping exists for.
+        full = [
+            VerificationItem(
+                label="SEC Registration" if c == "Official Registration" else c,
+                status="green",
+                explanation="",
+            )
+            for c in VERIFY_CLAIM_CATEGORIES
+        ]
+        assert _missing_categories(full) == []
 
 
 class TestUntrustedRetrieval:
@@ -747,9 +789,17 @@ END VERIFY"""
         assert items[2].label == "Scam Reports"
         assert items[2].status == "green"
 
-    def test_returns_empty_for_no_matches(self):
-        items = _parse_verification_result("Just some random text")
-        assert items == []
+    def test_unreadable_text_raises_instead_of_returning_empty(self):
+        """The one change that stops a failed verification rendering as nothing.
+
+        Returning an empty list here was indistinguishable from a model that
+        reported no checks, so the flow's failsafe card and a genuine empty
+        result were the same panel.
+        """
+        from app.services.scanner.verification_parser import VerificationParseError
+
+        with pytest.raises(VerificationParseError):
+            _parse_verification_result("Just some random text")
 
     def test_handles_case_insensitive(self):
         text = "VERIFY: Test\nSTATUS: Green\nDETAIL: Ok\nEND VERIFY"
@@ -1039,8 +1089,13 @@ async def test_verify_stops_early_when_no_company_name():
 
 
 @pytest.mark.asyncio
-async def test_verify_failsafe_when_nothing_to_parse():
-    """Verify endpoint failsafe kicks in when AI output cannot be parsed."""
+async def test_verify_reports_an_unreadable_response_as_a_failure():
+    """An unreadable response is a failure, not a result.
+
+    It used to reach the failsafe card, which renders a yellow Company
+    Existence item indistinguishable from a model that simply reported nothing.
+    The request had already succeeded, so nothing said why the panel was blank.
+    """
     with patch("app.routers.scan.chat", return_value="Random gibberish that has no verify blocks"):
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post("/api/verify", json={
@@ -1050,10 +1105,34 @@ async def test_verify_failsafe_when_nothing_to_parse():
 
         assert resp.status_code == 200
         body = resp.text
+        assert '"type": "error"' in body
+        assert '"type": "result"' not in body
+        assert "No structured findings could be read" not in body
+
+
+@pytest.mark.asyncio
+async def test_verify_failsafe_when_a_readable_response_carries_no_checks():
+    """The counterpart: read, and reported nothing. Not a failure.
+
+    This is the one branch that earns the failsafe card. A well-formed response
+    with an empty checks array is a legitimate answer, and it must keep rendering
+    as a notice rather than becoming an error the reader cannot act on.
+    """
+    empty = json.dumps({"checks": [], "evidence": [], "report": "", "recommendation": ""})
+    with patch("app.routers.scan.chat", return_value=empty):
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post("/api/verify", json={
+                "company_name": "Acme Corp",
+                "job_summary": "Developer at Acme Corp",
+            }, headers=HEADERS)
+
+        assert resp.status_code == 200
+        body = resp.text
+        assert '"type": "result"' in body
         assert "No structured findings could be read" in body
         assert "Company Existence" in body
         # A verdict always exists. The posting carried no indicators, so the
-        # unreadable verification contributes nothing and the posting score
+        # empty verification contributes nothing and the posting score
         # stands on its own rather than the result being left unscored.
         assert '"riskScore": 0' in body
         assert '"verification_score": null' in body

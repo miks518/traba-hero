@@ -6,7 +6,7 @@ from app.config import settings
 from app.models.schemas import VerificationItem, VerifyRequest
 
 from .dependencies import runtime
-from .verification_parser import EXPECTED_CATEGORIES
+from .verification_parser import EXPECTED_CATEGORIES, VerificationParseError
 
 
 log = logging.getLogger("trabahero")
@@ -19,6 +19,11 @@ def _read_verify_output(text: str) -> tuple[list, str, str, bool, list]:
     it does not support structured outputs, so the labeled-text parser remains as
     a fallback rather than being deleted. Returns (items, report, recommendation,
     used_json, evidence).
+
+    Raises `VerificationParseError` when the fallback cannot read the response
+    either. A request that succeeds and a response nobody can read is a failure,
+    and returning an empty item list here would hide it — the panel would render
+    its empty-result notice as though the model had reported nothing.
     """
     payload = runtime.get_parse_json()(text)
     if isinstance(payload, dict) and isinstance(payload.get("checks"), list):
@@ -56,7 +61,15 @@ def _read_verify_output(text: str) -> tuple[list, str, str, bool, list]:
         return items, str(payload.get("report") or ""), str(payload.get("recommendation") or ""), True, evidence
 
     log.warning("[verify] Response was not JSON; falling back to the labeled-text parser.")
-    items = runtime.get_parse_verification_result()(text)
+    try:
+        items = runtime.get_parse_verification_result()(text)
+    except VerificationParseError as exc:
+        # The request succeeded and the response could not be read. Returning an
+        # empty list here would render three empty cards with no error anywhere,
+        # so the failure is reported instead.
+        log.error("[verify] Response was neither JSON nor readable labeled text: %s. raw=%s",
+                  exc, text[:400])
+        raise VerificationParseError(str(exc)) from exc
     report = runtime.get_parse_verify_section()(text, "REPORT")
     recommendation = runtime.get_parse_verify_section()(text, "RECOMMENDATION")
     return items, report, recommendation, False, []
@@ -198,7 +211,11 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             )
 
         if not items:
-            log.warning("[verify] Failsafe triggered: No verification items could be parsed from AI response. Raw: %s", final_text[:300])
+            # Only the readable-but-empty case reaches here: a response nobody
+            # could read raised in _read_verify_output, so this branch never
+            # reports an unreadable response as a result. The card is a fact
+            # about our own output, not a finding about the employer.
+            log.warning("[verify] Failsafe triggered: response was readable but carried no usable checks. Raw: %s", final_text[:300])
             items = [
                 VerificationItem(
                     label="Company Existence",

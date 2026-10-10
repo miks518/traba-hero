@@ -156,18 +156,25 @@ def test_both_prompt_copies_carry_the_same_scheme_rule_separately():
 
 
 def test_the_tuple_the_schema_and_the_prose_name_the_same_categories():
-    """Three places name the categories and they have drifted apart before.
+    """Two places name the categories and they have drifted apart before.
 
     The tuple feeds the schema enum, and the prose tells the model what each
     one means. A category added to one and not the others is either
     unreachable (a strict enum refuses it) or invented (the model improvises a
-    fourth), and `EXPECTED_CATEGORIES` in the parser is a fourth list that is
-    deliberately still the old three.
+    fourth).
+
+    `EXPECTED_CATEGORIES` in the parser used to be a third list, deliberately
+    left at the old three so stored results would not log phantom gaps. That
+    left the "missing category" diagnostic unable to report a missing Channel
+    Match, so it now derives from this same tuple rather than restating it —
+    which is also what keeps it from drifting again.
     """
     from app.services.scanner.verification_prompt import VERIFY_RESPONSE_SCHEMA
+    from app.services.scanner.verification_parser import EXPECTED_CATEGORIES
 
     enum = VERIFY_RESPONSE_SCHEMA["properties"]["checks"]["items"]["properties"]["category"]["enum"]
     assert tuple(enum) == VERIFY_CLAIM_CATEGORIES
+    assert EXPECTED_CATEGORIES == VERIFY_CLAIM_CATEGORIES
 
     for copy in (PROMPT.read_text(encoding="utf-8"), _FALLBACK_VERIFY_PROMPT):
         for category in VERIFY_CLAIM_CATEGORIES:
