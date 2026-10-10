@@ -1,11 +1,11 @@
-import logging
+﻿import logging
 from pathlib import Path
 
 
 log = logging.getLogger("trabahero")
 
 
-# ── Shared prompt building blocks ──────────────────────────────────────────
+# â”€â”€ Shared prompt building blocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 #
 # These rules are the defamation guardrail: the model reports observable facts
 # about a posting instead of inferring intent or accusing a named employer. They
@@ -15,7 +15,7 @@ log = logging.getLogger("trabahero")
 
 OUTPUT_RULES = """OUTPUT RULES (apply to every field, in any language):
 - Answer immediately. Do not deliberate out loud, restate these instructions, or explain your reasoning in the output.
-- Report only what the posting actually says. If something is not stated, write "Not stated in the posting" — never infer it.
+- Report only what the posting actually says. If something is not stated, write "Not stated in the posting" â€” never infer it.
 - Describe the posting, never the people behind it. Never write that a company or person is a scam, a fraud, or a criminal. State what the posting asks for or does.
 - Do not guess at intent. Do not use: likely, appears, suggests, probably, seemingly, may be, might be, could indicate, often, typically, we think.
 - Do not use absolutes: always, never, definitely, guaranteed, 100%.
@@ -51,36 +51,36 @@ JOB SUMMARY:
 END JOB SUMMARY"""
 
 SCAN_FIELD_RULES = """Field rules:
-- VALID: true if the content makes an offer of work, income, a job, a business opportunity, or training for work — whether it is a formal advertisement, a screenshot, a chat message, a forwarded message, or a short recruitment pitch. Set VALID: false only when there is no offer of work or income in the content at all. If VALID: false, output ONLY the VALID line and stop immediately — do not generate any other fields.
+- VALID: true if the content makes an offer of work, income, a job, a business opportunity, or training for work â€” whether it is a formal advertisement, a screenshot, a chat message, a forwarded message, or a short recruitment pitch. Set VALID: false only when there is no offer of work or income in the content at all. If VALID: false, output ONLY the VALID line and stop immediately â€” do not generate any other fields.
 - ANOMALIES:
-  * An anomaly is something in the posting that differs from the ordinary case. Output an ANOMALY line only for something you can point to in the posting — an anomaly describes what the posting contains, says, or asks for, and asserts nothing about what it means. A genuine posting can be poorly written and still be entirely legitimate; an anomaly says it differs, not that it is wrong.
+  * An anomaly is something in the posting that differs from the ordinary case. Output an ANOMALY line only for something you can point to in the posting â€” an anomaly describes what the posting contains, says, or asks for, and asserts nothing about what it means. A genuine posting can be poorly written and still be entirely legitimate; an anomaly says it differs, not that it is wrong.
   * Never flag the absence of something. Do not output a flag because the posting does not ask for a processing fee, does not mention a contract, or does not include some other thing a posting might have included. The absence of an element is never evidence of anything, and "it does not ask for money" is a clean posting, not a warning.
-  * Never output a flag about a scam pattern unless the posting actually contains that pattern's element. An advance-fee pattern exists only where the posting asks the applicant for money. A money-mule pattern exists only where the posting asks the applicant to receive, pass on, or bank money. A task-for-earning pattern exists only where the posting asks the reader to complete discrete tasks, orders, or referrals in order to be paid, rather than describing a role with duties — for example an instruction to do a task and then earn a reward, or an amount stated per order, per signup, or per referral. If the posting contains none of these, name no pattern.
-  * Work followed by payment is the ordinary order and is not a flag by itself; most jobs are paid that way. What separates a task-for-earning offer is the unit of work — a task or an earning event rather than a role. If the posting describes a role and what the person in it does, this pattern does not apply.
-  * If the posting has no anomalies, output no ANOMALY lines at all — go straight to END ANOMALIES. This is the expected outcome for most postings and is not a failure.
+  * Never output a flag about a scam pattern unless the posting actually contains that pattern's element. An advance-fee pattern exists only where the posting asks the applicant for money. A money-mule pattern exists only where the posting asks the applicant to receive, pass on, or bank money. A task-for-earning pattern exists only where the posting asks the reader to complete discrete tasks, orders, or referrals in order to be paid, rather than describing a role with duties â€” for example an instruction to do a task and then earn a reward, or an amount stated per order, per signup, or per referral. If the posting contains none of these, name no pattern.
+  * Work followed by payment is the ordinary order and is not a flag by itself; most jobs are paid that way. What separates a task-for-earning offer is the unit of work â€” a task or an earning event rather than a role. If the posting describes a role and what the person in it does, this pattern does not apply.
+  * If the posting has no anomalies, output no ANOMALY lines at all â€” go straight to END ANOMALIES. This is the expected outcome for most postings and is not a failure.
   * Never invent a flag, and never output a placeholder or default flag. Every flag must quote or closely paraphrase text actually present in the posting.
-  * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high. An "anomaly" is a description, so the label must not name a conclusion — write "Asks applicants to pay a processing fee", never "Scam fee request".
+  * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high. An "anomaly" is a description, so the label must not name a conclusion â€” write "Asks applicants to pay a processing fee", never "Scam fee request".
   * Severity means:
     - high: the posting explicitly asks the applicant for money, or contains a concrete instruction matching a known scam pattern.
     - mid: a checkable gap or contradiction in the posting, such as contact details that do not match the named employer, or an offer of paid tasks rather than a role.
     - low: something common in Philippine job postings that is weak evidence on its own.
   * Do not flag any of these on their own: a free email domain (Gmail, Yahoo), a missing office address, a generic job title, "no experience needed".
   * If the posting states no salary, do not flag salary. Only flag a salary amount that is stated and does not fit the role.
-  * If the posting does not name an employer in its text, check whether a company logo, wordmark, letterhead, or sender name is visible in the image. If one is, treat that as the employer name. Not naming an employer is common in the Philippines and is weak evidence on its own; do not describe it as a scam, and do not output an anomaly for it — a missing name is a missing input, and the panel asks the reader for it separately.
-  * Payment requests: state the request and nothing else. Example — ANOMALY: Asks applicants to pay a processing fee | The posting asks applicants to pay a fee before starting work | high. Never add any claim about the employer.
+  * If the posting does not name an employer in its text, check whether a company logo, wordmark, letterhead, or sender name is visible in the image. If one is, treat that as the employer name. Not naming an employer is common in the Philippines and is weak evidence on its own; do not describe it as a scam, and do not output an anomaly for it â€” a missing name is a missing input, and the panel asks the reader for it separately.
+  * Payment requests: state the request and nothing else. Example â€” ANOMALY: Asks applicants to pay a processing fee | The posting asks applicants to pay a fee before starting work | high. Never add any claim about the employer.
 - ATTRIBUTES AND SEARCH QUERIES:
   * Report only details the posting actually states. If it names no location, omit the LOCATION line entirely rather than writing "none" or "Not stated".
-  * PAY and CONTACT_METHOD may be reported but generate no search query. Only LOCATION, CONTACT_METHOD and MEETING_SPOT are checkable online.
+  * PAY may be reported but generates no search query: a salary figure is not corroborated or refuted by a web search. LOCATION, CONTACT_METHOD and MEETING_SPOT are checkable online and each may generate one query.
   * Write at most three QUERY lines, and only for details the posting states. A posting with no location produces no location query.
-  * Build queries from the words the posting uses. "Tanika Maingate Terminal recruitment" is right; "Tanika scam recruitment" is not — never name a conclusion in a query.
+  * Build queries from the words the posting uses. "Tanika Maingate Terminal recruitment" is right; "Tanika scam recruitment" is not â€” never name a conclusion in a query.
   * Put a QUERY_REF line after an ANOMALY line when you issued a query for it. Omit QUERY_REF for a low-severity anomaly; it will never be corroborated.
-- EMPLOYER NAME: the name of the company that would employ the reader, exactly as it is written in the content, and nothing else on the line — no "the", no role, no explanation, no separator, and never two names joined by a slash or an "and".
+- EMPLOYER NAME: the name of the company that would employ the reader, exactly as it is written in the content, and nothing else on the line â€” no "the", no role, no explanation, no separator, and never two names joined by a slash or an "and".
   * A staffing or manpower agency is NOT the employer when the posting is for work at some other company. In "Vikings / Silvergreen Manpower Services Corporation is hiring", Silvergreen is the recruiter and Vikings is where the reader would work: output "Vikings". If the posting is for the agency's own staff, the agency is the employer and you output the agency name.
   * The client or end-user company can be a large brand, a restaurant, a store, or a small business. Output it even though it is a brand name and even when the posting never uses the words "employer" or "hiring company".
-  * If the content names no employer anywhere, including a logo or letterhead, output exactly "Not stated". This field is used to look the employer up, so a name that is not in the content is worse than useless here: output "Not stated" instead of a guess. A recruiter name on its own does not make the agency the employer — if the posting names only the agency and no company the reader would work for, output the agency name anyway, because the agency is then the party the reader would deal with.
+  * If the content names no employer anywhere, including a logo or letterhead, output exactly "Not stated". This field is used to look the employer up, so a name that is not in the content is worse than useless here: output "Not stated" instead of a guess. A recruiter name on its own does not make the agency the employer â€” if the posting names only the agency and no company the reader would work for, output the agency name anyway, because the agency is then the party the reader would deal with.
 - POSTING ANALYSIS: your verdict on the posting, in 2-3 short sentences, written for someone deciding whether to reply. It has two parts and must have both.
-  * Part 1 — the judgement: what this posting looks like based on the anomalies you reported, naming the pattern only when you reported an anomaly containing that pattern's element, and otherwise saying the posting states nothing alarming when you reported no anomalies. Do not pad a clean posting into a warning.
-  * Part 2 — the action: what the reader should actually do, in one sentence. "Do not send any money or ID photos" is useful. "Be careful" is not — name the specific step to take or avoid.
+  * Part 1 â€” the judgement: what this posting looks like based on the anomalies you reported, naming the pattern only when you reported an anomaly containing that pattern's element, and otherwise saying the posting states nothing alarming when you reported no anomalies. Do not pad a clean posting into a warning.
+  * Part 2 â€” the action: what the reader should actually do, in one sentence. "Do not send any money or ID photos" is useful. "Be careful" is not â€” name the specific step to take or avoid.
   * Base the verdict only on anomalies you actually reported. If you reported no anomalies, the verdict must say the posting states nothing alarming.
   * Never use the words scam, legitimate, suspicious, genuine, fraudulent, or honest in this field, or any synonym of them. Describe what the posting asks for, not what it is. 'The posting asks the applicant for money before starting work' is allowed; 'this is a scam' and 'this looks legitimate' are not. Never describe a named employer or person as a scammer, a criminal, or dishonest - the verdict is about what this posting asks for, and a reader decides who the employer is.
   * Do not repeat the anomaly list item by item, and do not repeat the job summary.
