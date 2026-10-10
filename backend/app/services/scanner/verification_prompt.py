@@ -229,15 +229,66 @@ def _neutralise(text: str) -> str:
     return text.replace(_DELIMITER, "").strip()
 
 
+# Quoted, not asserted. The values are whatever the poster wrote, so the block
+# presents them as the posting's own statements and leaves the judging to the
+# system prompt's rules.
+CLAIMS_HEADER = "What the posting stated about itself (the claims under test):"
+
+# The scan reports the employer twice — once as `EMPLOYER NAME:`, once inside its
+# attributes block — and `scan_flow` resolves the first and the regex fallback,
+# not the second. Sending both here would put two names for one employer in a
+# single request, and a model comparing them has every reason to call it a
+# mismatch on `Channel Match`. That would be a finding invented out of our own
+# plumbing, so the employer is stated exactly once, above.
+_EMPLOYER_ATTRIBUTE_KEY = "COMPANY"
+
+
+def _stated_claims(req: VerifyRequest) -> list[tuple[str, str]]:
+    """The attributes the scan actually read, in the order it reported them.
+
+    An entry whose value is blank or whitespace is dropped rather than emitted
+    empty: a `LOCATION:` line with nothing after it reads as "the posting named
+    no location", which is a claim about the posting that this function has no
+    basis for.
+
+    Everything else the scan reported is included, including `PAY`, which is
+    never queried and is still a claim — Scheme Corroboration asks about the
+    reward the posting offers. Filtering to the checkable set here would be a
+    second definition of that constant, and two copies of one name is how they
+    drift.
+    """
+    attributes = getattr(req, "attributes", None) or {}
+    return [
+        (str(key).strip(), str(value).strip())
+        for key, value in attributes.items()
+        if str(key).strip() != _EMPLOYER_ATTRIBUTE_KEY and str(value or "").strip()
+    ]
+
+
 def _build_verify_prompt(req: VerifyRequest, search_context: str = "") -> str:
     """Build the user prompt for verification.
 
-    Only the search results go in. The job summary and the posting's anomalies
-    used to be sent as well, and both are actively harmful here: the model is
-    asked to report what the search shows about a company, and handing it
-    "Asks applicants to pay a processing fee" invites it to answer about the
-    posting instead of the employer. An anomaly about the posting is not a fact
-    about the company, and it already fed the posting-stage score.
+    Only the search results and the posting's own stated claims go in. The job
+    summary and the posting's anomalies used to be sent as well, and both are
+    actively harmful here: the model is asked to report what the search shows,
+    and handing it "Asks applicants to pay a processing fee" invites it to
+    answer about the posting instead of the employer. An anomaly about the
+    posting is not a fact about the company, and it already fed the
+    posting-stage score.
+
+    Attributes are the narrow exception, and the distinction is what makes them
+    safe: an anomaly is the model's characterisation of the posting, while an
+    attribute is a detail quoted out of it. `VERIFY_PROMPT.md` defines three of
+    its six categories as claims the posting made — Location / Branch, Channel
+    Match, Scheme Corroboration — and each tests a claim it can only see here.
+    Without this block `Channel Match` reports yellow on every posting, because
+    there is no claim for it to test, and Channel Match is the one check that
+    can tell a real employer from one borrowing its name.
+
+    Nothing is stated here that the posting did not state. An absent attribute
+    produces no line at all rather than an empty one, because "the posting said
+    nothing" and "the posting said nothing was found" are different claims and
+    the block must not be able to make the first one on the model's behalf.
 
     format_results decides between "the search failed" and "the search found
     nothing", so this function only has to carry the result through.
@@ -245,6 +296,9 @@ def _build_verify_prompt(req: VerifyRequest, search_context: str = "") -> str:
     parts = []
     if req.company_name:
         parts.append(f"Company to verify: {req.company_name}")
+    claims = _stated_claims(req)
+    if claims:
+        parts.append(CLAIMS_HEADER + "\n" + "\n".join(f"- {k}: {v}" for k, v in claims))
     if search_context:
         parts.append(f"\n{search_context}")
     return "\n\n".join(parts)

@@ -118,17 +118,43 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 "scoreBreakdown": breakdown,
                 "search_ok": False,
                 "search_error": "No employer name was given, so nothing was searched.",
+                # Always present, never conditional. A client reading
+                # `scheme_queries.length` would otherwise throw on exactly the
+                # response that most obviously searched nothing — and there is no
+                # query to report, because a stated detail with no employer
+                # attached is a place, not an impersonation.
+                "scheme_queries": [],
                 "no_company_name": True,
             }})
             return
 
         yield runtime.get_sse()({"type": "progress", "percent": 10, "stage": "Searching company info"})
-        # Two queries, no category suffixes: the model sorts the merged results
-        # into the three categories itself, so nothing here decides what a
-        # result is. The second exists because one query cannot serve all three
-        # categories — `"<company> Philippines"` ranks the employer's own site
-        # first, and those pages do not state registration numbers.
-        queries = runtime.get_build_queries()(company)
+        # Two query families, one flat result set, one model call. Neither family
+        # carries a category suffix: the model sorts the merged results into the
+        # categories itself, so nothing here decides what a result is.
+        #
+        # The company queries find what is published about the employer. Two of
+        # them because one cannot serve every category — `"<company> Philippines"`
+        # ranks the employer's own site first, and those pages do not state
+        # registration numbers.
+        #
+        # They also find nothing when a scam borrows a real company's name,
+        # because the real company's reputation is clean, which is exactly why
+        # the impersonation is invisible to them. The scheme queries name a
+        # detail the posting itself stated, so they reach the pages that pair
+        # the claim with the employer making it.
+        #
+        # `getattr` because the request may predate the field: a client that
+        # never sends `attributes` must produce no scheme query, not an
+        # AttributeError halfway through the stream.
+        company_queries = runtime.get_build_queries()(company)
+        scheme_queries = runtime.get_build_scheme_queries()(
+            getattr(req, "attributes", None) or {}, company
+        )
+        # Concatenated, not merged. The loop below was already written to handle
+        # a list where some queries succeed and some fail, and that is the shape
+        # five queries of mixed provenance produce.
+        queries = company_queries + scheme_queries
         collected: list = []
         # TEMPORARY DIAGNOSTIC. The provider's raw body per query, so the panel
         # can show what Tavily actually returned. Remove alongside
@@ -271,6 +297,12 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "search_error": first_error,
             "search_count": len(merged),
             "queries_issued": len(queries),
+            # Which of those queries came from the posting's own claims, so the
+            # panel can say what was looked up. Reported separately from
+            # `queries_issued` because the two families answer different
+            # questions: one asks about the employer, the other about whether
+            # the posting's claims are the employer's own.
+            "scheme_queries": scheme_queries,
             "queries_failed": len(failures),
             "debug_search_raw": raw_dump,  # TEMPORARY DIAGNOSTIC — remove with SearchOutcome.raw_response
             "no_company_name": False,

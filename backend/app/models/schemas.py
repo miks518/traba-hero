@@ -106,6 +106,20 @@ class VerifyRequest(BaseModel):
     company_name: str = ""
     job_summary: str = ""
     anomalies: list[Anomaly] = []
+    # What the scan read off the posting, in the poster's own words. Two uses,
+    # and the same constraint binds both: an absent key means the posting said
+    # nothing, which is a missing input and never earns a query or a check.
+    #
+    # It builds the scheme queries, and it is what categories 3, 4 and 6 test
+    # their claims against. Without it in the prompt, `Channel Match` — the one
+    # check that can tell a real employer from one borrowing its name — has
+    # nothing to reason about and reports yellow on every posting.
+    #
+    # `| None` so an explicit JSON `null` is the same claim as `{}` and as an
+    # omitted key. All three say "the posting stated nothing", and rejecting one
+    # spelling of a missing input with a 422 fails the whole verification for a
+    # detail that carries no verdict.
+    attributes: dict[str, str] | None = {}
 
 
 class VerificationItem(BaseModel):

@@ -13,6 +13,32 @@ HEADERS = {"X-Trabahero-Client-Key": "test-secret-key"}
 WRONG_HEADERS = {"X-Trabahero-Client-Key": "wrong-key"}
 
 
+def _cycled(outcomes):
+    """A `side_effect` that keeps answering after its list runs out.
+
+    A list passed straight to `side_effect` raises `StopIteration` on the call
+    that overruns it, and `StopIteration` **cannot be raised into an asyncio
+    Future** — CPython raises `TypeError: StopIteration interacts badly with
+    generators and cannot be raised into a Future` and the awaiting coroutine
+    never resumes. Since the flow searches through `asyncio.to_thread`, a
+    side_effect pinned to the two employer queries did not fail the test that
+    issued a third one; it hung the whole suite instead.
+
+    Verified directly: `MagicMock(side_effect=[a, b])` awaited through
+    `asyncio.to_thread` for a third call raises nothing and never returns.
+
+    These tests assert on which outcomes were seen and on the search count, never
+    on exhaustion, so repeating the last one preserves every assertion and turns
+    a silent deadlock into an ordinary failure.
+    """
+    remaining = list(outcomes)
+
+    def _next(*args, **kwargs):
+        return remaining.pop(0) if len(remaining) > 1 else remaining[0]
+
+    return _next
+
+
 # â”€â”€ VerifyRequest model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class TestVerifyRequest:
@@ -113,6 +139,126 @@ class TestBuildVerifyPrompt:
         req = VerifyRequest(job_summary="Some job")
         prompt = _build_verify_prompt(req)
         assert "Company to verify" not in prompt
+
+
+class TestTheClaimsReachThePrompt:
+    """The posting's own statements are what three of the six checks test.
+
+    `VERIFY_PROMPT.md` says "the request may state what the posting itself
+    claimed … those statements are the claims under test in categories 3, 4 and
+    6", and it says "where the request states nothing for a category, report
+    yellow". If the request never states anything, that rule reports yellow on
+    every posting and `Channel Match` — the only check that can tell a real
+    employer from one borrowing its name — cannot fire even once. The prompt was
+    asking a question nobody answered.
+
+    Attributes are excluded from the anomaly rule above for a reason that does
+    not apply here: an anomaly is a model's characterisation of the posting,
+    while an attribute is a detail quoted out of it. What is tested is a claim
+    the posting made, not a conclusion about it.
+    """
+
+    def test_a_stated_location_reaches_the_prompt(self):
+        req = VerifyRequest(company_name="ACME", attributes={"LOCATION": "Maingate Terminal"})
+        prompt = _build_verify_prompt(req, "=== SEARCH RESULTS FOR: ACME ===\ntext\n=== END SEARCH ===")
+
+        assert "Maingate Terminal" in prompt
+        assert "LOCATION" in prompt
+
+    def test_every_stated_attribute_reaches_the_prompt(self):
+        """Which detail is stated decides which check has a claim to test."""
+        req = VerifyRequest(
+            company_name="ACME",
+            attributes={
+                "LOCATION": "Maingate Terminal",
+                "CONTACT_METHOD": "personal Gmail",
+                "MEETING_SPOT": "Waltermart Mabalacat",
+            },
+        )
+        prompt = _build_verify_prompt(req)
+
+        for value in ("Maingate Terminal", "personal Gmail", "Waltermart Mabalacat"):
+            assert value in prompt, value
+
+    def test_a_posting_that_stated_nothing_adds_no_claims_block(self):
+        """An empty block would read as "the posting stated nothing", which is a
+        claim about the posting that nothing here supports — and it would be the
+        same text for a scan that never reported attributes at all.
+        """
+        req = VerifyRequest(company_name="ACME")
+        prompt = _build_verify_prompt(req, "=== SEARCH RESULTS FOR: ACME ===\ntext\n=== END SEARCH ===")
+
+        assert "LOCATION" not in prompt
+        assert "CONTACT_METHOD" not in prompt
+
+    def test_the_anomaly_exclusion_is_not_a_door_attributes_walk_back_through(self):
+        """The block carries the posting's words and nothing else.
+
+        `Anomaly` objects may carry a `query_ref` and a severity, and both are
+        the model's characterisation rather than the posting's content. Letting
+        them in through the claims block would undo the rule above.
+        """
+        req = VerifyRequest(
+            company_name="ACME",
+            attributes={"LOCATION": "Maingate Terminal"},
+            anomalies=[Anomaly(
+                flag="UNIQUE_FLAG_MARKER",
+                reasoning="r",
+                severity="high",
+                query_ref="UNIQUE_QUERY_REF_MARKER",
+            )],
+        )
+        prompt = _build_verify_prompt(req)
+
+        assert "Maingate Terminal" in prompt
+        assert "UNIQUE_FLAG_MARKER" not in prompt
+        assert "UNIQUE_QUERY_REF_MARKER" not in prompt
+
+    def test_the_employer_is_stated_once_never_twice(self):
+        """Two names for one employer, and a model asked to compare them.
+
+        The scan reports the employer twice — as `EMPLOYER NAME:` and inside its
+        attributes block — and `scan_flow` resolves the first (or a regex
+        fallback over the summary), not the second, so the two can disagree.
+        Sending both would give `Channel Match` a mismatch that exists in our
+        plumbing rather than in the posting, and red findings are what this
+        product cannot afford to invent.
+        """
+        req = VerifyRequest(
+            company_name="Tanika",
+            attributes={"COMPANY": "Tanika Remittance Corporation", "LOCATION": "Maingate Terminal"},
+        )
+        prompt = _build_verify_prompt(req)
+
+        assert "Tanika Remittance Corporation" not in prompt
+        assert "Maingate Terminal" in prompt
+        assert prompt.count("Company to verify: Tanika") == 1
+
+    def test_a_pay_statement_is_a_claim_and_is_kept(self):
+        """`PAY` is never queried and is still stated.
+
+        Scheme Corroboration asks about the reward the posting offers, so the
+        figure is one of the claims under test. Excluding it here because a
+        *search* cannot check it would be answering a different question in the
+        wrong place — and would be a second definition of `CHECKABLE_ATTRIBUTES`.
+        """
+        req = VerifyRequest(company_name="ACME", attributes={"PAY": "26,000 monthly"})
+        prompt = _build_verify_prompt(req)
+
+        assert "26,000 monthly" in prompt
+
+    def test_an_empty_attribute_value_produces_no_line(self):
+        """`LOCATION:` with nothing after it would read as "the posting named no
+        location" — a claim about the posting this function has no basis for.
+        """
+        req = VerifyRequest(
+            company_name="ACME",
+            attributes={"LOCATION": "   ", "CONTACT_METHOD": "personal Gmail"},
+        )
+        prompt = _build_verify_prompt(req)
+
+        assert "LOCATION" not in prompt
+        assert "personal Gmail" in prompt
 
 
 class TestFormatResults:
@@ -940,7 +1086,7 @@ class TestTwoQueriesPerVerification:
     async def _verify(self, client, search_side_effect, chat_response=None):
         from unittest.mock import patch as _patch
         with (
-            _patch("app.routers.scan.search", side_effect=search_side_effect) as search,
+            _patch("app.routers.scan.search", side_effect=_cycled(search_side_effect)) as search,
             _patch("app.routers.scan.chat", return_value=chat_response or self.AI),
         ):
             async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -1006,7 +1152,7 @@ class TestTwoQueriesPerVerification:
         first = SearchOutcome(results=[SearchResult("Exists", "https://example.ph/acme", "s", 0.8)], ok=True)
         second = SearchOutcome(results=[SearchResult("Filed", "https://example.ph/sec", "s", 0.7)], ok=True)
 
-        with patch("app.routers.scan.search", side_effect=[first, second]):
+        with patch("app.routers.scan.search", side_effect=_cycled([first, second])):
             with patch("app.routers.scan.chat", return_value=self.AI) as chat:
                 async with AsyncClient(transport=transport, base_url="http://test") as c:
                     await c.post("/api/verify", json={
@@ -1027,7 +1173,7 @@ class TestTwoQueriesPerVerification:
         a = SearchOutcome(results=[SearchResult("Same", "https://example.ph/acme", "s", 0.8)], ok=True)
         b = SearchOutcome(results=[SearchResult("Same", "https://example.ph/acme?utm=jobstreet", "s", 0.6)], ok=True)
 
-        with patch("app.routers.scan.search", side_effect=[a, b]):
+        with patch("app.routers.scan.search", side_effect=_cycled([a, b])):
             with patch("app.routers.scan.chat", return_value=self.AI) as chat:
                 async with AsyncClient(transport=transport, base_url="http://test") as c:
                     await c.post("/api/verify", json={
@@ -1051,7 +1197,7 @@ class TestTwoQueriesPerVerification:
         first = SearchOutcome(results=[SearchResult("Exists", "https://example.ph/acme", "s", 0.8)], ok=True)
         second = SearchOutcome(results=[SearchResult("Filed", "https://example.ph/sec", "s", 0.7)], ok=True)
 
-        with patch("app.routers.scan.search", side_effect=[first, second]):
+        with patch("app.routers.scan.search", side_effect=_cycled([first, second])):
             with patch("app.routers.scan.chat", return_value=self.AI) as chat:
                 async with AsyncClient(transport=transport, base_url="http://test") as c:
                     await c.post("/api/verify", json={
@@ -1136,4 +1282,304 @@ async def test_verify_failsafe_when_a_readable_response_carries_no_checks():
         # stands on its own rather than the result being left unscored.
         assert '"riskScore": 0' in body
         assert '"verification_score": null' in body
+
+
+# ── Scheme-query helpers ─────────────────────────────────────────────────────
+#
+# The plan for this task named four helpers it never defined and told the
+# implementer to "follow the file's existing pattern". That pattern is the one
+# used above: patch the two boundaries the flow actually reaches —
+# `app.routers.scan.search` and `app.routers.scan.chat` — because the runtime's
+# lambdas resolve those names from the router module's globals at call time.
+#
+# The real `build_scheme_queries` is deliberately NOT stubbed. The decision under
+# test is which queries the flow asks for, and a stubbed builder would report
+# whatever the stub returned rather than what the posting's claims justify.
+
+def _search_ok():
+    """Every query succeeds and finds nothing.
+
+    A successful empty result is the common shape for a small employer. It is
+    kept distinct from a failure on purpose: `SearchOutcome.ok` and
+    `.results` are independent, and collapsing them in a double would hide the
+    distinction these tests partly exist to protect.
+    """
+    from app.services.search import SearchOutcome
+
+    return SearchOutcome(results=[], ok=True)
+
+
+def _search_ok_recording(issued: list):
+    """`_search_ok`, recording each query as the flow asks for it."""
+
+    def _search(query, max_results=None):
+        issued.append(query)
+        return _search_ok()
+
+    return _search
+
+
+def _search_by_query(outcome_for):
+    """Ask `outcome_for(query)` what each search's outcome should be."""
+
+    def _search(query, max_results=None):
+        return outcome_for(query)
+
+    return _search
+
+
+def _chat_corroboration():
+    """A readable response confirming every claim.
+
+    `green` carries no weight in the verification stage, so the assertions in
+    these tests stay about retrieval. Scoring a claim as a refutation is Task 6's
+    subject and is tested there.
+    """
+    from app.services.scanner.verification_prompt import VERIFY_CLAIM_CATEGORIES
+
+    return json.dumps({
+        "checks": [
+            {
+                "category": category,
+                "status": "green",
+                "finding": "A result confirms this claim.",
+                "source_title": "A page",
+                "source_url": "https://example.ph/source",
+            }
+            for category in VERIFY_CLAIM_CATEGORIES
+        ],
+        "evidence": [],
+        "report": "The results confirm the claims the posting made.",
+        "recommendation": "Ask the employer to confirm the details in writing.",
+    })
+
+
+class TestSchemeQueriesAreIssued:
+    """Retrieval must target what the posting claims, not only the employer.
+
+    The two employer queries can only find pages that name the employer, so they
+    find nothing when a scam borrows a real company's name — the real company's
+    reputation is clean, which is precisely why the impersonation is invisible to
+    them. The scheme queries name a stated detail instead, so they find the
+    pages that pair the claim with the employer making it.
+
+    Two rules make this retrieval rather than an accusation engine, and both are
+    asserted here: a detail the posting did not state spends no credit, and one
+    failed scheme query is `partial` rather than a total failure.
+    """
+
+    async def _post(self, body, search_impl=None):
+        """POST /api/verify with the two boundaries patched.
+
+        Returns the response and the list of queries the flow asked for.
+        """
+        issued: list = []
+        with (
+            patch("app.routers.scan.search",
+                  side_effect=search_impl or _search_ok_recording(issued)),
+            patch("app.routers.scan.chat", return_value=_chat_corroboration()),
+        ):
+            async with AsyncClient(transport=transport, base_url="http://test") as c:
+                resp = await c.post("/api/verify", json=body, headers=HEADERS)
+        return resp, issued
+
+    @pytest.mark.asyncio
+    async def test_a_stated_location_produces_a_scheme_query(self):
+        resp, issued = await self._post({
+            "company_name": "Tanika",
+            "attributes": {"LOCATION": "Maingate Terminal"},
+        })
+
+        assert resp.status_code == 200
+        assert any("Tanika Maingate Terminal" in q for q in issued), issued
+        # Reported on the wire, so the panel can show what was looked up rather
+        # than the reader inferring coverage from a bare verdict.
+        assert '"scheme_queries": ["Tanika Maingate Terminal' in resp.text
+
+    @pytest.mark.asyncio
+    async def test_the_employer_queries_still_run(self):
+        """The guard on the overcorrection.
+
+        Scheme queries are *added* to the employer queries, not substituted for
+        them. An implementation that replaced the pair would pass the tests above
+        and quietly delete every check about the employer itself.
+        """
+        _, issued = await self._post({
+            "company_name": "Tanika",
+            "attributes": {"LOCATION": "Maingate Terminal"},
+        })
+
+        assert len(issued) == 3, issued
+        assert any("registration certificate" in q for q in issued), issued
+        assert any("reviews complaints" in q for q in issued), issued
+
+    @pytest.mark.asyncio
+    async def test_the_scheme_query_result_reaches_the_model(self):
+        """A query whose results never reach the prompt bought nothing.
+
+        Both families merge into one flat list, so this asserts the merge, not
+        a heading: nothing here labels which query found what.
+        """
+        from app.services.search import SearchOutcome, SearchResult
+
+        def outcome_for(query: str):
+            if "Maingate" in query:
+                return SearchOutcome(
+                    results=[SearchResult("Terminal notice", "https://example.ph/maingate", "s", 0.8)],
+                    ok=True,
+                )
+            return _search_ok()
+
+        with patch("app.routers.scan.search", side_effect=_search_by_query(outcome_for)):
+            with patch("app.routers.scan.chat", return_value=_chat_corroboration()) as chat:
+                async with AsyncClient(transport=transport, base_url="http://test") as c:
+                    resp = await c.post("/api/verify", json={
+                        "company_name": "Tanika",
+                        "attributes": {"LOCATION": "Maingate Terminal"},
+                    }, headers=HEADERS)
+
+        assert resp.status_code == 200
+        user_text = "\n".join(
+            str(m.get("content"))
+            for m in chat.call_args[0][0]
+            if m.get("role") == "user"
+        )
+        assert "https://example.ph/maingate" in user_text
+
+    @pytest.mark.asyncio
+    async def test_no_attributes_issues_no_scheme_query(self):
+        resp, issued = await self._post({"company_name": "Tanika"})
+
+        assert resp.status_code == 200
+        assert '"scheme_queries": []' in resp.text
+        # Nothing beyond the employer pair: the panel must not show a query the
+        # posting never justified.
+        assert len(issued) == 2, issued
+
+    @pytest.mark.asyncio
+    async def test_a_missing_location_spends_no_credit(self):
+        """The case a naive "one query per attribute" implementation gets wrong.
+
+        Searching for a detail the posting never mentioned spends a credit and
+        cannot succeed — it returns pages about a terminal the posting never
+        claimed to be at, which the model then has to discard.
+        """
+        _, issued = await self._post({
+            "company_name": "Tanika",
+            "attributes": {"CONTACT_METHOD": "personal Gmail"},
+        })
+
+        assert not any("location" in q.lower() for q in issued), issued
+        # …and the attribute that *was* stated is still searched, so this is not
+        # passing because the builder produced nothing at all.
+        assert any("personal Gmail" in q for q in issued), issued
+
+    @pytest.mark.asyncio
+    async def test_an_unstated_attribute_never_reaches_a_query(self):
+        """Three spellings of "the posting stated nothing", one behaviour.
+
+        An omitted key, `{}` and an explicit `null` are the same claim, and a
+        verification must not fail over which one a caller used — least of all
+        with a 422, which is the whole request. The flow reads it through
+        `getattr(req, "attributes", None) or {}` for the same reason: a request
+        object built before the field existed is not an error either.
+        """
+        for body in (
+            {"company_name": "Tanika"},
+            {"company_name": "Tanika", "attributes": {}},
+            {"company_name": "Tanika", "attributes": None},
+        ):
+            resp, issued = await self._post(body)
+
+            assert resp.status_code == 200, body
+            assert len(issued) == 2, (body, issued)
+
+    @pytest.mark.asyncio
+    async def test_a_scheme_query_failure_is_partial_not_total(self):
+        """One failure is not a total failure.
+
+        The other queries worked, and discarding them would understate what was
+        checked. Reporting plain `search_ok: true` with no caveat would overstate
+        it — some categories were checked by a thinner search than they look.
+        """
+        from app.services.search import SearchOutcome
+
+        def fail_on_the_scheme_query(query: str):
+            return SearchOutcome(ok="Maingate" not in query, error="throttled")
+
+        resp, _ = await self._post(
+            {
+                "company_name": "Tanika",
+                "attributes": {"LOCATION": "Maingate Terminal"},
+            },
+            search_impl=_search_by_query(fail_on_the_scheme_query),
+        )
+
+        assert resp.status_code == 200
+        assert '"search_ok": true' in resp.text
+        assert '"search_partial": true' in resp.text
+        assert '"queries_issued": 3' in resp.text
+        assert '"queries_failed": 1' in resp.text
+
+    @pytest.mark.asyncio
+    async def test_every_query_failing_is_still_a_total_failure(self):
+        """The overcorrection: `partial` is for one failure, not for any.
+
+        Widening the partial branch to fire whenever a scheme query failed would
+        report a total outage as partial coverage.
+        """
+        from app.services.search import SearchOutcome
+
+        resp, _ = await self._post(
+            {"company_name": "Tanika", "attributes": {"LOCATION": "Maingate Terminal"}},
+            search_impl=_search_by_query(lambda query: SearchOutcome(ok=False, error="boom")),
+        )
+
+        assert '"search_ok": false' in resp.text
+        assert '"search_partial": false' in resp.text
+
+    @pytest.mark.asyncio
+    async def test_no_employer_name_spends_no_credit_on_scheme_queries(self):
+        """A detail with no employer attached is a place, not an impersonation.
+
+        The flow already returns before searching at all in this case; the
+        assertion is that adding scheme queries did not open a way past it.
+        """
+        with (
+            patch("app.routers.scan.search", side_effect=_search_ok_recording([])) as search,
+            patch("app.routers.scan.chat", return_value=_chat_corroboration()),
+        ):
+            async with AsyncClient(transport=transport, base_url="http://test") as c:
+                resp = await c.post("/api/verify", json={
+                    "company_name": "",
+                    "attributes": {"LOCATION": "Maingate Terminal"},
+                }, headers=HEADERS)
+
+        assert resp.status_code == 200
+        search.assert_not_called()
+        assert '"no_company_name": true' in resp.text
+
+    @pytest.mark.asyncio
+    async def test_the_claims_reach_the_user_prompt(self):
+        """End to end: the attributes the scan read reach the model's request.
+
+        `_build_verify_prompt` is unit-tested above; this closes the loop, since
+        a request whose attributes are dropped anywhere between the schema and
+        the prompt leaves `Channel Match` unfireable.
+        """
+        with patch("app.routers.scan.search", return_value=_search_ok()):
+            with patch("app.routers.scan.chat", return_value=_chat_corroboration()) as chat:
+                async with AsyncClient(transport=transport, base_url="http://test") as c:
+                    resp = await c.post("/api/verify", json={
+                        "company_name": "Tanika",
+                        "attributes": {"LOCATION": "Maingate Terminal"},
+                    }, headers=HEADERS)
+
+        assert resp.status_code == 200
+        user_text = "\n".join(
+            str(m.get("content"))
+            for m in chat.call_args[0][0]
+            if m.get("role") == "user"
+        )
+        assert "Maingate Terminal" in user_text
 
