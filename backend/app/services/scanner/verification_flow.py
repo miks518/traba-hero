@@ -255,18 +255,22 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 recommendation = "Confirm the employer independently before submitting personal details."
 
         posting_score, _posting_level, breakdown = runtime.get_posting_risk()(req.anomalies or [])
-        verify_score, _verify_level = runtime.get_calculate_risk()(items)
-        risk_score, risk_level = runtime.get_combine_scores()(posting_score, verify_score)
+        refutation_score = runtime.get_refutation_score()(items)
+        risk_score, risk_level = runtime.get_combine_scores()(posting_score, refutation_score)
 
-        breakdown["verification_score"] = verify_score
+        # The key stays `verification_score` because the panel's
+        # `RiskScoreBreakdown` type reads that name. What it now holds is a
+        # refutation score, which is a different quantity on a different scale -
+        # see `risk_calculator.REFUTATION_WEIGHTS`.
+        breakdown["verification_score"] = refutation_score
         breakdown["final_score"] = risk_score
         breakdown["sources"] = [
             name
-            for name, value in (("posting", posting_score), ("verification", verify_score))
+            for name, value in (("posting", posting_score), ("verification", refutation_score))
             if value is not None
         ]
 
-        log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, posting_score=%s, verify_score=%s, risk_score=%s, risk_level=%s", len(items), len(report), len(recommendation), posting_score, verify_score, risk_score, risk_level)
+        log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, posting_score=%s, refutation_score=%s, risk_score=%s, risk_level=%s", len(items), len(report), len(recommendation), posting_score, refutation_score, risk_score, risk_level)
         if items:
             log.info("[verify] Items: %s", items)
         if report:

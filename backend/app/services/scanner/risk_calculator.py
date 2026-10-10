@@ -20,6 +20,42 @@ from app.models.schemas import Anomaly, VerificationItem
 # asymmetry `_combine_scores` was rewritten to enforce.
 POSTING_SEVERITY_WEIGHTS = {"high": 40, "mid": 12, "low": 4}
 
+# Evidence stage. A claim the retrieval CONTRADICTS costs points; a claim it
+# confirms, and a claim it learned nothing about, both cost nothing.
+#
+# The weights are the one thing in this file not yet derived. `SCORING-SOURCES.md`
+# section 8 found the employer category weights nearly flat (40/25/35 is a 1.6x
+# spread, barely distinguishable from equal importance on Saaty's scale), and
+# these were chosen on the same judgement rather than by the pairwise method in
+# `SCORING-SOURCES.md` section 1. They MUST be re-derived before this ships to a
+# panel, with the consistency ratio reported. The ordering is defensible now:
+# Channel Match is the only check that can detect an impersonation, because a
+# real employer passes every existence, registration and branch check.
+REFUTATION_WEIGHTS = {
+    "Channel Match": 25,
+    "Scheme Corroboration": 15,
+    "Reputation": 10,
+    "Location / Branch": 8,
+    "Company Existence": 6,
+    "Official Registration": 6,
+}
+
+# The evidence stage may add up to half the scale. See `_combine_scores`.
+MAX_REFUTATION_SCORE = 50
+
+# Results recorded before the rename used "SEC Registration". It carried the
+# registration weight then and must carry it now, or a stored verification
+# silently rescores to the default of 0 -- which returns None, so a refuted
+# claim would render as a stage that never ran. The value is spelled the way
+# `REFUTATION_WEIGHTS` spells it, because the lookup key is lowercased and a
+# lowercase value would score every legacy result at zero.
+#
+# Mirrors `_LEGACY_LABELS` in verification_parser. Kept as its own literal rather
+# than imported: that module pulls in the verification prompt, and this one is a
+# pure scoring module that has to stay importable on its own. Two copies is a
+# drift risk and is recorded as one rather than quietly accepted.
+_LEGACY_LABEL_MAP = {"sec registration": "Official Registration"}
+
 
 def _level_for(score: int) -> str:
     if score <= 30:
@@ -64,7 +100,13 @@ def _posting_risk_from_flags(flags: list) -> tuple[int, str, dict]:
     return score, _level_for(score), breakdown
 
 def _calculate_risk_score_from_verify(items: list[VerificationItem]) -> tuple[int | None, str | None]:
-    """The penalty an employer's record adds. Only `red` carries weight.
+    """The employer-category penalty, from before the stage was renamed.
+
+    Retained and exported because `test_scanner_package.py` pins the package's
+    symbol list and this signature, but it is no longer on any production path:
+    the verification flow calls `_refutation_score_from_verify`. Its scale is
+    also a different one -- a share of the category weights, normalised to 100 --
+    so it is not a drop-in for the stage that replaced it.
 
     `yellow` means the search returned nothing about a category. It carried half
     weight when the two stages were averaged, because something had to pull the
@@ -105,8 +147,52 @@ def _calculate_risk_score_from_verify(items: list[VerificationItem]) -> tuple[in
     return score, _level_for(score)
 
 
-def _combine_scores(posting_score: int | None, verify_score: int | None) -> tuple[int, str] | tuple[None, None]:
-    """Add the verification penalty to the posting score, capped at 100.
+def _refutation_score_from_verify(items: list[VerificationItem]) -> int | None:
+    """Points for claims the retrieval contradicted. Returns None if nothing was refuted.
+
+    Only `red` carries weight, and `red` now means a retrieved result contradicts
+    a specific claim the posting made - not merely that a result stated
+    something negative.
+
+    `green` is zero because a confirmed claim means the claim is supported, not
+    that the posting is safe: verification withholds trust, it never grants it.
+
+    `yellow` is zero for the same reason `SearchOutcome.ok` and `.results` are
+    independent. A claim nobody could confirm has not been refuted, and a sole
+    proprietorship with no web presence is the ordinary case in the Philippines.
+    Scoring silence would penalise the smallest employers - the ones this product
+    exists for - for having no website.
+
+    A label with no weight is silence too, not a default. The old table gave an
+    unknown category a weight of 10, which meant a category this design never
+    checked could outscore a confirmed claim at zero.
+
+    Returns None rather than 0 when nothing was refuted, so the caller can tell
+    "nothing was learned" from "a measurement of zero risk".
+    """
+    if not items:
+        return None
+
+    penalty = 0
+    for item in items:
+        if item.status != "red":
+            continue
+        label = item.label.strip()
+        label = _LEGACY_LABEL_MAP.get(label.lower(), label)
+        penalty += REFUTATION_WEIGHTS.get(label, 0)
+
+    if penalty <= 0:
+        return None
+    return min(MAX_REFUTATION_SCORE, penalty)
+
+
+def _combine_scores(posting_score: int | None, refutation_score: int | None) -> tuple[int, str] | tuple[None, None]:
+    """Add the refutation penalty to the posting score, with a floor.
+
+    Asymmetric: evidence may only **raise**. What the retrieval establishes is
+    that a claim is contradicted, not that a posting is safe. A clean employer
+    record must not be able to pull a maxed posting down to a number the reader
+    would read as tolerable.
 
     This was a 60/40 blend, and the blend was wrong in a way that inverted the
     meaning of the number. A posting that had already maxed out — three
@@ -117,20 +203,20 @@ def _combine_scores(posting_score: int | None, verify_score: int | None) -> tupl
     absence of it. "We found nothing" scored 100, tying "three damning
     categories".
 
-    So verification is now **asymmetric: it can only raise.** What the employer
-    record establishes is that this company exists, is or is not registered, and
-    what has been published about it. None of that makes a posting asking for an
-    advance fee less dangerous, and a clean employer must not be able to pull a
-    maxed posting back down to a number the reader would read as tolerable.
+    The `max` is what makes a balanced split possible without reintroducing the
+    blend. A plain 50/50 mean would report three high-severity anomalies plus an
+    unlookable employer as 50 — "moderate" — because half of nothing is nothing.
+    The floor keeps the posting's own full range intact and gives evidence a
+    guaranteed share of the ceiling above it.
 
     A missing stage is absent, not zero: a posting that could not be looked up is
     not penalised for the failed lookup.
     """
     if posting_score is None:
-        if verify_score is None:
+        if refutation_score is None:
             return None, None
-        return verify_score, _level_for(verify_score)
-    if verify_score is None:
+        return refutation_score, _level_for(refutation_score)
+    if refutation_score is None:
         return posting_score, _level_for(posting_score)
-    total = min(100, posting_score + verify_score)
+    total = min(100, max(posting_score, posting_score + refutation_score))
     return total, _level_for(total)
