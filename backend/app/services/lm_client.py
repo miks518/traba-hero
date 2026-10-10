@@ -267,12 +267,6 @@ _SECTION_RE = re.compile(
 # which makes a valid scan parse as nothing at all.
 _SECTION_END_KW = ("END JOB SUMMARY", "END POSTING ANALYSIS")
 
-# Attributes whose presence the search can actually check against a public
-# record. PAY and ROLE are absent deliberately: a salary figure or a job title is
-# not corroborated or refuted by a web search, so querying one spends a credit
-# and learns nothing.
-CHECKABLE_ATTRIBUTES = ("LOCATION", "CONTACT_METHOD", "MEETING_SPOT")
-
 # A placeholder the model emits to mean "nothing found". A surviving placeholder
 # becomes a query, and a query for "none" is a credit spent to learn nothing.
 _QUERY_PLACEHOLDERS = {"none", "n/a", "na", "nothing", "none found", "no query", "-"}

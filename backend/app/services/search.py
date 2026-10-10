@@ -181,6 +181,97 @@ def build_queries(company: str) -> list[str]:
     ]
 
 
+# Attributes whose presence a web search can actually check. PAY and ROLE are
+# absent deliberately: a salary figure and a job title are not corroborated or
+# refuted by a search, so querying one spends a credit and learns nothing.
+#
+# This lives here rather than beside the scan parser because it is a question
+# about *retrieval* — what a search engine can check — not about what the model
+# reported. The parser in `lm_client.py` keeps a different set (it retains PAY
+# and COMPANY, which are reported but never queried), and one name for two
+# different questions is one name waiting to be merged. See
+# `TestTheConstantHasOneHome`.
+CHECKABLE_ATTRIBUTES = ("LOCATION", "CONTACT_METHOD", "MEETING_SPOT")
+
+# A model emits one of these to mean "nothing found". A surviving placeholder
+# becomes a query, and a query for "none" is a credit spent to learn nothing.
+# The scan's own parser drops only the exact string "not stated", so this cannot
+# rely on the model having used that one spelling.
+_PLACEHOLDER_VALUES = {"", "none", "n/a", "na", "not stated", "not mentioned", "unknown", "-"}
+
+
+def build_scheme_queries(attributes: dict, company: str) -> list[str]:
+    """Queries built from what the posting states about itself.
+
+    The employer queries in `build_queries` can only find pages that name the
+    employer, so they find nothing when a scam impersonates a real company: a
+    page posting "Now Hiring at Jollibee" is invisible to a search for Jollibee's
+    reputation, because Jollibee's reputation is clean. These queries target the
+    posting's own claims instead, which are searchable whether or not the
+    employer is.
+
+    Three rules make this safe rather than an accusation generator:
+
+      * **Only stated details.** A posting that names no location produces no
+        location query. A missing input is a missing input — it does not earn a
+        credit, and a search for something the posting never mentioned cannot
+        succeed.
+      * **Only checkable attributes.** See `CHECKABLE_ATTRIBUTES`.
+      * **No conclusions in the query.** The terms are the poster's words. A
+        query naming `scam` or `fraud` returns pages that appear to corroborate
+        the accusation it already embedded, which is the same failure that made
+        these queries static in the first place.
+
+    Capped at 3: credits are the scarce resource and they should buy recall,
+    not verbosity. A detailed posting must not cost more to check than a sparse
+    one.
+    """
+    name = (company or "").strip()
+    if not name:
+        # Without the employer there is nothing to pair the detail with:
+        # "Maingate Terminal Philippines" searches a bus terminal, not an
+        # impersonation of Tanika.
+        return []
+
+    queries: list[str] = []
+    for attribute in CHECKABLE_ATTRIBUTES:
+        if len(queries) >= 3:
+            break
+        value = str((attributes or {}).get(attribute) or "").strip()
+        if not value or value.lower() in _PLACEHOLDER_VALUES:
+            continue
+        detail = _squeeze(value)
+        if not detail:
+            continue
+        query = _with_country(f"{name} {detail}")
+        # Dedupe: two attributes often state the same place ("Waltermart Mabalacat"
+        # as both LOCATION and MEETING_SPOT), and the same query twice buys
+        # nothing.
+        if query not in queries:
+            queries.append(query)
+    return queries[:3]
+
+
+def _squeeze(value: str) -> str:
+    """Reduce an attribute value to the searchable part of it.
+
+    Strips the sentence the poster wrote around the detail. A LOCATION of
+    "our Robinsons Starmills branch in Cabatuan" becomes "Robinsons Starmills in
+    Cabatuan" — the connector words are the poster's prose, and so is the word
+    "branch", which describes the posting rather than the place and would drag
+    the query toward pages about branches in general.
+    """
+    text = re.sub(r"[,;]", " ", value)
+    text = re.sub(r"\b(our|the|a|an|nearest|located at|based in)\b", " ", text, flags=re.IGNORECASE)
+    # "branch" and "location" describe the posting, not the place. Keeping them
+    # crowds the query toward generic pages about branches in general.
+    text = re.sub(r"\b(branch|location|office|address|site|meet(?:ing)? (?:point|spot|place)?)\b",
+                  " ", text, flags=re.IGNORECASE)
+    # Collapse again: the two substitutions above leave the gaps they cut.
+    text = re.sub(r"\s+", " ", text)
+    return text.strip(" .-")
+
+
 def _with_country(query: str) -> str:
     """Anchor a query to the Philippines unless the name already says so."""
     return query if re.search(r"\bPhilippines\b", query, re.IGNORECASE) else f"{query} Philippines"

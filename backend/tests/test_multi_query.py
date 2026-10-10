@@ -14,7 +14,7 @@ load-bearing part of this change, not the query string.
 
 import pytest
 
-from app.services.search import build_queries, merge_results, SearchResult
+from app.services.search import build_queries, build_scheme_queries, merge_results, SearchResult
 
 
 class TestTheQuerySet:
@@ -239,3 +239,230 @@ class TestMergingTwoResultSets:
         merged = merge_results([_result(""), _result("")], [])
 
         assert len(merged) == 2
+
+
+class TestSchemeQueries:
+    """Queries come from what the posting states, never from its labels.
+
+    A model's `high` label is a characterisation; using it as a query term puts
+    the accusation inside the query, and a query carrying a conclusion makes its
+    own results look like corroboration. Only checkable attributes qualify, and
+    only when the posting actually stated them.
+    """
+
+    def test_no_attributes_means_no_queries(self):
+        assert build_scheme_queries({}, "Acme") == []
+
+    def test_absent_attributes_are_not_queried_either(self):
+        """`None` is "the posting stated nothing", the same claim as `{}`.
+
+        The verification request carries whatever the scan produced, and a scan
+        that raised no attributes at all must not turn into an `AttributeError`
+        halfway through the verification stream.
+        """
+        assert build_scheme_queries(None, "Acme") == []
+
+    def test_no_employer_name_means_no_query(self):
+        """A detail with no employer attached is a place, not an impersonation.
+
+        "Maingate Terminal recruitment Philippines" searches a bus terminal. The
+        whole point of these queries is to find pages that pair a claim with the
+        company claiming it, and there is no company to pair with.
+        """
+        assert build_scheme_queries({"LOCATION": "Maingate Terminal"}, "") == []
+        assert build_scheme_queries({"LOCATION": "Maingate Terminal"}, "   ") == []
+
+    def test_a_location_the_posting_stated_produces_a_query(self):
+        queries = build_scheme_queries(
+            {"LOCATION": "Maingate Terminal"}, "Tanika"
+        )
+        # The employer name and the stated detail, verbatim, anchored to the
+        # country exactly as `build_queries` anchors its own.
+        assert queries == ["Tanika Maingate Terminal Philippines"]
+
+    def test_the_query_carries_no_category_word(self):
+        """The trailing term is the country, not `recruitment`.
+
+        `build_queries` appends a *document* noun (`registration certificate`,
+        `reviews complaints`) because it is asking for a category's evidence. A
+        scheme query is not asking for a category — it is asking for pages that
+        mention this employer together with this detail — so it appends nothing
+        but the country anchor. `recruitment` would steer retrieval toward job
+        boards, which is the same category bias the employer queries avoid.
+        """
+        queries = build_scheme_queries({"LOCATION": "Maingate Terminal"}, "Tanika")
+
+        assert queries == ["Tanika Maingate Terminal Philippines"]
+        assert "recruitment" not in queries[0].lower()
+
+    def test_the_poster_prose_is_stripped_from_the_detail(self):
+        """Only the searchable part of a stated detail survives into the query.
+
+        The connector words are the poster's sentences, not the place, and they
+        dilute the query without adding a term the index will use.
+        """
+        queries = build_scheme_queries(
+            {"LOCATION": "our Robinsons Starmills branch in Cabatuan"}, "Tanika"
+        )
+
+        assert queries == ["Tanika Robinsons Starmills in Cabatuan Philippines"]
+
+    def test_a_detail_stated_twice_produces_one_query(self):
+        """Two attributes naming the same place is one question, not two.
+
+        A posting that gives a LOCATION and a MEETING_SPOT which are the same
+        supermarket must not spend two credits asking the same thing twice.
+        """
+        queries = build_scheme_queries(
+            {
+                "LOCATION": "Waltermart Mabalacat",
+                "MEETING_SPOT": "Waltermart Mabalacat",
+            },
+            "Tanika",
+        )
+
+        assert queries == ["Tanika Waltermart Mabalacat Philippines"]
+
+    def test_pay_and_role_are_never_queried(self):
+        # A salary figure is not corroborated or refuted by a web search, so a
+        # query for one spends a credit and learns nothing.
+        queries = build_scheme_queries(
+            {"PAY": "26,000 monthly", "ROLE": "crew"}, "Tanika"
+        )
+        assert queries == []
+
+    def test_a_missing_location_produces_nothing(self):
+        # The case a naive "one query per attribute" implementation gets wrong:
+        # it spends a credit searching for something the posting never said.
+        #
+        # The length and content assertions matter as much as the ban: `all(...)`
+        # over an empty list is vacuously true, so a build_scheme_queries that
+        # returned [] for everything would otherwise pass this.
+        queries = build_scheme_queries({"CONTACT_METHOD": "personal Gmail"}, "Tanika")
+
+        assert len(queries) == 1
+        assert "gmail" in queries[0].lower()
+        assert all("location" not in q.lower() for q in queries)
+
+    def test_a_placeholder_attribute_is_not_queried(self):
+        queries = build_scheme_queries(
+            {"LOCATION": "Not stated"}, "Tanika"
+        )
+        assert queries == []
+
+    @pytest.mark.parametrize(
+        "placeholder", ["", "  ", "none", "N/A", "NA", "not stated", "Not Mentioned", "unknown", "-"]
+    )
+    def test_every_placeholder_shape_is_skipped(self, placeholder):
+        """A surviving placeholder becomes a query, and a query for "none" is a
+        credit spent to learn nothing.
+
+        The scan's own parser drops only the exact string "not stated", so the
+        backend cannot rely on the model having used that one spelling.
+        """
+        assert build_scheme_queries({"LOCATION": placeholder}, "Tanika") == []
+
+    def test_the_cap_is_three(self):
+        queries = build_scheme_queries(
+            {
+                "LOCATION": "Pampanga",
+                "CONTACT_METHOD": "personal Gmail",
+                "MEETING_SPOT": "Waltermart Mabalacat",
+            },
+            "Tanika",
+        )
+        assert len(queries) == 3
+
+    def test_the_cap_holds_when_more_attributes_than_the_cap_are_stated(self):
+        """A detailed posting must not cost more to check than a sparse one.
+
+        Only three attribute names are checkable today, so the cap is currently
+        unreachable from `CHECKABLE_ATTRIBUTES` alone. It stays as the guard for
+        whoever adds a fourth: a fourth checkable attribute without a cap would
+        silently raise the price of every verification.
+        """
+        queries = build_scheme_queries(
+            {
+                "LOCATION": "Pampanga",
+                "CONTACT_METHOD": "personal Gmail",
+                "MEETING_SPOT": "Waltermart Mabalacat",
+                "SCHEDULE": "immediately",
+                "AGE_RANGE": "20-30",
+            },
+            "Tanika",
+        )
+
+        assert len(queries) == 3
+
+    def test_the_company_name_is_used_verbatim(self):
+        # No suffix strip: a filing and a store locator are titled with the legal
+        # name, and stripping it searches a different company than the one named.
+        queries = build_scheme_queries({"LOCATION": "Quezon City"}, "Jollibee Foods Corporation")
+        assert "Jollibee Foods Corporation" in queries[0]
+
+    def test_every_query_starts_with_the_employer_name(self):
+        """The name leads every query, not just the first.
+
+        A detail alone is searchable — "Waltermart Mabalacat" is a supermarket,
+        not an impersonation of Tanika — so a query without the name returns
+        pages that have nothing to do with the posting.
+        """
+        queries = build_scheme_queries(
+            {
+                "LOCATION": "Pampanga",
+                "CONTACT_METHOD": "personal Gmail",
+                "MEETING_SPOT": "Waltermart Mabalacat",
+            },
+            "Jollibee Foods Corporation",
+        )
+
+        assert len(queries) == 3
+        for query in queries:
+            assert query.startswith("Jollibee Foods Corporation"), query
+
+    def test_an_employer_name_already_naming_the_country_is_not_anchored_twice(self):
+        queries = build_scheme_queries({"LOCATION": "Quezon City"}, "Tanika Philippines")
+
+        assert all(q.lower().count("philippines") == 1 for q in queries), queries
+
+    def test_no_query_carries_a_conclusion(self):
+        banned = ("scam", "fraud", "fake", "illegal", "criminal")
+        queries = build_scheme_queries(
+            {"LOCATION": "Pampanga", "MEETING_SPOT": "bus terminal"},
+            "Tanika",
+        )
+        assert queries
+        for q in queries:
+            for word in banned:
+                assert word not in q.lower()
+
+
+class TestTheConstantHasOneHome:
+    """`CHECKABLE_ATTRIBUTES` is defined once, in the module that consumes it.
+
+    Task 1 defined it in `lm_client.py`, where nothing read it — and where it
+    could not have been used honestly, because the parser there keeps `PAY` and
+    `COMPANY` as reported attributes. The parser's set answers "what did the
+    posting state", this one answers "what can a search check", and a name
+    shared between two different questions is a name waiting to be merged.
+
+    Tombstone, in the same spirit as `TestQueryBuildingMovedOut`: a second
+    definition would drift, and the drift that matters is someone adding "PAY"
+    to one copy. The two copies would then disagree about whether a salary
+    costs a credit, and the test that guards it would be guarding half of it.
+    """
+
+    def test_the_provider_module_does_not_define_its_own_copy(self):
+        import app.services.lm_client as lm_client
+
+        assert not hasattr(lm_client, "CHECKABLE_ATTRIBUTES")
+
+    def test_the_constant_names_exactly_the_checkable_attributes(self):
+        from app.services.search import CHECKABLE_ATTRIBUTES
+
+        assert set(CHECKABLE_ATTRIBUTES) == {"LOCATION", "CONTACT_METHOD", "MEETING_SPOT"}
+        # Reported but never queried. Asserted explicitly because the exclusion
+        # is the rule, not the tuple: PAY is a salary figure and ROLE is a job
+        # title, and neither is corroborated or refuted by a web search.
+        assert "PAY" not in CHECKABLE_ATTRIBUTES
+        assert "ROLE" not in CHECKABLE_ATTRIBUTES
