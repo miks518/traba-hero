@@ -258,10 +258,13 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         refutation_score = runtime.get_refutation_score()(items)
         risk_score, risk_level = runtime.get_combine_scores()(posting_score, refutation_score)
 
-        # The key stays `verification_score` because the panel's
-        # `RiskScoreBreakdown` type reads that name. What it now holds is a
-        # refutation score, which is a different quantity on a different scale -
-        # see `risk_calculator.REFUTATION_WEIGHTS`.
+        # The wire key stays `verification_score`; the value no longer matches
+        # the name. It now holds a refutation score -- a 0-50 sum over refuted
+        # claims -- where it used to hold a 0-100 share of the final score, and
+        # where the common case is now `None` (nothing was refuted) against a key
+        # that says "verification". The client translates it to `refutationScore`
+        # at the api boundary. Changing the wire key needs a migration for stored
+        # scan history, which is why it is not done here.
         breakdown["verification_score"] = refutation_score
         breakdown["final_score"] = risk_score
         breakdown["sources"] = [
