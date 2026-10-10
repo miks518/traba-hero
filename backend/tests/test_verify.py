@@ -217,10 +217,26 @@ class TestRegistrationCategory:
         ), "a DTI or PEZA registration must satisfy the category on its own"
 
     def test_all_three_categories_are_present(self):
-        from app.services.scanner.verification_prompt import VERIFY_RESPONSE_SCHEMA
+        """The schema must enumerate exactly the claim categories, no more.
+
+        A strict schema's enum is a closed list, so a category missing from it
+        cannot be returned at all — it would simply be unreachable, and the
+        check it existed for would never run. Equally, an extra category would
+        be one the prompt never describes, which is how a model ends up
+        inventing a fourth.
+
+        The legacy `SEC Registration` label stays out: results recorded before
+        the rename are parsed by `verification_parser._LEGACY_LABELS`, which
+        maps the old label forward, so the schema has no reason to offer it.
+        """
+        from app.services.scanner.verification_prompt import (
+            VERIFY_CLAIM_CATEGORIES,
+            VERIFY_RESPONSE_SCHEMA,
+        )
 
         enum = VERIFY_RESPONSE_SCHEMA["properties"]["checks"]["items"]["properties"]["category"]["enum"]
-        assert set(enum) == {"Company Existence", "Official Registration", "Reputation"}
+        assert set(enum) == set(VERIFY_CLAIM_CATEGORIES)
+        assert "SEC Registration" not in enum
 
 
 class TestRecommendationIsAddressedToAJobSeeker:
