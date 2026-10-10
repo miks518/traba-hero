@@ -21,11 +21,22 @@ class Anomaly(BaseModel):
     flag: str
     reasoning: str
     severity: str
+    # The search this finding relates to, when one was issued for it. Carried so
+    # the scoring stage can tell "confirms something already counted" from
+    # "reveals something new" — without it the double-count returns silently.
+    query_ref: str = ""
 
 
 class ScanResponse(BaseModel):
     valid: bool
     anomalies: list[Anomaly] = []
+    # What the posting states about itself, in its own words. Only present keys
+    # were stated; an absent key means the posting said nothing, which is a
+    # different claim from stating nothing and is never scored.
+    attributes: dict[str, str] = {}
+    # Up to three queries built from those attributes. Empty when the posting
+    # stated nothing checkable.
+    search_queries: list[str] = []
     job_summary: str = ""
     # Assessment of the posting's structure, separate from the role description.
     posting_analysis: str = ""

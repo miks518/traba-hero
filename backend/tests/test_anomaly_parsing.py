@@ -126,3 +126,143 @@ def test_severity_is_still_inferred_when_omitted():
     result = _parse_custom("VALID: true\nANOMALY: Asks for an upfront fee | Pay before work | high\n")
 
     assert result["anomalies"][0]["severity"] == "high"
+
+
+class TestPostingAttributes:
+    """The scan must report what the posting claims, not only who it names.
+
+    This is what makes dynamic retrieval possible: a query can only be built
+    from a detail the posting actually states, so the detail has to be stated.
+    """
+
+    def test_attributes_parse(self):
+        raw = (
+            "VALID: true\n"
+            "ATTRIBUTES:\n"
+            "COMPANY: Tanika\n"
+            "LOCATION: Maingate Terminal\n"
+            "CONTACT_METHOD: personal Gmail\n"
+            "MEETING_SPOT: Maingate Terminal\n"
+            "PAY: 26,000 monthly\n"
+            "END ATTRIBUTES\n"
+            "EMPLOYER NAME: Tanika\n"
+        )
+        result = _parse_custom(raw)
+        assert result is not None
+        assert result["attributes"]["LOCATION"] == "Maingate Terminal"
+        assert result["attributes"]["CONTACT_METHOD"] == "personal Gmail"
+
+    def test_a_missing_attribute_is_not_emitted(self):
+        """A missing detail must not become an empty string.
+
+        An empty LOCATION would otherwise read as "the posting stated no
+        location", which is a different claim from "the posting said nothing
+        about location" — and it would generate a query that cannot succeed.
+        """
+        raw = "VALID: true\nATTRIBUTES:\nCOMPANY: Tanika\nEND ATTRIBUTES\n"
+        result = _parse_custom(raw)
+        assert "LOCATION" not in result["attributes"]
+        assert "Not stated" not in result["attributes"].values()
+
+    def test_end_attributes_does_not_reset_the_parser(self):
+        raw = "VALID: true\nATTRIBUTES:\nCOMPANY: Tanika\nEND ATTRIBUTES\nEMPLOYER NAME: Tanika\n"
+        result = _parse_custom(raw)
+        assert result["company_name"] == "Tanika"
+
+    def test_search_queries_parse_in_order(self):
+        raw = (
+            "VALID: true\n"
+            "SEARCH QUERIES:\n"
+            "QUERY: Tanika Maingate Terminal recruitment\n"
+            "QUERY: Tanika hiring schedule\n"
+            "END SEARCH QUERIES\n"
+        )
+        result = _parse_custom(raw)
+        assert result["search_queries"] == [
+            "Tanika Maingate Terminal recruitment",
+            "Tanika hiring schedule",
+        ]
+
+    def test_no_queries_section_yields_an_empty_list_not_a_missing_key(self):
+        result = _parse_custom("VALID: true\nEMPLOYER NAME: Acme\n")
+        assert result["search_queries"] == []
+
+    def test_a_placeholder_query_is_dropped(self):
+        raw = "VALID: true\nSEARCH QUERIES:\nQUERY: none\nQUERY: N/A\nQUERY: Acme branch\nEND SEARCH QUERIES\n"
+        result = _parse_custom(raw)
+        assert result["search_queries"] == ["Acme branch"]
+
+    def test_query_ref_attaches_to_the_preceding_anomaly(self):
+        """Without this, corroboration is not computable.
+
+        The scoring stage must know which search a finding came from, or it
+        cannot tell "confirms something already counted" from "reveals
+        something new" — and the double-count returns silently.
+        """
+        raw = (
+            "VALID: true\n"
+            "ANOMALY: Asks applicants to pay a fee | The post asks for a fee | high\n"
+            "QUERY_REF: Acme processing fee Philippines\n"
+            "ANOMALY: Generic job title | Title says 'worker' | low\n"
+        )
+        result = _parse_custom(raw)
+        first, second = result["anomalies"]
+        assert first["query_ref"] == "Acme processing fee Philippines"
+        assert second["query_ref"] == ""
+
+    def test_query_ref_after_the_last_anomaly_does_not_crash(self):
+        raw = "VALID: true\nANOMALY: A fee | r | high\nQUERY_REF: orphan query\n"
+        result = _parse_custom(raw)
+        assert result["anomalies"][0]["query_ref"] == "orphan query"
+
+    def test_the_cap_is_three_queries(self):
+        raw = (
+            "VALID: true\nSEARCH QUERIES:\n"
+            "QUERY: one Philippines\nQUERY: two Philippines\n"
+            "QUERY: three Philippines\nQUERY: four Philippines\n"
+            "QUERY: five Philippines\nEND SEARCH QUERIES\n"
+        )
+        result = _parse_custom(raw)
+        assert len(result["search_queries"]) == 3
+
+    # ── Added beyond the brief ────────────────────────────────────────────
+    # The two tests below are not in the brief. Each exists because its named
+    # mutation target passed anyway: the original input never contained the
+    # construct the assertion is about, so the test could not fail. See
+    # task-1-report.md.
+
+    def test_a_stated_placeholder_attribute_is_dropped(self):
+        """The real gap in `test_a_missing_attribute_is_not_emitted`.
+
+        That test's input contains no LOCATION line at all, so a parser that
+        stores every attribute it sees as an empty string passes it unchanged.
+        A blank value or the literal "Not stated" — the two ways the prompt tells
+        the model to say nothing. Other placeholder words ("none") are NOT
+        filtered here: they are passed through and dropped downstream by
+        `build_scheme_queries`, so the parser's contract stays as narrow as the
+        prompt's own instruction to omit the line.
+        """
+        for line in ("LOCATION:", "LOCATION: Not stated"):
+            raw = f"VALID: true\nATTRIBUTES:\nCOMPANY: Tanika\n{line}\nEND ATTRIBUTES\n"
+            result = _parse_custom(raw)
+            assert "LOCATION" not in result["attributes"], f"{line!r} became an attribute"
+
+    def test_a_second_query_ref_attaches_to_its_own_anomaly(self):
+        """The real gap in `test_query_ref_attaches_to_the_preceding_anomaly`.
+
+        That input carries one QUERY_REF, so an implementation that always
+        attaches to the *first* anomaly produces identical output and passes.
+        Two refs are what separate "the preceding anomaly" from "the first
+        anomaly" — and that is the distinction the scoring stage depends on,
+        since attaching a ref to the wrong finding credits the wrong search.
+        """
+        raw = (
+            "VALID: true\n"
+            "ANOMALY: Asks applicants to pay a fee | The post asks for a fee | high\n"
+            "QUERY_REF: Acme processing fee Philippines\n"
+            "ANOMALY: Meet at an unusual location | Says Maingate Terminal | mid\n"
+            "QUERY_REF: Acme Maingate Terminal Philippines\n"
+        )
+        first, second = _parse_custom(raw)["anomalies"]
+        assert first["query_ref"] == "Acme processing fee Philippines"
+        assert second["query_ref"] == "Acme Maingate Terminal Philippines"

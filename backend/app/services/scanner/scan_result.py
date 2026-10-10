@@ -19,7 +19,12 @@ def _anomalies(flags: list) -> list[Anomaly]:
             continue
         reasoning = str(f.get("reasoning") or "").strip()
         severity = str(f.get("severity") or "").strip().lower()
-        out.append(Anomaly(flag=name, reasoning=reasoning, severity=severity or "mid"))
+        out.append(Anomaly(
+            flag=name,
+            reasoning=reasoning,
+            severity=severity or "mid",
+            query_ref=str(f.get("query_ref") or "").strip(),
+        ))
     return out
 
 
@@ -49,6 +54,8 @@ def _build_scan_response(
     return ScanResponse(
         valid=result.get("valid", False),
         anomalies=flags,
+        attributes=result.get("attributes", {}),
+        search_queries=result.get("search_queries", []),
         job_summary=result.get("job_summary", ""),
         posting_analysis=result.get("posting_analysis", ""),
         company_name=company_name if company_name_validator(company_name) else None,

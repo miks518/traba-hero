@@ -250,15 +250,34 @@ def _parse_json(raw: str) -> dict | list | None:
 
 _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "critical", "severe", "info"}
 
+# Alternation order is load-bearing twice over. Regex alternation takes the first
+# alternative that lets the whole pattern match, and `\s` does not match the
+# underscore these labels are written with, so `COMPANY` before `COMPANY NAME`
+# swallows the legacy employer line into an attribute named "NAME: Acme", and
+# `QUERY` before `QUERY_REF` would truncate it to "QUERY" with "_REF: ..." as
+# the value. The longer alternative comes first in both cases.
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|COMPANY\s*NAME|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|LOCATION|CONTACT[_\s]*METHOD|MEETING[_\s]*SPOT|PAY|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 
-# Sections whose body runs until their END marker. END ANOMALIES is deliberately
-# not in this set: it is a bare terminator for the anomaly lines, and treating it
-# as a section end used to reset the parser's matched_any flag.
+# Sections whose body runs until their END marker. END ATTRIBUTES and
+# END SEARCH QUERIES are deliberately NOT in this set: they are bare terminators,
+# and treating a terminator as a section end resets the parser's matched_any flag,
+# which makes a valid scan parse as nothing at all.
 _SECTION_END_KW = ("END JOB SUMMARY", "END POSTING ANALYSIS")
+
+# Attributes whose presence the search can actually check against a public
+# record. PAY and ROLE are absent deliberately: a salary figure or a job title is
+# not corroborated or refuted by a web search, so querying one spends a credit
+# and learns nothing.
+CHECKABLE_ATTRIBUTES = ("LOCATION", "CONTACT_METHOD", "MEETING_SPOT")
+
+# A placeholder the model emits to mean "nothing found". A surviving placeholder
+# becomes a query, and a query for "none" is a credit spent to learn nothing.
+_QUERY_PLACEHOLDERS = {"none", "n/a", "na", "nothing", "none found", "no query", "-"}
+
+MAX_SEARCH_QUERIES = 3
 
 _HIGH_SEVERITY_KEYWORDS = {
     "upfront fee", "processing fee", "training fee", "registration fee",
@@ -294,6 +313,10 @@ def _parse_custom(raw: str) -> dict | None:
         return None
     result: dict = {}
     flags: list[dict] = []
+    attributes: dict[str, str] = {}
+    search_queries: list[str] = []
+    in_queries = False
+    last_anomaly: dict | None = None
     section: str | None = None
     buf: list[str] = []
     matched_any = False
@@ -313,11 +336,22 @@ def _parse_custom(raw: str) -> dict | None:
             continue
         kw = " ".join(m.group("kw").split()).upper()
         rest = m.group("rest").strip()
+
+        if kw == "END ATTRIBUTES":
+            in_queries = False
+            close_section()
+            continue
+        if kw == "END SEARCH QUERIES":
+            in_queries = False
+            close_section()
+            continue
         if kw in _SECTION_END_KW:
             close_section()
             continue
+
         close_section()
         matched_any = True
+
         if kw == "VALID":
             val = rest.lower()
             result["valid"] = val in ("true", "yes", "1", "legitimate", "valid")
@@ -358,11 +392,34 @@ def _parse_custom(raw: str) -> dict | None:
                 final_severity = _normalize_severity(severity)
             else:
                 final_severity = _infer_severity(flag_title, reasoning)
-            flags.append({
+            last_anomaly = {
                 "flag": flag_title,
                 "reasoning": reasoning,
                 "severity": final_severity,
-            })
+                "query_ref": "",
+            }
+            flags.append(last_anomaly)
+        elif kw == "QUERY_REF":
+            # Which search this finding relates to. Optional: an anomaly judged
+            # not worth a query has none, and therefore no corroboration path —
+            # which is correct, since a low-severity note is never corroborated.
+            if last_anomaly is not None:
+                last_anomaly["query_ref"] = rest
+        elif kw == "SEARCH QUERIES":
+            in_queries = True
+            if rest and rest.lower() not in _QUERY_PLACEHOLDERS:
+                search_queries.append(rest)
+        elif kw == "QUERY":
+            if in_queries and rest and rest.lower() not in _QUERY_PLACEHOLDERS:
+                if len(search_queries) < MAX_SEARCH_QUERIES:
+                    search_queries.append(rest)
+        elif kw in ("COMPANY", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY"):
+            # A detail the posting did not state is omitted entirely rather than
+            # stored empty. An empty LOCATION would read as "the posting stated
+            # no location", which is a different claim, and would generate a
+            # query that cannot succeed.
+            if rest and rest.lower() != "not stated":
+                attributes[kw] = rest
         elif kw in ("COMPANY NAME", "EMPLOYER NAME"):
             # The employer name is what the verification step searches on, so the
             # model states it directly instead of leaving a downstream regex to
@@ -384,6 +441,8 @@ def _parse_custom(raw: str) -> dict | None:
             matched_any = False
     close_section()
     result["anomalies"] = flags
+    result["attributes"] = attributes
+    result["search_queries"] = search_queries[:MAX_SEARCH_QUERIES]
     return result if matched_any or flags else None
 
 

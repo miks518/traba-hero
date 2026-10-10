@@ -32,6 +32,16 @@ NO_ONLINE_ACCESS = (
 SCAN_FORMAT_BLOCK = """VALID: true
 ANOMALY: label | reasoning | severity
 END ANOMALIES
+ATTRIBUTES:
+COMPANY: <exact employer name, or omit>
+LOCATION: <city or region the post names, or omit>
+CONTACT_METHOD: <channel it directs applicants to, or omit>
+MEETING_SPOT: <named place, or omit>
+PAY: <amount and period as stated, or omit>
+END ATTRIBUTES
+SEARCH QUERIES:
+QUERY: <one search line, repeatable, at most three>
+END SEARCH QUERIES
 EMPLOYER NAME: <the company that would employ the reader, or "Not stated">
 POSTING ANALYSIS:
 <2-3 short sentences giving an overall verdict on the posting and what the reader should do>
@@ -58,6 +68,12 @@ SCAN_FIELD_RULES = """Field rules:
   * If the posting states no salary, do not flag salary. Only flag a salary amount that is stated and does not fit the role.
   * If the posting does not name an employer in its text, check whether a company logo, wordmark, letterhead, or sender name is visible in the image. If one is, treat that as the employer name. Not naming an employer is common in the Philippines and is weak evidence on its own; do not describe it as a scam, and do not output an anomaly for it — a missing name is a missing input, and the panel asks the reader for it separately.
   * Payment requests: state the request and nothing else. Example — ANOMALY: Asks applicants to pay a processing fee | The posting asks applicants to pay a fee before starting work | high. Never add any claim about the employer.
+- ATTRIBUTES AND SEARCH QUERIES:
+  * Report only details the posting actually states. If it names no location, omit the LOCATION line entirely rather than writing "none" or "Not stated".
+  * PAY and CONTACT_METHOD may be reported but generate no search query. Only LOCATION, CONTACT_METHOD and MEETING_SPOT are checkable online.
+  * Write at most three QUERY lines, and only for details the posting states. A posting with no location produces no location query.
+  * Build queries from the words the posting uses. "Tanika Maingate Terminal recruitment" is right; "Tanika scam recruitment" is not — never name a conclusion in a query.
+  * Put a QUERY_REF line after an ANOMALY line when you issued a query for it. Omit QUERY_REF for a low-severity anomaly; it will never be corroborated.
 - EMPLOYER NAME: the name of the company that would employ the reader, exactly as it is written in the content, and nothing else on the line — no "the", no role, no explanation, no separator, and never two names joined by a slash or an "and".
   * A staffing or manpower agency is NOT the employer when the posting is for work at some other company. In "Vikings / Silvergreen Manpower Services Corporation is hiring", Silvergreen is the recruiter and Vikings is where the reader would work: output "Vikings". If the posting is for the agency's own staff, the agency is the employer and you output the agency name.
   * The client or end-user company can be a large brand, a restaurant, a store, or a small business. Output it even though it is a brand name and even when the posting never uses the words "employer" or "hiring company".

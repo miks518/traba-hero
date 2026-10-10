@@ -6,7 +6,17 @@ Respond ONLY in the following format:
 VALID: <true or false>
 ANOMALY: <label> | <reasoning> | <severity>
 END ANOMALIES
-COMPANY NAME: <exact employer name, or "Not stated">
+ATTRIBUTES:
+COMPANY: <exact employer name, or omit>
+LOCATION: <city or region the post names, or omit>
+CONTACT_METHOD: <channel it directs applicants to, or omit>
+MEETING_SPOT: <named place, or omit>
+PAY: <amount and period as stated, or omit>
+END ATTRIBUTES
+SEARCH QUERIES:
+QUERY: <one search line, repeatable, at most three>
+END SEARCH QUERIES
+EMPLOYER NAME: <exact employer name, or "Not stated">
 POSTING ANALYSIS:
 <2-3 neutral, factual sentences analyzing the offer based on anomalies found, ending with a recommended action.>
 END POSTING ANALYSIS
@@ -31,6 +41,13 @@ END JOB SUMMARY
   * mid: Vague compensation models, off-platform communication requests for standard roles, or unverified claims about freelance contracts.
   * low: Generic job titles, informal formatting, or minor inconsistencies in job descriptions.
 - If no anomalies exist, emit no `ANOMALY:` lines and go straight to `END ANOMALIES`.
+
+6. ATTRIBUTES AND SEARCH QUERIES
+- Report only details the posting actually states. If it names no location, omit the LOCATION line entirely rather than writing "none" or "Not stated".
+- PAY and CONTACT_METHOD may be reported but generate no search query. Only LOCATION, CONTACT_METHOD and MEETING_SPOT are checkable online.
+- Write at most three QUERY lines, and only for details the posting states. A posting with no location produces no location query.
+- Build queries from the words the posting uses. "Tanika Maingate Terminal recruitment" is right; "Tanika scam recruitment" is not — never name a conclusion in a query.
+- Put a QUERY_REF line after an ANOMALY line when you issued a query for it. Omit QUERY_REF for a low-severity anomaly; it will never be corroborated.
 
 3. COMPANY NAME
 - Output the exact client or employer name offering the work. 
