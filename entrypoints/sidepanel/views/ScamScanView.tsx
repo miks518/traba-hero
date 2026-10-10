@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { RiskGauge, AnomaliesList, ScanActions, PickerButton, InvalidContentError, VerificationSection, OfferAnalysisCard, CompanyNameNeeded, PostingAnalysis, JobSummary } from '../components/scan';
+import { RiskGauge, AnomaliesList, ScanActions, PickerButton, InvalidContentError, EvidenceSummary, OfferAnalysisCard, CompanyNameNeeded, PostingAnalysis, JobSummary } from '../components/scan';
 import { Icon, ToastContainer, useToastManager } from '../components/common';
 import { scanScreenshotStream, verifyJobStream, analyzeOfferStream, ApiRequestError, type ScanProgress } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
@@ -158,6 +158,15 @@ export function ScamScanView({
   const needsCompanyName = Boolean(
     isValidJob && scanResult && !scanResult.companyName && !scanResult.verificationLoading,
   );
+
+  /**
+   * Whether the search produced anything at all. Decides where the anomalies
+   * render: leading the summary when there is a summary to lead, and a sibling
+   * of it when there is not. A posting whose search came back empty still has
+   * anomalies, and they must not vanish behind a heading saying nothing was
+   * found.
+   */
+  const hasFindings = Boolean(scanResult?.verificationResult?.items?.length);
 
   /**
    * A settled high or critical score leads with the evidence, and tints the
@@ -564,8 +573,14 @@ export function ScamScanView({
             className={`flex flex-col gap-stack-md ${elevate ? 'order-1' : 'order-2'}`}
             ref={flip.register('evidence')}
           >
-            {/* Already danger-coloured: a red-flag list has no neutral form. */}
-            <AnomaliesList anomalies={scanResult.anomalies} critical={scanResult.flagsCritical} />
+            {/* Anomalies lead the summary when the search found something, and
+                stay a sibling when it did not — a posting with no employer still
+                has them and must not lose them behind an empty heading. Either
+                way the list is the same one: already danger-coloured, because a
+                red-flag list has no neutral form. */}
+            {hasFindings ? null : (
+              <AnomaliesList anomalies={scanResult.anomalies} critical={scanResult.flagsCritical} />
+            )}
 
             <OfferAnalysisCard
               analysis={scanResult.offerAnalysis}
@@ -573,17 +588,18 @@ export function ScamScanView({
             />
 
             {/* A missing employer is a missing input, not a finding: this
-                replaces the verification section entirely rather than sitting
-                above it, and carries the copy the old "Analysis Only" notice
-                duplicated. */}
+                replaces the summary entirely rather than sitting above it, and
+                carries the copy the old "Analysis Only" notice duplicated. */}
             {needsCompanyName ? (
               <CompanyNameNeeded />
             ) : (
-              <VerificationSection
+              <EvidenceSummary
                 result={scanResult.verificationResult}
                 loading={scanResult.verificationLoading}
                 error={scanResult.verificationError}
                 currentQuery={currentSearchQuery}
+                anomalies={scanResult.anomalies}
+                critical={scanResult.flagsCritical}
                 accent={elevate ? accent : undefined}
               />
             )}

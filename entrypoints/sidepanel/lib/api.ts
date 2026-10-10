@@ -1,4 +1,5 @@
 import type { ApiScanResponse, ResumeData, RiskScoreBreakdown, ScannedJob, VerificationResult } from '../types';
+import { toScoreBreakdown } from './scoreBreakdown';
 
 const API_BASE = import.meta.env.WXT_API_BASE;
 const CLIENT_KEY = import.meta.env.WXT_CLIENT_KEY;
@@ -115,7 +116,11 @@ async function consumeSseStream(
           stage: String(event.stage ?? 'Analyzing'),
         });
       } else if (event.type === 'result') {
-        return event.data as ApiScanResponse;
+        const data = event.data as ApiScanResponse;
+        // Translated here so nothing downstream reads a wire key. The view
+        // builds a ScanResult straight from this object, and the backend's
+        // `verification_score` in particular is no longer what its name says.
+        return { ...data, score_breakdown: toScoreBreakdown(data.score_breakdown) };
       } else if (event.type === 'error') {
         throw new Error(String(event.error ?? 'Scan failed'));
       }
@@ -567,7 +572,8 @@ export async function verifyJobStream(
             recommendation: string;
             riskScore?: number;
             riskLevel?: string;
-            scoreBreakdown?: RiskScoreBreakdown;
+            /** The wire's own breakdown. Typed opaque — `toScoreBreakdown` owns it. */
+            scoreBreakdown?: unknown;
             no_company_name?: boolean;
             search_ok?: boolean;
             search_error?: string;
@@ -575,6 +581,7 @@ export async function verifyJobStream(
             search_partial?: boolean;
             queries_issued?: number;
             queries_failed?: number;
+            scheme_queries?: string[];
             debug_search_raw?: Array<{ query: string; raw: string }>;
           };
           return {
@@ -585,12 +592,13 @@ export async function verifyJobStream(
               recommendation: data.recommendation ?? '',
               riskScore: data.riskScore,
               riskLevel: data.riskLevel as 'low' | 'moderate' | 'high' | 'critical' | undefined,
-              scoreBreakdown: data.scoreBreakdown,
+              scoreBreakdown: toScoreBreakdown(data.scoreBreakdown),
               searchOk: data.search_ok,
               searchError: data.search_error,
               searchPartial: data.search_partial,
               queriesIssued: data.queries_issued,
               queriesFailed: data.queries_failed,
+              schemeQueries: data.scheme_queries,
               debugSearchRaw: data.debug_search_raw,
             },
           };

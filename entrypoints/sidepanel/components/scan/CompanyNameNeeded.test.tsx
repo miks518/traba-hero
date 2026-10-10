@@ -12,7 +12,7 @@ const view = readFileSync(
   'utf-8',
 );
 const section = readFileSync(
-  join(root, 'entrypoints/sidepanel/components/scan/VerificationSection.tsx'),
+  join(root, 'entrypoints/sidepanel/components/scan/EvidenceSummary.tsx'),
   'utf-8',
 );
 

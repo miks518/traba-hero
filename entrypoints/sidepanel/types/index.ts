@@ -96,6 +96,15 @@ export interface VerificationItem {
   /** The result the finding came from, copied from the search results. */
   source_title?: string;
   source_url?: string;
+  /**
+   * The search that surfaced this check, when one was issued for it.
+   *
+   * Not yet emitted by the backend — `VerificationItem` on the wire carries no
+   * such field. Declared so a check that arrives with one is typed rather than
+   * read off `unknown`. Nothing renders it yet; when it does, it must be shown
+   * as what was searched, never as evidence about the employer.
+   */
+  source_query?: string;
 }
 
 export interface VerificationEvidence {
@@ -128,6 +137,13 @@ export interface VerificationResult {
   /** How many queries were issued, and how many of them failed. */
   queriesIssued?: number;
   queriesFailed?: number;
+  /**
+   * Which of those queries were built from the posting's own stated details
+   * rather than from the employer's name. Reported separately from
+   * `queriesIssued` because the two families answer different questions.
+   * Always present on the wire, possibly empty.
+   */
+  schemeQueries?: string[];
   /**
    * TEMPORARY DIAGNOSTIC — the provider's raw response body per query, so it
    * can be inspected in the panel. Nothing reads this in normal use. Remove
@@ -249,6 +265,12 @@ export interface ApiScanResponse {
     risk: 'low' | 'medium' | 'high';
     reason: string;
   }[];
+  /**
+   * The wire spells the breakdown in snake_case; `consumeSseStream` translates
+   * it before the response leaves the SSE reader, so everything downstream of
+   * this function sees the client shape. The field name stays snake_case
+   * because that is what the endpoint sends.
+   */
   score_breakdown?: RiskScoreBreakdown;
   posting_analysis?: string;
   verification_context?: {
@@ -260,15 +282,36 @@ export interface ApiScanResponse {
   verificationError?: boolean;
 }
 
+/**
+ * How a score was reached: which stages contributed, and by how much.
+ *
+ * Client-shaped rather than wire-shaped. `toScoreBreakdown` in
+ * `lib/scoreBreakdown.ts` is the only place that reads the backend's keys, so
+ * the rest of the panel never has to know the wire spells them in snake_case.
+ */
 export interface RiskScoreBreakdown {
   source?: string;
-  high_count?: number;
-  mid_count?: number;
-  low_count?: number;
+  highCount?: number;
+  midCount?: number;
+  lowCount?: number;
   weights?: Record<string, number>;
-  posting_score?: number;
-  verification_score?: number | null;
-  final_score?: number | null;
+  /** Sum of the posting stage's weighted severities, 0–100. */
+  postingScore?: number;
+  /**
+   * The employer stage's contribution, and it is a **refutation sum** (0–50),
+   * not the employer's share of the final score.
+   *
+   * It used to be a per-category share of a blend, which read as "how much of
+   * this number is about the employer". Nothing supports that claim now: only a
+   * retrieved source that *contradicts* something the posting stated scores
+   * here, so a clean employer record contributes zero and a search that was
+   * never able to run contributes `null`. Renamed from `verification_score`
+   * because that name is the other reading, and the common case — nothing
+   * refuted — is exactly the one it misstates.
+   */
+  refutationScore?: number | null;
+  finalScore?: number | null;
+  /** Which stages contributed, as the backend labels them. */
   sources?: string[];
 }
 

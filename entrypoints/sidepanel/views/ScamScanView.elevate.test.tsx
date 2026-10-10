@@ -198,9 +198,10 @@ describe('evidence leads for a high or critical score', () => {
     await scanAndSettle();
 
     await waitFor(() => {
-      // Scoped to the verification section, because AnomaliesList is already
-      // error-coloured and would satisfy any search over the whole panel.
-      const heading = screen.getByText('External Verification');
+      // Scoped to the evidence summary, because AnomaliesList is already
+      // error-coloured and would satisfy any search over the whole panel. The
+      // heading is the one this test is pinning the accent onto.
+      const heading = screen.getByText('Evidence Summary');
       const section = heading.closest('div[class*="rounded-xl"]') as HTMLElement;
       expect(section.className).toContain('bg-error-container/10');
       expect(section.className).toContain('border-error/40');
@@ -237,5 +238,52 @@ describe('evidence leads for a high or critical score', () => {
     const prose = container.querySelector('[data-group="prose"]')!;
     expect(prose.className).toContain('order-1');
     expect(evidence.className).toContain('order-2');
+  });
+});
+
+/**
+ * Anomalies move inside the summary only when there is a summary to lead.
+ *
+ * A posting asking for a fee is dangerous whatever the employer search returned,
+ * so an empty result set cannot make its findings disappear — and a section
+ * headed "Searched, found nothing" is a poor place to leave them. The view, not
+ * the component, decides this: the component renders anomalies only when it has
+ * findings, and the view keeps them as a sibling otherwise.
+ *
+ * Asserted by containment rather than position — happy-dom performs no flex
+ * layout, so "sibling" here means "not inside the summary element", which is
+ * what the tree actually decides.
+ */
+describe('anomalies survive a search that found nothing', () => {
+  it('keeps them outside the summary rather than dropping them', async () => {
+    mocks.verifyJobStream.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      return {
+        result: {
+          ...verifyResponse,
+          items: [],
+          report: '',
+          recommendation: '',
+          search_ok: true,
+        },
+      };
+    });
+
+    const { ScamScanView } = await import('./ScamScanView');
+    const { container } = render(
+      React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true })
+    );
+    await scanAndSettle();
+
+    await waitFor(() => expect(screen.getByText(/found nothing/i)).toBeTruthy());
+    expect(screen.getByText(/Asks applicants to pay a processing fee/)).toBeTruthy();
+
+    // The section says nothing was found, so it must not contain the findings.
+    const summary = screen.getByText(/found nothing/i).closest('div[class*="rounded-xl"]');
+    expect(summary).toBeTruthy();
+    expect(summary!.textContent).not.toMatch(/Asks applicants to pay a processing fee/);
+
+    // And no heading claims evidence was summarised.
+    expect(screen.queryByText('Evidence Summary')).toBeNull();
   });
 });

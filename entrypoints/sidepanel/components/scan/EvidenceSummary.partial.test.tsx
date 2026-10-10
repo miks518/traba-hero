@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { render } from '@testing-library/react';
-import { VerificationSection } from './VerificationSection';
+import { EvidenceSummary } from './EvidenceSummary';
 import type { VerificationResult } from '../../types';
 
 /**
@@ -29,7 +29,7 @@ const result = (over: Partial<VerificationResult> = {}): VerificationResult => (
 });
 
 const renderSection = (over: Partial<VerificationResult> = {}) =>
-  render(React.createElement(VerificationSection, { result: result(over) }));
+  render(React.createElement(EvidenceSummary, { result: result(over) }));
 
 describe('partial search coverage is stated', () => {
   it('warns when one of the searches failed', () => {

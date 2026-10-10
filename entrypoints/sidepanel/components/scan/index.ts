@@ -5,7 +5,7 @@ export { ScanActions } from './ScanActions';
 export { PickerButton } from './PickerButton';
 export { InvalidContentError } from './InvalidContentError';
 export { VerificationCard } from './VerificationCard';
-export { VerificationSection } from './VerificationSection';
+export { EvidenceSummary } from './EvidenceSummary';
 export { OfferAnalysisCard } from './OfferAnalysisCard';
 export { CompanyNameNeeded } from './CompanyNameNeeded';
 export { PostingAnalysis } from './PostingAnalysis';

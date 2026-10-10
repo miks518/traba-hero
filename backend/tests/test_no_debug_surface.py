@@ -61,7 +61,7 @@ def test_no_search_debug_request_model():
         ("entrypoints/sidepanel/types/index.ts", r"debugPrompt"),
         ("entrypoints/sidepanel/lib/api.ts", r"debugSearchStream"),
         ("entrypoints/sidepanel/App.tsx", r"SearchDebugView"),
-        ("entrypoints/sidepanel/components/scan/VerificationSection.tsx", r"SearchRawPanel"),
+        ("entrypoints/sidepanel/components/scan/EvidenceSummary.tsx", r"SearchRawPanel"),
         ("entrypoints/sidepanel/views/ScamScanView.tsx", r"debugPrompt"),
     ],
 )
@@ -98,7 +98,7 @@ def test_backend_stops_shipping_the_prompt_to_the_client():
         "actually returns. Remove SearchOutcome.raw_response from "
         "app/services/search.py, the debug_search_raw field in "
         "verification_flow.py, and the debugSearchRaw block in "
-        "VerificationSection.tsx — then remove this skip."
+        "EvidenceSummary.tsx — then remove this skip."
     )
 )
 def test_the_search_outcome_no_longer_carries_the_raw_provider_body():
