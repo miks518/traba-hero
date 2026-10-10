@@ -451,3 +451,31 @@ score as a **60/40 blend**. The code in `risk_calculator.py` is additive:
 only raise the number. `AGENTS.md` describes the additive form correctly.
 
 Fix before a panel or adviser reads the repository.
+
+---
+
+## 11. Status after the claim/defence rewrite
+
+The employer category weights are no longer the whole picture. The scoring stage
+is now split:
+
+| Stage | Range | Source |
+|---|---|---|
+| Posting | 0–100 | `POSTING_SEVERITY_WEIGHTS`, AHP-derived (§1) |
+| Evidence | 0–50 | `REFUTATION_WEIGHTS`, **not yet derived** |
+| Final | 0–100 | `max(posting, posting + evidence)` |
+
+`REFUTATION_WEIGHTS` were chosen on judgement, the same way the original
+category weights were, and carry the same debt §8 describes. They must be
+re-derived by the Saaty method in §1 with the consistency ratio reported before
+this is defended to a panel. Their *ordering* is defensible now — Channel Match
+carries the most because it is the only check that can detect an impersonation.
+
+The AHP derivation in §1 is unaffected: the posting stage keeps its full 0–100
+range and its weights.
+
+**§10 is now out of date in the same way.** It says the code is
+`min(100, posting_score + verify_score)`; the formula is now
+`max(posting, posting + evidence)`, and the `UNFINISHED-WORK.md` line it names
+has already been corrected. The additive-and-asymmetric property §10 claims for
+the code is unchanged, and `AGENTS.md` still describes it correctly.

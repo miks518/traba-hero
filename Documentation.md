@@ -23,7 +23,7 @@
    - FR-10: Company Verification (Web Search)
    - FR-11: Company Registration Evidence
    - FR-12: Email Verification
-   - FR-13: External Verification (Phones, Domains, Websites, Social, Gov)
+   - FR-13: External Verification (claim categories, evidence, and sources)
    - FR-14: Resume Upload & Parsing
    - FR-15: Resume-to-Job Matching
    - FR-16: Job History Management
@@ -230,7 +230,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | **Priority** | Critical |
 | **Component** | `lm_client.py`, `services/scanner/`, `SYSTEM_PROMPT.md`, `verification_prompt.py` |
 
-**Description:** The backend shall use an AI model to analyze job postings for fraud indicators and produce a structured verdict. External verification runs on a separate `/api/verify` endpoint using one Tavily search + one AI call.
+**Description:** The backend shall use an AI model to analyze job postings for fraud indicators and produce a structured verdict. External verification runs on a separate `/api/verify` endpoint using 2–5 Tavily searches + one AI call.
 
 **Acceptance Criteria:**
 - AC-01: The AI model receives the job posting content (image and/or text) with a system prompt.
@@ -380,20 +380,20 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 |-----------|-------|
 | **ID** | FR-13 |
 | **Priority** | High |
-| **Component** | `verification_flow.py`, `verification_prompt.py`, `VerificationSection.tsx`, `VerificationCard.tsx` |
+| **Component** | `verification_flow.py`, `verification_prompt.py`, `EvidenceSummary.tsx`, `VerificationCard.tsx` |
 
-**Description:** The system shall report the outcome of an employer lookup as exactly three categories, each carrying the specific fact found and a source the reader can open.
+**Description:** The system shall report the outcome of an employer lookup as exactly six claim categories, each carrying the specific fact found and a source the reader can open.
 
 **Acceptance Criteria:**
 - AC-01: After a successful scan with a named employer, the frontend calls `POST /api/verify` with the company name.
-- AC-02: The three categories are **Company Existence**, **Official Registration**, and **Reputation**. No fourth category is invented.
+- AC-02: The six categories are **Company Existence**, **Official Registration**, **Location / Branch**, **Channel Match**, **Reputation**, and **Scheme Corroboration**. No seventh category is invented.
 - AC-03: `/api/verify` uses a JSON Schema response format with `provider.require_parameters`, so a `:free` model cannot route to an endpoint that does not support structured output. A labeled-text parser remains as a fallback.
 - AC-04: Each check returns `status` (green/yellow/red), an uncapped `finding` naming the fact that decided it, and `source_title` / `source_url` **copied exactly from the provided results** — never constructed. This is the only channel by which online evidence reaches the user, so a fabricated URL would be a fabricated citation.
 - AC-05: A top-level `evidence` list carries the results a reader would want to check, copied verbatim, capped at six.
 - AC-06: Absence of a result is never RED. A search that found nothing about a category is YELLOW, and its finding must say the results do not mention it, so "searched and not found" never reads as "assumed absent".
 - AC-07: The panel renders a clickable source under each card, plus a collapsible "Sources" section listing the full evidence set.
-- AC-08: **YELLOW is painted amber**, with a wash, dot, and badge all tinted. It was neutral grey, but a 10% grey wash on an already-grey surface is an absent colour rather than a weak one, and YELLOW is the most common status the panel produces — a small employer with a thin footprint returns it on most of the three categories. The most frequent card rendered as if it carried no status. The amber collision with the `moderate` risk level is real but bounded: the gauge's *unverified* ring stays grey, because "nothing was measured" and "searched and could not confirm" are different claims. This is a deliberate scope limit, not an oversight.
-- AC-09: `search_ok` / `search_error` travel on the wire so a failed lookup is stated by the panel directly, without depending on the model mentioning it.
+- AC-08: **YELLOW is painted amber**, with a wash, dot, and badge all tinted. It was neutral grey, but a 10% grey wash on an already-grey surface is an absent colour rather than a weak one, and YELLOW is the most common status the panel produces — a small employer with a thin footprint returns it on most of the six categories. The most frequent card rendered as if it carried no status. The amber collision with the `moderate` risk level is real but bounded: the gauge's *unverified* ring stays grey, because "nothing was measured" and "searched and could not confirm" are different claims. This is a deliberate scope limit, not an oversight.
+- AC-09: `search_ok` / `search_error` / `search_partial` / `queries_issued` / `queries_failed` / `scheme_queries` travel on the wire so a failed or partial lookup is stated by the panel directly, without depending on the model mentioning it. `search_partial` is the state a single search never had: some of the 2-5 queries failed, so the findings are real but some categories were checked against a thinner set of results than the others, which the panel says is not a finding about the employer.
 - AC-10: When the posting names no employer, `/api/verify` is never called. See FR-31.
 - AC-11: **The recommendation is addressed to a job seeker, not an auditor.** It names what the results actually showed and gives one step from an ordinary hiring exchange. It must not tell the reader to check a registry, a government website, or a permit, and must not ask them to verify a registration number — a reader applying for a job does not query a government portal, so such advice is actionable in form and useless in practice. The retrieval-failure variant gets the same treatment, directing the reader to hold off on money or personal details instead.
 
@@ -790,9 +790,9 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 **Description:** When a settled score is high or critical, the panel shall lead with the evidence for that score rather than with explanatory prose.
 
 **Acceptance Criteria:**
-- AC-01: A high or critical score reorders the results so the evidence group (Red Flags, Offer Analysis, External Verification) sits directly below the risk gauge, above Posting Analysis, Job Summary, and the screenshot thumbnails.
-- AC-02: The reordering applies only once verification and offer analysis have both finished. The scan returns a posting-stage score that the employer stage blends into, so promoting on the intermediate value would move the evidence out from under the reader and then move it back.
-- AC-03: A **failed** verification still promotes. The posting-stage score is real, and what is missing is the employer lookup rather than the red flags.
+- AC-01: A high or critical score reorders the results so the evidence group (Anomalies, Offer Analysis, Evidence Summary) sits directly below the risk gauge, above Posting Analysis, Job Summary, and the screenshot thumbnails.
+- AC-02: The reordering applies only once verification and offer analysis have both finished. The scan returns a posting-stage score that the evidence stage then adds a refutation penalty to, so promoting on the intermediate value would move the evidence out from under the reader and then move it back.
+- AC-03: A **failed** verification still promotes. The posting-stage score is real, and what is missing is the employer lookup rather than the anomalies.
 - AC-04: An unverified or low or moderate score never promotes, and keeps the normal order.
 - AC-05: Both orderings remain mounted; which one leads is expressed as `order` on the panel's flex column. Remounting would reset a collapsed Sources disclosure and would leave nothing to animate.
 - AC-06: The reorder is animated in both directions so the blocks travel to their new positions. A fade is not used: dissolving and reappearing elsewhere reads as a glitch. The animation is disabled under `prefers-reduced-motion`.
@@ -1292,7 +1292,7 @@ Assesses an offer that names no employer, so there is nothing to look up. One AI
 | FR-10 | search.py, verification_flow.py, verification_prompt.py | Implemented — Tavily, one query, ok/results independent |
 | FR-11 | search.py, verification_prompt.py, VerificationCard | Implemented — Official Registration (SEC/DTI/PEZA/BOI/LGU) |
 | FR-12 | email_verifier.py, ScamScanView | Implemented |
-| FR-13 | verification_flow.py, verification_prompt.py, VerificationSection | Implemented — findings + clickable sources, grey neutral state |
+| FR-13 | verification_flow.py, verification_prompt.py, EvidenceSummary | Implemented — six claim categories, findings + clickable sources, amber YELLOW |
 | FR-14 | ResumeUploader, ResumePreview, api.ts, scan.py | Implemented |
 | FR-15 | ResumeMatchView, JobMatchList, api.ts, scan.py | Implemented |
 | FR-16 | ResumeMatchView, App.tsx | Implemented |

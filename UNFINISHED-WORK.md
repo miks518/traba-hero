@@ -31,9 +31,13 @@ content that offers no work or income at all.
 
 - **Two-stage score.** `_posting_risk_from_flags` counts the indicators the scan
   reported (high 40, mid 12, low 4, capped at 100) and always returns a number.
-  `_calculate_risk_score_from_verify` adds the employer check, and
-  `_combine_scores` blends them 60/40. A stage that did not run is absent, not
+  `_refutation_score_from_verify` adds the employer check — a penalty only `red`
+  contributes to, because `red` means a retrieved source contradicts a claim the
+  posting made — and `_combine_scores` takes `max(posting, posting + refutation)`
+  capped at 100. The 60/40 blend is gone. A stage that did not run is absent, not
   zero: an unlookable posting keeps its own score instead of being penalised.
+  **`REFUTATION_WEIGHTS` are a judgement call, not a measurement** — see the
+  Known risks below and `SCORING-SOURCES.md` §11.
 - **`POST /api/analyze-offer`** (SSE, 5/min) is the no-employer path. One AI call,
   no search. It returns `KIND` / `VERDICT` / `WHAT IT ASKS` / `WHAT IT OFFERS` /
   `WHAT TO CHECK`, parsed by a new `offer_parser.py`. Rendered by
@@ -89,7 +93,7 @@ existing suites plus a throwaway extraction script that was removed afterwards.
 | `extract_company_name` regression tests | `backend/tests/test_search.py` | The 10 sample strings I checked were ad hoc and are now lost. They should be permanent. |
 | Scan-mapping tests | extract `mapApiResponse` out of `ScamScanView.tsx` | Module-private today, so "no synthesised score" cannot be asserted. |
 | History-migration test | `migrateScannedJobs` in `lib/scanHistory.ts` | Extracted and exported for exactly this. |
-| UI copy review | `VerificationSection`, `VerificationCard`, `ResumeMatchView` | Reworded from code, not from reading the rendered panel. |
+| UI copy review | `EvidenceSummary`, `VerificationCard`, `ResumeMatchView` | Reworded from code, not from reading the rendered panel. |
 
 ### Live output-quality pass — the developer runs this
 
@@ -144,9 +148,13 @@ Also confirm:
   against a stubbed search and a hand-written model response. Its parser is
   deliberately small and has a failsafe, but the shape of real model output is
   an assumption. Rows 3, 6, and 7 above are the test.
-- **The 60/40 blend is a judgement call**, not a measurement. It is documented in
-  `AGENTS.md` and the breakdown travels with the response, so it can be retuned
-  once real data exists.
+- **The refutation weights are a judgement call**, not a measurement. The 60/40
+  blend they replaced is gone; `REFUTATION_WEIGHTS` (25/15/10/8/6/6) are the
+  current un-derived numbers, carrying the same debt `SCORING-SOURCES.md` §8
+  describes for the old employer category weights. They must be re-derived by the
+  Saaty method with the consistency ratio reported before this is defended to a
+  panel. The breakdown travels with the response, so they can be retuned once
+  real data exists.
 - **Widening `VALID` means more content is analysed**, including borderline text
   that merely mentions earning. Rows 4 and 6 bracket that; watch for content in
   between being scored when it should not be.
@@ -404,11 +412,13 @@ at `AI_MAX_TOKENS=2048` with `AI_REASONING_EFFORT=low` and
 - **Verification asked about six things using eight searches.** Two categories
   were redundant — the endpoint cannot run without a company name, and "Online
   Presence" restated "Company Existence" — and "Scam Reports" plus "Social
-  Reputation" were the two most prone to invention. Now three categories
+  Reputation"   were the two most prone to invention. Now three categories
   (Company Existence 40, SEC Registration 25, Reputation 35, summing to 100)
   behind four searches. The prompt forbids inventing another category. Separately,
   `search_company()` is now memoised per company name, because a single text scan
   called it twice and paid for eight searches twice.
+  *Superseded:* the three-category, four-search design was replaced by six claim
+  categories behind 2-5 searches. See `AGENTS.md` § Key Architecture.
 - **Empty AI responses were unloggable (`[scan-image] tokens=0, chars=0`).** The
   streaming client read only `delta.content` and did `if not chunk.choices:
   continue`, so three different failures all became "empty string" and surfaced
