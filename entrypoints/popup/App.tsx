@@ -32,7 +32,7 @@ export default function App() {
       chrome.storage.local.get('fabEnabled', (result) => {
         if (result.fabEnabled === false) setFabEnabled(false);
       });
-    } catch {}
+    } catch { }
   }, []);
 
   const handleToggleFab = () => {
@@ -41,7 +41,7 @@ export default function App() {
     try {
       // @ts-ignore - storage API available in extension context
       chrome.storage.local.set({ fabEnabled: next });
-    } catch {}
+    } catch { }
   };
 
   const openSidepanel = () => {
@@ -89,7 +89,7 @@ export default function App() {
             <div className="flex flex-col items-center gap-1">
               <PopupIcon name="scan" className="text-secondary text-[28px]" />
               <span className="text-label-md text-on-surface-variant uppercase tracking-[0.02em]">
-                Scam Scan
+                Job Scan
               </span>
               <span className="text-body-sm text-on-surface-variant opacity-70 text-center">
                 Detect fraudulent listings in real-time
@@ -125,18 +125,16 @@ export default function App() {
             role="switch"
             aria-checked={fabEnabled}
             onClick={handleToggleFab}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out ${
-              fabEnabled
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out ${fabEnabled
                 ? 'bg-secondary'
                 : 'bg-surface-container-highest border border-outline-variant'
-            }`}
+              }`}
           >
             <span
-              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full shadow-card ring-0 transition duration-200 ease-in-out mt-px ${
-                fabEnabled
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full shadow-card ring-0 transition duration-200 ease-in-out mt-px ${fabEnabled
                   ? 'translate-x-[22px] bg-on-secondary'
                   : 'translate-x-[1px] bg-outline'
-              }`}
+                }`}
             />
           </button>
         </div>

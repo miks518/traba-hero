@@ -1,7 +1,7 @@
 import type { NavTab } from '../types';
 
 export const NAV_TABS: NavTab[] = [
-  { id: 'scan', label: 'Scan', title: 'Scam Scan', icon: 'security' },
+  { id: 'scan', label: 'Scan', title: 'Job Scan', icon: 'security' },
   { id: 'match', label: 'Match', title: 'Resume Match', icon: 'description' },
 ];
 

@@ -238,7 +238,7 @@ export function RiskGauge({
                 /{maxScore}
               </span>
             </span>
-            <span className="font-label-md text-label-md text-on-surface-variant mt-0.5">
+            <span className="font-label-md text-xs font-bold text-on-surface-variant mt-0.5">
               RISK INDEX
             </span>
           </div>
