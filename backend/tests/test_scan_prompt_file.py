@@ -7,6 +7,7 @@ anything. The rule has to be in the prompt text the backend actually loads:
 guard that `prompts.py`'s longer field rules still carried.
 """
 
+import re
 from pathlib import Path
 
 PROMPT = Path(__file__).resolve().parents[1] / "SYSTEM_PROMPT.md"
@@ -268,19 +269,52 @@ def _severity_block(body: str) -> str:
 
 
 def _posting_analysis_block(body: str) -> str:
-    """The text under the POSTING ANALYSIS field rule, sub-bullets included."""
+    """The text under the POSTING ANALYSIS field rule, sub-bullets included.
+
+    Matches either markup: the `- POSTING ANALYSIS` field rule that `prompts.py`
+    writes, or the `5. POSTING ANALYSIS` numbered section that `SYSTEM_PROMPT.md`
+    writes. The two prompt copies use different structures, and a finder that
+    only understood one of them reported "the rule is missing" when the rule was
+    present in the other file - which is how a real guardrail reads as absent.
+
+    Where the block *ends* depends on which form matched, because the same `- `
+    prefix means "end of section" in one and "first bullet of the section" in
+    the other. Getting that wrong returns an empty block, which the caller then
+    reports as a missing rule - a false negative pointing the wrong way.
+
+    What matters is locating the block, not enforcing a markup convention. The
+    assertions *inside* it are unchanged and still require the banned words and
+    an allowed phrasing.
+    """
     lines = body.splitlines()
-    start = next(
-        (i for i, ln in enumerate(lines) if ln.strip().startswith("- POSTING ANALYSIS")),
-        None,
-    )
+    start = None
+    numbered = False
+    for i, ln in enumerate(lines):
+        stripped = ln.strip()
+        if stripped.startswith("- POSTING ANALYSIS"):
+            start = i
+            break
+        if re.match(r"^\d+\.\s*POSTING\s+ANALYSIS", stripped, re.IGNORECASE):
+            start = i
+            numbered = True
+            break
     if start is None:
         return ""
+
     block = []
     for ln in lines[start + 1:]:
-        # A new top-level field rule ends the block; an indented sub-bullet does not.
-        if ln.strip() and not ln.startswith("  ") and ln.strip().startswith("- "):
-            break
+        stripped = ln.strip()
+        if not stripped:
+            block.append(ln)
+            continue
+        if numbered:
+            # A new numbered section ends the block; its own `- ` bullets do not.
+            if re.match(r"^\d+\.\s+[A-Z]", stripped):
+                break
+        else:
+            # A new top-level field rule ends the block; an indented one does not.
+            if not ln.startswith("  ") and stripped.startswith("- "):
+                break
         block.append(ln)
     return "\n".join(block)
 
@@ -301,4 +335,58 @@ def test_posting_analysis_cannot_say_legitimate_or_scam():
         # It must also say what to write instead, or the model has no alternative.
         assert "what the posting asks for" in block, (
             f"{label}: the rule must give the model an allowed phrasing"
+        )
+
+
+# ---------------------------------------------------------------------------
+# The drift that let the eleven failures above sit open for weeks.
+# ---------------------------------------------------------------------------
+
+# Each guardrail, and the phrase that states it. Checked against both copies.
+#
+# `prompts.py` builds FALLBACK_SYSTEM_PROMPT, used when SYSTEM_PROMPT.md is
+# missing or unreadable. For a year the two carried different rules: commit
+# a84da6f rewrote the file and dropped the guardrail block, while the Python
+# copy kept it. Nothing compared them, so the prompt the backend actually loads
+# ran without the absence rule, the quotable-evidence rule, the
+# pattern-needs-its-element rule, the never-invent rule and task-for-earning -
+# while every test reading the fallback still passed.
+#
+# The eleven tests above did catch it, which is why this was not invisible. It
+# was red, and red for long enough that it read as a known condition rather
+# than a live safety regression. That is the part worth fixing.
+GUARDRAILS = (
+    ("absence is never an anomaly", "never flag the absence"),
+    ("an anomaly must be quotable", "point to"),
+    ("salary absence", "states no salary"),
+    ("never invent", "never invent"),
+    ("pattern needs its element", "unless the posting actually contains"),
+    ("task-for-earning is named", "task-for-earning"),
+    ("task element is concrete", "discrete task"),
+    ("work then payment is ordinary", "work followed by payment"),
+    ("label is not a verdict", "must not name a conclusion"),
+    ("posting analysis bans verdict words", "what the posting asks for"),
+)
+
+
+def test_both_prompt_copies_carry_every_guardrail():
+    for label, phrase in GUARDRAILS:
+        assert phrase in low, f"SYSTEM_PROMPT.md lost the {label} guardrail"
+        assert phrase in rules.lower(), f"prompts.py lost the {label} guardrail"
+
+
+def test_a_guardrail_cannot_be_dropped_from_one_copy_alone():
+    """The specific shape of the failure, stated as a guard on itself.
+
+    Every check above would pass if both copies lost a rule at the same time.
+    That is not hypothetical: the two files are edited by different means - one
+    is prose in a .md, the other a string in a module - so they drift by
+    accident far more easily than by decision.
+    """
+    for label, phrase in GUARDRAILS:
+        in_file = phrase in low
+        in_fallback = phrase in rules.lower()
+        assert in_file == in_fallback, (
+            f"the {label} guardrail is in SYSTEM_PROMPT.md={in_file} but "
+            f"prompts.py={in_fallback}; one copy has drifted"
         )
