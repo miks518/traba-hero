@@ -361,18 +361,31 @@ def _parse_custom(raw: str) -> dict | None:
             continue
 
         if kw in _ATTRIBUTE_KEYWORDS and not in_attributes:
-            # Prose, not a key. `Company states applicants should bring their own
-            # laptop.` matches `COMPANY`, and a matched keyword closes the
-            # section first, so reading it as a key silently truncated the
-            # verdict at that line - and could leave JOB SUMMARY absent
-            # entirely, since `close_section` writes nothing for an empty buffer.
-            #
-            # Appended back to the buffer rather than dropped: the line is
-            # ordinary text and belongs to the section that is open. Dropping it
-            # produces the same truncation with the same silence.
             if section:
+                # Prose, not a key. `Company states applicants should bring their
+                # own laptop.` matches `COMPANY`, and a matched keyword closes the
+                # section first, so reading it as a key silently truncated the
+                # verdict at that line - and could leave JOB SUMMARY absent
+                # entirely, since `close_section` writes nothing for an empty
+                # buffer. Appended back to the buffer rather than dropped: the
+                # line is ordinary text and belongs to the section that is open.
                 buf.append(line.rstrip())
-            continue
+                continue
+
+            # No section is open, so this is the first attribute key of the
+            # response and the `ATTRIBUTES:` header was omitted. Open the block
+            # implicitly rather than discarding the key.
+            #
+            # The two cases are distinguishable exactly here: a key inside a
+            # block is preceded by `ATTRIBUTES:`, and prose can only reach this
+            # branch while a *section* is open - never a bare attribute line,
+            # since a section body is the only place prose lives.
+            #
+            # Discarding instead would cost the attributes `build_scheme_queries`
+            # reads, leaving zero scheme queries and three claim categories
+            # structurally unfireable - the same symptom as the extension never
+            # forwarding them, arriving by another route with no error anywhere.
+            in_attributes = True
 
         # The block is opened by ATTRIBUTES and closed by END ATTRIBUTES *and* by
         # any other keyword. Gating on the terminator alone would keep harvesting

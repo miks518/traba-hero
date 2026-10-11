@@ -200,8 +200,11 @@ class TestPostingAttributes:
         builds the queries instead, deterministically, from the attributes above.
 
         Asserted as behaviour rather than as an absent key: a `QUERY:` line is now
-        ordinary prose. If it ever starts matching again, it becomes a section and
-        one of the two assertions below fails.
+        ordinary prose. The assertion that bites is the *positive* one — that the
+        line survives into the section body it appeared in. Asserting only that
+        `search_queries` is absent is a tautology against a parser that had simply
+        stopped reading, which is a state this test cannot otherwise distinguish
+        from the one it is guarding.
         """
         raw = (
             "VALID: true\nSEARCH QUERIES:\n"
@@ -215,7 +218,59 @@ class TestPostingAttributes:
         # parser that simply stopped reading everything.
         assert result["company_name"] == "Tanika"
 
+    def test_a_query_line_in_a_section_body_is_prose(self):
+        """The assertion that actually bites on the tombstone above.
+
+        `QUERY` back in the alternation makes it a section keyword, and the
+        branch that handles it closes whatever section was open — so a `QUERY:`
+        line inside a JOB SUMMARY body truncates the summary. That is the
+        observable consequence, and it is what fails if the keyword returns.
+
+        `assert "search_queries" not in result` cannot catch that: the family
+        has no key to restore, so both a correct parser and a broken one pass.
+        """
+        raw = (
+            "VALID: true\nJOB SUMMARY:\n"
+            "A crew role at a warehouse.\n"
+            "QUERY: crew recruitment Philippines\n"
+            "END JOB SUMMARY\n"
+        )
+        result = _parse_custom(raw)
+
+        assert "search_queries" not in result
+        assert "crew recruitment" in result["job_summary"], (
+            "a QUERY: line was treated as a section keyword and truncated the "
+            "summary it appeared in"
+        )
+
+    def test_attributes_survive_a_missing_header(self):
+        """A model that drops the `ATTRIBUTES:` header must still report.
+
+        These attributes are what `build_scheme_queries` reads. Discarding them
+        when the header is absent means zero scheme queries, and leaves
+        `Location / Branch`, `Channel Match` and `Scheme Corroboration`
+        structurally unfireable — the same symptom as the extension never
+        forwarding them, arriving by another route and with no error anywhere.
+
+        Safe to read here because the two cases are distinguishable: a key
+        inside a block is preceded by `ATTRIBUTES:`, and prose can only reach
+        the same branch while a *section* is open. A bare attribute line at the
+        top of a response has neither.
+        """
+        raw = (
+            "VALID: true\n"
+            "COMPANY: Tanika\n"
+            "LOCATION: Maingate Terminal\n"
+            "EMPLOYER NAME: Tanika\n"
+        )
+        result = _parse_custom(raw)
+
+        assert result["attributes"]["LOCATION"] == "Maingate Terminal"
+        assert result["attributes"]["COMPANY"] == "Tanika"
+        assert result["company_name"] == "Tanika"
+
     def test_a_query_line_inside_the_attributes_block_is_not_an_attribute(self):
+
         """The same line inside ATTRIBUTES, where a match would have been silent.
 
         `in_attributes` is the gate, and this is the case where the gate is open.
