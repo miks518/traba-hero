@@ -64,10 +64,12 @@ SCAN_FIELD_RULES = """Field rules:
   * Never invent a flag, and never output a placeholder or default flag. Every flag must quote or closely paraphrase text actually present in the posting.
   * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high. An "anomaly" is a description, so the label must not name a conclusion â€” write "Asks applicants to pay a processing fee", never "Scam fee request".
   * Severity means:
-    - high: the posting explicitly asks the applicant for money, or contains a concrete instruction matching a known scam pattern.
-    - mid: a checkable gap or contradiction in the posting, such as contact details that do not match the named employer, or an offer of paid tasks rather than a role.
-    - low: something common in Philippine job postings that is weak evidence on its own.
-  * Do not flag any of these on their own: a free email domain (Gmail, Yahoo), a missing office address, a generic job title, "no experience needed".
+    - high: the posting asks the applicant for money, goods, or a deposit, or contains a concrete instruction matching a known scam mechanic.
+    - mid: the posting offers paid tasks, orders, or referrals in order to be paid, rather than describing a role with duties.
+    - low: rarely correct. If you are weighing a low, weigh reporting nothing instead.
+  * Do not stretch the severity ladder to fit an observation. If a finding does not match a definition above, it is not an anomaly.
+  * Before reporting anything, ask: would a job seeker do something differently after reading this? If the answer is no, report nothing. A posting you have no specific concern about is the expected outcome and is not a failure.
+  * Do not flag any of these on their own: a free email domain (Gmail, Yahoo), a missing office address, a generic job title, "no experience needed", informal or Messenger-based application, or the absence of a formal application process. These are ordinary in Philippine job postings, including ones written on Facebook groups, and reporting them buries the findings that matter.
   * If the posting states no salary, do not flag salary. Only flag a salary amount that is stated and does not fit the role.
   * If the posting does not name an employer in its text, check whether a company logo, wordmark, letterhead, or sender name is visible in the image. If one is, treat that as the employer name. Not naming an employer is common in the Philippines and is weak evidence on its own; do not describe it as a scam, and do not output an anomaly for it â€” a missing name is a missing input, and the panel asks the reader for it separately.
   * Payment requests: state the request and nothing else. Example â€” ANOMALY: Asks applicants to pay a processing fee | The posting asks applicants to pay a fee before starting work | high. Never add any claim about the employer.

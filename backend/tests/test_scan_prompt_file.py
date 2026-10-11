@@ -366,6 +366,16 @@ GUARDRAILS = (
     ("work then payment is ordinary", "work followed by payment"),
     ("label is not a verdict", "must not name a conclusion"),
     ("posting analysis bans verdict words", "what the posting asks for"),
+    # Added 2026-10-12 after a live probe. The model flagged a Gmail address and
+    # an absent salary despite both being forbidden, because this list was in
+    # prompts.py and not in SYSTEM_PROMPT.md. The file the backend loads is the
+    # one that was missing it.
+    ("ordinary things are never findings", "do not flag any of these on their own"),
+    ("messenger applications are ordinary", "messenger-based application"),
+    ("the ladder is not stretched to fit", "do not stretch the severity ladder"),
+    ("mid means paid tasks, not a vague feeling", "paid tasks, orders, or referrals"),
+    ("low is rarely correct", "rarely correct"),
+    ("actionability bar", "do something differently after reading"),
 )
 
 
