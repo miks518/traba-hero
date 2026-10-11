@@ -98,6 +98,11 @@ export function EvidenceSummary({
   const hasItems = Boolean(result && result.items && result.items.length > 0);
   const unreadable = result?.searchOk === false;
   const partial = Boolean(result?.searchPartial);
+  // The same state the heading prefers, held separately so the body can name
+  // what actually happened. `searchOk: false` and `error` can arrive together:
+  // the searches may have completed and the model's answer then failed to parse,
+  // which is not the search's failure and must not be described as one.
+  const unreadableAnswer = Boolean(error) && unreadable;
 
   const heading = headingFor({ hasItems, loading, unreadable, partial, error });
   const surface = accent?.surface ?? 'bg-surface-container-low';
@@ -147,9 +152,9 @@ export function EvidenceSummary({
           <div className="flex items-start gap-2">
             <Icon name="warning" className="text-error mt-0.5" />
             <p className="text-body-sm text-on-surface-variant leading-relaxed">
-              The web search did not run, so nothing about this employer is known.
-              This is not a finding about them. What the posting itself says still
-              stands.
+              {unreadableAnswer
+                ? 'The answer could not be read, so nothing about this employer was established. Whether the searches ran is not recorded here. This is not a finding about them. What the posting itself says still stands.'
+                : 'The web search did not run, so nothing about this employer is known. This is not a finding about them. What the posting itself says still stands.'}
             </p>
           </div>
           {result?.searchError && (
