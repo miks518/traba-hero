@@ -106,6 +106,104 @@ describe('the heading is derived from state', () => {
   });
 });
 
+/**
+ * The loud-failure path is not a search failure.
+ *
+ * `VerificationParseError` is raised when the model's answer cannot be read, the
+ * stream emits an `error` event, and `verificationError` reaches this component
+ * as `error`. The searches themselves completed fine — in the ordinary case
+ * they returned results that were then discarded because nobody could parse the
+ * answer about them. Rendering "Search could not be completed" files that under
+ * retrieval, which sends the reader looking for a problem with the employer's
+ * online footprint that does not exist.
+ *
+ * It must also not claim the search *succeeded*: a request that never came back
+ * at all reaches the same prop, and "searches ran fine" would be as untrue as
+ * "searches failed". What is missing in every case is a readable answer, which
+ * is a fact about this panel's output rather than about the employer.
+ */
+describe('an unreadable verification result is not a search failure', () => {
+  it('does not blame the search in the heading', () => {
+    const { container } = render(<EvidenceSummary error />);
+    const heading = container.querySelector('h3')?.textContent?.trim();
+
+    expect(heading).not.toMatch(/search/i);
+    expect(heading).toBeTruthy();
+  });
+
+  it('does not blame the search in the body', () => {
+    // Scoped to this component's own text. The advice block is allowed to use
+    // any wording it likes; banning a word across the whole section would push
+    // the next editor into a synonym rather than making the claim more precise.
+    const { container } = render(<EvidenceSummary error />);
+    const body = container.querySelector('[data-state="unreadable-result"]');
+
+    expect(body).toBeTruthy();
+    expect(body!.textContent).not.toMatch(/search/i);
+  });
+
+  it('does not claim the search succeeded either', () => {
+    // The overcorrection. A test that only banned "search failed" would pass
+    // for copy saying "your search found nothing", which is the same defect
+    // pointed the other way.
+    const { container } = render(<EvidenceSummary error />);
+
+    expect(container.textContent ?? '').not.toMatch(/search (found|came back|ran)/i);
+    expect(container.textContent ?? '').toMatch(/could not read/i);
+  });
+
+  it('says plainly that this is not a finding about the employer', () => {
+    render(<EvidenceSummary error />);
+    expect(screen.getByText(/not a finding about the employer/i)).not.toBeNull();
+  });
+
+  it('tells the reader what does still stand', () => {
+    // The score is real and the posting indicators are real. A failure here
+    // costs the evidence, not the verdict, and the copy has to say so.
+    render(<EvidenceSummary error />);
+    expect(screen.getByText(/what the posting itself states still stands/i)).not.toBeNull();
+  });
+
+  it('is distinguishable from a search that could not run', () => {
+    // Two different subsystems failed. Collapsing them back together is the
+    // defect this copy exists to fix, so the two headings are pinned as
+    // different strings rather than as a shared negative assertion.
+    const errored = render(<EvidenceSummary error />);
+    const erroredHeading = errored.container.querySelector('h3')?.textContent?.trim();
+    errored.unmount();
+
+    const unreadable = render(
+      <EvidenceSummary result={{ ...base, items: [], searchOk: false, searchError: 'no key' }} />
+    );
+    const unreadableHeading = unreadable.container.querySelector('h3')?.textContent?.trim();
+    unreadable.unmount();
+
+    expect(erroredHeading).not.toBe(unreadableHeading);
+  });
+
+  it('does not also render the empty-result notice', () => {
+    // With no result and no items, the default branch is the empty state. It
+    // says the search completed and returned nothing — a third claim, and the
+    // least true of the three.
+    const { container } = render(<EvidenceSummary error />);
+
+    expect(container.querySelector('[data-state="empty"]')).toBeNull();
+  });
+
+  it('prefers the unreadable-answer state over the search-failure state', () => {
+    // Both can be true at once: the search failed *and* no answer was readable.
+    // The heading must still not name the search, or the two fixes cancel out.
+    const { container } = render(
+      <EvidenceSummary
+        error
+        result={{ ...base, items: [], searchOk: false, searchError: 'TAVILY_API_KEY is not configured' }}
+      />
+    );
+
+    expect(container.querySelector('h3')?.textContent?.trim()).not.toMatch(/search/i);
+  });
+});
+
 describe('nothing found must not read as a warning', () => {
   it('does not tell the reader to confirm the employer', () => {
     // An absent footprint is ordinary for a small Philippine employer, and

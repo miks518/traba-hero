@@ -76,10 +76,13 @@ function headingFor(state: {
   error?: boolean;
 }): string {
   if (state.loading && !state.hasItems) return 'Searching the web';
+  // Ahead of `unreadable` on purpose. Both mean "no findings", and blaming the
+  // search for a request that never returned a readable answer names the wrong
+  // subsystem — see the body copy below.
+  if (state.error) return 'Verification could not be completed';
   if (state.unreadable) return 'Search could not run';
   if (state.hasItems) return 'Evidence Summary';
   if (state.partial) return 'Partial search coverage';
-  if (state.error) return 'Search could not be completed';
   return 'Searched, found nothing';
 }
 
@@ -288,9 +291,20 @@ export function EvidenceSummary({
       )}
 
       {error && (
-        <div className="flex items-center gap-2 py-2 text-body-sm text-on-surface-variant">
-          <Icon name="info" className="text-secondary" />
-          <span>The search could not be completed. What the posting itself says still stands.</span>
+        <div data-state="unreadable-result" className="flex items-start gap-2 py-2">
+          <Icon name="warning" className="text-on-surface-variant mt-0.5" />
+          {/* Deliberately does not say the search failed, and deliberately does
+              not say it succeeded. This state is reached when the model answered
+              in a shape nobody could read, or when the request did not come back
+              at all — and in the first case the searches ran perfectly. What is
+              missing is a *readable answer*, which is a fact about this panel's
+              output rather than about the employer, so it must not be filed
+              under either retrieval outcome. */}
+          <span className="text-body-sm text-on-surface-variant leading-relaxed">
+            We could not read a verification result for this posting, so no web
+            evidence is shown here. This is not a finding about the employer.
+            What the posting itself states still stands.
+          </span>
         </div>
       )}
     </div>
