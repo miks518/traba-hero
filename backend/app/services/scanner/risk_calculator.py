@@ -23,36 +23,52 @@ POSTING_SEVERITY_WEIGHTS = {"high": 40, "mid": 12, "low": 4}
 # Evidence stage. A claim the retrieval CONTRADICTS costs points; a claim it
 # confirms, and a claim it learned nothing about, both cost nothing.
 #
-# The weights are the one thing in this file not yet derived. `SCORING-SOURCES.md`
-# section 8 found the employer category weights nearly flat (40/25/35 is a 1.6x
-# spread, barely distinguishable from equal importance on Saaty's scale), and
-# these were chosen on the same judgement rather than by the pairwise method in
-# `SCORING-SOURCES.md` section 1. They MUST be re-derived before this ships to a
-# panel, with the consistency ratio reported. The ordering is defensible now:
-# Channel Match is the only check that can detect an impersonation, because a
-# real employer passes every existence, registration and branch check.
+# Derived, not chosen. `REFUTATION_WEIGHTS` was previously set by judgement and
+# `SCORING-SOURCES.md` section 8 flagged it as the one number in this file with
+# no method behind it. It is now the principal eigenvector of a 6x6 Saaty
+# pairwise matrix, reported in SCORING-SOURCES.md section 8:
+#
+#     lambda_max = 6.2777  CI = 0.0555  RI = 1.24  CR = 0.0448  PASS (< 0.10)
+#
+# Reproduce with `python scripts/derive_refutation_weights.py`, which lists every
+# judgment it was built from so a disagreement can be changed one integer at a
+# time rather than argued about as a finished number.
+#
+# **AHP derives proportions, not points.** The anchor - one refuted Channel Match
+# worth 25 - is a free parameter AHP cannot derive, defended by the sensitivity
+# analysis in section 9, exactly as the severity anchor is in section 5.
+#
+# The hierarchy is unchanged from the judgement weights that preceded it:
+# Channel Match > Similar Offers > Reputation > Location / Branch >
+# Company Existence = Official Registration. What changed is the spacing, from a
+# 4.2x top-to-bottom spread to 12.5x. That is a real narrowing of what the last
+# three can move, and it is the number to argue about first - see section 8.
 REFUTATION_WEIGHTS = {
     "Channel Match": 25,
-    "Scheme Corroboration": 15,
-    "Reputation": 10,
-    "Location / Branch": 8,
-    "Company Existence": 6,
-    "Official Registration": 6,
+    "Similar Offers": 13,
+    "Reputation": 7,
+    "Location / Branch": 4,
+    "Company Existence": 2,
+    "Official Registration": 2,
 }
 
 # The evidence stage may add up to half the scale. See `_combine_scores`.
 MAX_REFUTATION_SCORE = 50
 
-# Results recorded before the rename used "SEC Registration". It carried the
-# registration weight then and must carry it now, or a stored verification
-# silently rescores to the default of 0 -- which returns None, so a refuted
-# claim would render as a stage that never ran.
+# Results recorded before a rename carry a label this table no longer names, and
+# it must keep carrying its weight. An unweighted label is not a default of 0
+# here — it *returns* 0, which becomes None, so a refuted claim would render as a
+# stage that never ran. The cost is silent: the category still renders, so nothing
+# looks broken.
 #
 # Mirrors `_LEGACY_LABELS` in verification_parser. Kept as its own literal rather
 # than imported: that module pulls in the verification prompt, and this one is a
 # pure scoring module that has to stay importable on its own. Two copies is a
-# drift risk and is recorded as one rather than quietly accepted.
-_LEGACY_LABEL_MAP = {"sec registration": "Official Registration"}
+# drift risk, so `TestBothLegacyTablesAgree` compares them on every run.
+_LEGACY_LABEL_MAP = {
+    "sec registration": "Official Registration",
+    "scheme corroboration": "Similar Offers",
+}
 
 # Derived from `REFUTATION_WEIGHTS` at import, never restated. The lookup folds
 # case on both sides, and a hand-written second copy of the table is a weight

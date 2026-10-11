@@ -408,38 +408,153 @@ which is what the verification category weights do.
 
 ---
 
-## 8. Open question on the category weights
+## 8. The category weights — derived
 
-`{"Company Existence": 40, "Official Registration": 25, "Reputation": 35}`
-sums to 100. Normalised, that is a **1.6× spread** across all three.
+This section used to be an open question. The evidence-stage weights are now the
+principal eigenvector of a Saaty pairwise matrix, and this section is the
+derivation.
 
-On Saaty's scale a 1.6× spread sits between "equal importance" (1) and
-"weakly more" (2), and Company Existence vs Reputation is 1.14 — which
-rounds to **1, i.e. equal importance**. The implemented weights therefore
-encode very little differentiation between those two categories, and the
-weighting does correspondingly little work.
+### The question behind each judgment
 
-This is not necessarily wrong. It may be deliberate: a narrow spread stops
-the employer check from dominating the posting's own indicators. **But that
-reason has to be written down**, or the obvious panel question — *why these
-three numbers?* — has no answer.
+Only `red` contributes points, and `red` now means a retrieved source
+*contradicts* a specific claim the posting made. So the weight answers one
+question: **how much does a refutation from this check prove?**
 
-If real pairwise judgments are used instead — Existence > Reputation >
-Registration at 2/3/2 — AHP yields **54.0 / 29.7 / 16.3**, `CR = 0.0079`,
-PASS. That is a materially different model from the implemented one, and
-choosing it is a scoring-overhaul decision, not a documentation fix.
+A check that cannot be refuted needs no weight, and frequency does not enter
+this — `_refutation_score_from_verify` sums weights over the red items actually
+returned, so a check that stays silent contributes nothing on its own. That is
+what separates the two questions a reader might conflate.
+
+| Criterion | Why it sits where it does |
+|---|---|
+| **Channel Match** | A posting directing applicants to a channel the employer's own results do not use is a contradiction, not a silence. **It is the only check that can expose an impersonation**, because a real employer passes every existence, registration and branch check — those cannot separate a real company from one borrowing its name. |
+| **Similar Offers** | Tests the particular way the posting asks applicants to earn. A corroborating page names *this* offer, so it contradicts it directly. Ranked below Channel Match because a corroborated offer does not by itself show the poster is not who they say — a real company could post something that reads badly. *Renamed from "Scheme Corroboration" in 2026-10: a scheme is not obviously a way of earning rather than a fraud or a government programme, and corroboration is not a word a job seeker reaches for. The check is unchanged, so the weight is unchanged.* |
+| **Reputation** | A published complaint is a named source contradicting the posting. Stronger evidence than an inference, but it describes the employer's history, which may predate the impersonation. |
+| **Location / Branch** | A contradiction needs a source that *lists* branches and omits the posting's. Small employers rarely have such a listing, so this mostly stays silent — and a silent check needs no weight. |
+| **Company Existence** | "A business by this name operates" is almost never contradicted; existence is confirmed or unknown. A refutation would mean the employer's own pages assert otherwise. |
+| **Official Registration** | Equally hard. Absence of a filing is silence, not contradiction — a sole proprietorship with no findable registration is the ordinary Philippine case. |
+
+The last two are judged **equal**, and that is the honest call: both are
+"nothing was found", which is the one state the whole scoring model refuses to
+treat as a finding.
+
+### The matrix
+
+Saaty's 1–9 fundamental scale: 1 equal, 3 moderate, 5 strong, 7 very strong,
+9 extreme. Reciprocals implied.
+
+|  | Channel | Scheme | Reputation | Location | Existence | Registration |
+|---|---|---|---|---|---|---|
+| **Channel Match** | 1 | 3 | 5 | 7 | 9 | 9 |
+| **Similar Offers** | 1/3 | 1 | 3 | 5 | 7 | 7 |
+| **Reputation** | 1/5 | 1/3 | 1 | 3 | 5 | 5 |
+| **Location / Branch** | 1/7 | 1/5 | 1/3 | 1 | 3 | 3 |
+| **Company Existence** | 1/9 | 1/7 | 1/5 | 1/3 | 1 | 1 |
+| **Official Registration** | 1/9 | 1/7 | 1/5 | 1/3 | 1 | 1 |
+
+### Computed result
+
+| Criterion | Geometric mean | Principal eigenvector | Judgement weight | AHP points | Gap |
+|---|---|---|---|---|---|
+| Channel Match | 46.92% | 47.50% | 25 | **25** | 0 |
+| Similar Offers | 25.98% | 25.73% | 15 | **13** | −2 |
+| Reputation | 13.58% | 13.46% | 10 | **7** | −3 |
+| Location / Branch | 6.90% | 6.81% | 8 | **4** | −4 |
+| Company Existence | 3.32% | 3.25% | 6 | **2** | −4 |
+| Official Registration | 3.32% | 3.25% | 6 | **2** | −4 |
+
+`λmax = 6.2777` · `CI = 0.0555` · `RI = 1.24` · **`CR = 0.0448`** · PASS
+(threshold 0.10)
+
+Reproduce with `cd backend && python scripts/derive_refutation_weights.py`. The
+script holds the judgment list as one tuple per pair, so a disagreement is one
+integer to change and a re-run, rather than an argument about a finished number.
+
+`TestTheEvidenceWeightsAreDerivedNotChosen` in `test_risk_model.py` recomputes
+all of it on every run, so the weights in `risk_calculator.py` cannot drift from
+the matrix without a failure.
+
+### The honest framing
+
+**AHP derives proportions, not points.** The anchor — one refuted Channel Match
+worth 25 — is a free parameter the method cannot supply, exactly as one
+high-severity indicator being worth 40 is in §1. Defensible wording: the
+proportions follow from a judgment matrix that passes the consistency threshold;
+the scale is supported separately by sensitivity analysis (§9).
+
+**The ordering did not change. The spacing did.** Every judgement weight
+already ranked the six in the order derived here. What AHP changed is the
+spread, from 4.2× top-to-bottom to 12.5×. That is the number to argue about
+first, and it is a real narrowing: a refuted Official Registration now moves a
+posting by 2 points rather than 6.
+
+Two things that narrowing is **not** allowed to do, and are tested so it cannot:
+
+- It must not disable the check. `test_the_bottom_two_can_still_move_a_score`
+  asserts a refuted registration claim still moves the number, because the panel
+  renders the card either way and a weight that cannot change a level band is a
+  category the model was asked about for nothing.
+- It must not make the cap unreachable. `TestTheTotalIsBounded` uses all six
+  categories; the fixtures previously carried only three, so "everything
+  refuted" meant half the vocabulary and the cap was being tested against a
+  third of the design.
 
 ---
 
-## 9. Blocked on the rewrite
+## 9. Sensitivity — how far can the anchor move before a verdict changes?
 
-A teammate is currently reworking the scoring and has not pushed. Every
-*constant* in this file may be superseded by that work. What should survive
-the rewrite is the **method** — the AHP derivation, the aggregation
-justification, and the sensitivity analysis — since all three are independent
-of the specific numbers.
+§1 and §8 both end at a free parameter the method cannot supply: the anchor.
+This section bounds it, which is the answer to the reviewer's actual objection —
+*even if the anchor is wrong, does the verdict change?*
 
-Confirm what the rewrite changes before writing this into Chapter 3.
+The anchor for the evidence stage is one refuted Channel Match = 25 points. The
+table below re-scales the whole vector and re-reads the **risk level** for six
+realistic cases. Levels, not scores, are what the reader sees.
+
+| Case (posting stage + red categories) | 15 | 20 | **25** | 30 | 35 |
+|---|---|---|---|---|---|
+| Clean posting, no red | low | low | **low** | low | moderate |
+| Mid anomaly (12), 1 red | low | moderate | **moderate** | moderate | moderate |
+| Mid anomaly (12), 3 red | moderate | moderate | **high** | high | high |
+| Two highs (80), 2 red | critical | critical | **critical** | critical | critical |
+| At cap (100), 1 red | critical | critical | **critical** | critical | critical |
+| Mid anomaly (12), all six red | moderate | high | **high** | high | high |
+
+**The stable plateau is anchor 25–30**, where every case holds its level.
+
+The two boundaries fail in **opposite directions**, and that is the reason the
+anchor is 25 rather than the midpoint:
+
+- **Below 25** the three-red case *understates* — it drops out of `high` into
+  `moderate`.
+- **Above 30** a clean posting is *overstated* — it is lifted out of `low`.
+
+So the chosen anchor sits at the lower edge of its plateau, and the reachable
+error in a live deployment is understatement rather than overstatement. For a
+tool whose output is read as advice about money, that is the correct direction
+to err: a score that under-reports is a reader who proceeds with caution, while
+one that over-reports trains people to distrust the panel.
+
+State this rather than claiming the anchor is comfortably central. It is not.
+`TestTheDocumentedSensitivityIsReal` recomputes the whole table on every run, so
+a weight change that moves either boundary fails the suite instead of quietly
+invalidating a table in a document.
+
+Three conclusions, and the third is the caveat.
+
+1. **The ordering is anchor-independent, by construction.** Scaling a vector by
+   a constant cannot reorder it, so `Channel Match > Similar Offers` holds
+   at every value tested. This is what makes the anchor safe to defend loosely:
+   the *ranking* is the derived claim, and it does not depend on the free
+   parameter.
+2. **The chosen anchor is deliberately at a boundary.** The reason is the
+   direction of the error it permits, spelled out above.
+3. **What this does not cover.** This perturbs the *anchor* only. It says
+   nothing about stability under perturbation of the **judgment matrix** — the
+   O'Shea et al. weight-stability method in §5 is the right instrument for that
+   and has not been run. A consistent matrix (`CR = 0.0448`) bounds
+   *incoherence*, not *instability*. That is the honest limit of the claim, and
+   the one to state before a panel asks rather than after.
 
 ---
 

@@ -25,6 +25,9 @@ and never grants it. The classes below cover that stage; the older ones above
 still cover the properties of the two-stage model that survived the rename.
 """
 
+import sys
+from pathlib import Path
+
 import pytest
 
 from app.models.schemas import Anomaly, VerificationItem
@@ -37,8 +40,10 @@ from app.services.scanner.risk_calculator import (
     _posting_risk_from_flags,
     _refutation_score_from_verify,
 )
+from app.services.scanner.risk_calculator import _LEGACY_LABEL_MAP
 
 EX, REG, REP = "Company Existence", "Official Registration", "Reputation"
+LOC, CHAN, SCHEME = "Location / Branch", "Channel Match", "Similar Offers"
 
 
 def flag(severity):
@@ -75,10 +80,35 @@ def final(posting_score, verify_score):
     return _combine_scores(posting_score, verify_score)[0]
 
 
-ALL_GREEN = [(EX, "green"), (REG, "green"), (REP, "green")]
-NO_DATA = [(EX, "yellow"), (REG, "yellow"), (REP, "yellow")]
-REP_RED = [(EX, "green"), (REG, "green"), (REP, "red")]
-ALL_RED = [(EX, "red"), (REG, "red"), (REP, "red")]
+# All six categories the design actually checks. The fixtures below used to
+# carry only the three employer categories, which was enough when those were the
+# whole vocabulary; since `Location / Branch`, `Channel Match` and `Scheme
+# Corroboration` were added, "everything refuted" has meant three sixths of it,
+# and `TestTheTotalIsBounded` stopped testing what its name claims.
+ALL_CATEGORIES = (EX, REG, REP, LOC, CHAN, SCHEME)
+
+def _derivation():
+    """The AHP script, imported by path.
+
+    It lives under `scripts/` rather than in the package because it is a
+    derivation tool, not runtime code - `risk_calculator.py` does not import it
+    and must not.
+    """
+    path = str(Path(__file__).resolve().parents[1] / "scripts")
+    if path not in sys.path:
+        sys.path.append(path)
+    import derive_refutation_weights
+    return derive_refutation_weights
+
+
+ALL_GREEN = [(c, "green") for c in ALL_CATEGORIES]
+NO_DATA = [(c, "yellow") for c in ALL_CATEGORIES]
+REP_RED = [(c, "red" if c == REP else "green") for c in ALL_CATEGORIES]
+ALL_RED = [(c, "red") for c in ALL_CATEGORIES]
+
+# The three employer categories alone, kept because several tests are about what
+# a legacy stored result does - an old verification carries only these labels.
+LEGACY_RED = [(EX, "red"), (REG, "red"), (REP, "red")]
 
 
 class TestVerificationCannotLowerAPosting:
@@ -266,7 +296,7 @@ class TestRefutationScoring:
         """
         assert set(REFUTATION_WEIGHTS) == {
             "Channel Match",
-            "Scheme Corroboration",
+            "Similar Offers",
             "Reputation",
             "Location / Branch",
             "Company Existence",
@@ -319,7 +349,7 @@ class TestRefutationScoring:
             "Channel Match",
             "Location / Branch",
             "Reputation",
-            "Scheme Corroboration",
+            "Similar Offers",
             "Company Existence",
         ]
         items = [VerificationItem(label=label, status="red", explanation="") for label in labels]
@@ -344,13 +374,42 @@ class TestRefutationScoring:
         )
 
     def test_a_legacy_category_label_still_scores(self):
-        """Results stored before the rename used 'SEC Registration'. Without the
-        mapping a stored verification silently rescores to the default of zero,
-        which returns None - so a refuted claim reads as a stage that never ran.
+        """Results stored before the renames used 'SEC Registration' and 'Scheme
+        Corroboration'. Without the mapping a stored verification silently
+        rescores to the default of zero, which returns None - so a refuted claim
+        reads as a stage that never ran.
         """
-        items = [VerificationItem(label="SEC Registration", status="red", explanation="")]
+        for legacy, current in (
+            ("SEC Registration", "Official Registration"),
+            ("Scheme Corroboration", "Similar Offers"),
+        ):
+            items = [VerificationItem(label=legacy, status="red", explanation="")]
 
-        assert _refutation_score_from_verify(items) == REFUTATION_WEIGHTS["Official Registration"]
+            assert _refutation_score_from_verify(items) == REFUTATION_WEIGHTS[current], legacy
+
+    def test_a_legacy_label_is_not_mistaken_for_an_unknown_one(self):
+        """The overcorrection of the mapping above.
+
+        `unknown label -> 0` is a rule, and it is right: silence is not a score.
+        The risk is that a *known* legacy label falls into it, and the cost is a
+        category that renders with no weight behind it - which looks like a
+        working check and is not.
+        """
+        items = [VerificationItem(label="Scheme Corroboration", status="red", explanation="")]
+
+        assert _refutation_score_from_verify(items) is not None
+        assert _refutation_score_from_verify(items) > 0
+
+    def test_both_legacy_tables_agree(self):
+        """`risk_calculator` and `verification_parser` each keep a copy.
+
+        Two copies because the scoring module has to stay importable without
+        pulling in the prompt. An alias in one and not the other is the worst
+        shape: the category parses, renders, and scores zero.
+        """
+        from app.services.scanner.verification_parser import _LEGACY_LABELS
+
+        assert _LEGACY_LABELS == {k: v.lower() for k, v in _LEGACY_LABEL_MAP.items()}
 
     def test_an_unknown_label_is_silence_not_a_default_weight(self):
         """Absence of a weight is not a score.
@@ -516,3 +575,142 @@ class TestTheRetiredEmployerStageIsStillExported:
 
         assert _calculate_risk_score_from_verify(items)[0] == 0
         assert _refutation_score_from_verify(items) is None
+
+class TestTheEvidenceWeightsAreDerivedNotChosen:
+    """The claim in the module comment, re-checked on every run.
+
+    `REFUTATION_WEIGHTS` used to be judgement, and `SCORING-SOURCES.md` section 8
+    flagged it as the one number in the file with no method behind it. A comment
+    saying a weight is derived from a pairwise matrix is worth nothing if nothing
+    re-derives it, so the matrix, the eigenvector, the consistency ratio and the
+    rounding are all recomputed here from the same judgment list the script uses.
+    """
+
+    def test_the_derivation_script_is_importable_without_numpy(self):
+        """No `importorskip`. That call skips silently on a clean install,
+        because numpy is not in `requirements.txt`, and a guardrail that quietly
+        stops running is worse than one that is absent - it reads as coverage."""
+        assert _derivation().CRITERIA
+
+    def test_the_weights_match_the_matrix_the_script_would_use(self):
+        derive = _derivation()
+
+        matrix = derive.build_matrix()
+        eigenvector = derive.principal_eigenvector(matrix)
+        _, _, cr = derive.consistency(matrix, eigenvector)
+
+        # PASS against Saaty's threshold. Without this the weights are only
+        # *reproducible*, not defensible: a matrix can be self-consistent about a
+        # judgment nobody would accept.
+        assert cr < derive.CR_THRESHOLD, f"CR {cr:.4f} exceeds {derive.CR_THRESHOLD}"
+
+        points = derive.anchor_to_points(eigenvector, "Channel Match", 25)
+        derived = dict(zip(derive.CRITERIA, points))
+
+        assert derived == REFUTATION_WEIGHTS, (
+            "the weights in risk_calculator.py no longer match the pairwise "
+            "matrix; re-run scripts/derive_refutation_weights.py and update both"
+        )
+
+    def test_the_hierarchy_is_the_one_the_weights_claim(self):
+        """A set of numbers does not say what they mean; the ordering does.
+
+        This is the part worth defending. The matrix may be argued with, but if
+        the argument reorders these, the weights change and this fails - which is
+        the point. A silent reorder would keep the numbers valid and change the
+        scoring.
+        """
+        ordered = sorted(REFUTATION_WEIGHTS.items(), key=lambda kv: kv[1], reverse=True)
+        labels = [label for label, _ in ordered]
+
+        assert labels[:4] == [
+            "Channel Match",
+            "Similar Offers",
+            "Reputation",
+            "Location / Branch",
+        ]
+        # The bottom two are equal on judgment, so they must be equal in weight.
+        assert REFUTATION_WEIGHTS["Company Existence"] == REFUTATION_WEIGHTS["Official Registration"]
+
+    def test_the_bottom_two_can_still_move_a_score(self):
+        """The overcorrection.
+
+        AHP widened the spread to 12.5x, which is what drove these two to 2. That
+        is defensible as a *proportion* but not as a *dead* number: a refuted
+        Official Registration has to be able to change the level band, or the
+        derived weights silently disabled a check the panel still renders.
+        """
+        posting_score = posting("high")
+
+        low = final(posting_score, verify((EX, "green"), (REG, "green"), (REP, "green")))
+        refuted = final(posting_score, verify((EX, "green"), (REG, "red"), (REP, "green")))
+
+        assert refuted > low, "a refuted registration claim must move the number"
+
+class TestTheDocumentedSensitivityIsReal:
+    """SCORING-SOURCES.md section 9 states a stability interval. Check it.
+
+    A table in a document that nothing computes is a claim, not a result. These
+    recompute it at run time, so a weight change that quietly narrows the stable
+    range fails here instead of reaching a defence with a number nobody checked.
+    """
+
+    CASES = [
+        ("clean", 0, ["Channel Match"]),
+        ("one_red", 12, ["Channel Match"]),
+        ("three_red", 12, ["Channel Match", "Similar Offers", "Reputation"]),
+        ("two_highs", 80, ["Channel Match", "Similar Offers"]),
+        ("at_cap", 100, ["Channel Match"]),
+        ("all_six", 12, None),
+    ]
+
+    def _levels(self, anchor):
+        derive = _derivation()
+        weights = derive.principal_eigenvector(derive.build_matrix())
+        points = derive.anchor_to_points(weights, "Channel Match", anchor)
+        table = dict(zip(derive.CRITERIA, points))
+
+        out = {}
+        for name, posting, cats in self.CASES:
+            categories = cats or derive.CRITERIA
+            penalty = min(MAX_REFUTATION_SCORE, sum(table[c] for c in categories))
+            out[name] = _level_for(min(100, posting + penalty))
+        return out
+
+    def test_the_stable_plateau_is_twenty_five_to_thirty(self):
+        at_25 = self._levels(25)
+        at_30 = self._levels(30)
+
+        assert at_30 == at_25, "the upper plateau boundary moved"
+        # The plateau starts AT the chosen anchor, not below it. This was
+        # originally written as 20-30 and failed: at 20 the three-red case reads
+        # moderate rather than high. The distinction is the whole point - an
+        # anchor at the lower edge and one in the middle of a plateau are not the
+        # same claim, and only one of them is true here.
+        assert self._levels(20) != at_25, "the lower boundary moved above 25"
+
+    def test_the_two_boundaries_fail_in_opposite_directions(self):
+        """Why the anchor is set where it is.
+
+        Below 25 the three-red case understates - it drops out of `high`. Above
+        30 a clean posting is overstated - it is lifted out of `low`. Setting
+        the anchor at 25 means the reachable error in a live deployment is
+        understatement, never overstatement, which is the right direction for a
+        tool whose output is read as advice about money.
+        """
+        at_25 = self._levels(25)
+
+        assert self._levels(20)["three_red"] == "moderate"
+        assert at_25["three_red"] == "high"
+        assert self._levels(35)["clean"] == "moderate"
+        assert at_25["clean"] == "low"
+
+    def test_the_chosen_anchor_leaves_a_clean_posting_clean(self):
+        """The asymmetry the whole model exists to enforce.
+
+        A refuted Channel Match is the strongest single signal the retrieval can
+        produce, and it must still not move a posting that reported nothing into
+        a band that reads as 'moderate'. Verification withholds trust; it never
+        grants or manufactures it.
+        """
+        assert self._levels(25)["clean"] == "low"
