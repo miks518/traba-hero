@@ -19,7 +19,7 @@
    - FR-06: Job Posting Scan (Text)
    - FR-07: AI-Powered Scam Analysis
    - FR-08: Risk Score Calculation
-   - FR-09: Red Flag Detection & Display
+   - FR-09: Anomaly Detection & Display
    - FR-10: Company Verification (Web Search)
    - FR-11: Company Registration Evidence
    - FR-12: Email Verification
@@ -71,8 +71,8 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 **Two principles shape the whole system:**
 
-1. **A finding must be evidence.** A red flag describes something the posting contains; a verification finding carries a source URL copied from the search results. The system reports what it checked and, when a check did not happen, says so rather than presenting silence as a clean result.
-2. **A missing input is not a finding.** A posting that names no employer cannot be verified. That is stated as a gap in what was checked, never as a risk score or a red flag.
+1. **A finding must be evidence.** An anomaly describes something the posting contains; a verification finding carries a source URL copied from the search results. The system reports what it checked and, when a check did not happen, says so rather than presenting silence as a clean result.
+2. **A missing input is not a finding.** A posting that names no employer cannot be verified. That is stated as a gap in what was checked, never as a risk score or an anomaly.
 
 ---
 
@@ -197,7 +197,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-03: A progress bar and skeleton loading card are displayed during scanning.
 - AC-04: The scan streams progress events via SSE (percent + stage).
 - AC-05: The scan timeout is 240 seconds; on timeout, a user-friendly error is shown.
-- AC-06: The AI response is parsed into a structured `ScanResult` with status, risk score, red flags, analysis, and job summary.
+- AC-06: The AI response is parsed into a structured `ScanResult` with status, risk score, anomalies, analysis, and job summary.
 - AC-07: The scan result is stored in the scanned jobs history.
 - AC-08: If the image is not a valid job posting, an `InvalidContentError` card is displayed.
 
@@ -234,11 +234,11 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 **Acceptance Criteria:**
 - AC-01: The AI model receives the job posting content (image and/or text) with a system prompt.
-- AC-02: The system prompt defines the labeled output format: `VALID`, `RED FLAG` lines, `END FLAGS`, `EMPLOYER NAME`, `POSTING ANALYSIS`, `JOB SUMMARY`.
+- AC-02: The system prompt defines the labeled output format: `VALID`, `ANOMALY` lines, `END ANOMALIES`, `EMPLOYER NAME`, `POSTING ANALYSIS`, `JOB SUMMARY`.
 - AC-03: The AI returns a validity flag (true when the content offers work, income, a business opportunity, or training for work; false when it does not).
 - AC-04: `VALID: false` ends the response immediately; the scan relies on a mid-stream regex to stop early and save tokens.
-- AC-05: Red flags are reported only for something observable in the posting, each with a label, reasoning, and severity (low/mid/high).
-- AC-06: **A red flag never describes something the posting does not contain.** Absence is not evidence: "it does not ask for a processing fee" is a clean posting, not a warning. A scam pattern may be named only when the posting contains that pattern's concrete element.
+- AC-05: Anomalies are reported only for something observable in the posting, each with a label, reasoning, and severity (low/mid/high).
+- AC-06: **An anomaly never describes something the posting does not contain.** Absence is not evidence: "it does not ask for a processing fee" is a clean posting, not a warning. A scam pattern may be named only when the posting contains that pattern's concrete element.
 - AC-07: The system prompt also forbids flagging a free email domain, a missing office address, a generic job title, "no experience needed", or an unstated salary.
 - AC-08: **`POSTING ANALYSIS` must not contain the words "scam", "legitimate", "suspicious", "genuine", "fraudulent", or "honest".** The ban is repeated in the field rule itself, not only the prompt preamble, because a long prompt drifts. The field rule also supplies the allowed phrasing: describe what the posting asks for, not what it is.
 - AC-09: The employer name is stated in a dedicated `EMPLOYER NAME:` field, preferring the company the reader would work for. A staffing or manpower agency is the recruiter, not the employer, unless the posting is for the agency's own staff.
@@ -260,14 +260,14 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 **Acceptance Criteria:**
 - AC-01: **Posting stage (always runs).** Severity weights: HIGH=40, MID=12, LOW=4, capped at 100. It depends on nothing but the posting, so an offer with no employer name still gets a number.
-- AC-02: **Verification stage (only when a name exists).** Category weights: Company Existence=40, Official Registration=25, Reputation=35. RED contributes full weight, YELLOW contributes half. The legacy label "SEC Registration" maps to the registration weight.
-- AC-03: The verification stage returns **no score when every item is yellow.** Absence of evidence produces no number, so an unchecked company cannot be reported as a risk figure.
-- AC-04: The two stages are blended **60% posting / 40% verification**. Whichever stage is missing is treated as absent, not as zero: a posting that could not be looked up is not penalised for the missing lookup, and a clean employer record does not raise a post with no indicators.
+- AC-02: **Evidence stage (only when a name exists).** A *penalty* that only `red` contributes to, weighted Channel Match=25, Similar Offers=13, Reputation=7, Location / Branch=4, Company Existence=2, Official Registration=2, and capped at 50. `green` and `yellow` both contribute **zero**: confirmed means a result stated a fact, not that the fact was reassuring, and `yellow` means a result was sought and did not settle the question. The weights are AHP-derived (principal eigenvector of a 6×6 Saaty pairwise matrix, CR=0.0448, threshold 0.10) — see `SCORING-SOURCES.md` §8. The legacy labels "SEC Registration" and "Scheme Corroboration" map to their current weights, because an unweighted label scores nothing rather than defaulting.
+- AC-03: The evidence stage returns **no score when nothing was refuted.** Absence of evidence produces no number, so an unchecked company cannot be reported as a risk figure.
+- AC-04: The two stages are **additive with a floor**: `max(posting, posting + refutation)`, capped at 100. Verification can only **raise** the number — averaging would let a clean employer record outvote the posting the reader actually asked about, and would let "we found nothing" score 100. Whichever stage is missing is treated as absent, not as zero: a posting that could not be looked up is not penalised for the missing lookup, and a clean employer record does not raise a post with no indicators.
 - AC-05: The score is displayed as a circular SVG arc gauge with colour transitions.
 - AC-06: The gauge shows the numeric score in the centre and a risk label below.
 - AC-07: Risk categories: **Low Risk** (0–30), **Moderate Risk** (31–50), **High Risk** (51–75), **Critical Risk** (76–100).
 - AC-08: A score breakdown records which stages contributed, the per-severity counts, and the weights used.
-- AC-09: **Unverified state.** A posting that names no employer and raised no red flags shows "Unverified" on a grey pulsing ring with no number, not "0 / Low Risk", which would claim the post was cleared when the employer was never checked. A red flag is real evidence and is scored on severity instead.
+- AC-09: **Unverified state.** A posting that names no employer and raised no anomalies shows "Unverified" on a grey pulsing ring with no number, not "0 / Low Risk", which would claim the post was cleared when the employer was never checked. An anomaly is real evidence and is scored on severity instead.
 - AC-10: Every ring carries a slow breathing glow (`.ring-pulse`) whose colour follows the risk level, or the neutral outline grey when unverified. The animation is disabled under `prefers-reduced-motion`.
 
 **Risk Label Mapping:**
@@ -280,7 +280,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 ---
 
-### FR-09: Red Flag Detection & Display
+### FR-09: Anomaly Detection & Display
 
 | Attribute | Value |
 |-----------|-------|
@@ -288,17 +288,17 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | **Priority** | Critical |
 | **Component** | `RedFlagsList.tsx`, `RedFlagCard.tsx`, `SYSTEM_PROMPT.md` |
 
-**Description:** The system shall detect and display red flags with severity indicators. A red flag is always evidence of something the posting contains.
+**Description:** The system shall detect and display anomalies with severity indicators. An anomaly is always evidence of something the posting contains.
 
 **Acceptance Criteria:**
-- AC-01: Red flags are displayed as a list of cards with icon, title, severity badge, and description.
+- AC-01: Anomalies are displayed as a list of cards with icon, title, severity badge, and description.
 - AC-02: Severity levels have distinct visual styling: high (red), mid (amber), low (green), applied to the **card's own border** as well as its icon. The border was previously `outline-variant/10` on every severity, so a high-severity finding was signalled only by a 32px dot — the smallest thing on the card — and the outline rendered near-white because the translucent class was never generated. A high-severity outline is the panel's alarm and uses full-strength colour.
 - AC-03: A "CRITICAL" badge is shown if any high-severity flags exist.
 - AC-04: The total flag count is displayed.
 - AC-05: Flags are prioritized by severity (high first, then mid, then low).
-- AC-06: The system never invents red flags — only genuine scam indicators from the AI are shown.
+- AC-06: The system never invents anomalies — only genuine scam indicators from the AI are shown.
 - AC-07: Upfront fees are always flagged as HIGH severity (per system prompt rules).
-- AC-08: **A missing company name is NOT a red flag.** It is a missing input, not a finding: it would contradict the "never flag an absence" rule and would add score weight for something wrong with our inputs rather than with the post. It is surfaced separately as the Unverified gauge state and the CompanyNameNeeded panel (FR-31).
+- AC-08: **A missing company name is NOT an anomaly.** It is a missing input, not a finding: it would contradict the "never flag an absence" rule and would add score weight for something wrong with our inputs rather than with the post. It is surfaced separately as the Unverified gauge state and the CompanyNameNeeded panel (FR-31).
 - AC-09: **The severity list must not offer a missing employer as an example.** A rule stated only as a ban elsewhere in the prompt is not enough: the severity list is where the model looks when choosing what to flag, and an example there reads as sanctioned. A test parses the severity block by indentation and checks only the text after each severity's colon, so the phrase may appear in a prohibition but not as an example.
 
 ---
@@ -315,13 +315,13 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 **Acceptance Criteria:**
 - AC-01: `search(query) -> SearchOutcome` is the single search entry point. `SearchOutcome.ok` and `SearchOutcome.results` are **independent fields**: `ok=False` with no results means retrieval failed; `ok=True` with no results means the company genuinely has no online footprint.
-- AC-01b: **Two queries per verification, neither rigged.** Neither names a specific registry, because the category is deliberately broader than the SEC. Neither carries `scam` or `fraud`: those name a conclusion, so a query carrying one makes its results look like corroboration of the accusation it already embedded. `reviews` and `complaints` name *documents* and are allowed. The residual exposure is aggregator pages that re-publish complaint text against a scraped company name, which is why a result must concern the same entity and `red` must name a source.
-- AC-01c: **Company Existence is inferred, not separately queried.** The original single query was existence-tuned and starved Official Registration by *ranking*. Existence is now judged from the same merged list. **Known limitation:** an employer with neither a filing nor any review is found by neither query and reports yellow on existence — the smallest employers, which is who this product exists for.
-- AC-01d: Results from both queries are **merged into one flat list with no category headings**, then deduped on canonical URL keeping the higher-scoring copy. The employer's own site appears in both result sets, and every result is prompt text competing for a budget shared with the model's reasoning. A heading would assert a category retrieval never established.
-- AC-01e: **`search_partial` reports partial coverage.** One search failing while the other succeeds means the findings are real but some categories were covered by a thinner search. The panel states "N of M searches failed … this is not a finding about the employer". Reporting plain success would overstate the coverage; reporting a total failure would discard a search that worked. Two failures is the existing `search_ok: false` state.
+- AC-01b: **At most three requests per verification, one of them about the employer.** `build_queries` issues exactly one — `"<company> company or employer"`, where `or employer` reads as a boolean so a business writing itself either way is matched. The scan model proposes up to two more, capped in the parser *and* in the verification flow, so a client that is not this extension cannot spend six credits by posting a longer list. **A verification costs 1–3 credits on `basic`, 2–6 on `advanced`.** The query must not name a conclusion: `scam`, `fraud`, `fraudulent`, `fake`, `suspicious` and `legitimate` stay out, because a query carrying one returns pages chosen for containing that word, which then look like corroboration of the accusation it already embedded. **That rule lives in both scan prompts and nowhere else** — the queries are model-authored and unfiltered in code, deliberately.
+- AC-01c: **Company Existence shares the one employer query.** It was the original single query, and a general company query ranks the employer's own site and job boards first — which proves it exists. Existence is now read off that query's results alongside whatever the model proposed. **Known limitation:** `Official Registration` and `Reputation` no longer have a query of their own and depend on one query surfacing the right page. An employer with neither a filing nor any review is found by neither and reports yellow on existence — the smallest employers, which is who this product exists for.
+- AC-01d: Results from all queries are **merged into one flat list with no category headings**, then deduped on canonical URL keeping the higher-scoring copy. The employer's own site appears in more than one result set, and every result is prompt text competing for a budget shared with the model's reasoning. A heading would assert a category retrieval never established.
+- AC-01e: **`search_partial` reports partial coverage.** One search failing while others succeed means the findings are real but some categories were covered by a thinner search. The panel states "N of M searches failed … this is not a finding about the employer". Reporting plain success would overstate the coverage; reporting a total failure would discard a search that worked. Every query failing is the existing `search_ok: false` state. **A model that proposes no search is not reported anywhere** — `search_ok` stays true and `search_partial` stays false while the verification runs on a single query, so `queries_issued` is the only signal and `test_one_search_is_made_when_the_model_proposed_none` pins that floor.
 - AC-02: No caller may read one state as the other. A failed lookup is reported as unknown, never as a clean company.
 - AC-03: A missing `TAVILY_API_KEY` is a **failure**, not an empty success, so a broken deployment cannot look like a clean employer.
-- AC-04: **The employer name is passed to the provider verbatim**, with only an axis term (`registration certificate` / `reviews complaints`) and `Philippines` appended. No part of the name is rewritten: an SEC filing, a city PESO listing, and the employer's own legal pages are all titled with the *legal* name, so a trailing Corporation/Corp/Inc/Co/LLC is kept. An earlier version stripped it on the reasoning that a generic legal form dilutes a rare name; that was reversed after it was found to change the results, because stripping left the distinctive part competing against a brand, its franchisees, and unrelated products sharing the word. There are no category-suffixed queries and no retries, fallback provider, caching, or engine rotation.
+- AC-04: **The employer name is passed to the provider verbatim**, with only the axis term `company or employer` appended. No part of the name is rewritten: an SEC filing, a city PESO listing, and the employer's own legal pages are all titled with the *legal* name, so a trailing Corporation/Corp/Inc/Co/LLC is kept. An earlier version stripped it on the reasoning that a generic legal form dilutes a rare name; that was reversed after it was found to change the results, because stripping left the distinctive part competing against a brand, its franchisees, and unrelated products sharing the word. **No query carries `Philippines`**: `country` on the request already biases ranking toward Philippine results, so appending the suffix spent characters without adding reach — which makes `TAVILY_COUNTRY` load-bearing, since blanking it leaves nothing anchoring these queries to the Philippines. There are no retries, fallback provider, caching, or engine rotation.
 - AC-05: A response with no usable `results` list (error envelope, null, renamed key) is a failure, not a finding — a parse fault must never be reported as an employer with no footprint.
 - AC-06: Search results are passed to the model as a **flat list with URLs and no category headings.** A heading would assert that a result belonged to a category when retrieval only established which query surfaced it.
 - AC-07: Result text is untrusted web content. The system prompt states it is data and never instructions, requires a result to concern the company being verified, and conditions GREEN on that identity; the emitted block is labelled as data and `===` is stripped so a page cannot forge the block terminator.
@@ -386,7 +386,8 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 **Acceptance Criteria:**
 - AC-01: After a successful scan with a named employer, the frontend calls `POST /api/verify` with the company name.
-- AC-02: The six categories are **Company Existence**, **Official Registration**, **Location / Branch**, **Channel Match**, **Reputation**, and **Scheme Corroboration**. No seventh category is invented.
+- AC-02: The six categories are **Company Existence**, **Official Registration**, **Location / Branch**, **Channel Match**, **Reputation**, and **Similar Offers**. No seventh category is invented — the score is a fixed weight table, so an invented label has no weight and silently vanishes. `Similar Offers` was `Scheme Corroboration` until 2026-10; the check is unchanged and so is its weight, and the old spelling is kept as a legacy alias so verifications stored before the rename do not silently score zero.
+- AC-02b: **A category is asked for only when the posting made the claim it tests.** The request names which categories to report and which to omit, and the model must not create a placeholder for an omitted one. Asked for all six unconditionally, the model returned six — three of them reading "the posting stated nothing to check", which is a container asserting a check that was never made. `Official Registration` therefore requires a stated `REGISTERED_AS`, `Location / Branch` a `LOCATION`, `Channel Match` a `CONTACT_METHOD` or `MEETING_SPOT`, and `Similar Offers` a `PAY`.
 - AC-03: `/api/verify` uses a JSON Schema response format with `provider.require_parameters`, so a `:free` model cannot route to an endpoint that does not support structured output. A labeled-text parser remains as a fallback.
 - AC-04: Each check returns `status` (green/yellow/red), an uncapped `finding` naming the fact that decided it, and `source_title` / `source_url` **copied exactly from the provided results** — never constructed. This is the only channel by which online evidence reaches the user, so a fabricated URL would be a fabricated citation.
 - AC-05: A top-level `evidence` list carries the results a reader would want to check, copied verbatim, capped at six.
@@ -460,7 +461,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-01: Each completed scan adds a `ScannedJob` to the history array.
 - AC-02: Jobs are displayed in reverse chronological order.
 - AC-03: Each job card shows: title, timestamp, risk badge, and match score (if available).
-- AC-04: Jobs can be expanded to show full scan details (risk score, summary, red flags).
+- AC-04: Jobs can be expanded to show full scan details (risk score, summary, anomalies).
 - AC-05: The job count is displayed in the side navigation badge.
 - AC-06: Users can clear all job history with a confirmation dialog.
 - AC-07: Job history persists across view switches (scan ↔ match) within the session.
@@ -660,7 +661,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 - AC-03: Rate limiting is enforced per IP address.
 - AC-04: Invalid requests return structured error responses.
 - AC-05: The backend runs on FastAPI with async support.
-- AC-06: `/api/verify` accepts a `VerifyRequest` with `company_name`, `job_summary`, and `red_flags`. It returns `items`, `evidence`, `report`, `recommendation`, `search_ok`, `search_error`, and the score breakdown.
+- AC-06: `/api/verify` accepts a `VerifyRequest` with `company_name`, `job_summary`, and `anomalies`. It returns `items`, `evidence`, `report`, `recommendation`, `search_ok`, `search_error`, and the score breakdown.
 - AC-07: `/api/verify` logs the raw AI response and parsed results for debugging.
 - AC-08: `/api/analyze-offer` is called when a posting names no employer, so the user still receives a verdict on what the post asks for.
 - AC-09: If the scan result has no `verification_context` (missing company name), `/api/verify` is never called. See FR-31.
@@ -1073,7 +1074,7 @@ interface ScanResult {
   riskLabel: string;              // "Low Risk", "Moderate Risk", "High Risk", "Critical Risk"
   riskScored: boolean;            // false only for history predating the posting stage
   riskScore: number | null;       // 0-100, from the two-stage blend
-  unverifiedEmployer?: boolean;   // no name + no red flags: "Unverified", not 0 / Low Risk
+  unverifiedEmployer?: boolean;   // no name + no anomalies: "Unverified", not 0 / Low Risk
   scanningTarget: string;
   redFlags: RedFlag[];
   flagsCritical: boolean;
@@ -1251,13 +1252,13 @@ Looks up a named employer and reports the three verification categories.
 {
   "company_name": "Jollibee Foods Corporation",
   "job_summary": "The role is a crew member at Jollibee...",
-  "red_flags": [{ "flag": "...", "reasoning": "...", "severity": "high" }]
+  "anomalies": [{ "flag": "...", "reasoning": "...", "severity": "high" }]
 }
 ```
 
 **Response:** SSE stream. The final `result` event carries `items`, `evidence`, `report`, `recommendation`, `riskScore`, `riskLevel`, `scoreBreakdown`, `search_ok`, `search_error`, and `search_count`.
 
-Only the search results are sent to the model. The job summary and the posting's red flags are deliberately excluded: the model is asked what the search shows about a *company*, and handing it a posting red flag invites it to answer about the posting instead.
+Only the search results are sent to the model. The job summary and the posting's anomalies are deliberately excluded: the model is asked what the search shows about a *company*, and handing it a posting anomaly invites it to answer about the posting instead.
 
 ### POST /api/analyze-offer
 
@@ -1310,7 +1311,7 @@ Assesses an offer that names no employer, so there is nothing to look up. One AI
 | FR-28 | InvalidContentError.tsx, scan.py | Implemented |
 | FR-29 | ResumeMatchView, App.tsx | Implemented |
 | FR-30 | entrypoints/popup/ | Implemented |
-| FR-31 | CompanyNameNeeded, OfferAnalysisCard, RiskGauge, riskDisplay.ts | Implemented — missing name is a missing input, not a red flag |
+| FR-31 | CompanyNameNeeded, OfferAnalysisCard, RiskGauge, riskDisplay.ts | Implemented — missing name is a missing input, not an anomaly |
 | FR-32 | ScamScanView, riskDisplay, riskAccent, useFlipReorder, ScanActions | Implemented — high/critical leads with the evidence |
 | NFR-01 | All components, imageUtils.ts | Implemented |
 | NFR-02 | api.ts, ai_limiter.py, scan.py | Implemented |
@@ -1330,5 +1331,5 @@ Assesses an offer that names no employer, so there is nothing to look up. One AI
 
 *Notes on this revision (0.4.0 → 0.5.0): a settled high or critical score now promotes the evidence above the prose and tints the panel chrome (FR-32); the verification recommendation is addressed to a job seeker rather than assigning a registry lookup; the scan prompt's severity list no longer offers a missing employer as an example of a low-severity flag, which had been scoring nameless postings at 4; and a scanned job's stored result is replaced when verification lands, so a history entry no longer disagrees with the panel about the same posting.*
 
-*Earlier revision (0.3.0 → 0.4.0): web search moved from DuckDuckGo scraping to the Tavily API; the SEC-only registration check was widened to "Official Registration"; the AI-provided `VERDICT_PERCENTAGE` score was replaced by the two-stage posting/verification blend; a missing employer name became a distinct state rather than a red flag; search relevance was fixed by the `country` boost and a suffix strip rather than by category tokens; the credit knobs became environment values; and the temporary search debug surface (`/api/debug/search`, `SearchRawPanel`, `SearchOutcome.raw_response`) was removed once the ranking fix was confirmed by a real run.*
+*Earlier revision (0.3.0 → 0.4.0): web search moved from DuckDuckGo scraping to the Tavily API; the SEC-only registration check was widened to "Official Registration"; the AI-provided `VERDICT_PERCENTAGE` score was replaced by the two-stage posting/verification blend; a missing employer name became a distinct state rather than an anomaly; search relevance was fixed by the `country` boost and a suffix strip rather than by category tokens; the credit knobs became environment values; and the temporary search debug surface (`/api/debug/search`, `SearchRawPanel`, `SearchOutcome.raw_response`) was removed once the ranking fix was confirmed by a real run.*
 
