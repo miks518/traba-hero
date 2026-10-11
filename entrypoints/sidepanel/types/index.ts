@@ -250,6 +250,18 @@ export type ApiStatus = 'idle' | 'loading' | 'success' | 'error';
 export interface ApiScanResponse {
   valid: boolean;
   anomalies: { flag: string; reasoning: string; severity: string }[];
+  /**
+   * What the posting states about itself, in the poster's own words. Only keys
+   * the posting actually stated are present — an absent key means it said
+   * nothing, which is a missing input rather than a finding.
+   *
+   * This is what makes dynamic retrieval possible, and until the panel sent it
+   * to `/api/verify` nothing was retrieved from it at all: the scheme queries
+   * are built server-side from these, so an extension that dropped the field
+   * left every verification at two employer queries and `Channel Match` — the
+   * one check that can detect an impersonation — structurally unable to fire.
+   */
+  attributes?: Record<string, string>;
   job_summary: string;
   error?: string | null;
   company_name?: string | null;

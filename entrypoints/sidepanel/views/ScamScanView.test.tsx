@@ -204,3 +204,96 @@ describe('score stays in sync between the panel and history', () => {
     expect(updated.riskScore).toBe(0);
   });
 });
+
+/**
+ * The panel has to hand `/api/verify` the posting's own stated details.
+ *
+ * These four fields are what the backend builds its scheme queries from, and
+ * they are quoted back to the model as the claims that `Location / Branch`,
+ * `Channel Match` and `Scheme Corroboration` test. Without them every
+ * verification issues the same two employer queries — and the three categories
+ * that exist to catch an impersonation of a real company are structurally
+ * unable to redden.
+ *
+ * The whole design sat inert behind this one field, and nothing said so: the
+ * backend accepted `attributes`, defaulted it to `{}`, and returned a perfectly
+ * ordinary-looking result. The backend's own test closes the schema → prompt
+ * loop by POSTing `attributes` by hand, so it cannot see a client that never
+ * sends them. This drives the real component and asserts what it asks for.
+ */
+describe('the scan response reaches the verify request', () => {
+  const scanWithAttributes = {
+    ...scanResponse,
+    attributes: {
+      COMPANY: 'Tanika',
+      LOCATION: 'Maingate Terminal',
+      CONTACT_METHOD: 'personal Gmail',
+      MEETING_SPOT: 'Maingate Terminal',
+    },
+  };
+
+  beforeEach(() => {
+    mocks.scanScreenshotStream.mockImplementation(async (_imgs, _sig, onProgress) => {
+      onProgress?.({ percent: 50, stage: 'Analyzing' });
+      return { response: scanWithAttributes };
+    });
+    mocks.verifyJobStream.mockImplementation(async () => ({ result: verifyResponse }));
+    mocks.analyzeOfferStream.mockResolvedValue({ data: null });
+  });
+
+  it('asks /api/verify about what the posting says about itself', async () => {
+    const { ScamScanView } = await import('./ScamScanView');
+    render(React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true }));
+
+    await pickElement();
+    await clickScan();
+
+    await waitFor(() => expect(mocks.verifyJobStream).toHaveBeenCalled(), { timeout: 3000 });
+    const [context] = mocks.verifyJobStream.mock.calls[0];
+
+    // The assertion is on the values, not on the key being present: a client
+    // that sent `attributes: {}` would satisfy a `toBeDefined()` and leave
+    // every scheme query unbuilt.
+    expect(context.attributes).toEqual(scanWithAttributes.attributes);
+  });
+
+  it('still names the employer alongside them', async () => {
+    // The overcorrection. Forwarding attributes is not a replacement for the
+    // employer query, and a panel that sent only the attributes would produce a
+    // verification about a bus terminal.
+    const { ScamScanView } = await import('./ScamScanView');
+    render(React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true }));
+
+    await pickElement();
+    await clickScan();
+
+    await waitFor(() => expect(mocks.verifyJobStream).toHaveBeenCalled(), { timeout: 3000 });
+    const [context] = mocks.verifyJobStream.mock.calls[0];
+
+    expect(context.company_name).toBe('Acme Trading');
+    expect(context.attributes).toBeTruthy();
+  });
+
+  it('sends no attributes when the scan reported none', async () => {
+    // A posting that states no checkable detail must still verify, at the two
+    // employer queries. Passing `undefined` rather than fabricating keys is what
+    // keeps a sparse posting costing what it cost before.
+    mocks.scanScreenshotStream.mockImplementation(async (_imgs, _sig, onProgress) => {
+      onProgress?.({ percent: 50, stage: 'Analyzing' });
+      const { attributes: _omitted, ...without } = scanWithAttributes;
+      return { response: without };
+    });
+
+    const { ScamScanView } = await import('./ScamScanView');
+    render(React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true }));
+
+    await pickElement();
+    await clickScan();
+
+    await waitFor(() => expect(mocks.verifyJobStream).toHaveBeenCalled(), { timeout: 3000 });
+    const [context] = mocks.verifyJobStream.mock.calls[0];
+
+    expect(context.company_name).toBe('Acme Trading');
+    expect(context.attributes ?? {}).toEqual({});
+  });
+});

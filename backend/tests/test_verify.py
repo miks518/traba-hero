@@ -1583,3 +1583,118 @@ class TestSchemeQueriesAreIssued:
         )
         assert "Maingate Terminal" in user_text
 
+
+
+class TestTheScanResponseCarriesItsAttributesToRetrieval:
+    """The leg that made the whole design inert, end to end inside the backend.
+
+    The tests above POST `attributes` by hand, which closes the schema -> prompt
+    loop but not the scan-response -> request-body leg. That leg is where the
+    feature actually broke: `ScanResponse` carried the attributes, the extension
+    read nothing of the sort, so `VerifyRequest.attributes` arrived as `{}` on
+    every scan, `build_scheme_queries` was called with an empty dict, and zero
+    scheme queries were ever issued.
+
+    Started from what the model wrote rather than from a hand-written dict, so
+    this fails if either end moves: a parser that stops emitting the block, a
+    response builder that drops the field, and a flow that stops reading it all
+    break it.
+    """
+
+    # Written to the shipped output format, with the two attribute words that
+    # Finding 2 was about kept out of the prose bodies.
+    SCAN_OUTPUT = (
+        "VALID: true\n"
+        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee | high\n"
+        "END ANOMALIES\n"
+        "ATTRIBUTES:\n"
+        "COMPANY: Tanika\n"
+        "LOCATION: Maingate Terminal\n"
+        "CONTACT_METHOD: personal Gmail\n"
+        "END ATTRIBUTES\n"
+        "EMPLOYER NAME: Tanika\n"
+        "POSTING ANALYSIS:\n"
+        "The posting asks for money before work begins.\n"
+        "Do not send any money or ID photos.\n"
+        "END POSTING ANALYSIS\n"
+        "JOB SUMMARY:\n"
+        "A crew role paid monthly.\n"
+        "END JOB SUMMARY\n"
+    )
+
+    def _scan_response(self):
+        """What the scan endpoint hands the extension."""
+        from app.services.lm_client import _parse_custom
+        from app.services.scanner import _scan_response
+
+        parsed = _parse_custom(self.SCAN_OUTPUT)
+        assert parsed is not None
+        return _scan_response(parsed, parsed.get("company_name") or "")
+
+    def test_the_scan_response_carries_the_attributes_the_model_reported(self):
+        scan = self._scan_response()
+
+        assert scan.attributes == {
+            "COMPANY": "Tanika",
+            "LOCATION": "Maingate Terminal",
+            "CONTACT_METHOD": "personal Gmail",
+}
+
+    @pytest.mark.asyncio
+    async def test_those_attributes_are_the_ones_the_searches_are_built_from(self):
+        scan = self._scan_response()
+        issued: list = []
+
+        def _record(query, max_results=None):
+            # Sync, not async: the flow reaches `search` through
+            # `asyncio.to_thread`, so a coroutine would be awaited into an
+            # object with no `.ok`.
+            issued.append(query)
+            return _search_ok()
+
+        with (
+            patch("app.routers.scan.search", side_effect=_record),
+            patch("app.routers.scan.chat", return_value=_chat_corroboration()),
+        ):
+            async with AsyncClient(transport=transport, base_url="http://test") as c:
+                resp = await c.post("/api/verify", json={
+                    "company_name": scan.company_name,
+                    "attributes": scan.attributes,
+                }, headers=HEADERS)
+
+        assert resp.status_code == 200
+        # Two about the employer, and one for each checkable attribute the scan
+        # reported. Not zero: the branch's whole purpose is these.
+        assert any("Tanika Maingate Terminal" in q for q in issued), issued
+        assert any("Tanika personal Gmail" in q for q in issued), issued
+        assert len(issued) == 4, issued
+
+    @pytest.mark.asyncio
+    async def test_a_scan_that_reported_nothing_spends_no_scheme_credit(self):
+        """The overcorrection.
+
+        Passing every attribute through unconditionally would raise the cost of
+        every verification from 2-5 credits to a fixed higher number, on a
+        deployment whose free tier is 1,000 credits a month. A sparse posting
+        must still cost what it cost before.
+        """
+        scan = self._scan_response()
+        stripped = type(scan)(**{**scan.model_dump(), "attributes": {}})
+        issued: list = []
+
+        def _record(query, max_results=None):
+            issued.append(query)
+            return _search_ok()
+
+        with (
+            patch("app.routers.scan.search", side_effect=_record),
+            patch("app.routers.scan.chat", return_value=_chat_corroboration()),
+        ):
+            async with AsyncClient(transport=transport, base_url="http://test") as c:
+                resp = await c.post("/api/verify", json={
+                    "company_name": stripped.company_name,
+                    "attributes": stripped.attributes,
+                }, headers=HEADERS)
+
+        assert resp.status_code == 200
+        assert len(issued) == 2, issued

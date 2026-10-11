@@ -501,13 +501,29 @@ async function consumeSseStreamOffer(
   return null;
 }
 
+/**
+ * What `/api/verify` is asked about.
+ *
+ * `attributes` is the posting's own stated details, forwarded verbatim from the
+ * scan response. The backend builds the scheme queries from it and quotes it
+ * back to the model as the claims its categories test, so dropping it here is
+ * not a local loss: every scheme query disappears and three of the six claim
+ * categories have nothing to reason about.
+ */
+export interface VerifyContext {
+  company_name: string;
+  job_summary: string;
+  anomalies?: { flag: string; reasoning: string; severity: string }[];
+  attributes?: Record<string, string>;
+}
+
 export interface VerifyStreamResult {
   result?: VerificationResult & { riskScore?: number; riskLevel?: string; scoreBreakdown?: RiskScoreBreakdown };
   timedOut?: boolean;
 }
 
 export async function verifyJobStream(
-  context: { company_name: string; job_summary: string; anomalies?: { flag: string; reasoning: string; severity: string }[] },
+  context: VerifyContext,
   externalSignal: AbortSignal,
   onProgress: (progress: ScanProgress) => void,
   onSearch: (query: string, round: number) => void,

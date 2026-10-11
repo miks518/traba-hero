@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RiskGauge, AnomaliesList, ScanActions, PickerButton, InvalidContentError, EvidenceSummary, OfferAnalysisCard, CompanyNameNeeded, PostingAnalysis, JobSummary } from '../components/scan';
 import { Icon, ToastContainer, useToastManager } from '../components/common';
-import { scanScreenshotStream, verifyJobStream, analyzeOfferStream, ApiRequestError, type ScanProgress } from '../lib/api';
+import { scanScreenshotStream, verifyJobStream, analyzeOfferStream, ApiRequestError, type ScanProgress, type VerifyContext } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
 import { isUnverifiedEmployer, shouldElevateEvidence } from '../lib/riskDisplay';
 import { riskAccent } from '../lib/riskAccent';
@@ -343,6 +343,13 @@ export function ScamScanView({
             company_name: verifyCtx.company_name.trim(),
             job_summary: verifyCtx.job_summary || data.job_summary || '',
             anomalies: data.anomalies,
+            // The posting's own stated details, forwarded verbatim. The backend
+            // builds its scheme queries from these and quotes them back to the
+            // model as the claims its categories test, so omitting this left
+            // every verification at the two employer queries and made Channel
+            // Match - the one check that can detect an impersonation -
+            // structurally unable to fire.
+            attributes: data.attributes,
           }, jobId);
         } else if (data.job_summary) {
           startOfferAnalysis(data.job_summary, data.company_name || '');
@@ -415,11 +422,7 @@ export function ScamScanView({
     onScanResultUpdate?.(jobId, merged);
   }, [onScanResultUpdate]);
 
-  const startVerification = useCallback(async (context: {
-    company_name: string;
-    job_summary: string;
-    anomalies?: { flag: string; reasoning: string; severity: string }[];
-  }, jobId?: string) => {
+  const startVerification = useCallback(async (context: VerifyContext, jobId?: string) => {
     console.log('[verify] Starting verification for:', context.company_name);
     verifyAbortRef.current?.abort();
     const controller = new AbortController();
