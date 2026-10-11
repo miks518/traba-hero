@@ -63,6 +63,7 @@ from app.services.scanner import (
     _match_event_stream,
     _parse_analyze_offer,
     _parse_verification_result,
+    _today_instruction,
     _parse_verify_section,
     _posting_risk_from_flags,
     _refutation_score_from_verify,
@@ -136,7 +137,7 @@ async def scan(req: ScanRequest, request: Request, _auth: None = Depends(require
 
     log.info("Scan: sending %d image(s) to %s", len(images), settings.model_name or "AI provider")
     content: list[dict] = [
-        {"type": "text", "text": IMAGE_SCAN_INSTRUCTION + "\n\n" + SCAN_OUTPUT_FORMAT + "\n\n" + _language_instruction(req.language)},
+        {"type": "text", "text": IMAGE_SCAN_INSTRUCTION + "\n\n" + SCAN_OUTPUT_FORMAT + "\n\n" + _today_instruction() + "\n\n" + _language_instruction(req.language)},
     ]
     for img in images:
         content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}})
@@ -169,7 +170,7 @@ async def scan_text(req: ScanTextRequest, request: Request, _auth: None = Depend
         return ScanResponse(valid=False)
     log.info("Text scan: %d chars to %s", len(req.text), settings.model_name or "AI provider")
 
-    user_content = TEXT_SCAN_INSTRUCTION.replace("{text}", req.text) + "\n\n" + SCAN_OUTPUT_FORMAT + "\n\n" + _language_instruction(req.language)
+    user_content = TEXT_SCAN_INSTRUCTION.replace("{text}", req.text) + "\n\n" + SCAN_OUTPUT_FORMAT + "\n\n" + _today_instruction() + "\n\n" + _language_instruction(req.language)
 
     messages = [
         {"role": "system", "content": load_system_prompt()},

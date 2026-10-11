@@ -23,7 +23,7 @@ from .risk_calculator import (
     _refutation_score_from_verify,
 )
 from .scan_flow import _scan_event_stream
-from .scan_result import _VALID_LINE_RE, _anomalies, _language_instruction, _scan_response
+from .scan_result import _VALID_LINE_RE, _anomalies, _language_instruction, _scan_response, _today_instruction
 from .sse import _sse
 from .verification_flow import verification_event_stream
 from .verification_parser import _parse_verification_result, _parse_verify_section
@@ -46,6 +46,7 @@ __all__ = [
     "_anomalies",
     "_language_instruction",
     "_scan_response",
+    "_today_instruction",
     "_sse",
     "_VALID_LINE_RE",
     "_scan_event_stream",
