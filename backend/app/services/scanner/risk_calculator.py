@@ -46,15 +46,39 @@ MAX_REFUTATION_SCORE = 50
 # Results recorded before the rename used "SEC Registration". It carried the
 # registration weight then and must carry it now, or a stored verification
 # silently rescores to the default of 0 -- which returns None, so a refuted
-# claim would render as a stage that never ran. The value is spelled the way
-# `REFUTATION_WEIGHTS` spells it, because the lookup key is lowercased and a
-# lowercase value would score every legacy result at zero.
+# claim would render as a stage that never ran.
 #
 # Mirrors `_LEGACY_LABELS` in verification_parser. Kept as its own literal rather
 # than imported: that module pulls in the verification prompt, and this one is a
 # pure scoring module that has to stay importable on its own. Two copies is a
 # drift risk and is recorded as one rather than quietly accepted.
 _LEGACY_LABEL_MAP = {"sec registration": "Official Registration"}
+
+# Derived from `REFUTATION_WEIGHTS` at import, never restated. The lookup folds
+# case on both sides, and a hand-written second copy of the table is a weight
+# that can be added above and missed below -- which is the failure that produced
+# this one. Asserted by `TestTheLabelLookupIsCaseInsensitive`.
+_REFUTATION_WEIGHTS_BY_LOWER = {label.lower(): weight for label, weight in REFUTATION_WEIGHTS.items()}
+
+
+def _weight_for(label: str) -> int:
+    """Points for one refuted category. Zero for a label with no weight.
+
+    Both sides of the lookup are case-folded. The structured path cannot produce
+    a lowercase label -- the JSON schema's enum is title case and
+    `verification_flow` goes through it -- but the labeled-text fallback accepts
+    whatever label it reads, so a model answering `VERIFY: channel match`
+    reaches here. It used to miss the table, score zero, and leave the stage
+    returning `None`: a genuine refutation silently discarded, which is the one
+    direction of error worth being paranoid about, because the reader would be
+    shown a corroborated-as-clean posting.
+
+    A label that is still not found after folding stays zero rather than picking
+    up a default. Case folding widens the match, it does not invent one:
+    "channel-match" is a different string and remains silence.
+    """
+    canonical = _LEGACY_LABEL_MAP.get(label.strip().lower(), label)
+    return _REFUTATION_WEIGHTS_BY_LOWER.get(canonical.strip().lower(), 0)
 
 
 def _level_for(score: int) -> str:
@@ -177,9 +201,7 @@ def _refutation_score_from_verify(items: list[VerificationItem]) -> int | None:
     for item in items:
         if item.status != "red":
             continue
-        label = item.label.strip()
-        label = _LEGACY_LABEL_MAP.get(label.lower(), label)
-        penalty += REFUTATION_WEIGHTS.get(label, 0)
+        penalty += _weight_for(item.label)
 
     if penalty <= 0:
         return None

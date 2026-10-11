@@ -413,6 +413,69 @@ class TestCombineScoresHasAFloor:
         assert _combine_scores(100, MAX_REFUTATION_SCORE) == (100, "critical")
 
 
+class TestTheLabelLookupIsCaseInsensitive:
+    """A refutation written in the wrong case is still a refutation.
+
+    The JSON schema's enum is title case and `verification_flow` goes through it,
+    so the structured path cannot produce `channel match`. The labeled-text
+    fallback can: `verification_parser` accepts whatever label it reads, and a
+    model that writes `VERIFY: channel match` without the schema produces exactly
+    that.
+
+    Missed the table, it scored zero, `penalty` stayed at 0, and the stage
+    returned `None`. A genuine refutation was silently discarded -- and that is
+    the one direction of error worth being paranoid about, because the reader
+    would be shown a posting that had been corroborated as clean.
+    """
+
+    def test_a_lowercase_category_scores_its_full_weight(self):
+        items = [VerificationItem(label="channel match", status="red", explanation="")]
+
+        assert _refutation_score_from_verify(items) == REFUTATION_WEIGHTS["Channel Match"]
+
+    def test_every_category_survives_a_case_change(self):
+        """Parametrised over the whole table, not the one label that was reported.
+
+        Picking Channel Match alone would leave five keys that could still be
+        exact-cased, and the same bug would ship for them.
+        """
+        for label, weight in REFUTATION_WEIGHTS.items():
+            items = [VerificationItem(label=label.lower(), status="red", explanation="")]
+            assert _refutation_score_from_verify(items) == weight, label
+
+    def test_a_legacy_label_survives_a_case_change(self):
+        items = [VerificationItem(label="sec registration", status="red", explanation="")]
+
+        assert _refutation_score_from_verify(items) == REFUTATION_WEIGHTS["Official Registration"]
+
+    def test_case_folding_does_not_invent_a_weight(self):
+        """The overcorrection.
+
+        Lowercasing the lookup key could have been done by lowercasing the table
+        too and comparing loosely, which would let near-misses in. "Channel
+        Match " with trailing whitespace is still the same label and still
+        scores; "channel-match" is a different string and is still silence.
+        """
+        padded = [VerificationItem(label="Channel Match ", status="red", explanation="")]
+        unknown = [VerificationItem(label="channel-match", status="red", explanation="")]
+
+        assert _refutation_score_from_verify(padded) == REFUTATION_WEIGHTS["Channel Match"]
+        assert _refutation_score_from_verify(unknown) is None
+
+    def test_the_table_and_the_lookup_cannot_drift_apart(self):
+        """`_REFUTATION_WEIGHTS_BY_LOWER` is derived, not restated.
+
+        It is built at import from `REFUTATION_WEIGHTS`, so a weight added there
+        is a weight this stage can find. Asserted on the sizes rather than on the
+        dict: a lookup table missing a key is exactly the failure, and an equality
+        check against itself would not notice a dropped entry.
+        """
+        from app.services.scanner.risk_calculator import _REFUTATION_WEIGHTS_BY_LOWER
+
+        assert len(_REFUTATION_WEIGHTS_BY_LOWER) == len(REFUTATION_WEIGHTS)
+        assert set(_REFUTATION_WEIGHTS_BY_LOWER) == {k.lower() for k in REFUTATION_WEIGHTS}
+
+
 class TestTheRetiredEmployerStageIsStillExported:
     """The tombstone for the function the other tests used to assert through.
 
