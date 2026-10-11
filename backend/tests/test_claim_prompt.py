@@ -57,10 +57,35 @@ def test_green_confirms_and_adds_nothing(prompt):
 
 
 def test_no_verdict_words_in_the_output_rules(prompt):
-    for word in ("legitimate", "fraudulent", "genuine"):
-        assert f"never use {word}" in prompt or f"do not use {word}" in prompt or \
-            f"never write {word}" in prompt, (
-            f"the output rules must still ban {word} — this is the libel guardrail"
+    """Each verdict word must sit on a line that actually prohibits it.
+
+    Matched per line rather than as a fixed phrase like "never write
+    legitimate", because a rewrite that reads "Never write legitimate,
+    genuine, fraudulent, honest, or suspicious" states exactly the same ban in
+    fewer tokens. Loosening the matcher to plain containment would have been the
+    wrong repair — the word also appears in "legitimate" inside unrelated prose,
+    so containment passes a prompt that no longer bans anything. Requiring the
+    prohibition to open the line is what keeps this a guardrail: the word has to
+    be doing prohibitory work, not merely appearing.
+    """
+    lines = [
+        line.strip().lstrip("-").strip().lower()
+        for line in prompt.splitlines()
+        if line.strip()
+    ]
+    for word in ("legitimate", "fraudulent", "genuine", "suspicious"):
+        banned = [
+            line
+            for line in lines
+            if word in line
+            and (
+                line.startswith("never write")
+                or line.startswith("do not use")
+                or line.startswith("never use")
+            )
+        ]
+        assert banned, (
+            f"the output rules must still ban {word} - this is the libel guardrail"
         )
 
 
@@ -80,10 +105,10 @@ def test_every_claim_category_is_documented():
                for c in VERIFY_CLAIM_CATEGORIES)
 
 
-def test_scheme_corroboration_requires_the_same_scheme():
+def test_similar_offers_requires_the_specific_offer():
     body = (PROMPT.read_text(encoding="utf-8") + _FALLBACK_VERIFY_PROMPT).lower()
-    assert "same scheme" in body or "this specific scheme" in body, (
-        "a page about task-for-earning schemes generally establishes nothing "
+    assert "same offer" in body or "this specific offer" in body, (
+        "a page about earning offers in general establishes nothing "
         "about this posting and must not redden a category"
     )
 
@@ -136,7 +161,7 @@ def test_the_finding_rule_bans_the_status_words_rather_than_mentioning_them(find
     ), "the rule must prohibit these words, not merely mention them"
 
 
-def test_both_prompt_copies_carry_the_same_scheme_rule_separately():
+def test_both_prompt_copies_carry_the_specific_offer_rule_separately():
     """Mutation check: the plan's version concatenates the two copies, so it
     passes even when only the fallback has the rule — which is precisely the
     one-sided drift this prompt has suffered before.
@@ -149,8 +174,8 @@ def test_both_prompt_copies_carry_the_same_scheme_rule_separately():
         ("VERIFY_PROMPT.md", PROMPT.read_text(encoding="utf-8").lower()),
         ("fallback", _FALLBACK_VERIFY_PROMPT.lower()),
     ):
-        assert "same scheme" in copy or "this specific scheme" in copy, (
-            f"{name} is missing the same-scheme rule; the two copies must agree "
+        assert "same offer" in copy or "this specific offer" in copy, (
+            f"{name} is missing the same-offer rule; the two copies must agree "
             "on their own, not in combination"
         )
 

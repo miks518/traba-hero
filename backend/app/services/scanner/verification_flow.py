@@ -4,9 +4,11 @@ from collections.abc import AsyncIterator
 
 from app.config import settings
 from app.models.schemas import VerificationItem, VerifyRequest
+from app.services.lm_client import MAX_SEARCH_QUERIES
 
 from .dependencies import runtime
-from .verification_parser import EXPECTED_CATEGORIES, VerificationParseError
+from .verification_parser import VerificationParseError
+from .verification_prompt import expected_categories
 
 
 log = logging.getLogger("trabahero")
@@ -148,13 +150,18 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         # never sends `attributes` must produce no scheme query, not an
         # AttributeError halfway through the stream.
         company_queries = runtime.get_build_queries()(company)
-        scheme_queries = runtime.get_build_scheme_queries()(
-            getattr(req, "attributes", None) or {}, company
-        )
+        # The model's own proposals, in place of the scheme queries this used to
+        # build from `attributes`. Read off the request rather than off the
+        # response, because the extension is what carries them across.
+        #
+        # `getattr` for the same reason as `attributes`: a client that predates
+        # the field sends none, and must produce no query rather than an
+        # AttributeError halfway through the stream.
+        model_queries = list(getattr(req, "search_queries", None) or [])[:MAX_SEARCH_QUERIES]
         # Concatenated, not merged. The loop below was already written to handle
         # a list where some queries succeed and some fail, and that is the shape
-        # five queries of mixed provenance produce.
-        queries = company_queries + scheme_queries
+        # three queries of mixed provenance produce.
+        queries = company_queries + model_queries
         collected: list = []
         # TEMPORARY DIAGNOSTIC. The provider's raw body per query, so the panel
         # can show what Tavily actually returned. Remove alongside
@@ -225,12 +232,18 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         # A partial parse used to be silent: the panel showed one card while the
         # raw response clearly listed three, with nothing in the log to connect
         # the two. Name what is missing so the next occurrence is diagnosable.
-        missing = runtime.get_missing_categories()(items)
+        #
+        # The expectation is the *gated* set — what the posting's own claims made
+        # testable — not all six categories. Comparing against six would warn on
+        # every scan that states no location, and a warning that fires on almost
+        # every request is a warning nobody reads.
+        expected = expected_categories(req)
+        missing = runtime.get_missing_categories()(items, expected)
         if missing:
             log.warning(
                 "[verify] Parsed %d of %d expected categories; missing: %s. raw=%s json=%s",
                 len(items),
-                len(EXPECTED_CATEGORIES),
+                len(expected),
                 ", ".join(missing),
                 used_json,
                 final_text[:800],
@@ -304,12 +317,18 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "search_error": first_error,
             "search_count": len(merged),
             "queries_issued": len(queries),
-            # Which of those queries came from the posting's own claims, so the
-            # panel can say what was looked up. Reported separately from
-            # `queries_issued` because the two families answer different
-            # questions: one asks about the employer, the other about whether
-            # the posting's claims are the employer's own.
-            "scheme_queries": scheme_queries,
+            # Which of those queries the scan model proposed, so the panel can
+            # say what was looked up. Reported separately from `queries_issued`
+            # because the two families answer different questions: one asks
+            # about the employer, the other about whether the posting's claims
+            # are the employer's own.
+            #
+            # Renamed from `scheme_queries`: nothing builds these from
+            # attributes any more, and the panel reads this out as *what was
+            # searched*. A field name describing a mechanism that no longer
+            # exists would be a small lie in the one place the user can audit
+            # the lookup.
+            "model_queries": model_queries,
             "queries_failed": len(failures),
             "debug_search_raw": raw_dump,  # TEMPORARY DIAGNOSTIC — remove with SearchOutcome.raw_response
             "no_company_name": False,

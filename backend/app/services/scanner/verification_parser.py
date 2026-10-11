@@ -50,10 +50,19 @@ _LABEL_END_RE = re.compile(
 # the categories is how they drifted apart once already.
 EXPECTED_CATEGORIES = VERIFY_CLAIM_CATEGORIES
 
-# Results recorded before the rename used "SEC Registration". Without this a
-# stored verification would log a phantom missing category on every run.
+# Results recorded before a rename carry a label this module no longer names.
+# Without these a stored verification would log a phantom missing category on
+# every run, and — the part that costs points — score it as an unweighted label.
 # Values are lower-cased to match the comparison below.
-_LEGACY_LABELS = {"sec registration": "official registration"}
+#
+# "Scheme Corroboration" became "Similar Offers" in 2026-10 because the old name
+# used two words a job seeker cannot be expected to have. `risk_calculator` keeps
+# a mirrored table; an alias in only one of the two means the category parses and
+# renders while scoring zero.
+_LEGACY_LABELS = {
+    "sec registration": "official registration",
+    "scheme corroboration": "similar offers",
+}
 
 
 class VerificationParseError(RuntimeError):
@@ -138,10 +147,22 @@ def _parse_verify_section(text: str, name: str) -> str:
     return match.group(1).strip() if match else ""
 
 
-def _missing_categories(items: list[VerificationItem]) -> list[str]:
-    """Which expected categories the model did not actually report."""
+def _missing_categories(
+    items: list[VerificationItem],
+    expected: set[str] | None = None,
+) -> list[str]:
+    """Which expected categories the model did not actually report.
+
+    `expected` is what the posting's claims made testable — see
+    `verification_prompt.expected_categories`. It defaults to the full
+    vocabulary so a caller that has no request to hand still gets an answer, but
+    the verification flow passes the gated set: comparing against all six would
+    warn on every scan that states no location, and a warning that fires on
+    almost every request is one nobody reads.
+    """
     present = {
         _LEGACY_LABELS.get(i.label.strip().lower(), i.label.strip().lower())
         for i in items
     }
-    return [c for c in EXPECTED_CATEGORIES if c.lower() not in present]
+    wanted = EXPECTED_CATEGORIES if expected is None else expected
+    return [c for c in wanted if c.lower() not in present]

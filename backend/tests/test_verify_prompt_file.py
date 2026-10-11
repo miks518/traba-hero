@@ -36,6 +36,20 @@ class TestTheFileIsTheSource:
         """Not from the fallback: the two must not silently diverge."""
         assert VERIFY_SYSTEM_PROMPT.strip() == text.strip()
 
+    def test_the_fallback_is_a_copy_of_the_file_and_not_an_older_revision(self):
+        """The drift this repo has already had once, closed.
+
+        `_FALLBACK_VERIFY_PROMPT` is a second copy of the longest prompt in the
+        project, and nothing compared it to the file. Editing the file alone
+        left the fallback holding a prompt that had since dropped a rule — and
+        the tests above read the *file*, so they stayed green the whole time. The
+        deployment that hits this is the one with no `VERIFY_PROMPT.md`: the copy
+        nobody edits, serving rules nobody re-reads.
+        """
+        from app.services.scanner.verification_prompt import _FALLBACK_VERIFY_PROMPT
+
+        assert _FALLBACK_VERIFY_PROMPT.strip() == text.strip()
+
     def test_the_file_wins_over_the_in_module_copy(self, monkeypatch, tmp_path):
         """Proof the file is the source and the constant is only a fallback.
 
@@ -140,3 +154,23 @@ class TestTheGuardrailsSurvivedTheMove:
         low = text.lower()
         assert "addressed to a job seeker" in low
         assert "do not tell them to check a registry" in low
+
+    def test_the_six_categories_are_a_vocabulary_and_not_a_quota(self):
+        """The system prompt must not outrank the request's gating instruction.
+
+        The request tells the model which categories to report and which to omit,
+        and that only works if the system prompt does not also say "report on
+        exactly these six". Two instructions in the same request, one of them
+        telling the model to ignore the other, is how the gating gets silently
+        undone — and the six placeholder cards come back with no error anywhere.
+        """
+        low = text.lower()
+
+        assert "exactly these six" not in low
+        assert "include all six" not in low
+        assert "not a quota" in low
+        # The system prompt's half of the deferral. The literal DO NOT REPORT
+        # list is in the per-request gating instruction, which
+        # `test_claim_gating.py` covers — this is about the file the backend
+        # loads not overriding it.
+        assert "told to report and no others" in low
