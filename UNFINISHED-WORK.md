@@ -15,6 +15,49 @@ for the developer to run instead.
 
 ---
 
+## The scan still reports something for every posting
+
+Measured live on 2026-10-12, after narrowing the severity ladder and adding an
+actionability bar (`54e50f8`). Three of five probe postings improved and one held,
+but the model still finds a finding in every posting it is shown:
+
+- `clean-specific` (registered nurse, stated salary, corporate domain) came back
+  `low` for **"applies in person at a retail mall office rather than a typical
+  clinical facility"** - the right place to apply for a Starmills job. The model
+  invented a norm and flagged the deviation from it. This is the failure mode the
+  actionability bar was meant to catch and did not.
+- `facebook-generic` came back `low` for **"informal contact channel"** even
+  though Messenger application was added to the exclusion list in the same
+  commit. The model is not consulting the list, and the actionability bar appears
+  to give it a second justification: "would a reader act differently?" reads as
+  yes for almost anything.
+
+**The next lever is to drop `low` from the severity ladder entirely**, so the
+model must report at `mid` (now only paid-tasks-not-a-role) or `high` or stay
+silent. `POSTING_SEVERITY_WEIGHTS` keeps `low: 4` for stored results, so this is
+a prompt-only change with no scoring migration.
+
+**It is not done because it cannot be verified.** The probe budget is spent, and
+this is precisely the change where being wrong is costly: if the model promotes
+everything to `mid` instead of going quiet, every posting scores 12 for noise
+and the product looks broken. It needs live runs on the same five-posting
+corpus to be worth doing.
+
+**To verify when quota is available**, re-run the same corpus and compare:
+
+| posting | before `54e50f8` | after | expected after removing `low` |
+|---|---|---|---|
+| clean-specific | mid, 12 | low, 4 | none |
+| facebook-generic | mid+mid, 24 | low+low, 8 | none, or one low-equivalent |
+| task-earning-dm | mid, 12 | mid, 12 | **mid, 12 - must not be lost** |
+| advance-fee-scam | high+high+mid | untested | **high+high - must not be lost** |
+| date-two-days-out | mid, 12 | untested | none |
+
+The two bolded rows are the regression guards. A change that silences them has
+failed even if every other cell improves.
+
+---
+
 ## Task 2.3 — Defamation-Safe AI Output
 
 Code is integrated, the offline gates pass, and the developer has confirmed the
