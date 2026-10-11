@@ -215,6 +215,20 @@ class TestPostingAttributes:
         # parser that simply stopped reading everything.
         assert result["company_name"] == "Tanika"
 
+    def test_a_query_line_inside_the_attributes_block_is_not_an_attribute(self):
+        """The same line inside ATTRIBUTES, where a match would have been silent.
+
+        `in_attributes` is the gate, and this is the case where the gate is open.
+        A stray `QUERY:` here used to be harvested into `attributes` under a key
+        nothing queries, which is how a value reached the claims block with
+        nothing in the posting behind it.
+        """
+        raw = "VALID: true\nATTRIBUTES:\nQUERY: Tanika scam recruitment\nEND ATTRIBUTES\n"
+        result = _parse_custom(raw)
+
+        assert "QUERY" not in result["attributes"]
+        assert result["attributes"] == {}
+
     # ── Added beyond the brief ────────────────────────────────────────────
     # The two tests below are not in the brief. Each exists because its named
     # mutation target passed anyway: the original input never contained the
@@ -256,3 +270,147 @@ class TestPostingAttributes:
         first, second = _parse_custom(raw)["anomalies"]
         assert first["query_ref"] == "Acme processing fee Philippines"
         assert second["query_ref"] == "Acme Maingate Terminal Philippines"
+
+
+class TestProseIsNotAKeyword:
+    """An attribute key only means an attribute inside the ATTRIBUTES block.
+
+    `COMPANY`, `LOCATION` and `PAY` are words the model also uses in ordinary
+    sentences. Outside the block, `Company states applicants should bring their
+    own laptop.` is prose. Reading it as a key did two things at once: it stored
+    the sentence in `attributes`, which `build_scheme_queries` then turned into
+    a wasted credit on a query nothing can succeed at, and -- because a matched
+    keyword always closes the section first -- it truncated POSTING ANALYSIS at
+    that line. The verdict the reader is told to act on lost its second half
+    with nothing anywhere reporting it.
+
+    The colon is optional in `_SECTION_RE` for every key, so requiring one would
+    not fix this: prose carries colons too. The block is the unit of trust.
+    """
+
+    # A POSTING ANALYSIS whose body is exactly the reported failure: three
+    # sentences, the second of which begins with an attribute word.
+    PROSE_ANALYSIS = (
+        "POSTING ANALYSIS:\n"
+        "The posting asks the applicant to pay a processing fee before work begins.\n"
+        "Company states applicants should bring their own laptop.\n"
+        "Location is given as Maingate Terminal.\n"
+        "END POSTING ANALYSIS\n"
+    )
+
+    def test_a_sentence_beginning_with_an_attribute_word_is_not_harvested(self):
+        result = _parse_custom("VALID: true\n" + self.PROSE_ANALYSIS)
+
+        assert result["attributes"] == {}
+
+    def test_the_verdict_is_not_truncated_at_one_of_them(self):
+        """The headline symptom: "Part 2 -- the action" simply disappeared.
+
+        Asserted on the *last* sentence, not the first. A parser that stored the
+        body but stopped at the second line would keep sentence one and fail
+        here, and a parser that never closed the section at all would fail the
+        attribute assertion above. Both halves are needed for the pair to have
+        teeth.
+        """
+        result = _parse_custom("VALID: true\n" + self.PROSE_ANALYSIS)
+
+        analysis = result["posting_analysis"]
+        assert analysis is not None
+        assert "pay a processing fee before work begins" in analysis
+        assert "bring their own laptop" in analysis
+        assert "Maingate Terminal" in analysis
+
+    def test_the_same_prose_in_a_job_summary_is_not_harvested(self):
+        """Before the fix this produced an *absent* `job_summary`.
+
+        The JOB SUMMARY section was opened, the first line matched `PAY`, the
+        section closed with an empty buffer, and `close_section` skips writing a
+        key at all when the buffer is empty. The summary was not truncated --
+        it was gone, with no error, so the panel rendered a posting with no
+        description of the role.
+        """
+        raw = (
+            "VALID: true\n"
+            "JOB SUMMARY:\n"
+            "The post offers a crew role.\n"
+            "Pay is 26,000 monthly for a crew role.\n"
+            "END JOB SUMMARY\n"
+        )
+        result = _parse_custom(raw)
+
+        assert "job_summary" in result, "the whole summary went missing, not just its tail"
+        assert "26,000 monthly" in result["job_summary"]
+        assert result["attributes"] == {}
+
+    def test_an_attribute_word_after_the_block_has_ended_is_not_read(self):
+        """`in_attributes` is cleared by the next keyword, not just by the marker.
+
+        An implementation that cleared it only on `END ATTRIBUTES` would keep
+        harvesting for the rest of the response, including the verdict.
+
+        Parametrised over **both** ways the block can end. The first version of
+        this test used `END ATTRIBUTES`, which is the one closing a
+        terminator-only implementation also handles — so it passed under exactly
+        the mutation it claimed to guard against. A model that omits the marker
+        is the ordinary case worth surviving, so that is the case asserted here.
+        """
+        for terminator in ("END ATTRIBUTES\n", ""):
+            raw = (
+                "VALID: true\n"
+                "ATTRIBUTES:\n"
+                "COMPANY: Tanika\n"
+                f"{terminator}"
+                "EMPLOYER NAME: Tanika\n"
+                "POSTING ANALYSIS:\n"
+                "The posting states nothing alarming.\n"
+                "Pay is 26,000 monthly for a crew role.\n"
+                "END POSTING ANALYSIS\n"
+            )
+            result = _parse_custom(raw)
+
+            assert result is not None, terminator or "no terminator"
+            # The real attribute is still read: a gate that never opens would
+            # satisfy this test by reporting nothing at all.
+            assert result["attributes"] == {"COMPANY": "Tanika"}, terminator or "no terminator"
+            assert "PAY" not in result["attributes"], terminator or "no terminator"
+            assert "26,000 monthly" in result["posting_analysis"], terminator or "no terminator"
+
+    def test_the_gate_does_not_stop_the_block_itself_from_parsing(self):
+        """The overcorrection: gating the keys everywhere rather than in the block.
+
+        A parser that dropped every `COMPANY`/`LOCATION` line would pass all four
+        tests above unchanged and ship a scan that reports nothing at all -- which
+        is the state Finding 1 was about, arrived at from the other direction.
+        """
+        raw = (
+            "VALID: true\n"
+            "ATTRIBUTES:\n"
+            "COMPANY: Tanika\n"
+            "LOCATION: Maingate Terminal\n"
+            "CONTACT_METHOD: personal Gmail\n"
+            "MEETING_SPOT: Maingate Terminal\n"
+            "PAY: 26,000 monthly\n"
+            "END ATTRIBUTES\n"
+            "EMPLOYER NAME: Tanika\n"
+        )
+        result = _parse_custom(raw)
+
+        assert result["attributes"] == {
+            "COMPANY": "Tanika",
+            "LOCATION": "Maingate Terminal",
+            "CONTACT_METHOD": "personal Gmail",
+            "MEETING_SPOT": "Maingate Terminal",
+            "PAY": "26,000 monthly",
+        }
+
+    def test_the_legacy_employer_path_is_not_gated(self):
+        """`COMPANY NAME` is a different alternative and still works everywhere.
+
+        A `COMPANY NAME:` line outside ATTRIBUTES is how a scan recorded before
+        the rename still resolves its employer. It is not in `_ATTRIBUTE_KEYWORDS`
+        because it is not an attribute -- and if it were, the legacy path would
+        silently stop parsing.
+        """
+        result = _parse_custom("VALID: true\nCOMPANY NAME: Acme\n")
+
+        assert result["company_name"] == "Acme"

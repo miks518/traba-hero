@@ -273,6 +273,17 @@ _SECTION_RE = re.compile(
 # parse as nothing at all.
 _SECTION_END_KW = ("END JOB SUMMARY", "END POSTING ANALYSIS")
 
+# The keys an ATTRIBUTES block is read for, and the keys `_SECTION_RE` also
+# matches anywhere in the response. They are ordinary English words the model
+# uses in ordinary sentences, and the colon is optional for every key in
+# `_SECTION_RE`, so a section body is full of lines that match them:
+# "Company states applicants should bring their own laptop." is prose.
+#
+# So these five are gated on `in_attributes` and nothing else is. `COMPANY NAME`
+# and `EMPLOYER NAME` are deliberately absent -- the employer path has to keep
+# parsing outside the block, for scans recorded before the rename.
+_ATTRIBUTE_KEYWORDS = ("COMPANY", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY")
+
 _HIGH_SEVERITY_KEYWORDS = {
     "upfront fee", "processing fee", "training fee", "registration fee",
     "assessment fee", "medical fee", "uniform fee", "payment required",
@@ -308,6 +319,7 @@ def _parse_custom(raw: str) -> dict | None:
     result: dict = {}
     flags: list[dict] = []
     attributes: dict[str, str] = {}
+    in_attributes = False
     last_anomaly: dict | None = None
     section: str | None = None
     buf: list[str] = []
@@ -329,16 +341,56 @@ def _parse_custom(raw: str) -> dict | None:
         kw = " ".join(m.group("kw").split()).upper()
         rest = m.group("rest").strip()
 
+        # `_SECTION_RE` accepts the two-word attributes spelled with a space as
+        # well as with the underscore the prompt emits. Fold them onto the
+        # underscore form so the gate below has one spelling to test. Scoped to
+        # the attribute keys: folding `kw` wholesale would turn `COMPANY NAME`
+        # into `COMPANY_NAME`, which is a different thing.
+        if kw not in _ATTRIBUTE_KEYWORDS:
+            underscored = kw.replace(" ", "_")
+            if underscored in _ATTRIBUTE_KEYWORDS:
+                kw = underscored
+
         if kw == "END ATTRIBUTES":
+            in_attributes = False
             close_section()
             continue
         if kw in _SECTION_END_KW:
+            in_attributes = False
             close_section()
             continue
+
+        if kw in _ATTRIBUTE_KEYWORDS and not in_attributes:
+            # Prose, not a key. `Company states applicants should bring their own
+            # laptop.` matches `COMPANY`, and a matched keyword closes the
+            # section first, so reading it as a key silently truncated the
+            # verdict at that line - and could leave JOB SUMMARY absent
+            # entirely, since `close_section` writes nothing for an empty buffer.
+            #
+            # Appended back to the buffer rather than dropped: the line is
+            # ordinary text and belongs to the section that is open. Dropping it
+            # produces the same truncation with the same silence.
+            if section:
+                buf.append(line.rstrip())
+            continue
+
+        # The block is opened by ATTRIBUTES and closed by END ATTRIBUTES *and* by
+        # any other keyword. Gating on the terminator alone would keep harvesting
+        # for the rest of the response - including inside POSTING ANALYSIS, which
+        # is where the reported failure came from. An attribute key keeps the
+        # block open; anything else ends it.
+        if kw == "ATTRIBUTES":
+            in_attributes = True
+        elif kw not in _ATTRIBUTE_KEYWORDS:
+            in_attributes = False
 
         close_section()
         matched_any = True
 
+        if kw == "ATTRIBUTES":
+            # The body lines are read by the `_ATTRIBUTE_KEYWORDS` branch below.
+            # Nothing is stored on the header line itself.
+            continue
         if kw == "VALID":
             val = rest.lower()
             result["valid"] = val in ("true", "yes", "1", "legitimate", "valid")
@@ -392,11 +444,14 @@ def _parse_custom(raw: str) -> dict | None:
             # which is correct, since a low-severity note is never corroborated.
             if last_anomaly is not None:
                 last_anomaly["query_ref"] = rest
-        elif kw in ("COMPANY", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY"):
+        elif kw in _ATTRIBUTE_KEYWORDS:
             # A detail the posting did not state is omitted entirely rather than
             # stored empty. An empty LOCATION would read as "the posting stated
             # no location", which is a different claim, and would generate a
             # query that cannot succeed.
+            #
+            # Only reachable inside the ATTRIBUTES block: the gate above turns
+            # the same words into prose everywhere else.
             if rest and rest.lower() != "not stated":
                 attributes[kw] = rest
         elif kw in ("COMPANY NAME", "EMPLOYER NAME"):
