@@ -54,7 +54,21 @@ def posting(*severities):
 
 
 def verify(*pairs):
-    return _calculate_risk_score_from_verify([check(*p) for p in pairs])[0]
+    """The employer stage, as the flow actually calls it.
+
+    This used to reach `_calculate_risk_score_from_verify`, which nothing in
+    production calls. Every property asserted below therefore described a
+    function that had been superseded: the tests were green and the live stage
+    was untested. It now calls `_refutation_score_from_verify`, which is what
+    `verification_flow` invokes.
+
+    Note the return: `None` for "nothing was refuted", not `0`. Two assertions
+    below changed with the repointing -- an all-green and an all-yellow list
+    scored `0` under the retired stage's scale and score `None` under the live
+    one. That difference is the point of the stage, not an accident: `None` says
+    nothing was learned, and `0` would read as a measurement of zero risk.
+    """
+    return _refutation_score_from_verify([check(*p) for p in pairs])
 
 
 def final(posting_score, verify_score):
@@ -121,24 +135,35 @@ class TestAbsenceContributesNothing:
 
         The set has to be a *mix*: a list of one green item contains no yellow at
         all, so it would pass whether yellow carried weight or not.
+
+        The second assertion is what keeps this from passing vacuously. "Nothing
+        was learned" is also what a stage that ignores every input returns, so
+        the same list with one yellow turned red has to move the number. Without
+        that, this test would be satisfied by a function that never looks at an
+        item at all.
         """
         posting_score = posting("mid")
         mixed = [(EX, "green"), (REG, "yellow"), (REP, "yellow")]
+        mixed_with_a_refutation = [(EX, "green"), (REG, "yellow"), (REP, "red")]
 
+        assert verify(*mixed) is None
         assert final(posting_score, verify(*mixed)) == final(posting_score, None)
+        assert final(posting_score, verify(*mixed_with_a_refutation)) > posting_score
 
     def test_two_unconfirmed_categories_contribute_nothing(self):
         posting_score = posting("mid")
         mixed = [(EX, "green"), (REG, "yellow"), (REP, "yellow")]
 
-        assert verify(*mixed) == 0
+        # `None`, not 0. See `verify`'s docstring: a zero here would report a
+        # measurement of zero risk rather than the absence of a measurement.
+        assert verify(*mixed) is None
         assert final(posting_score, verify(*mixed)) == posting_score
 
     def test_green_never_contributes_either(self):
         """Green means a result stated a fact, not that the fact was reassuring."""
         posting_score = posting("mid")
 
-        assert verify(*ALL_GREEN) == 0
+        assert verify(*ALL_GREEN) is None
 
 
 class TestTheTotalIsBounded:
@@ -161,11 +186,19 @@ class TestTheTotalIsBounded:
         assert _level_for(final(posting("low"), None)) == "low"
 
 
-class TestWhatThePanelWillNowShow:
-    """The numbers behind a verdict, kept as tests because they were wrong once.
+class TestTheCombinationOverTheLiveStage:
+    """The numbers the combine step produces from the stage it really calls.
 
-    These are the readings a reader is shown, and the previous model produced
-    "no data" and "three damning categories" at the same 100.
+    Renamed from `TestWhatThePanelWillNowShow`. Every test in it ran against
+    `_calculate_risk_score_from_verify`, a 0-100 category share on the retired
+    scale, while the panel's number comes from `_refutation_score_from_verify`
+    on a 0-50 refutation sum. The class asserted readings the live stage cannot
+    produce -- `test_a_clean_posting_with_a_published_report` expected 35, which
+    no combination of these inputs reaches -- and the name claimed the opposite.
+
+    The final figures are unchanged by the rename: at posting 100 both readings
+    are 100, and that is a property of the cap rather than a defect. A posting
+    that has already maxed out is critical whether or not its employer is clean.
     """
 
     def test_three_high_flags_with_a_clean_employer(self):
@@ -178,13 +211,19 @@ class TestWhatThePanelWillNowShow:
         assert final(posting("high", "high", "high"), verify(*NO_DATA)) == 100
 
     def test_a_clean_posting_with_a_published_report(self):
-        """A posting with no indicators, at an employer with a scam report.
+        """A posting with no indicators, at an employer with a published report.
 
-        Worth pinning because it is the case the blend hid: 0.6*0 + 0.4*35 was a
-        rounding error, so the employer finding was effectively discarded.
+        Worth pinning because it is the case the blend hid. The refuted
+        Reputation claim stands entirely on its own here: the posting stage
+        contributes nothing, so the whole number is the evidence stage's. It was
+        35 under the retired share of a blend and is 10 under the live refutation
+        weight -- and the direction of the change is the one that matters, since
+        the number can no longer be pulled down by averaging it with a posting
+        score of zero.
         """
-        assert final(posting(), verify(*REP_RED)) == 35
-        assert _level_for(35) == "moderate"
+        assert verify(*REP_RED) == REFUTATION_WEIGHTS["Reputation"]
+        assert final(posting(), verify(*REP_RED)) == REFUTATION_WEIGHTS["Reputation"]
+        assert _level_for(final(posting(), verify(*REP_RED))) == "low"
 
 
 class TestRefutationScoring:
@@ -372,3 +411,45 @@ class TestCombineScoresHasAFloor:
         off the scale.
         """
         assert _combine_scores(100, MAX_REFUTATION_SCORE) == (100, "critical")
+
+
+class TestTheRetiredEmployerStageIsStillExported:
+    """The tombstone for the function the other tests used to assert through.
+
+    `_calculate_risk_score_from_verify` is no longer on any production path --
+    `verification_flow` calls `_refutation_score_from_verify` -- but
+    `test_scanner_package.py` pins the package's symbol list, so it stays
+    exported. Keeping one test pointed at it is deliberate: the reason it must
+    not be deleted quietly is that something still imports it, and the way to
+    find that out is to look.
+
+    Its scale is a different one -- a share of the category weights normalised to
+    100 -- so it is **not** a drop-in for the live stage. The contrast below is
+    the whole point: the retired function scores an all-green verification at 0
+    and the live one at `None`. Reading a passing test against the retired one as
+    evidence that the evidence stage works is exactly the mistake these two
+    classes exist to prevent.
+    """
+
+    def test_it_still_returns_the_retired_scale(self):
+        items = [
+            VerificationItem(label="Company Existence", status="green", explanation=""),
+            VerificationItem(label="Official Registration", status="red", explanation=""),
+        ]
+
+        assert _calculate_risk_score_from_verify(items) == (25, "low")
+
+    def test_it_is_not_the_live_stage(self):
+        items = [
+            VerificationItem(label="Company Existence", status="green", explanation=""),
+            VerificationItem(label="Official Registration", status="red", explanation=""),
+        ]
+
+        assert _refutation_score_from_verify(items) == REFUTATION_WEIGHTS["Official Registration"]
+        assert _calculate_risk_score_from_verify(items)[0] != _refutation_score_from_verify(items)
+
+    def test_all_green_is_zero_on_the_retired_stage_and_absent_on_the_live_one(self):
+        items = [check(*pair) for pair in ALL_GREEN]
+
+        assert _calculate_risk_score_from_verify(items)[0] == 0
+        assert _refutation_score_from_verify(items) is None
