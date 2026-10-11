@@ -13,9 +13,6 @@ CONTACT_METHOD: <channel it directs applicants to, or omit>
 MEETING_SPOT: <named place, or omit>
 PAY: <amount and period as stated, or omit>
 END ATTRIBUTES
-SEARCH QUERIES:
-QUERY: <one search line, repeatable, at most three>
-END SEARCH QUERIES
 EMPLOYER NAME: <exact employer name, or "Not stated">
 POSTING ANALYSIS:
 <2-3 neutral, factual sentences analyzing the offer based on anomalies found, ending with a recommended action.>
@@ -42,12 +39,11 @@ END JOB SUMMARY
   * low: Generic job titles, informal formatting, or minor inconsistencies in job descriptions.
 - If no anomalies exist, emit no `ANOMALY:` lines and go straight to `END ANOMALIES`.
 
-6. ATTRIBUTES AND SEARCH QUERIES
+6. ATTRIBUTES
 - Report only details the posting actually states. If it names no location, omit the LOCATION line entirely rather than writing "none" or "Not stated".
-- PAY may be reported but generates no search query: a salary figure is not corroborated or refuted by a web search. LOCATION, CONTACT_METHOD and MEETING_SPOT are checkable online and each may generate one query.
-- Write at most three QUERY lines, and only for details the posting states. A posting with no location produces no location query.
-- Build queries from the words the posting uses. "Tanika Maingate Terminal recruitment" is right; "Tanika scam recruitment" is not â€” never name a conclusion in a query.
-- Put a QUERY_REF line after an ANOMALY line when you issued a query for it. Omit QUERY_REF for a low-severity anomaly; it will never be corroborated.
+- PAY may be reported but is never used as a search query: a salary figure is not corroborated or refuted by a web search. LOCATION, CONTACT_METHOD and MEETING_SPOT are checkable online, and each one that is stated becomes a search query.
+- You do not write search queries. They are built for you, from the details you report here, so that every query is one the posting actually justifies.
+- Put a QUERY_REF line after an ANOMALY line naming the posting detail a search would be built from. Omit QUERY_REF for a low-severity anomaly; it will never be corroborated.
 
 3. COMPANY NAME
 - Output the exact client or employer name offering the work. 

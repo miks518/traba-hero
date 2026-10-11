@@ -34,9 +34,6 @@ class ScanResponse(BaseModel):
     # were stated; an absent key means the posting said nothing, which is a
     # different claim from stating nothing and is never scored.
     attributes: dict[str, str] = {}
-    # Up to three queries built from those attributes. Empty when the posting
-    # stated nothing checkable.
-    search_queries: list[str] = []
     job_summary: str = ""
     # Assessment of the posting's structure, separate from the role description.
     posting_analysis: str = ""

@@ -253,25 +253,25 @@ _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "cr
 # Alternation order is load-bearing twice over. Regex alternation takes the first
 # alternative that lets the whole pattern match, and `\s` does not match the
 # underscore these labels are written with, so `COMPANY` before `COMPANY NAME`
-# swallows the legacy employer line into an attribute named "NAME: Acme", and
-# `QUERY` before `QUERY_REF` would truncate it to "QUERY" with "_REF: ..." as
-# the value. The longer alternative comes first in both cases.
+# swallows the legacy employer line into an attribute named "NAME: Acme". The
+# longer alternative comes first.
+#
+# `SEARCH QUERIES` / `QUERY` were removed from this alternation rather than left
+# dormant. They were parsed, capped at three, shipped on `ScanResponse`, and
+# governed by two prompt rules -- and nothing read them. `search.py` builds the
+# queries instead, from the posting's own stated attributes, which is both
+# deterministic and impossible to write an accusation into. `QUERY_REF` stays:
+# it records which posting detail an anomaly relates to, and is not a query.
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|LOCATION|CONTACT[_\s]*METHOD|MEETING[_\s]*SPOT|PAY|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|LOCATION|CONTACT[_\s]*METHOD|MEETING[_\s]*SPOT|PAY|QUERY_REF|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 
-# Sections whose body runs until their END marker. END ATTRIBUTES and
-# END SEARCH QUERIES are deliberately NOT in this set: they are bare terminators,
-# and treating a terminator as a section end resets the parser's matched_any flag,
-# which makes a valid scan parse as nothing at all.
+# Sections whose body runs until their END marker. END ATTRIBUTES is deliberately
+# NOT in this set: it is a bare terminator, and treating a terminator as a
+# section end resets the parser's matched_any flag, which makes a valid scan
+# parse as nothing at all.
 _SECTION_END_KW = ("END JOB SUMMARY", "END POSTING ANALYSIS")
-
-# A placeholder the model emits to mean "nothing found". A surviving placeholder
-# becomes a query, and a query for "none" is a credit spent to learn nothing.
-_QUERY_PLACEHOLDERS = {"none", "n/a", "na", "nothing", "none found", "no query", "-"}
-
-MAX_SEARCH_QUERIES = 3
 
 _HIGH_SEVERITY_KEYWORDS = {
     "upfront fee", "processing fee", "training fee", "registration fee",
@@ -308,8 +308,6 @@ def _parse_custom(raw: str) -> dict | None:
     result: dict = {}
     flags: list[dict] = []
     attributes: dict[str, str] = {}
-    search_queries: list[str] = []
-    in_queries = False
     last_anomaly: dict | None = None
     section: str | None = None
     buf: list[str] = []
@@ -332,11 +330,6 @@ def _parse_custom(raw: str) -> dict | None:
         rest = m.group("rest").strip()
 
         if kw == "END ATTRIBUTES":
-            in_queries = False
-            close_section()
-            continue
-        if kw == "END SEARCH QUERIES":
-            in_queries = False
             close_section()
             continue
         if kw in _SECTION_END_KW:
@@ -399,14 +392,6 @@ def _parse_custom(raw: str) -> dict | None:
             # which is correct, since a low-severity note is never corroborated.
             if last_anomaly is not None:
                 last_anomaly["query_ref"] = rest
-        elif kw == "SEARCH QUERIES":
-            in_queries = True
-            if rest and rest.lower() not in _QUERY_PLACEHOLDERS:
-                search_queries.append(rest)
-        elif kw == "QUERY":
-            if in_queries and rest and rest.lower() not in _QUERY_PLACEHOLDERS:
-                if len(search_queries) < MAX_SEARCH_QUERIES:
-                    search_queries.append(rest)
         elif kw in ("COMPANY", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY"):
             # A detail the posting did not state is omitted entirely rather than
             # stored empty. An empty LOCATION would read as "the posting stated
@@ -436,7 +421,6 @@ def _parse_custom(raw: str) -> dict | None:
     close_section()
     result["anomalies"] = flags
     result["attributes"] = attributes
-    result["search_queries"] = search_queries[:MAX_SEARCH_QUERIES]
     return result if matched_any or flags else None
 
 

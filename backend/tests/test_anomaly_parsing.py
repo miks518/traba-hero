@@ -169,29 +169,6 @@ class TestPostingAttributes:
         result = _parse_custom(raw)
         assert result["company_name"] == "Tanika"
 
-    def test_search_queries_parse_in_order(self):
-        raw = (
-            "VALID: true\n"
-            "SEARCH QUERIES:\n"
-            "QUERY: Tanika Maingate Terminal recruitment\n"
-            "QUERY: Tanika hiring schedule\n"
-            "END SEARCH QUERIES\n"
-        )
-        result = _parse_custom(raw)
-        assert result["search_queries"] == [
-            "Tanika Maingate Terminal recruitment",
-            "Tanika hiring schedule",
-        ]
-
-    def test_no_queries_section_yields_an_empty_list_not_a_missing_key(self):
-        result = _parse_custom("VALID: true\nEMPLOYER NAME: Acme\n")
-        assert result["search_queries"] == []
-
-    def test_a_placeholder_query_is_dropped(self):
-        raw = "VALID: true\nSEARCH QUERIES:\nQUERY: none\nQUERY: N/A\nQUERY: Acme branch\nEND SEARCH QUERIES\n"
-        result = _parse_custom(raw)
-        assert result["search_queries"] == ["Acme branch"]
-
     def test_query_ref_attaches_to_the_preceding_anomaly(self):
         """Without this, corroboration is not computable.
 
@@ -215,15 +192,28 @@ class TestPostingAttributes:
         result = _parse_custom(raw)
         assert result["anomalies"][0]["query_ref"] == "orphan query"
 
-    def test_the_cap_is_three_queries(self):
+    def test_a_query_line_is_no_longer_a_section(self):
+        """The model-authored query family is gone, and this is the tombstone.
+
+        It was parsed, capped at three, shipped on `ScanResponse.search_queries`,
+        and governed by two prompt rules -- and nothing read it. `search.py`
+        builds the queries instead, deterministically, from the attributes above.
+
+        Asserted as behaviour rather than as an absent key: a `QUERY:` line is now
+        ordinary prose. If it ever starts matching again, it becomes a section and
+        one of the two assertions below fails.
+        """
         raw = (
             "VALID: true\nSEARCH QUERIES:\n"
             "QUERY: one Philippines\nQUERY: two Philippines\n"
-            "QUERY: three Philippines\nQUERY: four Philippines\n"
-            "QUERY: five Philippines\nEND SEARCH QUERIES\n"
+            "END SEARCH QUERIES\nEMPLOYER NAME: Tanika\n"
         )
         result = _parse_custom(raw)
-        assert len(result["search_queries"]) == 3
+
+        assert "search_queries" not in result
+        # The employer path must still work beside it, or this would pass for a
+        # parser that simply stopped reading everything.
+        assert result["company_name"] == "Tanika"
 
     # ── Added beyond the brief ────────────────────────────────────────────
     # The two tests below are not in the brief. Each exists because its named
