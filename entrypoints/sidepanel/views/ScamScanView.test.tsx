@@ -297,3 +297,161 @@ describe('the scan response reaches the verify request', () => {
     expect(context.attributes ?? {}).toEqual({});
   });
 });
+
+/**
+ * The line under the gauge must say whether the employer was *looked up*, not
+ * whether the lookup changed the number.
+ *
+ * It used to read `scoreBreakdown.sources`, which names the stages that
+ * contributed a value. The refutation stage contributes nothing when it refutes
+ * nothing, so `sources` read `['posting']` after a lookup that ran and confirmed
+ * every claim — and the panel then told the reader their employer had never been
+ * checked. That is the overwhelmingly common successful outcome, so the panel
+ * was wrong in its best case.
+ *
+ * `describeScoreBasis` is unit-tested in riskDisplay.test.ts. This drives the
+ * real component through all four outcomes, because the derivation of
+ * *which* outcome it is — the part that was actually wrong — lives in the view
+ * and no unit test of the formatter can reach it.
+ *
+ * happy-dom performs no layout, so these assert rendered text only.
+ */
+describe('what the score line claims about the employer', () => {
+  beforeEach(() => {
+    mocks.scanScreenshotStream.mockImplementation(async (_imgs, _sig, onProgress) => {
+      onProgress?.({ percent: 50, stage: 'Analyzing' });
+      return { response: scanResponse };
+    });
+    mocks.analyzeOfferStream.mockResolvedValue({ data: null });
+  });
+
+  /** Run a scan whose verification returns `verify`, then read the line. */
+  async function lineAfter(verify: Record<string, unknown> | null) {
+    const { ScamScanView } = await import('./ScamScanView');
+    if (verify === null) {
+      mocks.verifyJobStream.mockRejectedValue(new Error('network down'));
+    } else {
+      mocks.verifyJobStream.mockImplementation(async () => ({ result: verify }));
+    }
+
+    const { container } = render(
+      React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true })
+    );
+    await pickElement();
+    await clickScan();
+
+    await waitFor(
+      () => {
+        const el = container.querySelector('[data-role="score-basis"]');
+        if (!el) throw new Error('score line not rendered yet');
+      },
+      { timeout: 3000 }
+    );
+    return container.querySelector('[data-role="score-basis"]')!.textContent ?? '';
+  }
+
+  it('credits the web evidence when a claim was refuted', async () => {
+    const line = await lineAfter({
+      ...verifyResponse,
+      items: [
+        { label: 'Channel Match', status: 'red', explanation: 'Their site is acme.com.', source_title: '', source_url: '' },
+      ],
+      scoreBreakdown: { posting: 12, refutation: 25, sources: ['posting', 'verification'] },
+    });
+
+    expect(line).toMatch(/web evidence/i);
+    expect(line).not.toMatch(/not checked/i);
+  });
+
+  it('does not claim the employer was unchecked after a lookup confirmed everything', async () => {
+    // The regression, at the level it broke. `sources` is ['posting'] here,
+    // because a lookup that refutes nothing contributes nothing to the score —
+    // and keying the copy off that said the employer had never been checked.
+    const line = await lineAfter({
+      ...verifyResponse,
+      // The scan in this file has no anomalies, so nothing was refuted.
+      scoreBreakdown: { posting: 0, refutation: null, sources: ['posting'] },
+    });
+
+    expect(line).not.toMatch(/not checked/i);
+    expect(line).toMatch(/no source contradicted/i);
+  });
+
+  it('says the lookup did not complete when it failed', async () => {
+    // A lookup that failed is not a lookup that never ran. Sending the reader
+    // to look for a check that did happen is the cost of conflating them.
+    // `searchOk` camelCase: the mock replaces lib/api, which is the boundary
+    // where the wire's snake_case is translated, so fixtures must be the
+    // translated shape.
+    const line = await lineAfter({
+      ...verifyResponse,
+      searchOk: false,
+      searchError: 'TAVILY_API_KEY is not configured',
+      scoreBreakdown: { posting: 0, refutation: null, sources: ['posting'] },
+    });
+
+    expect(line).toMatch(/did not complete/i);
+    expect(line).not.toMatch(/was not checked/i);
+  });
+
+  it('says the lookup did not complete when the request errored outright', async () => {
+    // No result at all, and a flag saying so. Reporting that as "the employer
+    // was not checked" would send the reader looking for a check that was
+    // attempted and could not finish.
+    const line = await lineAfter(null);
+
+    expect(line).toMatch(/did not complete/i);
+    expect(line).not.toMatch(/was not checked/i);
+  });
+
+  it('says the employer was not checked when there was no employer to look up', async () => {
+    // The genuine `never` case: no verification was ever attempted, because
+    // the posting named nobody. `CompanyNameNeeded` says this in more detail
+    // below, but the number under the gauge still rests on the posting alone
+    // and has to say so.
+    mocks.scanScreenshotStream.mockImplementation(async (_imgs, _sig, onProgress) => {
+      onProgress?.({ percent: 50, stage: 'Analyzing' });
+      return {
+        response: {
+          ...scanResponse,
+          company_name: null,
+          verification_context: undefined,
+        },
+      };
+    });
+
+    const { ScamScanView } = await import('./ScamScanView');
+    const { container } = render(
+      React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true })
+    );
+    await pickElement();
+    await clickScan();
+
+    await waitFor(
+      () => {
+        if (!container.querySelector('[data-role="score-basis"]')) {
+          throw new Error('score line not rendered yet');
+        }
+      },
+      { timeout: 3000 }
+    );
+    const line = container.querySelector('[data-role="score-basis"]')!.textContent ?? '';
+
+    expect(line).toMatch(/was not checked/i);
+    expect(mocks.verifyJobStream).not.toHaveBeenCalled();
+  });
+
+  it('never renders the two-sentence pair this replaced', async () => {
+    // Both strings were live at once and could contradict each other. A
+    // regression here means one of them is back.
+    const line = await lineAfter({
+      ...verifyResponse,
+      items: [
+        { label: 'Channel Match', status: 'red', explanation: 'x', source_title: '', source_url: '' },
+      ],
+      scoreBreakdown: { posting: 12, refutation: 25, sources: ['posting', 'verification'] },
+    });
+
+    expect(line).not.toMatch(/Based only on what the offer itself states/i);
+  });
+});

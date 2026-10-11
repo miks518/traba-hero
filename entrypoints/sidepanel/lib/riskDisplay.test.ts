@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { shouldElevateEvidence } from './riskDisplay';
+import {
+  describeScoreBasis,
+  shouldElevateEvidence,
+  type VerificationRun,
+} from './riskDisplay';
 import type { ScanResult, ScanRiskLevel } from '../types';
 
 function result(over: Partial<ScanResult> = {}): ScanResult {
@@ -77,5 +81,70 @@ describe('shouldElevateEvidence', () => {
         result({ riskLevel: 'high', verificationLoading: false, companyName: null })
       )
     ).toBe(true);
+  });
+});
+
+describe('describeScoreBasis', () => {
+  /**
+   * The line that says what the number rests on has to branch on whether the
+   * lookup *ran*, not on whether it changed the number.
+   *
+   * It used to read `scoreBreakdown.sources`, which names the stages that
+   * contributed a value. The refutation stage returns `null` rather than 0 when
+   * nothing was refuted — deliberately, so "learned nothing" stays distinct from
+   * "measured zero" — which means `sources` reads `['posting']` after a lookup
+   * that ran and confirmed every claim. Keyed off it, the panel told the reader
+   * their employer had never been checked, after it had been.
+   *
+   * The common good outcome is the one that was being misreported, so each state
+   * is pinned separately and the two that were previously conflated are pinned
+   * as *different strings*.
+   */
+  const basis = (verificationRun: VerificationRun, riskScore = 12) =>
+    describeScoreBasis({ riskScore, verificationRun });
+
+  it('says the employer was not checked when it never ran', () => {
+    expect(basis('never')).toMatch(/was not checked/i);
+  });
+
+  it('does not claim the employer was unchecked after a lookup that confirmed everything', () => {
+    // The regression. A panel that told a reader to discount an unchecked verdict
+    // would have them discount a corroborated one.
+    expect(basis('confirmed')).not.toMatch(/not checked/i);
+    expect(basis('confirmed')).toMatch(/no source contradicted/i);
+  });
+
+  it('credits the evidence when a claim was refuted', () => {
+    expect(basis('refuted')).toMatch(/web evidence/i);
+  });
+
+  it('says the lookup did not complete, rather than that nothing was checked', () => {
+    // Three different facts, three different sentences. A lookup that failed is
+    // not a lookup that never ran, and telling the reader it never ran would
+    // send them looking for a check that did happen.
+    expect(basis('failed')).toMatch(/did not complete/i);
+    expect(basis('failed')).not.toMatch(/was not checked/i);
+  });
+
+  it('names the score in every state', () => {
+    for (const state of ['never', 'failed', 'confirmed', 'refuted'] as VerificationRun[]) {
+      expect(basis(state, 47)).toMatch(/47\/100/);
+    }
+  });
+
+  it('keeps the four states distinguishable from one another', () => {
+    // Negative assertions alone would pass for a function returning the same
+    // string everywhere. What matters is that a reader can tell which of the
+    // four situations they are in.
+    const states = (['never', 'failed', 'confirmed', 'refuted'] as VerificationRun[]).map((s) =>
+      basis(s)
+    );
+
+    expect(new Set(states).size).toBe(4);
+  });
+
+  it('does not attribute the score to the posting alone when evidence contributed', () => {
+    expect(basis('refuted')).not.toMatch(/postings? findings only/i);
+    expect(basis('confirmed')).not.toMatch(/postings? findings only/i);
   });
 });

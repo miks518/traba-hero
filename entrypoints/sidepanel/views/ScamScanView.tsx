@@ -3,7 +3,7 @@ import { RiskGauge, AnomaliesList, ScanActions, PickerButton, InvalidContentErro
 import { Icon, ToastContainer, useToastManager } from '../components/common';
 import { scanScreenshotStream, verifyJobStream, analyzeOfferStream, ApiRequestError, type ScanProgress, type VerifyContext } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
-import { isUnverifiedEmployer, shouldElevateEvidence } from '../lib/riskDisplay';
+import { isUnverifiedEmployer, shouldElevateEvidence, describeScoreBasis, type VerificationRun } from '../lib/riskDisplay';
 import { riskAccent } from '../lib/riskAccent';
 import { useFlipReorder } from '../lib/useFlipReorder';
 import type { ScanResult, IconName, ScannedJob, ApiScanResponse, ScanRiskLevel } from '../types';
@@ -180,6 +180,33 @@ export function ScamScanView({
   });
   const accent = elevate ? riskAccent(scanResult?.riskLevel) : undefined;
 
+  /**
+   * Whether the employer lookup *ran*, as distinct from whether it changed the
+   * number.
+   *
+   * `scoreBreakdown.sources` answers the second question and cannot answer the
+   * first: the refutation stage returns `null` rather than 0 when nothing was
+   * refuted, so a lookup that ran and confirmed everything is indistinguishable
+   * there from one that never ran. That is the whole point of returning `null`,
+   * and reading it the other way round told readers their employer had not been
+   * checked when it had been.
+   *
+   * The wire already carries the answer. A verification that errored, or a
+   * result carrying `searchOk: false`, is a lookup that did not complete — a
+   * missing key, a provider failure, an unreadable answer. A result whose items
+   * carry a `red` is one that found a contradiction. Anything else with a
+   * result ran and found none, and no result at all means it never ran — a
+   * posting that named no employer, which is also when `CompanyNameNeeded`
+   * explains the same thing in more detail.
+   */
+  const verificationRun: VerificationRun = (() => {
+    const result = scanResult?.verificationResult;
+    if (scanResult?.verificationError) return 'failed';
+    if (!result) return 'never';
+    if (result.searchOk === false) return 'failed';
+    return result.items.some((item) => item.status === 'red') ? 'refuted' : 'confirmed';
+  })();
+
   // The FLIP dependency is the flag itself: the blocks move because this
   // changed, and re-running the measurement on any other change would replay
   // the animation for reasons unrelated to order.
@@ -347,7 +374,7 @@ export function ScamScanView({
             // builds its scheme queries from these and quotes them back to the
             // model as the claims its categories test, so omitting this left
             // every verification at the two employer queries and made Channel
-            // Match - the one check that can detect an impersonation -
+            // Match — the one check that can detect an impersonation —
             // structurally unable to fire.
             attributes: data.attributes,
           }, jobId);
@@ -497,9 +524,9 @@ export function ScamScanView({
 
       {!hasScanned && (
         <div className="flex flex-col gap-2">
-          <h2 className="text-headline-sm font-headline text-on-surface">Scam Scan</h2>
+          <h2 className="text-headline-sm font-headline text-on-surface">Job Scan</h2>
           <p className="text-body-sm text-on-surface-variant">
-            Pick a job post from the page to check for scam indicators.
+            Pick a job post from the page to check for anomalies.
           </p>
         </div>
       )}
@@ -540,21 +567,31 @@ export function ScamScanView({
             />
           )}
 
-          {scanResult.scoreBreakdown?.sources && scanResult.scoreBreakdown.sources.length < 2 && (
-            <p className="text-label-sm text-on-surface-variant text-center -mt-1">
-              Based only on what the offer itself states.
-            </p>
-          )}
+          {/* The split between what the posting says and what the search found is the
+              reader's clearest way to know what a number rests on, so it is one
+              line and it is derived from whether verification *ran*.
 
-          {/* The split between what the posting says and what the search found is
-              the reader's clearest way to know what a number rests on. The
-              breakdown travels with the response, so this states it rather than
-              re-deriving anything here. */}
-          {scanResult.scoreBreakdown && scanResult.riskScore !== null && (
-            <p className="text-label-sm text-on-surface-variant text-center -mt-1">
-              {scanResult.scoreBreakdown.sources?.includes('verification')
-                ? `Posting findings and web evidence: ${scanResult.riskScore}/100.`
-                : `Posting findings only: ${scanResult.riskScore}/100. The employer was not checked.`}
+              It used to be two stacked sentences, the older of them reading
+              "Based only on what the offer itself states", both keyed off
+              `scoreBreakdown.sources`. That names the stages that contributed a
+              value, and the refutation stage contributes nothing when it refutes
+              nothing — so after a lookup that ran and confirmed every claim the
+              panel said, permanently, that the employer had never been checked.
+              A reader told to discount an unchecked verdict will discount a
+              corroborated one.
+
+              Whether verification ran is read off the wire instead:
+              `searchOk === false` means the lookup could not complete, and no
+              result at all means it never ran. */}
+          {!scanResult.verificationLoading && scanResult.riskScore !== null && (
+            <p
+              data-role="score-basis"
+              className="text-label-sm text-on-surface-variant text-center -mt-1"
+            >
+              {describeScoreBasis({
+                riskScore: scanResult.riskScore,
+                verificationRun: verificationRun,
+              })}
             </p>
           )}
 
