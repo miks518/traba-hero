@@ -34,6 +34,15 @@ class ScanResponse(BaseModel):
     # were stated; an absent key means the posting said nothing, which is a
     # different claim from stating nothing and is never scored.
     attributes: dict[str, str] = {}
+    # The searches the scan model proposed, capped at `MAX_SEARCH_QUERIES`.
+    # Issued by `/api/verify` in place of the scheme queries this module used to
+    # build itself.
+    #
+    # Absent or empty is a real state, not a failure: a model that answered the
+    # format without proposing a search leaves the verification running on the
+    # employer query alone. That is thinner coverage reported as an ordinary
+    # lookup, so it is worth watching rather than papering over.
+    search_queries: list[str] = []
     job_summary: str = ""
     # Assessment of the posting's structure, separate from the role description.
     posting_analysis: str = ""
@@ -117,6 +126,16 @@ class VerifyRequest(BaseModel):
     # spelling of a missing input with a 422 fails the whole verification for a
     # detail that carries no verdict.
     attributes: dict[str, str] | None = {}
+    # The searches the scan model proposed. `| None` for the same reason as
+    # `attributes`: an explicit `null`, an omitted key and an empty list all
+    # mean "the model proposed no search", and rejecting one spelling of that
+    # with a 422 fails a whole verification over a detail carrying no verdict.
+    #
+    # Nothing here checks what a query *says*. The rule that a query must not
+    # name a conclusion lives in both scan prompts and nowhere else - a
+    # deliberate choice, and the reason a query reaching the provider is
+    # unfiltered text from a model that read a job posting.
+    search_queries: list[str] | None = []
 
 
 class VerificationItem(BaseModel):

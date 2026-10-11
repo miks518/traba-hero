@@ -1,4 +1,4 @@
-﻿import json
+import json
 import re
 import logging
 from openai import AsyncOpenAI
@@ -262,16 +262,46 @@ _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "cr
 # queries instead, from the posting's own stated attributes, which is both
 # deterministic and impossible to write an accusation into. `QUERY_REF` stays:
 # it records which posting detail an anomaly relates to, and is not a query.
+# `SEARCH QUERIES` / `QUERY` are back, and this time something reads them:
+# `VerifyRequest.search_queries` carries them to `/api/verify`, which issues them
+# in place of the scheme queries `search.py` used to build. They were deleted in
+# 413a2cd for exactly that reason - parsed, capped, shipped, and read by nothing.
+#
+# The cap is 2, not the 3 it used to be. One query is spent on the employer
+# itself ("<company> company or employer"), so three model queries would cost
+# four credits per verification on a 1,000/month free tier.
+#
+# `QUERY` precedes `QUERY_REF` in the alternation for the reason
+# `COMPANY NAME` precedes `COMPANY`: the shorter alternative matches first and
+# swallows the longer one's value, so `QUERY_REF: Location` would truncate to
+# `QUERY` with `_REF: Location` as the query text.
+#
+# What is deliberately NOT here is a code-side ban on conclusion words. A query
+# carrying "scam" or "fraud" returns pages that look like corroboration of the
+# accusation it embedded, which is a real risk - but the filter was removed on
+# purpose, and leaving a silent gap would read as an oversight. The rule is in
+# both scan prompts instead.
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|LOCATION|CONTACT[_\s]*METHOD|MEETING[_\s]*SPOT|PAY|QUERY_REF|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|LOCATION|CONTACT[_\s]*METHOD|MEETING[_\s]*SPOT|PAY|REGISTERED[_\s]*AS|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 
-# Sections whose body runs until their END marker. END ATTRIBUTES is deliberately
-# NOT in this set: it is a bare terminator, and treating a terminator as a
-# section end resets the parser's matched_any flag, which makes a valid scan
-# parse as nothing at all.
+# Sections whose body runs until their END marker. END ATTRIBUTES and
+# END SEARCH QUERIES are deliberately NOT in this set: they are bare
+# terminators, and treating a terminator as a section end resets the
+# parser's matched_any flag, which makes a valid scan parse as nothing at all.
 _SECTION_END_KW = ("END JOB SUMMARY", "END POSTING ANALYSIS")
+
+# A model emits one of these to mean "nothing found". A surviving placeholder
+# becomes a query, and a query for "none" is a credit spent to learn nothing.
+# This is a parsing artifact rather than a judgment about query content, which is
+# why it survived the removal of the conclusion-word filter: the model answering
+# "QUERY: none" is answering the format, not proposing a search.
+_QUERY_PLACEHOLDERS = {
+    "", "none", "n/a", "na", "nothing", "none found", "no query", "not applicable", "-",
+}
+
+MAX_SEARCH_QUERIES = 2
 
 # The keys an ATTRIBUTES block is read for, and the keys `_SECTION_RE` also
 # matches anywhere in the response. They are ordinary English words the model
@@ -282,7 +312,7 @@ _SECTION_END_KW = ("END JOB SUMMARY", "END POSTING ANALYSIS")
 # So these five are gated on `in_attributes` and nothing else is. `COMPANY NAME`
 # and `EMPLOYER NAME` are deliberately absent -- the employer path has to keep
 # parsing outside the block, for scans recorded before the rename.
-_ATTRIBUTE_KEYWORDS = ("COMPANY", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY")
+_ATTRIBUTE_KEYWORDS = ("COMPANY", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY", "REGISTERED_AS")
 
 _HIGH_SEVERITY_KEYWORDS = {
     "upfront fee", "processing fee", "training fee", "registration fee",
@@ -320,6 +350,8 @@ def _parse_custom(raw: str) -> dict | None:
     flags: list[dict] = []
     attributes: dict[str, str] = {}
     in_attributes = False
+    in_queries = False
+    search_queries: list[str] = []
     last_anomaly: dict | None = None
     section: str | None = None
     buf: list[str] = []
@@ -354,6 +386,12 @@ def _parse_custom(raw: str) -> dict | None:
         if kw == "END ATTRIBUTES":
             in_attributes = False
             close_section()
+            continue
+        if kw == "END SEARCH QUERIES":
+            # A bare terminator, not a section end: routing it through
+            # `close_section` is what used to reset `matched_any` and make a
+            # valid scan parse as nothing at all.
+            in_queries = False
             continue
         if kw in _SECTION_END_KW:
             in_attributes = False
@@ -392,6 +430,14 @@ def _parse_custom(raw: str) -> dict | None:
         # for the rest of the response - including inside POSTING ANALYSIS, which
         # is where the reported failure came from. An attribute key keeps the
         # block open; anything else ends it.
+        if kw == "QUERY" and not in_queries and section:
+            # A `QUERY:` line outside the block is prose, and a job summary that
+            # happens to contain one is truncated by the branch below - the same
+            # hazard the attribute gate handles above, for the same reason.
+            # Appended back rather than dropped, so a section body stays whole.
+            buf.append(line.rstrip())
+            continue
+
         if kw == "ATTRIBUTES":
             in_attributes = True
         elif kw not in _ATTRIBUTE_KEYWORDS:
@@ -403,6 +449,17 @@ def _parse_custom(raw: str) -> dict | None:
         if kw == "ATTRIBUTES":
             # The body lines are read by the `_ATTRIBUTE_KEYWORDS` branch below.
             # Nothing is stored on the header line itself.
+            continue
+        if kw == "SEARCH QUERIES":
+            # The model may put the first query on the header line itself, and
+            # that is not an error - it is the format being answered.
+            in_queries = True
+            if rest and rest.lower() not in _QUERY_PLACEHOLDERS:
+                search_queries.append(rest)
+            continue
+        if kw == "QUERY":
+            if in_queries and rest and rest.lower() not in _QUERY_PLACEHOLDERS:
+                search_queries.append(rest)
             continue
         if kw == "VALID":
             val = rest.lower()
@@ -489,6 +546,7 @@ def _parse_custom(raw: str) -> dict | None:
     close_section()
     result["anomalies"] = flags
     result["attributes"] = attributes
+    result["search_queries"] = search_queries[:MAX_SEARCH_QUERIES]
     return result if matched_any or flags else None
 
 

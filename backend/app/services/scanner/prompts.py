@@ -38,7 +38,12 @@ LOCATION: <city or region the post names, or omit>
 CONTACT_METHOD: <channel it directs applicants to, or omit>
 MEETING_SPOT: <named place, or omit>
 PAY: <amount and period as stated, or omit>
+REGISTERED_AS: <a registration, permit or licence number the posting itself claims, or omit>
 END ATTRIBUTES
+SEARCH QUERIES:
+QUERY: <a search that would check something this posting claims, or omit>
+QUERY: <a second such search, or omit>
+END SEARCH QUERIES
 EMPLOYER NAME: <the company that would employ the reader, or "Not stated">
 POSTING ANALYSIS:
 <2-3 short sentences giving an overall verdict on the posting and what the reader should do>
@@ -55,6 +60,7 @@ SCAN_FIELD_RULES = """Field rules:
   * Never output a flag about a scam pattern unless the posting actually contains that pattern's element. An advance-fee pattern exists only where the posting asks the applicant for money. A money-mule pattern exists only where the posting asks the applicant to receive, pass on, or bank money. A task-for-earning pattern exists only where the posting asks the reader to complete discrete tasks, orders, or referrals in order to be paid, rather than describing a role with duties â€” for example an instruction to do a task and then earn a reward, or an amount stated per order, per signup, or per referral. If the posting contains none of these, name no pattern.
   * Work followed by payment is the ordinary order and is not a flag by itself; most jobs are paid that way. What separates a task-for-earning offer is the unit of work â€” a task or an earning event rather than a role. If the posting describes a role and what the person in it does, this pattern does not apply.
   * If the posting has no anomalies, output no ANOMALY lines at all â€” go straight to END ANOMALIES. This is the expected outcome for most postings and is not a failure.
+  * After an ANOMALY line, a QUERY_REF line may name the posting detail the search under SEARCH QUERIES checks. Omit it for a low-severity anomaly.
   * Never invent a flag, and never output a placeholder or default flag. Every flag must quote or closely paraphrase text actually present in the posting.
   * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high. An "anomaly" is a description, so the label must not name a conclusion â€” write "Asks applicants to pay a processing fee", never "Scam fee request".
   * Severity means:
@@ -67,9 +73,14 @@ SCAN_FIELD_RULES = """Field rules:
   * Payment requests: state the request and nothing else. Example â€” ANOMALY: Asks applicants to pay a processing fee | The posting asks applicants to pay a fee before starting work | high. Never add any claim about the employer.
 - ATTRIBUTES:
   * Report only details the posting actually states. If it names no location, omit the LOCATION line entirely rather than writing "none" or "Not stated".
-  * PAY may be reported but is never used as a search query: a salary figure is not corroborated or refuted by a web search. LOCATION, CONTACT_METHOD and MEETING_SPOT are checkable online, and each one that is stated becomes a search query.
-  * You do not write search queries. They are built for you, from the details you report here, so that every query is one the posting actually justifies.
-  * Put a QUERY_REF line after an ANOMALY line naming the posting detail a search would be built from. Omit QUERY_REF for a low-severity anomaly; it will never be corroborated.
+  * REGISTERED_AS is only for a registration the posting claims about itself - a permit number, a licence, "we are a registered company". Write what it says, exactly. Do not write one from a registry you know about; only the posting's own claim is a claim.
+- SEARCH QUERIES:
+  * Propose at most two searches, on the QUERY lines. More than two is wasted: only the first two are run.
+  * Write a query only for something the posting actually states. A posting naming no location produces no location query.
+  * A query may look for what the posting claims. Name the claim and the employer together, so the search is about that employer's claim and not about the claim in general.
+  * Never put a conclusion in a query. Do not use scam, fraud, fraudulent, fake, suspicious, or legitimate. A query carrying one returns pages chosen because they contain that word, which then look like confirmation of an accusation the query already made up. Search for the thing itself: the permit number, the branch, the address, the account name.
+  * Use the poster's words for the part being checked, not your summary of it.
+  * If nothing in the posting is worth a search, write no QUERY lines at all rather than writing none.
 - EMPLOYER NAME: the name of the company that would employ the reader, exactly as it is written in the content, and nothing else on the line â€” no "the", no role, no explanation, no separator, and never two names joined by a slash or an "and".
   * A staffing or manpower agency is NOT the employer when the posting is for work at some other company. In "Vikings / Silvergreen Manpower Services Corporation is hiring", Silvergreen is the recruiter and Vikings is where the reader would work: output "Vikings". If the posting is for the agency's own staff, the agency is the employer and you output the agency name.
   * The client or end-user company can be a large brand, a restaurant, a store, or a small business. Output it even though it is a brand name and even when the posting never uses the words "employer" or "hiring company".

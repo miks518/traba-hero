@@ -137,13 +137,16 @@ export interface VerificationResult {
   /** How many queries were issued, and how many of them failed. */
   queriesIssued?: number;
   queriesFailed?: number;
-  /**
-   * Which of those queries were built from the posting's own stated details
-   * rather than from the employer's name. Reported separately from
-   * `queriesIssued` because the two families answer different questions.
+/**
+   * Which of those queries the scan model proposed, rather than the one built
+   * here from the employer's name. Reported separately from `queriesIssued`
+   * because the two families answer different questions.
    * Always present on the wire, possibly empty.
+   *
+   * Renamed from `schemeQueries`: nothing builds these from attributes any
+   * more, and the panel reads this out as *what was searched*.
    */
-  schemeQueries?: string[];
+  modelQueries?: string[];
   /**
    * TEMPORARY DIAGNOSTIC — the provider's raw response body per query, so it
    * can be inspected in the panel. Nothing reads this in normal use. Remove
@@ -255,13 +258,20 @@ export interface ApiScanResponse {
    * the posting actually stated are present — an absent key means it said
    * nothing, which is a missing input rather than a finding.
    *
-   * This is what makes dynamic retrieval possible, and until the panel sent it
-   * to `/api/verify` nothing was retrieved from it at all: the scheme queries
-   * are built server-side from these, so an extension that dropped the field
-   * left every verification at two employer queries and `Channel Match` — the
-   * one check that can detect an impersonation — structurally unable to fire.
+   * This is quoted back to the model as the claims its categories test, so
+   * dropping it here is not a local loss: `Channel Match` — the one check that
+   * can detect an impersonation — would have nothing to reason about.
    */
   attributes?: Record<string, string>;
+  /**
+   * The searches the scan model proposed, capped at 2. Issued by `/api/verify`
+   * alongside the one query the backend builds from the employer's name.
+   *
+   * An empty array is a real state, not a failure: the model answered the
+   * format without proposing a search, and the verification then runs on the
+   * employer query alone.
+   */
+  search_queries?: string[];
   job_summary: string;
   error?: string | null;
   company_name?: string | null;

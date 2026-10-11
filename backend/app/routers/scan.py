@@ -29,7 +29,7 @@ from app.models.schemas import (
     VerifyRequest,
 )
 from app.rate_limit import limiter
-from app.services.search import build_queries, build_scheme_queries, clean_company_name, extract_company_name, is_valid_company_name, merge_results, search
+from app.services.search import build_queries, clean_company_name, extract_company_name, is_valid_company_name, merge_results, search
 from app.services.email_verifier import verify_emails_in_text
 from app.services.image import decode_base64_image
 from app.services.lm_client import (
@@ -99,7 +99,6 @@ runtime.get_parse_match = lambda: _parse_match_custom
 runtime.get_chat = lambda: chat
 runtime.get_search = lambda: search
 runtime.get_build_queries = lambda: build_queries
-runtime.get_build_scheme_queries = lambda: build_scheme_queries
 runtime.get_merge_results = lambda: merge_results
 runtime.get_build_verify_prompt = lambda: _build_verify_prompt
 runtime.get_parse_verification_result = lambda: _parse_verification_result

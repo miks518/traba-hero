@@ -208,12 +208,11 @@ describe('score stays in sync between the panel and history', () => {
 /**
  * The panel has to hand `/api/verify` the posting's own stated details.
  *
- * These four fields are what the backend builds its scheme queries from, and
- * they are quoted back to the model as the claims that `Location / Branch`,
- * `Channel Match` and `Scheme Corroboration` test. Without them every
- * verification issues the same two employer queries — and the three categories
- * that exist to catch an impersonation of a real company are structurally
- * unable to redden.
+ * These fields are quoted back to the model as the claims that `Location /
+ * Branch`, `Channel Match` and `Similar Offers` test, and the search queries the
+ * scan model proposed are issued alongside the employer query. Without them a
+ * verification runs on one query — and the categories that exist to catch an
+ * impersonation of a real company are structurally unable to redden.
  *
  * The whole design sat inert behind this one field, and nothing said so: the
  * backend accepted `attributes`, defaulted it to `{}`, and returned a perfectly
@@ -295,6 +294,85 @@ describe('the scan response reaches the verify request', () => {
 
     expect(context.company_name).toBe('Acme Trading');
     expect(context.attributes ?? {}).toEqual({});
+  });
+});
+
+/**
+ * The searches the scan model proposed have to reach `/api/verify`.
+ *
+ * This feature was deleted once already (413a2cd) for exactly this reason:
+ * `SEARCH QUERIES` was parsed, capped, shipped on `ScanResponse`, and read by
+ * nothing. The parser-side tests cannot see a client that drops the field, so
+ * these drive the real component and assert what it asks for.
+ */
+describe('the scan queries reach the verify request', () => {
+  const scanWithQueries = {
+    ...scanResponse,
+    search_queries: ['Acme Trading Maingate Terminal', 'Acme Trading permit'],
+  };
+
+  beforeEach(() => {
+    mocks.scanScreenshotStream.mockImplementation(async (_imgs, _sig, onProgress) => {
+      onProgress?.({ percent: 50, stage: 'Analyzing' });
+      return { response: scanWithQueries };
+    });
+    mocks.verifyJobStream.mockImplementation(async () => ({ result: verifyResponse }));
+    mocks.analyzeOfferStream.mockResolvedValue({ data: null });
+  });
+
+  it('sends what the scan proposed', async () => {
+    // On the values, not on the key being present: a client that sent
+    // `search_queries: []` would satisfy a `toBeDefined()` and leave the
+    // verification running on the employer query alone.
+    const { ScamScanView } = await import('./ScamScanView');
+    render(React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true }));
+
+    await pickElement();
+    await clickScan();
+
+    await waitFor(() => expect(mocks.verifyJobStream).toHaveBeenCalled(), { timeout: 3000 });
+    const [context] = mocks.verifyJobStream.mock.calls[0];
+
+    expect(context.search_queries).toEqual(scanWithQueries.search_queries);
+  });
+
+  it('still names the employer alongside them', async () => {
+    // The overcorrection. The model's queries are added to the employer query,
+    // not substituted for it — a panel sending only these would produce a
+    // verification about a bus terminal.
+    const { ScamScanView } = await import('./ScamScanView');
+    render(React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true }));
+
+    await pickElement();
+    await clickScan();
+
+    await waitFor(() => expect(mocks.verifyJobStream).toHaveBeenCalled(), { timeout: 3000 });
+    const [context] = mocks.verifyJobStream.mock.calls[0];
+
+    expect(context.company_name).toBe('Acme Trading');
+    expect(context.search_queries).toHaveLength(2);
+  });
+
+  it('sends none when the scan proposed none', async () => {
+    // A real state, not a failure. Passing `undefined` rather than fabricating
+    // queries is what keeps a sparse posting costing one credit.
+    mocks.scanScreenshotStream.mockImplementation(async (_imgs, _sig, onProgress) => {
+      onProgress?.({ percent: 50, stage: 'Analyzing' });
+      const { search_queries: _omitted, ...without } = scanWithQueries;
+      return { response: without };
+    });
+
+    const { ScamScanView } = await import('./ScamScanView');
+    render(React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true }));
+
+    await pickElement();
+    await clickScan();
+
+    await waitFor(() => expect(mocks.verifyJobStream).toHaveBeenCalled(), { timeout: 3000 });
+    const [context] = mocks.verifyJobStream.mock.calls[0];
+
+    expect(context.company_name).toBe('Acme Trading');
+    expect(context.search_queries ?? []).toEqual([]);
   });
 });
 
@@ -453,5 +531,93 @@ describe('what the score line claims about the employer', () => {
     });
 
     expect(line).not.toMatch(/Based only on what the offer itself states/i);
+  });
+});
+
+/**
+ * What a scan can report is bounded by what the capture contained, and the panel
+ * cannot say otherwise — a heading cropped off means no employer name, so the
+ * employer check never runs and nothing in the result records that it was
+ * available to run. The only lever left is the reader's own selection.
+ */
+describe('the capture reminder', () => {
+  const reminderAfter = async () => {
+    const { ScamScanView } = await import('./ScamScanView');
+    mocks.scanScreenshotStream.mockImplementation(async (_imgs, _sig, onProgress) => {
+      onProgress?.({ percent: 50, stage: 'Analyzing' });
+      return { response: scanResponse };
+    });
+    mocks.verifyJobStream.mockImplementation(async () => ({ result: verifyResponse }));
+    mocks.analyzeOfferStream.mockResolvedValue({ data: null });
+
+    const { container } = render(
+      React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true })
+    );
+    await pickElement();
+    await clickScan();
+
+    await waitFor(
+      () => {
+        if (!container.querySelector('[data-role="capture-reminder"]')) {
+          throw new Error('reminder not rendered yet');
+        }
+      },
+      { timeout: 3000 }
+    );
+    return container.querySelector('[data-role="capture-reminder"]')!.textContent ?? '';
+  };
+
+  it('names the details a wider capture would carry', async () => {
+    const line = await reminderAfter();
+
+    expect(line).toMatch(/employer name/i);
+    expect(line).toMatch(/contact details/i);
+    expect(line).toMatch(/pay/i);
+  });
+
+  it('is not a criticism of the capture that produced this result', async () => {
+    // The overcorrection. A clean short capture is a clean result; copy that
+    // implies something was missed turns a green score into a doubt the panel
+    // has no evidence for.
+    const line = await reminderAfter();
+
+    expect(line).not.toMatch(/incomplete|missing|not included|failed to/i);
+  });
+
+  it('appears only once there is a result to improve on', async () => {
+    // Mid-scan there is no result yet and "for a more accurate result" refers to
+    // nothing. `happy-dom` performs no layout, so this asserts presence during
+    // the scan rather than position.
+
+    // It cannot distinguish the two conditions guarding the element: with no
+    // result, `riskScore` is null whatever `verificationLoading` is, so dropping
+    // either guard passes this. Kept as a bound on *when the reminder is honest*,
+    // not as a guard on the condition itself.
+    const { ScamScanView } = await import('./ScamScanView');
+    let release: (() => void) | undefined;
+    mocks.scanScreenshotStream.mockImplementation(
+      () => new Promise<{ response: typeof scanResponse }>((resolve) => {
+        release = () => resolve({ response: scanResponse });
+      })
+    );
+
+    const { container } = render(
+      React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true })
+    );
+    await pickElement();
+    await clickScan();
+
+    expect(container.querySelector('[data-role="capture-reminder"]')).toBeNull();
+
+    release?.();
+    await waitFor(
+      () => {
+        if (!container.querySelector('[data-role="capture-reminder"]')) {
+          throw new Error('reminder not rendered yet');
+        }
+      },
+      { timeout: 3000 }
+    );
+    expect(container.querySelector('[data-role="capture-reminder"]')).not.toBeNull();
   });
 });

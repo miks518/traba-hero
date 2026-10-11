@@ -1,4 +1,4 @@
-﻿"""Tests for /api/verify endpoint and verification helpers."""
+"""Tests for /api/verify endpoint and verification helpers."""
 import json
 import re
 import pytest
@@ -237,7 +237,7 @@ class TestTheClaimsReachThePrompt:
     def test_a_pay_statement_is_a_claim_and_is_kept(self):
         """`PAY` is never queried and is still stated.
 
-        Scheme Corroboration asks about the reward the posting offers, so the
+        Similar Offers asks about the reward the posting offers, so the
         figure is one of the claims under test. Excluding it here because a
         *search* cannot check it would be answering a different question in the
         wrong place — and would be a second definition of `CHECKABLE_ATTRIBUTES`.
@@ -715,7 +715,7 @@ class TestRegistrationCategoryWeighting:
         items = [
             VerificationItem(label=label, status="green", explanation="")
             for label in ("Company Existence", "Official Registration",
-                          "Location / Branch", "Reputation", "Scheme Corroboration")
+                          "Location / Branch", "Reputation", "Similar Offers")
         ]
         assert _missing_categories(items) == ["Channel Match"]
 
@@ -1064,12 +1064,16 @@ async def test_verify_sse_stream_format():
     assert '"type"' in body
 
 
-class TestTwoQueriesPerVerification:
-    """One query cannot serve three categories; two can, if neither is rigged.
+class TestTheQueryBudget:
+    """One employer query plus up to two the scan model proposed.
 
     The merged result set is what the model judges, so these tests are about what
-    the flow does with the outcomes â€” not about the query strings, which
+    the flow does with the outcomes - not about the query strings, which
     `test_multi_query.py` covers.
+
+    The count is one of the few things here that is arithmetic rather than
+    judgement, and it is pinned because it is a deployment cost: the free tier
+    is 1,000 credits a month.
     """
 
     AI = json.dumps({
@@ -1083,7 +1087,7 @@ class TestTwoQueriesPerVerification:
         "recommendation": "Ask them to confirm the address in writing.",
     })
 
-    async def _verify(self, client, search_side_effect, chat_response=None):
+    async def _verify(self, client, search_side_effect, chat_response=None, model_queries=None):
         from unittest.mock import patch as _patch
         with (
             _patch("app.routers.scan.search", side_effect=_cycled(search_side_effect)) as search,
@@ -1093,18 +1097,72 @@ class TestTwoQueriesPerVerification:
                 resp = await c.post("/api/verify", json={
                     "company_name": "Acme Corp",
                     "job_summary": "Developer at Acme Corp",
+                    "search_queries": model_queries or [],
                 }, headers=HEADERS)
         return resp, search
 
     @pytest.mark.asyncio
-    async def test_two_searches_are_made_and_one_ai_call_follows(self):
+    async def test_one_search_is_made_when_the_model_proposed_none(self):
+        """The floor, and the number most sparse scans will pay.
+
+        A model that answered the format without proposing a search leaves the
+        verification running on the employer query alone. That is thinner
+        coverage than the two-to-five this used to cost, reported as an ordinary
+        lookup with no error anywhere - so it is worth knowing the floor is one.
+        """
         from app.services.search import SearchOutcome, SearchResult
 
         hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
-        resp, search = await self._verify(None, [hits, hits])
+        resp, search = await self._verify(None, [hits])
 
         assert resp.status_code == 200
-        assert search.call_count == 2
+        assert search.call_count == 1
+        assert '"queries_issued": 1' in resp.text
+
+    @pytest.mark.asyncio
+    async def test_the_model_queries_run_alongside_the_employer_one(self):
+        from app.services.search import SearchOutcome, SearchResult
+
+        hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
+        resp, search = await self._verify(
+            None, [hits, hits, hits],
+            model_queries=["Acme Corp branch", "Acme Corp permit"],
+        )
+
+        assert search.call_count == 3
+        assert '"queries_issued": 3' in resp.text
+        issued = [c.args[0] for c in search.call_args_list]
+        assert issued[0] == "Acme Corp company or employer"
+        assert issued[1:] == ["Acme Corp branch", "Acme Corp permit"]
+
+    @pytest.mark.asyncio
+    async def test_the_budget_is_capped_here_and_not_only_in_the_parser(self):
+        """The parser caps at 2, but this endpoint accepts a list of any length.
+
+        A client that is not this extension can post five, and a malformed
+        request is not a reason to spend six credits silently - so the cap is
+        enforced where the money is spent, not only where the text is parsed.
+        """
+        from app.services.search import SearchOutcome, SearchResult
+
+        hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
+        _, search = await self._verify(
+            None, [hits] * 9,
+            model_queries=["one", "two", "three", "four", "five"],
+        )
+
+        assert search.call_count == 3, "the employer query plus two model queries"
+
+    @pytest.mark.asyncio
+    async def test_the_cap_cannot_be_bought_by_omitting_the_employer_query(self):
+        """The overcorrection: cap the total, not the model's share."""
+        from app.services.search import SearchOutcome, SearchResult
+
+        hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
+        _, search = await self._verify(None, [hits] * 9, model_queries=["one", "two"])
+
+        issued = [c.args[0] for c in search.call_args_list]
+        assert issued == ["Acme Corp company or employer", "one", "two"]
 
     @pytest.mark.asyncio
     async def test_one_failed_search_is_reported_as_partial_not_clean(self):
@@ -1119,7 +1177,7 @@ class TestTwoQueriesPerVerification:
         hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
         failed = SearchOutcome(ok=False, error="throttled")
 
-        resp, _ = await self._verify(None, [hits, failed])
+        resp, _ = await self._verify(None, [hits, failed], model_queries=["Acme Corp branch"])
 
         body = resp.text
         assert '"search_ok": true' in body
@@ -1130,7 +1188,10 @@ class TestTwoQueriesPerVerification:
         """Partial is for one failure. Two failures is the existing state."""
         from app.services.search import SearchOutcome
 
-        resp, _ = await self._verify(None, [SearchOutcome(ok=False), SearchOutcome(ok=False)])
+        resp, _ = await self._verify(
+            None, [SearchOutcome(ok=False), SearchOutcome(ok=False)],
+            model_queries=["Acme Corp branch"],
+        )
 
         assert '"search_ok": false' in resp.text
         assert '"search_partial": false' in resp.text
@@ -1140,7 +1201,7 @@ class TestTwoQueriesPerVerification:
         from app.services.search import SearchOutcome, SearchResult
 
         hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
-        resp, _ = await self._verify(None, [hits, hits])
+        resp, _ = await self._verify(None, [hits, hits], model_queries=["Acme Corp branch"])
 
         assert '"search_partial": false' in resp.text
 
@@ -1158,6 +1219,7 @@ class TestTwoQueriesPerVerification:
                     await c.post("/api/verify", json={
                         "company_name": "Acme Corp",
                         "job_summary": "Developer at Acme Corp",
+                        "search_queries": ["Acme Corp registration"],
                     }, headers=HEADERS)
 
         sent = chat.call_args[0][0]
@@ -1354,18 +1416,17 @@ def _chat_corroboration():
     })
 
 
-class TestSchemeQueriesAreIssued:
-    """Retrieval must target what the posting claims, not only the employer.
+class TestTheModelAuthoredQueriesReachTheSearch:
+    """The leg that made the previous feature inert, and its replacement.
 
-    The two employer queries can only find pages that name the employer, so they
-    find nothing when a scam borrows a real company's name — the real company's
-    reputation is clean, which is precisely why the impersonation is invisible to
-    them. The scheme queries name a stated detail instead, so they find the
-    pages that pair the claim with the employer making it.
+    `SEARCH QUERIES` was deleted in 413a2cd because it was parsed, capped,
+    shipped on `ScanResponse`, and read by nothing - `search.py` built every
+    query from the attributes instead. That builder is now deleted too, so the
+    model's proposals are the only source of the second and third queries.
 
-    Two rules make this retrieval rather than an accusation engine, and both are
-    asserted here: a detail the posting did not state spends no credit, and one
-    failed scheme query is `partial` rather than a total failure.
+    Which means the same failure is available again from a new direction: the
+    scan response carries `search_queries`, the extension forwards it, and a
+    client that does not is silently verifying on one query. Nothing errors.
     """
 
     async def _post(self, body, search_impl=None):
@@ -1384,58 +1445,78 @@ class TestSchemeQueriesAreIssued:
         return resp, issued
 
     @pytest.mark.asyncio
-    async def test_a_stated_location_produces_a_scheme_query(self):
+    async def test_a_model_query_reaches_the_search_engine(self):
         resp, issued = await self._post({
             "company_name": "Tanika",
-            "attributes": {"LOCATION": "Maingate Terminal"},
+            "search_queries": ["Tanika Maingate Terminal"],
         })
 
         assert resp.status_code == 200
-        assert any("Tanika Maingate Terminal" in q for q in issued), issued
-        # Reported on the wire, so the panel can show what was looked up rather
-        # than the reader inferring coverage from a bare verdict.
-        assert '"scheme_queries": ["Tanika Maingate Terminal' in resp.text
+        # The employer query, then the model's. Not zero: the whole point is these.
+        assert issued == ["Tanika company or employer", "Tanika Maingate Terminal"], issued
 
     @pytest.mark.asyncio
-    async def test_the_employer_queries_still_run(self):
+    async def test_the_employer_query_still_runs_beside_them(self):
         """The guard on the overcorrection.
 
-        Scheme queries are *added* to the employer queries, not substituted for
-        them. An implementation that replaced the pair would pass the tests above
-        and quietly delete every check about the employer itself.
+        The model's queries are *added to* the employer query, not substituted
+        for it. An implementation that dropped the built one would pass the test
+        above and delete every check about the employer itself.
         """
         _, issued = await self._post({
             "company_name": "Tanika",
-            "attributes": {"LOCATION": "Maingate Terminal"},
+            "search_queries": ["Tanika Maingate Terminal"],
         })
 
-        assert len(issued) == 3, issued
-        assert any("registration certificate" in q for q in issued), issued
-        assert any("reviews complaints" in q for q in issued), issued
+        assert issued[0] == "Tanika company or employer"
 
     @pytest.mark.asyncio
-    async def test_the_scheme_query_result_reaches_the_model(self):
-        """A query whose results never reach the prompt bought nothing.
+    async def test_no_model_queries_costs_one_credit(self):
+        """A sparse posting must still cost what it cost before.
 
-        Both families merge into one flat list, so this asserts the merge, not
-        a heading: nothing here labels which query found what.
+        The endpoint always issues the employer query, so a scan whose model
+        proposed nothing spends one credit and reports honestly rather than
+        failing.
+        """
+        resp, issued = await self._post({"company_name": "Tanika", "search_queries": []})
+
+        assert resp.status_code == 200
+        assert len(issued) == 1, issued
+        assert '"model_queries": []' in resp.text
+
+    @pytest.mark.asyncio
+    async def test_an_absent_field_is_the_same_as_an_empty_one(self):
+        """A client predating the field sends neither.
+
+        Rejecting one spelling of a missing input with a 422 would fail a whole
+        verification over a detail that carries no verdict.
+        """
+        resp, issued = await self._post({"company_name": "Tanika"})
+
+        assert resp.status_code == 200
+        assert '"model_queries": []' in resp.text
+        assert len(issued) == 1, issued
+
+    @pytest.mark.asyncio
+    async def test_the_model_query_result_reaches_the_model(self):
+        """The page it found has to reach the prompt, or it bought nothing.
+
+        The assertion is on the *result*, not the query string: a query that is
+        issued and then dropped from the context buys a credit and tells the
+        model nothing.
         """
         from app.services.search import SearchOutcome, SearchResult
 
-        def outcome_for(query: str):
-            if "Maingate" in query:
-                return SearchOutcome(
-                    results=[SearchResult("Terminal notice", "https://example.ph/maingate", "s", 0.8)],
-                    ok=True,
-                )
-            return _search_ok()
+        found = SearchOutcome(ok=True, results=[
+            SearchResult("Terminal", "https://example.ph/terminal", "Maingate Terminal shuttle page", 0.8),
+        ])
 
-        with patch("app.routers.scan.search", side_effect=_search_by_query(outcome_for)):
+        with patch("app.routers.scan.search", return_value=found):
             with patch("app.routers.scan.chat", return_value=_chat_corroboration()) as chat:
                 async with AsyncClient(transport=transport, base_url="http://test") as c:
                     resp = await c.post("/api/verify", json={
                         "company_name": "Tanika",
-                        "attributes": {"LOCATION": "Maingate Terminal"},
+                        "search_queries": ["Tanika Maingate Terminal"],
                     }, headers=HEADERS)
 
         assert resp.status_code == 200
@@ -1444,106 +1525,45 @@ class TestSchemeQueriesAreIssued:
             for m in chat.call_args[0][0]
             if m.get("role") == "user"
         )
-        assert "https://example.ph/maingate" in user_text
+        assert "Maingate Terminal shuttle page" in user_text
 
     @pytest.mark.asyncio
-    async def test_no_attributes_issues_no_scheme_query(self):
-        resp, issued = await self._post({"company_name": "Tanika"})
-
-        assert resp.status_code == 200
-        assert '"scheme_queries": []' in resp.text
-        # Nothing beyond the employer pair: the panel must not show a query the
-        # posting never justified.
-        assert len(issued) == 2, issued
-
-    @pytest.mark.asyncio
-    async def test_a_missing_location_spends_no_credit(self):
-        """The case a naive "one query per attribute" implementation gets wrong.
-
-        Searching for a detail the posting never mentioned spends a credit and
-        cannot succeed — it returns pages about a terminal the posting never
-        claimed to be at, which the model then has to discard.
-        """
-        _, issued = await self._post({
-            "company_name": "Tanika",
-            "attributes": {"CONTACT_METHOD": "personal Gmail"},
-        })
-
-        assert not any("location" in q.lower() for q in issued), issued
-        # …and the attribute that *was* stated is still searched, so this is not
-        # passing because the builder produced nothing at all.
-        assert any("personal Gmail" in q for q in issued), issued
-
-    @pytest.mark.asyncio
-    async def test_an_unstated_attribute_never_reaches_a_query(self):
-        """Three spellings of "the posting stated nothing", one behaviour.
-
-        An omitted key, `{}` and an explicit `null` are the same claim, and a
-        verification must not fail over which one a caller used — least of all
-        with a 422, which is the whole request. The flow reads it through
-        `getattr(req, "attributes", None) or {}` for the same reason: a request
-        object built before the field existed is not an error either.
-        """
-        for body in (
-            {"company_name": "Tanika"},
-            {"company_name": "Tanika", "attributes": {}},
-            {"company_name": "Tanika", "attributes": None},
-        ):
-            resp, issued = await self._post(body)
-
-            assert resp.status_code == 200, body
-            assert len(issued) == 2, (body, issued)
-
-    @pytest.mark.asyncio
-    async def test_a_scheme_query_failure_is_partial_not_total(self):
-        """One failure is not a total failure.
-
-        The other queries worked, and discarding them would understate what was
-        checked. Reporting plain `search_ok: true` with no caveat would overstate
-        it — some categories were checked by a thinner search than they look.
-        """
+    async def test_a_model_query_failure_is_partial_not_total(self):
+        """Reporting a total failure would discard the employer query that worked."""
         from app.services.search import SearchOutcome
 
-        def fail_on_the_scheme_query(query: str):
-            return SearchOutcome(ok="Maingate" not in query, error="throttled")
-
         resp, _ = await self._post(
-            {
-                "company_name": "Tanika",
-                "attributes": {"LOCATION": "Maingate Terminal"},
-            },
-            search_impl=_search_by_query(fail_on_the_scheme_query),
+            {"company_name": "Tanika", "search_queries": ["Tanika branch"]},
+            search_impl=_search_by_query(
+                lambda q: SearchOutcome(ok=False, error="boom") if q != "Tanika company or employer" else _search_ok()
+            ),
         )
 
-        assert resp.status_code == 200
         assert '"search_ok": true' in resp.text
         assert '"search_partial": true' in resp.text
-        assert '"queries_issued": 3' in resp.text
+        assert '"queries_issued": 2' in resp.text
         assert '"queries_failed": 1' in resp.text
 
     @pytest.mark.asyncio
     async def test_every_query_failing_is_still_a_total_failure(self):
-        """The overcorrection: `partial` is for one failure, not for any.
-
-        Widening the partial branch to fire whenever a scheme query failed would
-        report a total outage as partial coverage.
-        """
+        """The overcorrection: widening the partial branch to fire whenever a
+        query failed would report a total outage as partial coverage."""
         from app.services.search import SearchOutcome
 
         resp, _ = await self._post(
-            {"company_name": "Tanika", "attributes": {"LOCATION": "Maingate Terminal"}},
-            search_impl=_search_by_query(lambda query: SearchOutcome(ok=False, error="boom")),
+            {"company_name": "Tanika", "search_queries": ["Tanika branch"]},
+            search_impl=_search_by_query(lambda q: SearchOutcome(ok=False, error="boom")),
         )
 
         assert '"search_ok": false' in resp.text
         assert '"search_partial": false' in resp.text
 
     @pytest.mark.asyncio
-    async def test_no_employer_name_spends_no_credit_on_scheme_queries(self):
+    async def test_no_employer_name_spends_no_credit_at_all(self):
         """A detail with no employer attached is a place, not an impersonation.
 
-        The flow already returns before searching at all in this case; the
-        assertion is that adding scheme queries did not open a way past it.
+        The flow returns before searching at all in this case; the assertion is
+        that reading model queries did not open a way past it.
         """
         with (
             patch("app.routers.scan.search", side_effect=_search_ok_recording([])) as search,
@@ -1552,39 +1572,12 @@ class TestSchemeQueriesAreIssued:
             async with AsyncClient(transport=transport, base_url="http://test") as c:
                 resp = await c.post("/api/verify", json={
                     "company_name": "",
-                    "attributes": {"LOCATION": "Maingate Terminal"},
+                    "search_queries": ["Maingate Terminal"],
                 }, headers=HEADERS)
 
         assert resp.status_code == 200
         search.assert_not_called()
         assert '"no_company_name": true' in resp.text
-
-    @pytest.mark.asyncio
-    async def test_the_claims_reach_the_user_prompt(self):
-        """End to end: the attributes the scan read reach the model's request.
-
-        `_build_verify_prompt` is unit-tested above; this closes the loop, since
-        a request whose attributes are dropped anywhere between the schema and
-        the prompt leaves `Channel Match` unfireable.
-        """
-        with patch("app.routers.scan.search", return_value=_search_ok()):
-            with patch("app.routers.scan.chat", return_value=_chat_corroboration()) as chat:
-                async with AsyncClient(transport=transport, base_url="http://test") as c:
-                    resp = await c.post("/api/verify", json={
-                        "company_name": "Tanika",
-                        "attributes": {"LOCATION": "Maingate Terminal"},
-                    }, headers=HEADERS)
-
-        assert resp.status_code == 200
-        user_text = "\n".join(
-            str(m.get("content"))
-            for m in chat.call_args[0][0]
-            if m.get("role") == "user"
-        )
-        assert "Maingate Terminal" in user_text
-
-
-
 class TestTheScanResponseCarriesItsAttributesToRetrieval:
     """The leg that made the whole design inert, end to end inside the backend.
 
@@ -1612,6 +1605,10 @@ class TestTheScanResponseCarriesItsAttributesToRetrieval:
         "LOCATION: Maingate Terminal\n"
         "CONTACT_METHOD: personal Gmail\n"
         "END ATTRIBUTES\n"
+        "SEARCH QUERIES:\n"
+        "QUERY: Tanika Maingate Terminal\n"
+        "QUERY: Tanika personal Gmail\n"
+        "END SEARCH QUERIES\n"
         "EMPLOYER NAME: Tanika\n"
         "POSTING ANALYSIS:\n"
         "The posting asks for money before work begins.\n"
@@ -1641,7 +1638,31 @@ class TestTheScanResponseCarriesItsAttributesToRetrieval:
 }
 
     @pytest.mark.asyncio
-    async def test_those_attributes_are_the_ones_the_searches_are_built_from(self):
+    async def test_a_claimed_permit_survives_the_whole_leg(self):
+        """Started from model text, not a hand-written dict.
+
+        `Official Registration` is asked only when the posting claims a
+        registration, so this attribute is what fires that gate. Written as a
+        dictionary it would pass while the parser silently dropped the key - and
+        the category would be unfireable in production while looking tested, the
+        same shape of failure as the schema -> prompt leg above.
+        """
+        from app.services.lm_client import _parse_custom
+        from app.services.scanner import _scan_response
+
+        output = self.SCAN_OUTPUT.replace(
+            "END ATTRIBUTES",
+            "REGISTERED_AS: DTI permit no. 12345\nEND ATTRIBUTES",
+            1,
+        )
+        parsed = _parse_custom(output)
+        assert parsed is not None
+        scan = _scan_response(parsed, parsed.get("company_name") or "")
+
+        assert scan.attributes["REGISTERED_AS"] == "DTI permit no. 12345"
+
+    @pytest.mark.asyncio
+    async def test_the_queries_the_model_wrote_are_the_ones_issued(self):
         scan = self._scan_response()
         issued: list = []
 
@@ -1660,26 +1681,26 @@ class TestTheScanResponseCarriesItsAttributesToRetrieval:
                 resp = await c.post("/api/verify", json={
                     "company_name": scan.company_name,
                     "attributes": scan.attributes,
+                    "search_queries": scan.search_queries,
                 }, headers=HEADERS)
 
         assert resp.status_code == 200
-        # Two about the employer, and one for each checkable attribute the scan
-        # reported. Not zero: the branch's whole purpose is these.
+        # The employer's own query, then the ones the scan proposed. Not zero:
+        # the whole point of the block is these.
+        assert issued[0] == "Tanika company or employer"
         assert any("Tanika Maingate Terminal" in q for q in issued), issued
         assert any("Tanika personal Gmail" in q for q in issued), issued
-        assert len(issued) == 4, issued
 
     @pytest.mark.asyncio
-    async def test_a_scan_that_reported_nothing_spends_no_scheme_credit(self):
+    async def test_a_scan_that_proposed_nothing_spends_one_credit(self):
         """The overcorrection.
 
-        Passing every attribute through unconditionally would raise the cost of
-        every verification from 2-5 credits to a fixed higher number, on a
-        deployment whose free tier is 1,000 credits a month. A sparse posting
-        must still cost what it cost before.
+        Spending a credit on a query the model did not ask for would raise the
+        cost of every verification on a deployment whose free tier is 1,000
+        credits a month. A sparse posting must still cost what it cost before.
         """
         scan = self._scan_response()
-        stripped = type(scan)(**{**scan.model_dump(), "attributes": {}})
+        stripped = type(scan)(**{**scan.model_dump(), "search_queries": []})
         issued: list = []
 
         def _record(query, max_results=None):
@@ -1693,8 +1714,8 @@ class TestTheScanResponseCarriesItsAttributesToRetrieval:
             async with AsyncClient(transport=transport, base_url="http://test") as c:
                 resp = await c.post("/api/verify", json={
                     "company_name": stripped.company_name,
-                    "attributes": stripped.attributes,
+                    "search_queries": stripped.search_queries,
                 }, headers=HEADERS)
 
         assert resp.status_code == 200
-        assert len(issued) == 2, issued
+        assert issued == ["Tanika company or employer"], issued

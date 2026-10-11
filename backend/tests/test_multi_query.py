@@ -1,169 +1,26 @@
-"""Two queries per verification, and what they may not become.
+"""One employer query, and what may no longer be built in code.
 
-The single query was `"<company> Philippines"`, which ranks the employer's own
-site and job boards first. Those pages prove the company exists and almost never
-state a registration number, so a PESO or SEC listing sat below the fold of the
-result list and "Official Registration" was starved by ranking rather than by
-absence. Raising `max_results` cannot fix that; the query only asks for one
-category's worth of evidence.
+There was a pair - `registration certificate` and `reviews complaints` - built
+here from the employer name. Both are gone: they starved each other, and a
+single `"<company> company or employer"` returns the employer's own pages, a
+PESO listing and a job board post in one result set.
 
-A second query for registration fixes the ranking. It must not become a way to
-ask the retrieval engine for a verdict, so the constraints below are the
-load-bearing part of this change, not the query string.
+Everything the pair was guarding against is still guarded, but by a different
+party. `scam` and `fraud` stay out of a query because a query carrying a
+conclusion returns pages that appear to corroborate it - and that rule now lives
+in the scan prompts alone, since the queries are model-authored and unfiltered
+in code. The tombstone below exists because "no filter" is a decision a future
+reader will otherwise mistake for an oversight.
+
+`build_scheme_queries` and its attribute table are deleted outright. The model
+proposes its own searches now, so anything that rebuilt them from attributes
+would be a second, competing source of queries - and a stale one.
 """
 
 import pytest
 
-from app.services.search import build_queries, build_scheme_queries, merge_results, SearchResult
+from app.services.search import build_queries, merge_results, SearchResult
 
-
-class TestTheQuerySet:
-    def test_there_are_two_queries(self):
-        queries = build_queries("Jollibee")
-
-        assert len(queries) == 2
-        assert all(q.endswith("Philippines") for q in queries)
-
-    def test_the_two_queries_target_registration_and_reputation(self):
-        queries = [q.lower() for q in build_queries("Jollibee")]
-
-        assert "registration" in queries[0]
-        assert "certificate" in queries[0]
-        assert "reviews" in queries[1]
-
-    def test_the_registration_query_names_a_document_not_a_registry(self):
-        """"Registration certificate" is a document noun, which is the rule.
-
-        The ban is on naming a *conclusion* (`scam`) or a *specific regulator*
-        (SEC, which would starve the DTI/PEZA/BOI/LGU registrants the category
-        was widened to include). A certificate is the artefact itself, and
-        naming the artefact ranks filings higher than a bare "registration"
-        would — a PESO page or an SEC listing is titled after the document.
-        """
-        for query in build_queries("Acme Corporation"):
-            for registry in ("sec", "dti", "peza", "boi"):
-                assert registry not in query.lower(), registry
-
-    def test_the_reputation_query_carries_both_terms(self):
-        """`reviews complaints`, not one or the other.
-
-        A review page and a published complaint are different documents: the
-        first is a rating the employer can respond to, the second is an adverse
-        record. Searching for only one misses the other, and the category the
-        panel reports is about what a result *states*.
-        """
-        reputation = build_queries("Jollibee")[1].lower()
-
-        assert "reviews" in reputation
-        assert "complaints" in reputation
-
-    def test_the_registration_query_never_names_one_registry(self):
-        """Naming SEC alone reintroduces the bug the category rename fixed.
-
-        `Official Registration` exists because a company holding a DTI, PEZA,
-        BOI, or LGU business permit was being reported as unregistered by an
-        SEC-only check. A query that says "SEC" would starve exactly those
-        registrants the category was widened to include.
-        """
-        for query in build_queries("Acme Corporation"):
-            assert "sec" not in query.lower(), query
-            assert "dti" not in query.lower(), query
-            assert "peza" not in query.lower(), query
-
-    def test_no_query_uses_the_accusatory_terms(self):
-        """The ban is on asking retrieval for a verdict, not on querying at all.
-
-        `scam` and `fraud` name a conclusion. A query carrying one biases
-        retrieval toward adverse results about a named real company, so the
-        results look like corroboration of the accusation the query already
-        embedded. `Company Reputation` exists to report what a *result* states,
-        never what the query asked for.
-
-        `reviews` and `complaints` were added to the queries deliberately and
-        are therefore allowed here. That is a trade the project owner made with
-        the risk in front of them, not an oversight: those terms do surface
-        employee experience and published complaint pages that a neutral query
-        never reaches. The residual exposure is aggregator pages that re-publish
-        complaint text against a scraped company name, which is why the prompt
-        still requires a result to name the same entity and why `red` requires
-        a source. Do not add `scam` or `fraud` to this list's complement.
-        """
-        banned = ("scam", "fraud")
-        for query in build_queries("Acme Corporation"):
-            for word in banned:
-                assert word not in query.lower(), f"{word!r} in {query!r}"
-
-    def test_company_existence_is_no_longer_its_own_query(self):
-        """Existence is now inferred from the other two searches.
-
-        Traded deliberately: a company with a rating page, a filing, or a
-        published complaint is found by those queries, and the existence check
-        is redundant against them. The cost is that an employer with no review
-        profile and no filing is found by neither, and reports yellow on
-        existence — a real regression for the smallest employers, which is
-        exactly who this product is for.
-        """
-        queries = build_queries("Acme Corporation")
-
-        # Neither query is the plain existence lookup it used to be, so
-        # existence is now judged from the merged list rather than asked for.
-        assert not any(q == "Acme Corporation Philippines" for q in queries)
-
-    def test_reputation_is_covered_by_a_query(self):
-        queries = build_queries("Acme Corporation")
-
-        assert any("reviews" in q.lower() for q in queries)
-
-    def test_registration_is_still_covered(self):
-        queries = build_queries("Acme Corporation")
-
-        assert any("registration" in q.lower() for q in queries)
-
-    def test_both_queries_keep_the_employer_name_verbatim(self):
-        """Only the axis term and the country are appended to the name.
-
-        The scan states the employer once, and verification looks it up. Nothing
-        between the two may rewrite the distinctive part, because every rewrite
-        is a chance to search a different company than the one named.
-        """
-        for query in build_queries("Silvergreen Manpower Services Corporation"):
-            assert query.startswith("Silvergreen Manpower Services Corporation")
-
-    def test_a_name_already_naming_the_country_is_not_anchored_twice(self):
-        for query in build_queries("Jollibee Philippines"):
-            assert query.lower().count("philippines") == 1, query
-
-    def test_the_legal_name_survives_into_every_query(self):
-        """The suffix is kept, and this is deliberate.
-
-        It used to be stripped, on the reasoning that a generic legal form
-        dilutes a rare name. In practice it does the opposite for a Philippine
-        employer: the filing, the PESO listing, and the company's own legal pages
-        are all titled with the *legal* name, while stripping it left the
-        distinctive part competing against a brand, its franchisees, and
-        unrelated products sharing the word. "Jollibee Foods" is a worse query
-        than "Jollibee Foods Corporation".
-
-        Recorded in AGENTS.md as a reversal, not an oversight.
-        """
-        for query in build_queries("Jollibee Foods Corporation"):
-            assert "corporation" in query.lower(), query
-
-    def test_every_supported_suffix_survives(self):
-        for suffix in ("Corporation", "Corp", "Corp.", "Inc", "Incorporated", "Co", "LLC"):
-            name = f"Jollibee Foods {suffix}"
-            for query in build_queries(name):
-                assert query.startswith(name), f"{suffix!r} was altered in {query!r}"
-
-    def test_a_name_that_is_only_a_suffix_is_still_searchable(self):
-        """'Corporation' alone used to strip to nothing.
-
-        It cannot now, but the guard stays: a name that reduced to the geographic
-        term alone would return results about any company.
-        """
-        for name in ("Corporation", "Inc", "Co"):
-            for query in build_queries(name):
-                assert query.startswith(name), f"{name!r} became {query!r}"
 
 
 def _result(url, score=0.5, title="t", snippet="s"):
@@ -241,228 +98,127 @@ class TestMergingTwoResultSets:
         assert len(merged) == 2
 
 
-class TestSchemeQueries:
-    """Queries come from what the posting states, never from its labels.
+class TestTheEmployerQuery:
+    def test_there_is_exactly_one(self):
+        """One request, so the employer lookup costs one credit."""
+        assert build_queries("Tanika") == ["Tanika company or employer"]
 
-    A model's `high` label is a characterisation; using it as a query term puts
-    the accusation inside the query, and a query carrying a conclusion makes its
-    own results look like corroboration. Only checkable attributes qualify, and
-    only when the posting actually stated them.
-    """
+    def test_the_or_covers_both_spellings_of_the_name(self):
+        """A small business is often only findable under one of the two.
 
-    def test_no_attributes_means_no_queries(self):
-        assert build_scheme_queries({}, "Acme") == []
-
-    def test_absent_attributes_are_not_queried_either(self):
-        """`None` is "the posting stated nothing", the same claim as `{}`.
-
-        The verification request carries whatever the scan produced, and a scan
-        that raised no attributes at all must not turn into an `AttributeError`
-        halfway through the verification stream.
+        The query reads as a boolean, so a company writing itself "Tanika
+        Company", "Tanika Employer" or neither is matched either way. A wrong
+        guess at the suffix is a query that returns nothing about the employer
+        every other check is about.
         """
-        assert build_scheme_queries(None, "Acme") == []
+        query = build_queries("Tanika")[0].lower()
 
-    def test_no_employer_name_means_no_query(self):
-        """A detail with no employer attached is a place, not an impersonation.
+        assert "company" in query
+        assert "employer" in query
 
-        "Maingate Terminal recruitment Philippines" searches a bus terminal. The
-        whole point of these queries is to find pages that pair a claim with the
-        company claiming it, and there is no company to pair with.
-        """
-        assert build_scheme_queries({"LOCATION": "Maingate Terminal"}, "") == []
-        assert build_scheme_queries({"LOCATION": "Maingate Terminal"}, "   ") == []
-
-    def test_a_location_the_posting_stated_produces_a_query(self):
-        queries = build_scheme_queries(
-            {"LOCATION": "Maingate Terminal"}, "Tanika"
-        )
-        # The employer name and the stated detail, verbatim, anchored to the
-        # country exactly as `build_queries` anchors its own.
-        assert queries == ["Tanika Maingate Terminal Philippines"]
-
-    def test_the_query_carries_no_category_word(self):
-        """The trailing term is the country, not `recruitment`.
-
-        `build_queries` appends a *document* noun (`registration certificate`,
-        `reviews complaints`) because it is asking for a category's evidence. A
-        scheme query is not asking for a category — it is asking for pages that
-        mention this employer together with this detail — so it appends nothing
-        but the country anchor. `recruitment` would steer retrieval toward job
-        boards, which is the same category bias the employer queries avoid.
-        """
-        queries = build_scheme_queries({"LOCATION": "Maingate Terminal"}, "Tanika")
-
-        assert queries == ["Tanika Maingate Terminal Philippines"]
-        assert "recruitment" not in queries[0].lower()
-
-    def test_the_poster_prose_is_stripped_from_the_detail(self):
-        """Only the searchable part of a stated detail survives into the query.
-
-        The connector words are the poster's sentences, not the place, and they
-        dilute the query without adding a term the index will use.
-        """
-        queries = build_scheme_queries(
-            {"LOCATION": "our Robinsons Starmills branch in Cabatuan"}, "Tanika"
-        )
-
-        assert queries == ["Tanika Robinsons Starmills in Cabatuan Philippines"]
-
-    def test_a_detail_stated_twice_produces_one_query(self):
-        """Two attributes naming the same place is one question, not two.
-
-        A posting that gives a LOCATION and a MEETING_SPOT which are the same
-        supermarket must not spend two credits asking the same thing twice.
-        """
-        queries = build_scheme_queries(
-            {
-                "LOCATION": "Waltermart Mabalacat",
-                "MEETING_SPOT": "Waltermart Mabalacat",
-            },
-            "Tanika",
-        )
-
-        assert queries == ["Tanika Waltermart Mabalacat Philippines"]
-
-    def test_pay_and_role_are_never_queried(self):
-        # A salary figure is not corroborated or refuted by a web search, so a
-        # query for one spends a credit and learns nothing.
-        queries = build_scheme_queries(
-            {"PAY": "26,000 monthly", "ROLE": "crew"}, "Tanika"
-        )
-        assert queries == []
-
-    def test_a_missing_location_produces_nothing(self):
-        # The case a naive "one query per attribute" implementation gets wrong:
-        # it spends a credit searching for something the posting never said.
-        #
-        # The length and content assertions matter as much as the ban: `all(...)`
-        # over an empty list is vacuously true, so a build_scheme_queries that
-        # returned [] for everything would otherwise pass this.
-        queries = build_scheme_queries({"CONTACT_METHOD": "personal Gmail"}, "Tanika")
-
-        assert len(queries) == 1
-        assert "gmail" in queries[0].lower()
-        assert all("location" not in q.lower() for q in queries)
-
-    def test_a_placeholder_attribute_is_not_queried(self):
-        queries = build_scheme_queries(
-            {"LOCATION": "Not stated"}, "Tanika"
-        )
-        assert queries == []
+    def test_the_name_is_used_verbatim(self):
+        """The legal name is how filings, PESO listings and legal pages title
+        themselves, so stripping the suffix left the distinctive part competing
+        against a brand and its franchisees."""
+        assert build_queries("Jollibee Foods Corporation") == [
+            "Jollibee Foods Corporation company or employer"
+        ]
 
     @pytest.mark.parametrize(
-        "placeholder", ["", "  ", "none", "N/A", "NA", "not stated", "Not Mentioned", "unknown", "-"]
+        "name",
+        ["Tanika Corporation", "Tanika Corp", "Tanika Inc", "Tanika Co", "Tanika LLC"],
     )
-    def test_every_placeholder_shape_is_skipped(self, placeholder):
-        """A surviving placeholder becomes a query, and a query for "none" is a
-        credit spent to learn nothing.
+    def test_every_supported_suffix_survives(self, name):
+        assert build_queries(name)[0].startswith(name)
 
-        The scan's own parser drops only the exact string "not stated", so the
-        backend cannot rely on the model having used that one spelling.
+    def test_the_philippines_is_no_longer_appended_to_the_query(self):
+        """The suffix was the same signal the request already carries.
+
+        `country` on the search request biases ranking toward Philippine results,
+        so appending "Philippines" to every query spent characters without
+        adding reach.
         """
-        assert build_scheme_queries({"LOCATION": placeholder}, "Tanika") == []
-
-    def test_the_cap_is_three(self):
-        queries = build_scheme_queries(
-            {
-                "LOCATION": "Pampanga",
-                "CONTACT_METHOD": "personal Gmail",
-                "MEETING_SPOT": "Waltermart Mabalacat",
-            },
-            "Tanika",
-        )
-        assert len(queries) == 3
-
-    def test_the_cap_holds_when_more_attributes_than_the_cap_are_stated(self):
-        """A detailed posting must not cost more to check than a sparse one.
-
-        Only three attribute names are checkable today, so the cap is currently
-        unreachable from `CHECKABLE_ATTRIBUTES` alone. It stays as the guard for
-        whoever adds a fourth: a fourth checkable attribute without a cap would
-        silently raise the price of every verification.
-        """
-        queries = build_scheme_queries(
-            {
-                "LOCATION": "Pampanga",
-                "CONTACT_METHOD": "personal Gmail",
-                "MEETING_SPOT": "Waltermart Mabalacat",
-                "SCHEDULE": "immediately",
-                "AGE_RANGE": "20-30",
-            },
-            "Tanika",
-        )
-
-        assert len(queries) == 3
-
-    def test_the_company_name_is_used_verbatim(self):
-        # No suffix strip: a filing and a store locator are titled with the legal
-        # name, and stripping it searches a different company than the one named.
-        queries = build_scheme_queries({"LOCATION": "Quezon City"}, "Jollibee Foods Corporation")
-        assert "Jollibee Foods Corporation" in queries[0]
-
-    def test_every_query_starts_with_the_employer_name(self):
-        """The name leads every query, not just the first.
-
-        A detail alone is searchable — "Waltermart Mabalacat" is a supermarket,
-        not an impersonation of Tanika — so a query without the name returns
-        pages that have nothing to do with the posting.
-        """
-        queries = build_scheme_queries(
-            {
-                "LOCATION": "Pampanga",
-                "CONTACT_METHOD": "personal Gmail",
-                "MEETING_SPOT": "Waltermart Mabalacat",
-            },
-            "Jollibee Foods Corporation",
-        )
-
-        assert len(queries) == 3
-        for query in queries:
-            assert query.startswith("Jollibee Foods Corporation"), query
-
-    def test_an_employer_name_already_naming_the_country_is_not_anchored_twice(self):
-        queries = build_scheme_queries({"LOCATION": "Quezon City"}, "Tanika Philippines")
-
-        assert all(q.lower().count("philippines") == 1 for q in queries), queries
-
-    def test_no_query_carries_a_conclusion(self):
-        banned = ("scam", "fraud", "fake", "illegal", "criminal")
-        queries = build_scheme_queries(
-            {"LOCATION": "Pampanga", "MEETING_SPOT": "bus terminal"},
-            "Tanika",
-        )
-        assert queries
-        for q in queries:
-            for word in banned:
-                assert word not in q.lower()
+        assert not any("philippines" in q.lower() for q in build_queries("Tanika"))
 
 
-class TestTheConstantHasOneHome:
-    """`CHECKABLE_ATTRIBUTES` is defined once, in the module that consumes it.
+class TestThePhilippinesIsNowCarriedByTheRequest:
+    """The overcorrection of deleting the suffix.
 
-    Task 1 defined it in `lm_client.py`, where nothing read it — and where it
-    could not have been used honestly, because the parser there keeps `PAY` and
-    `COMPANY` as reported attributes. The parser's set answers "what did the
-    posting state", this one answers "what can a search check", and a name
-    shared between two different questions is a name waiting to be merged.
+    Removing it from the query text left `TAVILY_COUNTRY` as the only geographic
+    signal. If a deployment ever sets it blank, nothing anchors these queries to
+    the Philippines at all - and that failure is invisible, because the search
+    still succeeds and returns results from somewhere.
 
-    Tombstone, in the same spirit as `TestQueryBuildingMovedOut`: a second
-    definition would drift, and the drift that matters is someone adding "PAY"
-    to one copy. The two copies would then disagree about whether a salary
-    costs a credit, and the test that guards it would be guarding half of it.
+    `country` is a *boost*, not a filter, which is also why removing it does not
+    lose the local job boards and PESO listings the query targets: it widens the
+    result set rather than restricting it.
     """
 
-    def test_the_provider_module_does_not_define_its_own_copy(self):
-        import app.services.lm_client as lm_client
+    def _body_sent(self, monkeypatch, country):
+        import app.services.search as mod
+        from tests.test_search import FakeResponse
 
-        assert not hasattr(lm_client, "CHECKABLE_ATTRIBUTES")
+        captured = {}
 
-    def test_the_constant_names_exactly_the_checkable_attributes(self):
-        from app.services.search import CHECKABLE_ATTRIBUTES
+        def fake_post(url, json=None, timeout=None, headers=None):
+            captured.update(json or {})
+            return FakeResponse({"results": []})
 
-        assert set(CHECKABLE_ATTRIBUTES) == {"LOCATION", "CONTACT_METHOD", "MEETING_SPOT"}
-        # Reported but never queried. Asserted explicitly because the exclusion
-        # is the rule, not the tuple: PAY is a salary figure and ROLE is a job
-        # title, and neither is corroborated or refuted by a web search.
-        assert "PAY" not in CHECKABLE_ATTRIBUTES
-        assert "ROLE" not in CHECKABLE_ATTRIBUTES
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.settings, "tavily_country", country)
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        mod.search(build_queries("Tanika")[0], 5)
+        return captured
+
+    def test_the_country_boost_is_sent_on_every_request(self, monkeypatch):
+        # Pinned rather than read from the environment: the default is not the
+        # subject here, the request shape is.
+        assert self._body_sent(monkeypatch, "philippines")["country"] == "philippines"
+
+    def test_a_blank_country_is_dropped_rather_than_sent_as_empty(self, monkeypatch):
+        """`country: ""` is a request the provider may reject, which would turn
+        an operator blanking a config into a reported lookup failure."""
+        assert "country" not in self._body_sent(monkeypatch, "   ")
+
+    def test_the_query_itself_carries_no_country(self, monkeypatch):
+        """Both halves of the change, asserted together: the geography moved
+        from the query text to the request."""
+        body = self._body_sent(monkeypatch, "philippines")
+
+        assert "philippines" not in body["query"].lower()
+        assert body["country"] == "philippines"
+
+
+class TestTheSchemeQueryBuilderIsDeleted:
+    """Tombstones. A function left in the module is a trap for the next reader.
+
+    The scan model proposes its own searches now. A surviving builder would be a
+    second source of queries, and nothing would call it - which is exactly the
+    state commit 413a2cd deleted a different feature for.
+    """
+
+    def test_the_builder_is_gone(self):
+        import app.services.search as search_module
+
+        assert not hasattr(search_module, "build_scheme_queries")
+
+    def test_the_attribute_table_is_gone(self):
+        """It existed to answer "what can a search check", which is now the
+        model's question rather than the module's."""
+        import app.services.search as search_module
+
+        assert not hasattr(search_module, "CHECKABLE_ATTRIBUTES")
+
+    def test_the_country_suffix_helper_is_gone(self):
+        """`country` carries the geography. A suffix helper left here would be
+        someone re-adding the duplicate signal."""
+        import app.services.search as search_module
+
+        assert not hasattr(search_module, "_with_country")
+
+    def test_the_prose_squeezer_is_gone(self):
+        """It reduced an attribute value to a query fragment. Model-authored
+        queries are already written as queries."""
+        import app.services.search as search_module
+
+        assert not hasattr(search_module, "_squeeze")

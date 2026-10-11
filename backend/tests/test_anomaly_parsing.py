@@ -192,63 +192,78 @@ class TestPostingAttributes:
         result = _parse_custom(raw)
         assert result["anomalies"][0]["query_ref"] == "orphan query"
 
-    def test_a_query_line_is_no_longer_a_section(self):
-        """The model-authored query family is gone, and this is the tombstone.
+    def test_a_query_line_is_read_as_a_search(self):
+        """The model-authored query family is back, and this says why.
 
-        It was parsed, capped at three, shipped on `ScanResponse.search_queries`,
-        and governed by two prompt rules -- and nothing read it. `search.py`
-        builds the queries instead, deterministically, from the attributes above.
+        It was deleted in 413a2cd for the right reason - parsed, capped, shipped
+        on `ScanResponse`, and read by nothing - which is not the same as it
+        being a bad idea. `VerifyRequest.search_queries` now carries it to
+        `/api/verify`, which issues it in place of the scheme queries this
+        module used to build.
 
-        Asserted as behaviour rather than as an absent key: a `QUERY:` line is now
-        ordinary prose. The assertion that bites is the *positive* one — that the
-        line survives into the section body it appeared in. Asserting only that
-        `search_queries` is absent is a tautology against a parser that had simply
-        stopped reading, which is a state this test cannot otherwise distinguish
-        from the one it is guarding.
+        The cap is 2 rather than the old 3, because one request is spent on the
+        employer itself and the free tier is 1,000 credits a month.
         """
         raw = (
             "VALID: true\nSEARCH QUERIES:\n"
-            "QUERY: one Philippines\nQUERY: two Philippines\n"
+            "QUERY: Tanika branch\nQUERY: Tanika permit\nQUERY: Tanika third\n"
             "END SEARCH QUERIES\nEMPLOYER NAME: Tanika\n"
         )
         result = _parse_custom(raw)
 
-        assert "search_queries" not in result
+        assert result["search_queries"] == ["Tanika branch", "Tanika permit"]
         # The employer path must still work beside it, or this would pass for a
         # parser that simply stopped reading everything.
         assert result["company_name"] == "Tanika"
 
+    def test_the_cap_is_two(self):
+        """Three would make the employer query a fourth request."""
+        raw = (
+            "VALID: true\nSEARCH QUERIES:\n"
+            "QUERY: one\nQUERY: two\nQUERY: three\n"
+            "END SEARCH QUERIES\n"
+        )
+
+        assert len(_parse_custom(raw)["search_queries"]) == 2
+
+    def test_a_placeholder_is_not_a_query(self):
+        """The model answering "none" is answering the format, not proposing a
+        search. A query for "none" is a credit spent to learn nothing."""
+        raw = (
+            "VALID: true\nSEARCH QUERIES:\n"
+            "QUERY: none\nQUERY: n/a\nQUERY: Tanika branch\n"
+            "END SEARCH QUERIES\n"
+        )
+
+        assert _parse_custom(raw)["search_queries"] == ["Tanika branch"]
+
     def test_a_query_line_in_a_section_body_is_prose(self):
-        """The assertion that actually bites on the tombstone above.
-
-        `QUERY` back in the alternation makes it a section keyword, and the
-        branch that handles it closes whatever section was open — so a `QUERY:`
-        line inside a JOB SUMMARY body truncates the summary. That is the
-        observable consequence, and it is what fails if the keyword returns.
-
-        `assert "search_queries" not in result` cannot catch that: the family
-        has no key to restore, so both a correct parser and a broken one pass.
+        """`QUERY` back in the alternation makes it a section keyword, and the
+        branch handling it would close whatever section was open - truncating
+        the summary. The guard is the same shape as the attribute gate's: a
+        keyword outside its block is appended back to the buffer.
         """
         raw = (
             "VALID: true\nJOB SUMMARY:\n"
             "A crew role at a warehouse.\n"
-            "QUERY: crew recruitment Philippines\n"
+            "QUERY: crew recruitment\n"
             "END JOB SUMMARY\n"
         )
         result = _parse_custom(raw)
 
-        assert "search_queries" not in result
         assert "crew recruitment" in result["job_summary"], (
             "a QUERY: line was treated as a section keyword and truncated the "
             "summary it appeared in"
         )
+        # Prose, not a proposal: it never opened the block.
+        assert result["search_queries"] == []
 
     def test_attributes_survive_a_missing_header(self):
         """A model that drops the `ATTRIBUTES:` header must still report.
 
         These attributes are what `build_scheme_queries` reads. Discarding them
         when the header is absent means zero scheme queries, and leaves
-        `Location / Branch`, `Channel Match` and `Scheme Corroboration`
+        `Location / Branch`, `Channel Match` and `Similar Offers`
         structurally unfireable — the same symptom as the extension never
         forwarding them, arriving by another route and with no error anywhere.
 

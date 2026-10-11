@@ -12,7 +12,12 @@ LOCATION: <city or region the post names, or omit>
 CONTACT_METHOD: <channel it directs applicants to, or omit>
 MEETING_SPOT: <named place, or omit>
 PAY: <amount and period as stated, or omit>
+REGISTERED_AS: <a registration, permit or licence number the posting itself claims, or omit>
 END ATTRIBUTES
+SEARCH QUERIES:
+QUERY: <a search that would check something this posting claims, or omit>
+QUERY: <a second such search, or omit>
+END SEARCH QUERIES
 EMPLOYER NAME: <exact employer name, or "Not stated">
 POSTING ANALYSIS:
 <2-3 neutral, factual sentences analyzing the offer based on anomalies found, ending with a recommended action.>
@@ -38,12 +43,19 @@ END JOB SUMMARY
   * mid: Vague compensation models, off-platform communication requests for standard roles, or unverified claims about freelance contracts.
   * low: Generic job titles, informal formatting, or minor inconsistencies in job descriptions.
 - If no anomalies exist, emit no `ANOMALY:` lines and go straight to `END ANOMALIES`.
+- After an ANOMALY line, a QUERY_REF line may name the posting detail the search under SEARCH QUERIES checks. Omit it for a low-severity anomaly.
 
 6. ATTRIBUTES
 - Report only details the posting actually states. If it names no location, omit the LOCATION line entirely rather than writing "none" or "Not stated".
-- PAY may be reported but is never used as a search query: a salary figure is not corroborated or refuted by a web search. LOCATION, CONTACT_METHOD and MEETING_SPOT are checkable online, and each one that is stated becomes a search query.
-- You do not write search queries. They are built for you, from the details you report here, so that every query is one the posting actually justifies.
-- Put a QUERY_REF line after an ANOMALY line naming the posting detail a search would be built from. Omit QUERY_REF for a low-severity anomaly; it will never be corroborated.
+- REGISTERED_AS is only for a registration the posting claims about itself - a permit number, a licence, "we are a registered company". Write what it says, exactly. Do not write one from a registry you know about; only the posting's own claim is a claim.
+
+7. SEARCH QUERIES
+- Propose at most two searches, on the QUERY lines. More than two is wasted: only the first two are run.
+- Write a query only for something the posting actually states. A posting naming no location produces no location query.
+- A query may look for what the posting claims. Name the claim and the employer together, so the search is about that employer's claim and not about the claim in general.
+- Never put a conclusion in a query. Do not use scam, fraud, fraudulent, fake, suspicious, or legitimate. A query carrying one returns pages chosen because they contain that word, which then look like confirmation of an accusation the query already made up. Search for the thing itself: the permit number, the branch, the address, the account name.
+- Use the poster's words for the part being checked, not your summary of it.
+- If nothing in the posting is worth a search, write no QUERY lines at all rather than writing none.
 
 3. COMPANY NAME
 - Output the exact client or employer name offering the work. 

@@ -55,6 +55,7 @@ def _build_scan_response(
         valid=result.get("valid", False),
         anomalies=flags,
         attributes=result.get("attributes", {}),
+        search_queries=list(result.get("search_queries") or []),
         job_summary=result.get("job_summary", ""),
         posting_analysis=result.get("posting_analysis", ""),
         company_name=company_name if company_name_validator(company_name) else None,

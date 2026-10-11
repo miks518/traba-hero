@@ -505,16 +505,23 @@ async function consumeSseStreamOffer(
  * What `/api/verify` is asked about.
  *
  * `attributes` is the posting's own stated details, forwarded verbatim from the
- * scan response. The backend builds the scheme queries from it and quotes it
- * back to the model as the claims its categories test, so dropping it here is
- * not a local loss: every scheme query disappears and three of the six claim
- * categories have nothing to reason about.
+ * scan response. The backend quotes it back to the model as the claims its
+ * categories test, so dropping it here is not a local loss: `Channel Match` —
+ * the one check that can detect an impersonation — would have nothing to
+ * reason about.
+ *
+ * `search_queries` are the searches the scan model proposed, capped at 2. They
+ * are issued alongside the one query the backend builds from the employer name.
+ * Dropping them leaves every verification running on a single query, reported
+ * as an ordinary lookup with no error anywhere — which is how the previous
+ * version of this feature failed.
  */
 export interface VerifyContext {
   company_name: string;
   job_summary: string;
   anomalies?: { flag: string; reasoning: string; severity: string }[];
   attributes?: Record<string, string>;
+  search_queries?: string[];
 }
 
 export interface VerifyStreamResult {
@@ -597,7 +604,7 @@ export async function verifyJobStream(
             search_partial?: boolean;
             queries_issued?: number;
             queries_failed?: number;
-            scheme_queries?: string[];
+            model_queries?: string[];
             debug_search_raw?: Array<{ query: string; raw: string }>;
           };
           return {
@@ -614,7 +621,7 @@ export async function verifyJobStream(
               searchPartial: data.search_partial,
               queriesIssued: data.queries_issued,
               queriesFailed: data.queries_failed,
-              schemeQueries: data.scheme_queries,
+              modelQueries: data.model_queries,
               debugSearchRaw: data.debug_search_raw,
             },
           };

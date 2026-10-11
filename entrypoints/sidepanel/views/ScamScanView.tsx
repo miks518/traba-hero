@@ -371,12 +371,15 @@ export function ScamScanView({
             job_summary: verifyCtx.job_summary || data.job_summary || '',
             anomalies: data.anomalies,
             // The posting's own stated details, forwarded verbatim. The backend
-            // builds its scheme queries from these and quotes them back to the
-            // model as the claims its categories test, so omitting this left
-            // every verification at the two employer queries and made Channel
-            // Match — the one check that can detect an impersonation —
-            // structurally unable to fire.
+            // quotes them back to the model as the claims its categories test,
+            // so omitting this left Channel Match — the one check that can
+            // detect an impersonation — structurally unable to fire.
             attributes: data.attributes,
+            // The searches the scan model proposed. Forwarding these is what
+            // makes the second and third queries happen; dropping them leaves
+            // every verification on the employer query alone, reported as an
+            // ordinary lookup with nothing anywhere reporting the shortfall.
+            search_queries: data.search_queries,
           }, jobId);
         } else if (data.job_summary) {
           startOfferAnalysis(data.job_summary, data.company_name || '');
@@ -592,6 +595,28 @@ export function ScamScanView({
                 riskScore: scanResult.riskScore,
                 verificationRun: verificationRun,
               })}
+            </p>
+          )}
+
+          {/* What a scan can say is bounded by what the capture contained. A
+              heading cropped off is an employer name the employer check never
+              runs, and the panel cannot say so — it does not know the name was
+              there. So the lever the reader actually has is stated here, next to
+              the sentence explaining what the number rests on: the two are one
+              thought, "this is what was measured, and this is how to measure
+              more of it".
+
+              It is a prompt to widen the selection, not a correction of the
+              reader, and it carries no verdict - a short capture that produced
+              no anomalies is a clean result, and this must not read as one being
+              missed. */}
+          {!scanResult.verificationLoading && scanResult.riskScore !== null && (
+            <p
+              data-role="capture-reminder"
+              className="text-label-sm text-on-surface-variant text-center -mt-1"
+            >
+              For a more accurate result, capture the whole job post — including the
+              employer name, contact details and pay — not just the headline.
             </p>
           )}
 

@@ -1,5 +1,5 @@
 from app.ai_limiter import ai_limiter
-from app.services.search import build_queries, build_scheme_queries, clean_company_name, extract_company_name, is_valid_company_name, merge_results, search
+from app.services.search import build_queries, clean_company_name, extract_company_name, is_valid_company_name, merge_results, search
 from app.services.email_verifier import verify_emails_in_text
 from app.services.lm_client import (
     _parse_custom,
@@ -45,7 +45,6 @@ class ScannerDependencies:
     get_parse_match = staticmethod(lambda: _parse_match_custom)
     get_search = staticmethod(lambda: search)
     get_build_queries = staticmethod(lambda: build_queries)
-    get_build_scheme_queries = staticmethod(lambda: build_scheme_queries)
     get_merge_results = staticmethod(lambda: merge_results)
     get_format_results = staticmethod(lambda: format_results)
     get_chat = staticmethod(lambda: chat)
