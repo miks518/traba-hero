@@ -15,6 +15,11 @@ export interface ResumeMatchViewProps {
   onClearJobs: () => void;
   onProgressChange?: (progress: ScanProgress | null) => void;
   isOnline?: boolean;
+  /**
+   * Open a scan from history. The panel it restores into lives in another view,
+   * so this reports which job and nothing more — it does not navigate.
+   */
+  onOpenJob?: (job: ScannedJob) => void;
 }
 
 const JOB_ICONS: IconName[] = ['work', 'architecture', 'database', 'shield_person', 'search', 'handshake'];
@@ -73,6 +78,7 @@ export function ResumeMatchView({
   onClearJobs,
   onProgressChange,
   isOnline = true,
+  onOpenJob,
 }: ResumeMatchViewProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [matching, setMatching] = useState(false);
@@ -420,6 +426,23 @@ export function ResumeMatchView({
 
                 {isExpanded && sr && (
                   <div className="mx-2 px-3 py-3 bg-surface-container-low border border-outline-variant/10 border-t-0 rounded-b-xl flex flex-col gap-3 animate-slide-in">
+                    {/* Inside the expanded block and only there, so it cannot be
+                        mistaken for a bulk action on the list, and so it is
+                        offered for exactly the rows the reader opened. Gated on
+                        `sr` with the rest of the block: an entry with no stored
+                        result has nothing to reopen, and the button would open
+                        an empty panel that reads like a clean scan. */}
+                    {onOpenJob && (
+                      <button
+                        type="button"
+                        data-role="open-job"
+                        onClick={() => onOpenJob(job)}
+                        className="tactile-btn-accent px-3 py-1.5 rounded-lg text-label-md flex items-center justify-center gap-1.5 self-start"
+                      >
+                        <Icon name="open_in_new" className="text-xs" />
+                        Open scan
+                      </button>
+                    )}
                     {/* Every level but `low` is excluded, and each says so.
 
                         This chain previously tested `moderate` and then
