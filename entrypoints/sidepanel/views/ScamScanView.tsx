@@ -455,56 +455,70 @@ export function ScamScanView({
   /** Breathing room between the sticky bar and whatever is scrolled to. */
   const SCROLL_GAP = 12;
 
+  /** The "Anomalies" heading, wherever it happens to be rendered. */
+  const anomaliesHeadingRef = useRef<HTMLDivElement | null>(null);
+
   /**
-   * The evidence group, held here rather than looked up on click.
+   * The nearest ancestor that actually scrolls, or the document if none does.
    *
-   * A `document.querySelector` for it was the first version and it is wrong for
-   * a reason the tests surfaced: the document can hold more than one tree, so
-   * the query can land on a node that is not the one on screen and mutate that
-   * one instead. The ref is the same value `flip.register` already receives, so
-   * there is now one source for "which node is the evidence group".
+   * Walked rather than named. A `data-role` marker was the first attempt and it
+   * is fragile in the way this project keeps paying for: rename it, or move the
+   * layout, and the button silently stops doing anything. Reading `overflow` off
+   * each ancestor answers the same question from the structure that is actually
+   * there.
+   *
+   * The document fallback matters too - it is what makes this testable, since the
+   * panel is normally rendered inside a scroll container and a unit test renders
+   * it inside none.
    */
-  const evidenceRef = useRef<HTMLDivElement | null>(null);
+  const findScrollParent = (node: HTMLElement): HTMLElement => {
+    let parent = node.parentElement;
+    while (parent) {
+      const style = window.getComputedStyle(parent);
+      if (/(auto|scroll|overlay)/.test(style.overflowY)) return parent;
+      parent = parent.parentElement;
+    }
+    return document.scrollingElement as HTMLElement;
+  };
 
   /**
    * Send the reader to the anomalies the provenance line counted.
    *
-   * `block: 'center'` rather than `'start'`, because the evidence group is tall
-   * and `'start'` would park its heading under the sticky action bar.
+   * A measured scroll on the real scroller, rather than `scrollIntoView` plus
+   * `scroll-margin-top`. Both were tried.
    *
-   * Reduced motion drops the animation rather than the movement: a scroll that
-   * jumps is still a scroll, and removing the jump would leave the button doing
-   * nothing at all for those readers. This matches `useFlipReorder`, which skips
-   * its animation the same way.
+   * `scroll-margin-top` cannot work here because the target is always taller
+   * than its scrollport, and per CSSOM-View `block: 'center'` on an element
+   * larger than the scrollport degrades to start alignment - so the sticky bar
+   * ends up over the heading however the margin is set. And a window-level
+   * offset is a no-op, because the panel's scroller is a nested element rather
+   * than the document.
+   *
+   * Measuring removes the guesswork: whatever the bar's height, and whatever
+   * offset the heading has inside its container, it lands the same distance
+   * below the bar.
    */
   const showEvidence = useCallback(() => {
-    const target = evidenceRef.current;
-    if (!target || typeof target.scrollIntoView !== 'function') return;
+    const target = anomaliesHeadingRef.current;
+    if (!target) return;
+
+    const scroller = findScrollParent(target);
+    const bar = document.querySelector('[data-role="top-app-bar"]') as HTMLElement | null;
+    const barHeight = bar?.offsetHeight ?? 0;
+
+    // Where the heading is now, measured from the top of the scrollport, against
+    // where it should be: just clear of the sticky bar.
+    const delta =
+      target.getBoundingClientRect().top -
+      scroller.getBoundingClientRect().top -
+      (barHeight + SCROLL_GAP);
 
     const reduced =
       typeof window !== 'undefined' &&
       !!window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    // `scroll-margin-top` rather than a fixed offset. The bar is `sticky top-0`,
-    // so anything scrolled to `block: 'start'` lands underneath it - and the
-    // evidence group is tall, which means `block: 'center'` degrades to exactly
-    // that per the CSSOM-View spec: an element larger than the scrollport
-    // aligns its start edge with the scrollport's. That is why the heading went
-    // under the bar.
-    //
-    // Measured rather than hard-coded because the bar carries a text-size
-    // control, so its height is a user setting and not a constant. happy-dom
-    // zeroes every offsetHeight, so this reads 0 there and the tests assert the
-    // margin is applied, not its value.
-    const bar = document.querySelector('[data-role="top-app-bar"]') as HTMLElement | null;
-    const barHeight = bar?.offsetHeight ?? 0;
-    target.style.scrollMarginTop = `${barHeight + SCROLL_GAP}px`;
-
-    target.scrollIntoView({
-      behavior: reduced ? 'auto' : 'smooth',
-      block: 'center',
-    });
+    scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: reduced ? 'auto' : 'smooth' });
   }, []);
 
   const startVerification = useCallback(async (context: VerifyContext, jobId?: string) => {
@@ -692,10 +706,7 @@ export function ScamScanView({
           <div
             data-group="evidence"
             className={`flex flex-col gap-stack-md ${elevate ? 'order-1' : 'order-2'}`}
-            ref={(node) => {
-              evidenceRef.current = node;
-              flip.register('evidence')(node);
-            }}
+            ref={flip.register('evidence')}
           >
             {/* Anomalies lead the summary when the search found something, and
                 stay a sibling when it did not — a posting with no employer still
@@ -703,7 +714,7 @@ export function ScamScanView({
                 way the list is the same one: already danger-coloured, because a
                 red-flag list has no neutral form. */}
             {hasFindings ? null : (
-              <AnomaliesList anomalies={scanResult.anomalies} critical={scanResult.flagsCritical} />
+              <AnomaliesList anomalies={scanResult.anomalies} critical={scanResult.flagsCritical} headingRef={anomaliesHeadingRef} />
             )}
 
             <OfferAnalysisCard
@@ -724,6 +735,7 @@ export function ScamScanView({
                 currentQuery={currentSearchQuery}
                 anomalies={scanResult.anomalies}
                 critical={scanResult.flagsCritical}
+                anomaliesHeadingRef={anomaliesHeadingRef}
                 accent={elevate ? accent : undefined}
               />
             )}

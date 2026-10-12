@@ -11,6 +11,12 @@ interface EvidenceSummaryProps {
   error?: boolean;
   currentQuery?: string;
   /**
+   * Forwarded to the `AnomaliesList` this section renders. The list only exists
+   * in one of two places - here, or directly in the evidence group - so the
+   * provenance button needs to reach it either way.
+   */
+  anomaliesHeadingRef?: React.Ref<HTMLDivElement>;
+  /**
    * The posting's anomalies, rendered *inside* this section so they lead it.
    * They are what the evidence is about, and a reader who opens the summary
    * first should meet the claim before the corroboration.
@@ -94,6 +100,7 @@ export function EvidenceSummary({
   anomalies = [],
   critical = false,
   accent,
+  anomaliesHeadingRef,
 }: EvidenceSummaryProps) {
   const hasItems = Boolean(result && result.items && result.items.length > 0);
   const unreadable = result?.searchOk === false;
@@ -142,7 +149,9 @@ export function EvidenceSummary({
           render here in the found state and stay a sibling otherwise, because a
           posting with no employer and no search still has them and they must not
           disappear behind a heading that says nothing was found. */}
-      {hasItems && <AnomaliesList anomalies={anomalies} critical={critical} />}
+      {hasItems && (
+        <AnomaliesList anomalies={anomalies} critical={critical} headingRef={anomaliesHeadingRef} />
+      )}
 
       {unreadable && (
         <div

@@ -4,6 +4,12 @@ import { AnomalyCard } from './AnomalyCard';
 import type { Anomaly } from '../../types';
 
 export interface AnomaliesListProps {
+  /**
+   * The heading element, so a caller can scroll to where the anomalies actually
+   * are rather than to the top of whatever container this list happens to sit
+   * in. The provenance button under the gauge uses it.
+   */
+  headingRef?: React.Ref<HTMLDivElement>;
   anomalies: Anomaly[];
   critical: boolean;
 }
@@ -24,11 +30,11 @@ export interface AnomaliesListProps {
  * per-card border and chip differentiate, so the container still over-announces
  * weak findings. Fixing it is a judgement call about visual weight.
  */
-export function AnomaliesList({ anomalies, critical }: AnomaliesListProps) {
+export function AnomaliesList({ anomalies, critical, headingRef }: AnomaliesListProps) {
   if (anomalies.length === 0) return null;
   return (
     <section className="flex flex-col gap-stack-sm">
-      <div className="flex items-center justify-between mb-1">
+      <div ref={headingRef} data-role="anomalies-heading" className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <Icon name="flag" className="text-error text-sm" />
           <h3 className="font-headline-md text-lg text-error font-bold">

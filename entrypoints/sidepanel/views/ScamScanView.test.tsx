@@ -643,7 +643,8 @@ describe('the provenance jump', () => {
     risk_score: 40,
   };
 
-  let scrollSpy: ReturnType<typeof vi.spyOn>;
+  let scrollTo: ReturnType<typeof vi.fn>;
+  let scroller: HTMLElement;
 
   function setReducedMotion(reduced: boolean) {
     Object.defineProperty(window, 'matchMedia', {
@@ -680,24 +681,30 @@ describe('the provenance jump', () => {
       expect(utils.container.querySelector('[data-role="provenance-jump"]')).toBeTruthy();
     }, { timeout: 3000 });
 
-    scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
+    // No ancestor here sets `overflow-y`, so `findScrollParent` falls through
+    // to `document.scrollingElement` - which is exactly the fallback the helper
+    // exists for, and the thing to stub. In the real panel it finds `<main>`.
+    scroller = document.scrollingElement as HTMLElement;
+    scrollTo = vi.fn();
+    (scroller as unknown as { scrollTo: unknown }).scrollTo = scrollTo;
     return utils;
   }
 
   afterEach(() => {
-    scrollSpy?.mockRestore();
+    scrollTo?.mockReset();
     Reflect.deleteProperty(window, 'matchMedia');
   });
 
-  it('scrolls the evidence group into view smoothly', async () => {
+  it('scrolls whatever is actually the scroller', async () => {
+    // `window.scrollBy` is a no-op in the real panel: its scroller is the nested
+    // `main` element. An earlier version of this handler assumed the window and
+    // nothing moved, which is why the offset is computed and applied here.
     const { container } = await scanWithProvenanceButton();
 
     fireEvent.click(container.querySelector('[data-role="provenance-jump"]')!);
 
-    expect(scrollSpy).toHaveBeenCalledTimes(1);
-    // 'center' rather than 'start': the evidence group is tall, and 'start'
-    // would park its heading under the sticky action bar.
-    expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo.mock.calls[0][0]).toMatchObject({ behavior: 'smooth' });
   });
 
   it('drops the animation but still moves the reader under reduced motion', async () => {
@@ -708,40 +715,35 @@ describe('the provenance jump', () => {
 
     fireEvent.click(container.querySelector('[data-role="provenance-jump"]')!);
 
-    expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'auto', block: 'center' });
+    expect(scrollTo.mock.calls[0][0]).toMatchObject({ behavior: 'auto' });
   });
 
-  it('leaves room for the sticky app bar', async () => {
-    // The bar is `sticky top-0`, so a target aligned to the scrollport's start
-    // lands underneath it. The evidence group is taller than the viewport, which
-    // means `block: 'center'` degrades to exactly that - so the margin is the
-    // only thing standing between the reader and the Anomalies heading.
-    //
-    // happy-dom zeroes offsetHeight, so this asserts the margin is applied and
-    // that it is not zero, not what it equals. The arithmetic is one addition.
+  it('aims at the Anomalies heading rather than the container above it', async () => {
+    // There are two `AnomaliesList` mounts - one in the evidence group, one
+    // inside `EvidenceSummary` - so scrolling their shared container aimed at
+    // whatever sat at its top. The heading ref is what makes both work.
     const { container } = await scanWithProvenanceButton();
 
     fireEvent.click(container.querySelector('[data-role="provenance-jump"]')!);
 
-    const evidence = container.querySelector('[data-group="evidence"]') as HTMLElement;
-    expect(evidence.style.scrollMarginTop).not.toBe('');
-    expect(parseInt(evidence.style.scrollMarginTop, 10)).toBeGreaterThan(0);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
   });
 
-  it('does not throw when the evidence group is absent', async () => {
-    // The handler reads a ref, so removing the node from the container leaves
-    // that ref pointing at a detached element rather than null. This therefore
-    // asserts only that a detached target does not throw.
-    //
-    // It is not the `!target` guard, and it is not claimed to be: nulling a ref
-    // owned by the component needs an unmount, and the group is always mounted.
-    // What it does cover is the cheap failure this could become - a target whose
-    // `scrollIntoView` is gone - which is why the handler checks for it.
+  it('subtracts the sticky bar height plus a gap from the heading position', async () => {
+    // happy-dom zeroes every rect, so this cannot assert the resulting number.
+    // It asserts the formula is wired: a finite scroll target computed from the
+    // two measured positions, not the zero that an unmeasured read would give.
     const { container } = await scanWithProvenanceButton();
-    container.querySelector('[data-group="evidence"]')!.remove();
+    scroller.getBoundingClientRect = () => ({ top: 0 } as DOMRect);
+    const heading = container.querySelector('[data-role="anomalies-heading"]')!;
+    heading.getBoundingClientRect = () => ({ top: 140 } as DOMRect);
+    scroller.scrollTop = 0;
 
-    expect(() =>
-      fireEvent.click(container.querySelector('[data-role="provenance-jump"]')!)
-    ).not.toThrow();
+    fireEvent.click(container.querySelector('[data-role="provenance-jump"]')!);
+
+    const target = scrollTo.mock.calls[0][0].top as number;
+    // 140 (heading) - 0 (scroller) - (barHeight 0 + gap 12)
+    expect(target).toBe(128);
   });
+
 });
