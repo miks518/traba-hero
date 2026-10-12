@@ -1,6 +1,36 @@
 import type { Anomaly, ScanResult, ScannedJob } from '../types';
 
 /**
+ * How many scans are kept.
+ *
+ * History is stored in `chrome.storage.local` alongside nothing else, but the
+ * shared 5MB budget is small and the panel is rebuilt from the whole list on
+ * every render. Twenty is roughly a fortnight of looking at postings, which is
+ * more than anyone compares at once, and it is a number the Match tab can state
+ * plainly.
+ *
+ * Exported rather than written into the copy so the notice and the behaviour
+ * cannot drift — a limit of twenty described as thirty is worse than either.
+ */
+export const MAX_SCAN_HISTORY = 20;
+
+/**
+ * Keep the newest `MAX_SCAN_HISTORY` scans, drop the rest.
+ *
+ * Newest last: history is append-only and the list is rendered newest-first, so
+ * the newest job is the final element. An implementation that kept the first N
+ * would look right at one entry and silently delete the newest scan instead of
+ * the oldest, which is the direction that loses work.
+ *
+ * Returns the same array reference when nothing needs dropping, so a render
+ * that does not change the count does not re-persist storage.
+ */
+export function capScannedJobs(jobs: ScannedJob[]): ScannedJob[] {
+  if (jobs.length <= MAX_SCAN_HISTORY) return jobs;
+  return jobs.slice(jobs.length - MAX_SCAN_HISTORY);
+}
+
+/**
  * Replace a stored job's scan result once a later stage produces one.
  *
  * A scan is saved to history as soon as it returns, which is before external

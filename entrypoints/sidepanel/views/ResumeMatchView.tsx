@@ -5,6 +5,7 @@ import { ConfirmDialog, Icon, ToastContainer, useToastManager } from '../compone
 import { analyzeResumeStream, matchResumeToJobsStream } from '../lib/api';
 import type { ScanProgress } from '../lib/api';
 import { formatTimestamp } from '../lib/format';
+import { MAX_SCAN_HISTORY } from '../lib/scanHistory';
 import type { ScannedJob, ResumeData, JobMatchItem, IconName, JobFilterCategory } from '../types';
 
 export interface ResumeMatchViewProps {
@@ -267,13 +268,29 @@ export function ResumeMatchView({
         </div>
       )}
 
+      {/* The uploader sits above the history list so it can be reached without
+          scrolling past every scan — twenty of them, now that there is a cap.
+          Only the empty branch moved; see the note on the preview below. */}
+      {!hasResume && (
+        <div className="flex flex-col gap-3">
+          <ResumeUploader onFileSelected={handleFileSelected} disabled={analyzing || !isOnline} />
+          {analyzing && (
+            <div className="flex items-center gap-2 text-on-surface-variant text-body-sm">
+              <span className="w-2 h-2 rounded-full bg-secondary animate-ping" />
+              <span>Analyzing… {resumeProgress?.percent ?? 0}%</span>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <Icon name="history" className="text-lg text-secondary" />
           <h2 className="text-headline-sm font-headline text-on-surface">Job Post History</h2>
         </div>
         <p className="text-body-sm text-on-surface-variant">
-          Track your recently scanned career opportunities.
+          Your {MAX_SCAN_HISTORY} most recent scans are kept. When you scan another, the
+          oldest one is deleted automatically.
         </p>
 
         {scannedJobs.length > 0 && (
@@ -572,18 +589,10 @@ export function ResumeMatchView({
         </div>
       )}
 
-      <div className="border-t border-outline-variant/10 pt-3">
-        {!hasResume ? (
-          <div className="flex flex-col gap-3">
-            <ResumeUploader onFileSelected={handleFileSelected} disabled={analyzing || !isOnline} />
-            {analyzing && (
-              <div className="flex items-center gap-2 text-on-surface-variant text-body-sm">
-                <span className="w-2 h-2 rounded-full bg-secondary animate-ping" />
-                <span>Analyzing… {resumeProgress?.percent ?? 0}%</span>
-              </div>
-            )}
-          </div>
-        ) : (
+      {/* Conditional on the wrapper, not just its contents: a bare bordered box
+          renders as a stray divider line with nothing in it. */}
+      {hasResume && (
+        <div className="border-t border-outline-variant/10 pt-3">
           <div className="flex flex-col gap-3">
             <ResumePreview
               data={resumeData}
@@ -629,8 +638,8 @@ export function ResumeMatchView({
               </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {matches.length > 0 && (
         <JobMatchList jobs={verifiedJobs} matches={matches} />

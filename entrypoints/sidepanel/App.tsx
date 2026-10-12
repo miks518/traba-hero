@@ -3,7 +3,7 @@ import { TopAppBar, SideNav, Footer, OfflineBanner } from './components/shell';
 import { ScamScanView } from './views/ScamScanView';
 import { ResumeMatchView } from './views/ResumeMatchView';
 import { useBackendHealth } from './hooks/useBackendHealth';
-import { migrateScannedJobs, updateScannedJob } from './lib/scanHistory';
+import { migrateScannedJobs, updateScannedJob, capScannedJobs } from './lib/scanHistory';
 import type { ScanProgress } from './lib/api';
 import type { ViewId, ScannedJob, ResumeData, ScanResult } from './types';
 import type { TextSize } from './components/shell/TopAppBar';
@@ -67,7 +67,11 @@ export default function App() {
         if (storedSize === 'default' || storedSize === 'big' || storedSize === 'largest') {
           setTextSize(storedSize);
         }
-        const storedJobs = migrateScannedJobs(result.scannedJobs);
+        // Capped on load too. Anything stored beyond the limit predates it, and
+        // leaving it would show a longer history than the Match tab says is kept
+        // — then drop entries at an arbitrary moment rather than when one is
+        // scanned.
+        const storedJobs = capScannedJobs(migrateScannedJobs(result.scannedJobs));
         if (storedJobs.length > 0) {
           setScannedJobs(storedJobs);
         }
@@ -100,7 +104,11 @@ export default function App() {
   }, [theme]);
 
   const handleScanComplete = useCallback((job: ScannedJob) => {
-    setScannedJobs((prev) => [...prev, job]);
+    // Capped here rather than at the storage boundary so the list on screen and
+    // the list in storage are the same one. Capping only on write would leave
+    // the panel showing a job that disappears on the next reload, and the
+    // count badge would be counting something the reader cannot get back.
+    setScannedJobs((prev) => capScannedJobs([...prev, job]));
   }, []);
 
   /**

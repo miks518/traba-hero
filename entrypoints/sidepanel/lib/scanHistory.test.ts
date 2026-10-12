@@ -1,6 +1,52 @@
 import { describe, it, expect } from 'vitest';
-import { migrateScannedJobs, updateScannedJob } from './scanHistory';
+import { migrateScannedJobs, updateScannedJob, capScannedJobs, MAX_SCAN_HISTORY } from './scanHistory';
 import type { ScannedJob, ScanResult } from '../types';
+
+/**
+ * `capScannedJobs` — the newest N, oldest dropped.
+ *
+ * History is append-only in memory and the newest is rendered first, so the
+ * newest job is the *last* element. An implementation that kept the first N
+ * would look correct at the default of one entry and quietly delete the newest
+ * scan instead of the oldest, which is the direction that loses work.
+ */
+describe('scan history length', () => {
+  const job = (id: string): ScannedJob =>
+    ({ id, title: id, summary: '', timestamp: '', scanResult: {} }) as unknown as ScannedJob;
+
+  it('keeps the twenty most recent scans', () => {
+    const many = Array.from({ length: 25 }, (_, i) => job(`job-${i}`));
+
+    const kept = capScannedJobs(many);
+
+    expect(kept).toHaveLength(MAX_SCAN_HISTORY);
+    // job-24 is the newest, job-5 the oldest survivor, job-4 the first dropped.
+    expect(kept[kept.length - 1].id).toBe('job-24');
+    expect(kept[0].id).toBe('job-5');
+  });
+
+  it('keeps everything while there is room', () => {
+    const few = Array.from({ length: 3 }, (_, i) => job(`job-${i}`));
+
+    expect(capScannedJobs(few)).toEqual(few);
+  });
+
+  it('keeps exactly the cap when the count lands on it', () => {
+    const exact = Array.from({ length: MAX_SCAN_HISTORY }, (_, i) => job(`job-${i}`));
+
+    expect(capScannedJobs(exact)).toHaveLength(MAX_SCAN_HISTORY);
+  });
+
+  it('drops the oldest when one more arrives at the cap', () => {
+    const full = Array.from({ length: MAX_SCAN_HISTORY }, (_, i) => job(`job-${i}`));
+
+    const kept = capScannedJobs([...full, job('job-newest')]);
+
+    expect(kept).toHaveLength(MAX_SCAN_HISTORY);
+    expect(kept.some((j: ScannedJob) => j.id === 'job-0')).toBe(false);
+    expect(kept[kept.length - 1].id).toBe('job-newest');
+  });
+});
 
 function result(over: Partial<ScanResult> = {}): ScanResult {
   return {
