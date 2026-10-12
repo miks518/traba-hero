@@ -18,6 +18,26 @@ rules = FALLBACK_RULES.read_text(encoding="utf-8")
 low = text.lower()
 
 
+def test_the_scan_prompt_has_no_byte_order_mark():
+    """A BOM on a prompt file is invisible and reaches the model.
+
+    `load_system_prompt()` does `read_text(encoding="utf-8").strip()`, and
+    `str.strip()` does not remove U+FEFF — zero-width no-break space is not
+    whitespace — so the whole scan system prompt was being sent starting with an
+    invisible character. Nothing failed. The prompt simply began with a glyph no
+    one wrote.
+
+    Checked on the raw bytes rather than the decoded string, because reading with
+    `encoding="utf-8"` leaves the BOM in place and a string assertion would then
+    be testing `startswith` on text that still has it.
+
+    Worth having as a test because it keeps coming back: any editor configured to
+    save UTF-8 *with* BOM will reintroduce it on every save, and the failure is
+    invisible from the prompt's behaviour.
+    """
+    assert not PROMPT.read_bytes().startswith(b"\xef\xbb\xbf")
+
+
 def test_prompt_forbids_flagging_an_absence():
     assert "does not" in low
     assert any(

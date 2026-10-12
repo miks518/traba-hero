@@ -40,7 +40,18 @@ async function resizeBarTo(width: number) {
 }
 
 function renderBar(savedScan?: { title: string; timestamp: string }) {
-  return render(React.createElement(TopAppBar, savedScan ? { savedScan } : {}));
+  // The same handlers App passes. Without them the text-size and theme
+  // controls do not render at all, and a count of the bar's contents would be
+  // measuring the test rather than the component.
+  return render(
+    React.createElement(TopAppBar, {
+      theme: 'dark' as const,
+      onToggleTheme: vi.fn(),
+      textSize: 'default' as const,
+      onTextSizeChange: vi.fn(),
+      ...(savedScan ? { savedScan } : {}),
+    }),
+  );
 }
 
 describe('a reopened scan in the app bar', () => {
@@ -108,5 +119,28 @@ describe('a reopened scan in the app bar', () => {
 
     const date = screen.getByText(formatTimestamp(timestamp));
     expect(date.className).not.toContain('font-mono');
+  });
+
+  it('carries exactly the three controls, and no close button', () => {
+    // A Chrome side panel already has its own X in the panel chrome above this
+    // bar. A second one inside the app was redundant, and it stood between the
+    // reader and the controls they actually came for.
+    const { container } = renderBar({ title: 'Sales associate wanted', timestamp });
+
+    const actions = container.querySelector('[data-role="app-bar-actions"]')!;
+    // text size, theme, how to. Each icon renders one span.
+    expect(actions.children.length).toBe(3);
+  });
+
+  it('gives the marker the width the controls are not using', () => {
+    // `min-w-0` alone only permits shrinking; it does not hand the space over.
+    // Without `flex-1` the marker and the controls negotiate the width between
+    // them, and the marker can end up under the controls rather than beside.
+    const { container } = renderBar({ title: 'Sales associate wanted', timestamp });
+
+    const brand = container.querySelector('[data-role="app-bar-brand"]')!;
+    const classes = brand.className.split(/\s+/);
+    expect(classes).toContain('flex-1');
+    expect(classes).toContain('min-w-0');
   });
 });

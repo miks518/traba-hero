@@ -46,7 +46,7 @@ END JOB SUMMARY
 - `task-for-earning` exists only where the posting asks the reader to complete discrete tasks, orders, or referrals in order to be paid, rather than describing a role with duties - for example an instruction to do a task and then earn a reward, or an amount stated per order, per signup, or per referral.
 - Work followed by payment is the ordinary order and is not an anomaly by itself; most jobs are paid that way. What separates a task-for-earning offer is the unit of work - a task or an earning event rather than a role.
 - Do NOT report missing details (e.g., missing employer name, missing contract, missing address) or common practices (e.g., Gmail addresses, "no experience required"). Missing info is reported under COMPANY NAME as "Not stated".
-- A generic email is not an anomaly.
+- A generic or personal email is not an anomaly.
 - Severity means:
   * high: The posting asks the applicant for money, goods, or a deposit, OR contains a concrete instruction matching a known scam mechanic.
   * mid: The posting offers paid tasks, orders, or referrals in order to be paid, rather than describing a role with duties.

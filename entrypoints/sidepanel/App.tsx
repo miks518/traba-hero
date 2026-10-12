@@ -138,7 +138,7 @@ export default function App() {
 
   return (
     <div className={`w-full h-screen bg-background text-on-surface flex flex-col overflow-hidden font-body text-body-md ${textSize === 'big' ? 'text-size-big' : textSize === 'largest' ? 'text-size-largest' : 'text-size-default'}`}>
-      <TopAppBar onClose={() => window.close()} theme={theme} onToggleTheme={handleToggleTheme} textSize={textSize} onTextSizeChange={handleTextSizeChange} savedScan={restored ? { title: restored.job.title, timestamp: restored.job.timestamp } : null} />
+      <TopAppBar theme={theme} onToggleTheme={handleToggleTheme} textSize={textSize} onTextSizeChange={handleTextSizeChange} savedScan={restored ? { title: restored.job.title, timestamp: restored.job.timestamp } : null} />
       <OfflineBanner isOnline={isOnline} isChecking={isChecking} onRetry={checkNow} />
       <div className="flex flex-1 overflow-hidden">
         <SideNav

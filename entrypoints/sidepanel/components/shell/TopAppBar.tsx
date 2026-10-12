@@ -14,7 +14,7 @@ const TEXT_SIZE_OPTIONS: { value: TextSize; label: string }[] = [
 
 export interface TopAppBarProps {
   brandText?: string;
-  onClose?: () => void;
+  /** No close control. Chrome's side panel chrome has its own X above this bar. */
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   textSize?: TextSize;
@@ -33,7 +33,6 @@ export interface TopAppBarProps {
 
 export function TopAppBar({
   brandText = 'Trabahero',
-  onClose,
   theme = 'dark',
   onToggleTheme,
   textSize = 'default',
@@ -105,7 +104,7 @@ export function TopAppBar({
 
   return (
     <header ref={barRef} data-role="top-app-bar" className="bg-surface-container w-full sticky top-0 z-40 border-b border-outline-variant/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] flex justify-between items-center px-4 py-3 shrink-0">
-      <div className="flex items-center gap-2 min-w-0">
+      <div data-role="app-bar-brand" className="flex items-center gap-2 flex-1 min-w-0">
         {/* `shrink-0` because this is an inline SVG and so a flex item like any
             other: without it the mark compresses as the panel narrows, and a
             logo that resizes with the window reads as a rendering fault. */}
@@ -206,11 +205,6 @@ export function TopAppBar({
             </ol>
           </FadeSlide>
         </div>
-        <Icon
-          name="close"
-          className="cursor-pointer text-on-surface-variant hover:text-secondary transition-colors active:scale-95"
-          onClick={onClose}
-        />
       </div>
     </header>
   );
