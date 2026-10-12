@@ -8,6 +8,48 @@ import { riskAccent } from '../lib/riskAccent';
 import { useFlipReorder } from '../lib/useFlipReorder';
 import type { ScanResult, IconName, ScannedJob, ApiScanResponse, ScanRiskLevel } from '../types';
 
+/**
+ * A stored scan, made displayable again.
+ *
+ * Two flags are cleared and no others. A job is written to history the moment
+ * its scan returns — before verification has run — so `verificationLoading:
+ * true` is what an unverified job genuinely stores, and restored as-is it
+ * renders "Verifying…" forever. `offerAnalysisLoading` has the same shape.
+ *
+ * `verificationError` is deliberately left alone. It records that a lookup
+ * failed, and a reopened scan must still say so: clearing it to make the panel
+ * look settled would hide a real outcome.
+ */
+export function restoreScanResult(result: ScanResult): ScanResult {
+  return { ...result, verificationLoading: false, offerAnalysisLoading: false };
+}
+
+/**
+ * The nearest ancestor of `node` that actually scrolls, or the document if
+ * none does.
+ *
+ * Walked rather than named. A `data-role` marker was the first attempt and it
+ * is fragile in the way this project keeps paying for: rename it, or move the
+ * layout, and the provenance button silently stops doing anything. Reading
+ * `overflow` off each ancestor answers the same question from the structure
+ * that is actually there.
+ *
+ * The document fallback matters twice over — it is what makes this testable,
+ * since the panel is normally inside a scroll container and a unit test renders
+ * it inside none, and it is what the restore path falls back to when the
+ * reader presses Open from the Match tab, where this view is `display: none`
+ * and `window.getComputedStyle` returns no useful overflow for anything.
+ */
+function findScrollableAncestor(node: HTMLElement): HTMLElement {
+  let parent = node.parentElement;
+  while (parent) {
+    const style = window.getComputedStyle(parent);
+    if (/(auto|scroll|overlay)/.test(style.overflowY)) return parent;
+    parent = parent.parentElement;
+  }
+  return document.scrollingElement as HTMLElement;
+}
+
 function getRiskLevel(score: number): ScanRiskLevel {
   if (score >= 76) return 'critical';
   if (score >= 46) return 'high';
@@ -43,6 +85,21 @@ export interface ScamScanViewProps {
   onScanResultUpdate?: (jobId: string, scanResult: ScanResult) => void;
   onScanProgressChange?: (progress: ScanProgress | null) => void;
   isOnline?: boolean;
+  /**
+   * A scan to display, reopened from history.
+   *
+   * `token` is what the restore keys on, never the job: opening the same job
+   * twice has to re-apply, and an effect keyed on the job object alone fires
+   * once and then never again, leaving the panel stale after the second Open.
+   */
+  restoredJob?: { job: ScannedJob; token: number } | null;
+  /**
+   * Fired when the reader starts a fresh capture, so a parent holding a
+   * "this is a saved scan" marker can clear it. The marker outliving a new
+   * capture would claim the panel is showing saved results when it is showing
+   * fresh ones.
+   */
+  onScanStart?: () => void;
 }
 
 const SEVERITY_ICONS: Record<string, IconName> = {
@@ -117,6 +174,8 @@ export function ScamScanView({
   onScanResultUpdate,
   onScanProgressChange,
   isOnline = true,
+  restoredJob,
+  onScanStart,
 }: ScamScanViewProps) {
   const [pickerPhase, setPickerPhase] = useState(0);
   const [pickerCancelPhase, setPickerCancelPhase] = useState(0);
@@ -153,6 +212,44 @@ export function ScamScanView({
   const verifyAbortRef = useRef<AbortController | null>(null);
   const [currentSearchQuery, setCurrentSearchQuery] = useState('');
   const [verificationFailed, setVerificationFailed] = useState(false);
+
+  /**
+   * This view's own root, so the restore can find the scroller above it.
+   *
+   * Needed because the reader presses Open from the Match tab, where this whole
+   * subtree is `display: none`. A query for a scroll container would still find
+   * it, but a query for anything measured would not — and the restore resets
+   * the scroll without measuring precisely for that reason.
+   */
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * Put a stored scan back on screen.
+   *
+   * Keyed on `token` alone. React compares effect dependencies by reference, so
+   * a job reopened twice would otherwise leave the panel showing the previous
+   * result while the reader believes they just loaded the other one.
+   */
+  useEffect(() => {
+    if (!restoredJob) return;
+    const restored = restoredJob.job.scanResult;
+    setScanResult(restoreScanResult(restored));
+    scanResultRef.current = restored;
+    setIsValidJob(restored.isJobPosting);
+    setHasScanned(true);
+    setHasSelection(false);
+    setScreenshots([]);
+    setLightboxIndex(null);
+    setIsLoading(false);
+    setProgress(null);
+    setCurrentSearchQuery('');
+    setVerificationFailed(false);
+    onScanProgressChange?.(null);
+    // Not measured. `scrollTop` needs only the element, and anything derived
+    // from layout here would read zeros while this view is hidden.
+    if (rootRef.current) findScrollableAncestor(rootRef.current).scrollTop = 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restoredJob?.token]);
 
   /**
    * A posting that names no employer cannot be verified, so the panel asks for
@@ -281,6 +378,10 @@ export function ScamScanView({
 
   const handlePickElement = useCallback(() => {
     if (isLoading) return;
+    // Whatever branch this takes, the reader is starting a fresh capture. A
+    // "saved scan" marker left standing across that would claim the panel is
+    // showing stored evidence when it is showing new evidence.
+    onScanStart?.();
     if (hasScanned) {
       resetAll();
     } else if (pickerActive) {
@@ -288,7 +389,7 @@ export function ScamScanView({
     } else {
       setPickerPhase((p) => p + 1);
     }
-  }, [isLoading, hasScanned, pickerActive, resetAll]);
+  }, [isLoading, hasScanned, pickerActive, resetAll, onScanStart]);
 
   const handleSelectionChange = useCallback((selected: boolean) => {
     if (screenshots.length === 0) {
@@ -463,28 +564,7 @@ export function ScamScanView({
   /** The "Anomalies" heading, wherever it happens to be rendered. */
   const anomaliesHeadingRef = useRef<HTMLDivElement | null>(null);
 
-  /**
-   * The nearest ancestor that actually scrolls, or the document if none does.
-   *
-   * Walked rather than named. A `data-role` marker was the first attempt and it
-   * is fragile in the way this project keeps paying for: rename it, or move the
-   * layout, and the button silently stops doing anything. Reading `overflow` off
-   * each ancestor answers the same question from the structure that is actually
-   * there.
-   *
-   * The document fallback matters too - it is what makes this testable, since the
-   * panel is normally rendered inside a scroll container and a unit test renders
-   * it inside none.
-   */
-  const findScrollParent = (node: HTMLElement): HTMLElement => {
-    let parent = node.parentElement;
-    while (parent) {
-      const style = window.getComputedStyle(parent);
-      if (/(auto|scroll|overlay)/.test(style.overflowY)) return parent;
-      parent = parent.parentElement;
-    }
-    return document.scrollingElement as HTMLElement;
-  };
+  const findScrollParent = findScrollableAncestor;
 
   /**
    * Send the reader to the anomalies the provenance line counted.
@@ -590,7 +670,7 @@ export function ScamScanView({
   }
 
   return (
-    <div className="p-container-padding pb-24 bg-background flex flex-col gap-stack-md relative">
+    <div ref={rootRef} className="p-container-padding pb-24 bg-background flex flex-col gap-stack-md relative">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {isLoading && (

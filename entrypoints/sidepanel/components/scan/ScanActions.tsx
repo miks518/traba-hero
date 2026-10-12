@@ -69,6 +69,7 @@ export function ScanActions({
         <button
           onClick={handlePickToggle}
           disabled={isPickerActivating || disabled}
+          data-role="pick-element"
           className={`flex-1 py-2.5 rounded-lg font-label-md flex items-center justify-center gap-2 transition-all active:translate-y-[1px] tactile-btn-accent py-3 rounded-lg text-body-md disabled:opacity-70 ${
             isPickerActive
               ? 'bg-error/20 text-error border border-error/30 hover:bg-error/30'
