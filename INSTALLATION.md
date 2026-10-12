@@ -165,8 +165,10 @@ In a new terminal:
 
 ```powershell
 cd backend
-.venv\Scripts\python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8010
+.venv\Scripts\python -m app.main
 ```
+
+> Reads `HOST` and `PORT` from `backend/.env`. Running `uvicorn app.main:app` instead does **not** — uvicorn takes its port from the command line and defaults to 8000, so omit `--port` and you will silently get 8000 regardless of what the env file says.
 
 Wait for output:
 

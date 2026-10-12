@@ -51,11 +51,13 @@ The system prompts (`SYSTEM_PROMPT.md`, `RESUME_PROMPT.md`, `MATCH_PROMPT.md`) l
 ```powershell
 # Terminal 1: Backend
 cd backend
-.venv\Scripts\python -m uvicorn app.main:app --reload --port 8010
+.venv\Scripts\python -m app.main
 
 # Terminal 2: Extension dev server (from project root)
 npm run dev
 ```
+
+> Reads `HOST` and `PORT` from `backend/.env`. Running `uvicorn app.main:app` instead does **not** — uvicorn takes its port from the command line and defaults to 8000, so omit `--port` and you will silently get 8000 regardless of what the env file says.
 
 Load the built extension in Chrome:
 
