@@ -71,6 +71,13 @@ beforeEach(() => {
   };
 });
 
+/** Click the Match tab in the side nav, which is not stubbed. */
+async function switchToMatch() {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: /match/i }));
+  });
+}
+
 function openFromHistory() {
   return act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'open' }));
@@ -97,12 +104,18 @@ describe('opening a scan from the Match tab', () => {
 
     // Nothing marked yet: the panel is showing whatever it was showing.
     expect(screen.queryByText('Saved from job history')).toBeNull();
-    expect(isVisible('match-view')).toBe(false);
+
+    // Start on Match. `activeView` initialises to `'scan'`, so without this the
+    // tab flip is unobservable and deleting `setActiveView('scan')` from
+    // `handleOpenJob` would leave every assertion here passing.
+    await switchToMatch();
+    expect(isVisible('match-view')).toBe(true);
+    expect(isVisible('scan-view')).toBe(false);
 
     await openFromHistory();
 
-    expect(isVisible('match-view')).toBe(false);
     expect(isVisible('scan-view')).toBe(true);
+    expect(isVisible('match-view')).toBe(false);
     expect(document.querySelector('[data-role="scan-view"]')!.getAttribute('data-token')).toBe('1');
     expect(screen.getByText('Saved from job history')).toBeTruthy();
   });

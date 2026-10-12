@@ -11,17 +11,35 @@ import type { ScanResult, IconName, ScannedJob, ApiScanResponse, ScanRiskLevel }
 /**
  * A stored scan, made displayable again.
  *
- * Two flags are cleared and no others. A job is written to history the moment
- * its scan returns — before verification has run — so `verificationLoading:
- * true` is what an unverified job genuinely stores, and restored as-is it
- * renders "Verifying…" forever. `offerAnalysisLoading` has the same shape.
+ * Two things change, and the reasons point opposite ways.
  *
- * `verificationError` is deliberately left alone. It records that a lookup
- * failed, and a reopened scan must still say so: clearing it to make the panel
- * look settled would hide a real outcome.
+ * The `*Loading` flags go. A job is written to history the moment its scan
+ * returns — before verification has run — so `verificationLoading: true` is
+ * what an unverified job genuinely stores, and restored as-is it renders
+ * "Verifying…" forever.
+ *
+ * `verificationLoading` on a job with no result becomes `verificationError`,
+ * and this is the subtle one. Clearing the flag alone leaves the panel with a
+ * company name, no result and no error, which `EvidenceSummary` reads as "Search
+ * completed and returned no results for this employer" — a claim about a search
+ * that never ran, contradicting the score line directly above it. `error`
+ * renders as "Verification could not be completed", whose body deliberately
+ * asserts neither that the search failed nor that it succeeded. That is what
+ * happened.
+ *
+ * A `verificationError` that is already set is left alone: it records a lookup
+ * that failed, and a reopened scan must still say so. Only a job whose
+ * verification had not finished when it was saved is promoted into that state.
  */
 export function restoreScanResult(result: ScanResult): ScanResult {
-  return { ...result, verificationLoading: false, offerAnalysisLoading: false };
+  const neverFinished =
+    result.verificationLoading === true && !result.verificationResult;
+  return {
+    ...result,
+    verificationLoading: false,
+    offerAnalysisLoading: false,
+    ...(neverFinished ? { verificationError: true } : {}),
+  };
 }
 
 /**
@@ -37,8 +55,10 @@ export function restoreScanResult(result: ScanResult): ScanResult {
  * The document fallback matters twice over — it is what makes this testable,
  * since the panel is normally inside a scroll container and a unit test renders
  * it inside none, and it is what the restore path falls back to when the
- * reader presses Open from the Match tab, where this view is `display: none`
- * and `window.getComputedStyle` returns no useful overflow for anything.
+ * reader presses Open from the Match tab, where this view is `display: none`.
+ *
+ * Computed style is unaffected by `display: none`; only the geometry is gone.
+ * Callers that need an element must not then measure it.
  */
 function findScrollableAncestor(node: HTMLElement): HTMLElement {
   let parent = node.parentElement;
@@ -214,6 +234,17 @@ export function ScamScanView({
   const [verificationFailed, setVerificationFailed] = useState(false);
 
   /**
+   * Mirrors `pickerActive`, readable from the restore effect.
+   *
+   * `PickerButton` only acts on `forceCancel` when the counter is greater than
+   * zero and has changed, so bumping it unconditionally would fire a cancel for
+   * a picker that was never open. The restore effect keys on `token` alone and
+   * must not re-run to pick up a newer value, so it reads this instead.
+   */
+  const pickerActiveRef = useRef(false);
+  pickerActiveRef.current = pickerActive;
+
+  /**
    * This view's own root, so the restore can find the scroller above it.
    *
    * Needed because the reader presses Open from the Match tab, where this whole
@@ -232,8 +263,26 @@ export function ScamScanView({
    */
   useEffect(() => {
     if (!restoredJob) return;
-    const restored = restoredJob.job.scanResult;
-    setScanResult(restoreScanResult(restored));
+    const restored = restoreScanResult(restoredJob.job.scanResult);
+
+    // Cancel whatever is still running before touching state.
+    //
+    // Reachable in one click: a scan takes up to 240 seconds, the Match tab is
+    // always present, and its Open buttons are live throughout. Left running,
+    // the pending request resolves against a panel that no longer belongs to it
+    // — replacing the restored result, appending a history entry for a posting
+    // the reader never chose, and (for verification) merging one job's content
+    // into another job's stored record.
+    abortRef.current?.abort();
+    verifyAbortRef.current?.abort();
+    abortRef.current = null;
+    verifyAbortRef.current = null;
+
+    setScanResult(restored);
+    // The same value, not the raw stored one. `applyResult` composes onto this
+    // ref and hands the composition to `onScanResultUpdate`, so the two holding
+    // different values would write a mix of the pre-restore and post-restore
+    // result into history.
     scanResultRef.current = restored;
     setIsValidJob(restored.isJobPosting);
     setHasScanned(true);
@@ -244,9 +293,24 @@ export function ScamScanView({
     setProgress(null);
     setCurrentSearchQuery('');
     setVerificationFailed(false);
+    // Same reason `resetAll` does: a picker or crop left active keeps its
+    // on-page overlay and its "Cancel Pick" button, over a saved result.
+    setPickerPhase(0);
+    setPickerActive(false);
+    setPickerActivating(false);
+    // Only if one is actually running. Bumped unconditionally, this fires
+    // `PickerButton.cancel()` on a panel that never had a picker open, which
+    // clears the selection the reader just made.
+    if (pickerActiveRef.current) setPickerCancelPhase((p) => p + 1);
+    setCropPhase(0);
+    setCropActive(false);
+    setCropActivating(false);
     onScanProgressChange?.(null);
-    // Not measured. `scrollTop` needs only the element, and anything derived
-    // from layout here would read zeros while this view is hidden.
+
+    // Not measured. `scrollTop` needs only the element, and this view is
+    // `display: none` while the reader is on the Match tab, so anything derived
+    // from layout here would read zeros. Computed styles still resolve — it is
+    // the *geometry* that is gone, which is all `scrollTop` avoids needing.
     if (rootRef.current) findScrollableAncestor(rootRef.current).scrollTop = 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restoredJob?.token]);
@@ -648,6 +712,17 @@ export function ScamScanView({
         applyResult({ verificationLoading: false, verificationError: true }, jobId);
       }
     } catch (e) {
+      if (controller.signal.aborted) {
+        // Discarded, not failed.
+        //
+        // An abort here is either the reader reopening a saved scan or the panel
+        // closing — in both cases this request's answer was thrown away on
+        // purpose. Falling through would record `verificationError: true` for a
+        // job whose verification nobody saw fail, and `applyResult` would write
+        // it to history under `jobId`, which after a reopen is a *different*
+        // job than the one on screen.
+        return;
+      }
       console.error('[verify] Error:', e);
       setVerificationFailed(true);
       // The posting-stage score still stands, so history keeps a real number
