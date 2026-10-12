@@ -22,6 +22,33 @@ export default function App() {
   const [textSize, setTextSize] = useState<TextSize>('default');
   const { isOnline, isChecking, checkNow } = useBackendHealth();
 
+  /**
+   * The scan reopened from history, and the token the restore keys on.
+   *
+   * A monotonic counter rather than `Date.now()`. Two opens inside one
+   * millisecond is not something a person does, but the counter costs one line
+   * and removes the question — and the token has to move on every open, because
+   * `ScamScanView` keys its restore effect on it and nothing else.
+   */
+  const [restored, setRestored] = useState<{ job: ScannedJob; token: number } | null>(null);
+  const restoreToken = useRef(0);
+
+  /**
+   * Both halves together, deliberately.
+   *
+   * Flipping the tab separately would leave a window where a scan is loaded and
+   * the reader is still looking at Match, with nothing on screen to explain it.
+   */
+  const handleOpenJob = useCallback((job: ScannedJob) => {
+    restoreToken.current += 1;
+    setRestored({ job, token: restoreToken.current });
+    setActiveView('scan');
+  }, []);
+
+  const handleScanStart = useCallback(() => {
+    setRestored(null);
+  }, []);
+
   const handleTabChange = useCallback((id: ViewId) => {
     if (id === activeView) return;
     setActiveView(id);
@@ -111,7 +138,7 @@ export default function App() {
 
   return (
     <div className={`w-full h-screen bg-background text-on-surface flex flex-col overflow-hidden font-body text-body-md ${textSize === 'big' ? 'text-size-big' : textSize === 'largest' ? 'text-size-largest' : 'text-size-default'}`}>
-      <TopAppBar onClose={() => window.close()} theme={theme} onToggleTheme={handleToggleTheme} textSize={textSize} onTextSizeChange={handleTextSizeChange} />
+      <TopAppBar onClose={() => window.close()} theme={theme} onToggleTheme={handleToggleTheme} textSize={textSize} onTextSizeChange={handleTextSizeChange} savedScan={restored ? { title: restored.job.title, timestamp: restored.job.timestamp } : null} />
       <OfflineBanner isOnline={isOnline} isChecking={isChecking} onRetry={checkNow} />
       <div className="flex flex-1 overflow-hidden">
         <SideNav
@@ -130,6 +157,8 @@ export default function App() {
               onScanResultUpdate={handleScanResultUpdate}
               onScanProgressChange={setScanProgress}
               isOnline={isOnline}
+              restoredJob={restored}
+              onScanStart={handleScanStart}
             />
           </div>
           <div
@@ -142,6 +171,7 @@ export default function App() {
               onClearResume={handleClearResume}
               onClearJobs={handleClearJobs}
               onProgressChange={setResumeMatchProgress}
+              onOpenJob={handleOpenJob}
               isOnline={isOnline}
             />
           </div>
