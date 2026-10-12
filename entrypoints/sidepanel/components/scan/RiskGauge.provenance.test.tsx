@@ -40,10 +40,46 @@ describe('the provenance line', () => {
 
     const button = container.querySelector('[data-role="provenance-jump"]')!;
     expect(button.className).toContain('tactile-btn-accent');
-    // The inverse variant, not the green CTA accent: this is navigation, not
-    // the primary action on the screen.
-    expect(button.className).toContain('tactile-btn-inverse');
-    expect(button.className).not.toContain('tactile-btn-error');
+  });
+
+  it('takes its colour from the risk level, like the ring above it', () => {
+    // The reader should not have to look up to learn that the ring and the
+    // button mean the same thing.
+    const cases: Array<[string, string]> = [
+      ['moderate', 'tactile-btn-risk-moderate'],
+      ['high', 'tactile-btn-risk-high'],
+      ['critical', 'tactile-btn-risk-critical'],
+    ];
+
+    for (const [level, expected] of cases) {
+      const { container } = render(
+        React.createElement(RiskGauge, {
+          score: 50,
+          riskLevel: level as 'moderate' | 'high' | 'critical',
+          riskLabel: level,
+          anomalyCount: 1,
+          onShowEvidence: () => {},
+        })
+      );
+
+      const button = container.querySelector('[data-role="provenance-jump"]')!;
+      expect(button.className).toContain(expected);
+      // A variant is added alongside the base, never in place of it: swapping
+      // them flattens the button into a label that happens to be shaded.
+      expect(button.className).toContain('tactile-btn-accent');
+    }
+  });
+
+  it('leaves low on the default accent rather than a near-duplicate green', () => {
+    // The ring's low green and --color-secondary are close enough that a
+    // fourth compound class would exist only to be indistinguishable.
+    const { container } = render(
+      React.createElement(RiskGauge, { ...BASE, anomalyCount: 1, onShowEvidence: () => {} })
+    );
+
+    const button = container.querySelector('[data-role="provenance-jump"]')!;
+    expect(button.className).not.toContain('tactile-btn-risk-low');
+    expect(button.className).not.toContain('tactile-btn-risk-moderate');
   });
 
   it('does not submit a form it happens to sit inside', () => {

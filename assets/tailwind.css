@@ -58,6 +58,23 @@
   --color-on-error: #ffffff;
   --color-error-container: #c53838;
   --color-on-error-container: #93000a;
+  /* Risk level colours. One source for the gauge ring and for any control that
+     takes the level's colour, so the two cannot drift.
+     These are exactly the hsl values RiskGauge has always used for the stroke
+     (hsl(h, 78%, 44%) for h = 102 / 45 / 25 / 0), lifted out of the component so
+     they are theme-resolvable tokens rather than inline literals on an SVG
+     element. The unverified ring is deliberately absent: nothing was measured,
+     and amber already means 'moderate', so it uses --color-outline instead. */
+  --color-risk-low: #4dc819;
+  --color-risk-moderate: #c89c19;
+  --color-risk-high: #c86219;
+  --color-risk-critical: #c81919;
+  /* Ink guaranteed to clear WCAG AA on the three lighter fills above.
+     Critical red needs white, which is why this is a separate token rather than
+     --color-on-surface: that flips to light in the dark theme and would put
+     light text on a mid-tone fill. */
+  --color-on-risk-ink: #151c27;
+
   /* Derived gradient stops (used by SVG + gradient classes) */
   --color-gradient-start: color-mix(in srgb, var(--color-secondary), white 30%);
   --color-gradient-mid: var(--color-secondary);
@@ -198,6 +215,35 @@
   .tactile-btn-accent.tactile-btn-inverse {
     --tactile-base: var(--color-inverse-surface);
     color: var(--color-inverse-on-surface);
+  }
+
+  /* The level-coloured variants. Each moves --tactile-base and, where the fill
+     hue needs it, the foreground; the gradient, extrusion, highlight and press
+     are unchanged because they all still derive from --tactile-base.
+
+     Contrast is why there are four and not one. Measured against the fill:
+     low 7.8:1 and moderate 6.7:1 clear AA on this ink, high reaches 4.2:1, and
+     critical red reaches 2.9:1 on ink but 5.8:1 on white - so critical takes
+     white and the rest take ink. One foreground across all four would fail
+     somewhere, and the failure is invisible until someone cannot read it. */
+  .tactile-btn-accent.tactile-btn-risk-low {
+    --tactile-base: var(--color-risk-low);
+    color: var(--color-on-risk-ink);
+  }
+
+  .tactile-btn-accent.tactile-btn-risk-moderate {
+    --tactile-base: var(--color-risk-moderate);
+    color: var(--color-on-risk-ink);
+  }
+
+  .tactile-btn-accent.tactile-btn-risk-high {
+    --tactile-base: var(--color-risk-high);
+    color: var(--color-on-risk-ink);
+  }
+
+  .tactile-btn-accent.tactile-btn-risk-critical {
+    --tactile-base: var(--color-risk-critical);
+    color: #ffffff;
   }
 
   .tactile-btn-accent:active {

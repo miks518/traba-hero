@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import type { ScanRiskLevel } from '../../types';
 
 export interface RiskGaugeProps {
@@ -41,7 +41,10 @@ export interface RiskGaugeProps {
 
 function scoreColor(score: number): string {
   const hue = Math.max(0, 120 - (score / 100) * 120);
-  return `hsl(${hue}, 78%, 44%)`;
+  // Inside the low band only. At score 15 the hue is 102, which is exactly
+  // --color-risk-low, so the helper below returns that token for this case and
+  // the inline form is never actually produced.
+  return hue < 120 ? 'var(--color-risk-low)' : `hsl(${hue}, 78%, 44%)`;
 }
 
 // The unverified ring uses the neutral outline grey rather than a level colour:
@@ -49,10 +52,33 @@ function scoreColor(score: number): string {
 
 function levelColor(level: ScanRiskLevel | null): string {
   switch (level) {
-    case 'critical': return 'hsl(0, 78%, 44%)';
-    case 'high': return 'hsl(25, 78%, 44%)';
-    case 'moderate': return 'hsl(45, 78%, 44%)';
+    case 'critical': return 'var(--color-risk-critical)';
+    case 'high': return 'var(--color-risk-high)';
+    case 'moderate': return 'var(--color-risk-moderate)';
     default: return scoreColor(15);
+  }
+}
+
+/**
+ * The tactile variant whose `--tactile-base` is this level's colour.
+ *
+ * A compound class rather than an inline style so the button keeps the shipped
+ * treatment: DESIGN.md builds the gradient, the border, the extrusion and the
+ * press from one variable, and a component that sets its own background or
+ * shadow has diverged from it. Setting the variable inline would do the same
+ * thing more quietly.
+ *
+ * `low` is the default `--color-secondary`, a slightly deeper green than the
+ * ring's. It gets no variant rather than a near-duplicate one: the two greens are
+ * close enough that a fourth compound class would exist only to be
+ * indistinguishable.
+ */
+function levelButtonClass(level: ScanRiskLevel | null): string {
+  switch (level) {
+    case 'critical': return 'tactile-btn-risk-critical';
+    case 'high': return 'tactile-btn-risk-high';
+    case 'moderate': return 'tactile-btn-risk-moderate';
+    default: return '';
   }
 }
 
@@ -292,7 +318,7 @@ export function RiskGauge({
                 type="button"
                 data-role="provenance-jump"
                 onClick={onShowEvidence}
-                className="tactile-btn-accent tactile-btn-inverse max-w-[280px] rounded-lg px-4 py-2 font-label-sm cursor-pointer"
+                className={`tactile-btn-accent ${levelButtonClass(riskLevel)} max-w-[280px] rounded-lg px-4 py-2 font-label-sm cursor-pointer`}
               >
                 {provenance}
               </button>
