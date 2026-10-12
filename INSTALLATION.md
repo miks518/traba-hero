@@ -76,7 +76,7 @@ Verify the contents (defaults should work):
 
 ```ini
 HOST=0.0.0.0
-PORT=8000
+PORT=8010
 AI_API_KEY=
 AI_API_URL=https://openrouter.ai/api/v1
 MODEL_NAME=
@@ -145,7 +145,7 @@ CLIENT_SECRET_KEY=choose-a-long-random-string
 
 ```ini
 # project root .env
-WXT_API_BASE=http://localhost:8000
+WXT_API_BASE=http://localhost:8010
 WXT_CLIENT_KEY=choose-a-long-random-string
 ```
 
@@ -165,13 +165,13 @@ In a new terminal:
 
 ```powershell
 cd backend
-.venv\Scripts\python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+.venv\Scripts\python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8010
 ```
 
 Wait for output:
 
 ```
-INFO:     Uvicorn running on http://0.0.0.0:8000
+INFO:     Uvicorn running on http://0.0.0.0:8010
 ```
 
 ### 5.2 Extension
@@ -191,7 +191,7 @@ npm run dev
 ### 6.1 Backend Health
 
 ```powershell
-curl http://localhost:8000/health
+curl http://localhost:8010/health
 ```
 
 Expected response:

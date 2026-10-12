@@ -12,7 +12,7 @@ export default defineConfig({
       'Scan a job posting for scam signals, then check the employer behind it actually exists. For Filipino job seekers.',
     version: '0.5.0',
     permissions: ['activeTab', 'storage', 'tabs', 'sidePanel'],
-    host_permissions: ['<all_urls>', 'http://localhost:8000/*'],
+    host_permissions: ['<all_urls>', 'http://localhost:8010/*'],
     side_panel: {
       default_path: 'entrypoints/sidepanel/index.html',
     },

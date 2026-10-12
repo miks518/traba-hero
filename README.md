@@ -51,7 +51,7 @@ The system prompts (`SYSTEM_PROMPT.md`, `RESUME_PROMPT.md`, `MATCH_PROMPT.md`) l
 ```powershell
 # Terminal 1: Backend
 cd backend
-.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+.venv\Scripts\python -m uvicorn app.main:app --reload --port 8010
 
 # Terminal 2: Extension dev server (from project root)
 npm run dev
@@ -70,7 +70,7 @@ entrypoints/          # WXT browser extension (React 19 + TypeScript + Tailwind)
   content.tsx         # Element picker overlay
   sidepanel/          # Main React app
     views/            # ScamScanView, ResumeMatchView
-    lib/api.ts        # HTTP client → localhost:8000
+    lib/api.ts        # HTTP client → localhost:8010
 backend/              # FastAPI proxy for the AI provider (OpenRouter)
   app/routers/        # /api/scan, /api/analyze-resume, /api/match-resume, /health
   app/services/       # OpenAI-compatible AI client, web search, SEC API

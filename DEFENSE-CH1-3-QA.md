@@ -132,7 +132,7 @@ The high-risk threshold also **locks** the resume upload feature — if a scanne
 ### Q10: "What about privacy?"
 
 **Answer:**
-- Screenshots and text are sent **only to localhost:8000** (local backend)
+- Screenshots and text are sent **only to localhost:8010** (local backend)
 - No data is sent to external APIs or cloud services
 - LM Studio runs locally — the LLM never leaves the user's machine
 - No data is stored or persisted

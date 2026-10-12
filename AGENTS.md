@@ -18,7 +18,7 @@ npm run compile          # TypeScript check (no emit)
 npm run zip              # Package for distribution
 
 # Backend (from backend/)
-python -m uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8010
 
 # Backend tests (from backend/)
 python -m pytest tests/ -v

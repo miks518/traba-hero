@@ -4,7 +4,7 @@ import os
 
 class Settings(BaseSettings):
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 8010
     ai_api_key: str = ""
     ai_api_url: str = ""
     openrouter_api_key: str = ""
