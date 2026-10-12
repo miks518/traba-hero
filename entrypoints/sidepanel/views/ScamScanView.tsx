@@ -452,6 +452,20 @@ export function ScamScanView({
     onScanResultUpdate?.(jobId, merged);
   }, [onScanResultUpdate]);
 
+  /** Breathing room between the sticky bar and whatever is scrolled to. */
+  const SCROLL_GAP = 12;
+
+  /**
+   * The evidence group, held here rather than looked up on click.
+   *
+   * A `document.querySelector` for it was the first version and it is wrong for
+   * a reason the tests surfaced: the document can hold more than one tree, so
+   * the query can land on a node that is not the one on screen and mutate that
+   * one instead. The ref is the same value `flip.register` already receives, so
+   * there is now one source for "which node is the evidence group".
+   */
+  const evidenceRef = useRef<HTMLDivElement | null>(null);
+
   /**
    * Send the reader to the anomalies the provenance line counted.
    *
@@ -464,13 +478,28 @@ export function ScamScanView({
    * its animation the same way.
    */
   const showEvidence = useCallback(() => {
-    const target = document.querySelector('[data-group="evidence"]') as HTMLElement | null;
+    const target = evidenceRef.current;
     if (!target || typeof target.scrollIntoView !== 'function') return;
 
     const reduced =
       typeof window !== 'undefined' &&
       !!window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // `scroll-margin-top` rather than a fixed offset. The bar is `sticky top-0`,
+    // so anything scrolled to `block: 'start'` lands underneath it - and the
+    // evidence group is tall, which means `block: 'center'` degrades to exactly
+    // that per the CSSOM-View spec: an element larger than the scrollport
+    // aligns its start edge with the scrollport's. That is why the heading went
+    // under the bar.
+    //
+    // Measured rather than hard-coded because the bar carries a text-size
+    // control, so its height is a user setting and not a constant. happy-dom
+    // zeroes every offsetHeight, so this reads 0 there and the tests assert the
+    // margin is applied, not its value.
+    const bar = document.querySelector('[data-role="top-app-bar"]') as HTMLElement | null;
+    const barHeight = bar?.offsetHeight ?? 0;
+    target.style.scrollMarginTop = `${barHeight + SCROLL_GAP}px`;
 
     target.scrollIntoView({
       behavior: reduced ? 'auto' : 'smooth',
@@ -663,7 +692,10 @@ export function ScamScanView({
           <div
             data-group="evidence"
             className={`flex flex-col gap-stack-md ${elevate ? 'order-1' : 'order-2'}`}
-            ref={flip.register('evidence')}
+            ref={(node) => {
+              evidenceRef.current = node;
+              flip.register('evidence')(node);
+            }}
           >
             {/* Anomalies lead the summary when the search found something, and
                 stay a sibling when it did not — a posting with no employer still

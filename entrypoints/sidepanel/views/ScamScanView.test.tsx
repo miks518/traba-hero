@@ -711,10 +711,32 @@ describe('the provenance jump', () => {
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'auto', block: 'center' });
   });
 
+  it('leaves room for the sticky app bar', async () => {
+    // The bar is `sticky top-0`, so a target aligned to the scrollport's start
+    // lands underneath it. The evidence group is taller than the viewport, which
+    // means `block: 'center'` degrades to exactly that - so the margin is the
+    // only thing standing between the reader and the Anomalies heading.
+    //
+    // happy-dom zeroes offsetHeight, so this asserts the margin is applied and
+    // that it is not zero, not what it equals. The arithmetic is one addition.
+    const { container } = await scanWithProvenanceButton();
+
+    fireEvent.click(container.querySelector('[data-role="provenance-jump"]')!);
+
+    const evidence = container.querySelector('[data-group="evidence"]') as HTMLElement;
+    expect(evidence.style.scrollMarginTop).not.toBe('');
+    expect(parseInt(evidence.style.scrollMarginTop, 10)).toBeGreaterThan(0);
+  });
+
   it('does not throw when the evidence group is absent', async () => {
-    // Defensive, not reachable: the group is always mounted. Asserted because
-    // "always mounted" is a property of the sibling layout, and this control
-    // should not depend on that continuing to hold.
+    // The handler reads a ref, so removing the node from the container leaves
+    // that ref pointing at a detached element rather than null. This therefore
+    // asserts only that a detached target does not throw.
+    //
+    // It is not the `!target` guard, and it is not claimed to be: nulling a ref
+    // owned by the component needs an unmount, and the group is always mounted.
+    // What it does cover is the cheap failure this could become - a target whose
+    // `scrollIntoView` is gone - which is why the handler checks for it.
     const { container } = await scanWithProvenanceButton();
     container.querySelector('[data-group="evidence"]')!.remove();
 

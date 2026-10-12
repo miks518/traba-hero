@@ -187,10 +187,17 @@
      `inverse-surface` is the token already built for this: dark in the light
      theme, light in the dark theme, with a foreground that flips with it.
      Geometry is identical by construction, because every stop still derives
-     from --tactile-base. */
+     from --tactile-base.
+
+     The foreground token is `--color-inverse-on-surface`. It reads like a typo
+     for `--color-on-inverse-surface`, which exists in neither theme - and an
+     undefined custom property inside `color` is not a visible error, it is a
+     silently dropped declaration, so the button inherited the page text colour:
+     white on white in dark mode, black on black in light.
+     `TestEveryCustomPropertyReferenceIsDefined` now catches that class. */
   .tactile-btn-accent.tactile-btn-inverse {
     --tactile-base: var(--color-inverse-surface);
-    color: var(--color-on-inverse-surface);
+    color: var(--color-inverse-on-surface);
   }
 
   .tactile-btn-accent:active {
