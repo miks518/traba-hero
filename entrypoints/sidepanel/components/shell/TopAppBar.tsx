@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { FadeSlide } from '../common/FadeSlide';
 import { Icon } from '../common/Icon';
 import TrabaheroLogo from '../common/TrabaheroLogo';
+import { formatTimestamp } from '../../lib/format';
 
 export type TextSize = 'default' | 'big' | 'largest';
 
@@ -18,6 +19,16 @@ export interface TopAppBarProps {
   onToggleTheme?: () => void;
   textSize?: TextSize;
   onTextSizeChange?: (size: TextSize) => void;
+  /**
+   * Set while the panel is showing a scan reopened from history.
+   *
+   * The date is load-bearing. A reopened score was measured on that date, so a
+   * reader deciding today is looking at evidence retrieved then. The marker
+   * states when — it does not claim the result is still current, because the
+   * panel cannot know that: a source page behind a `red` may have changed
+   * since, and nothing here re-checks it.
+   */
+  savedScan?: { title: string; timestamp: string } | null;
 }
 
 export function TopAppBar({
@@ -27,6 +38,7 @@ export function TopAppBar({
   onToggleTheme,
   textSize = 'default',
   onTextSizeChange,
+  savedScan,
 }: TopAppBarProps) {
   const [showHelp, setShowHelp] = useState(false);
   const [showTextSize, setShowTextSize] = useState(false);
@@ -57,11 +69,30 @@ export function TopAppBar({
 
   return (
     <header data-role="top-app-bar" className="bg-surface-container w-full sticky top-0 z-40 border-b border-outline-variant/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] flex justify-between items-center px-4 py-3 shrink-0">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         <TrabaheroLogo size={22} className="text-accent-gradient" />
-        <span className="text-headline-sm font-headline font-bold text-accent-gradient">
+        <span className="text-headline-sm font-headline font-bold text-accent-gradient shrink-0">
           {brandText}
         </span>
+        {/* Beside the brand, on the same row. A second line would reflow a bar
+            of fixed height every time a scan was opened, which reads as the
+            panel jumping. The title is not shown: the reader has this very scan
+            on screen, so the marker names where it came from and when. */}
+        {savedScan && (
+          <div
+            role="status"
+            data-role="saved-scan-marker"
+            className="flex items-center gap-1.5 min-w-0 pl-2 ml-1 border-l border-outline-variant/40"
+          >
+            <Icon name="history" className="text-xs text-on-surface-variant shrink-0" />
+            <span className="text-label-sm text-on-surface-variant truncate">
+              Saved from job history
+            </span>
+            <span className="text-label-sm text-on-surface-variant/70 font-mono shrink-0">
+              {formatTimestamp(savedScan.timestamp)}
+            </span>
+          </div>
+        )}
       </div>
       <div className="flex gap-3 relative">
         {onTextSizeChange && (

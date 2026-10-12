@@ -4,6 +4,7 @@ import { AnomalyCard } from '../components/scan';
 import { ConfirmDialog, Icon, ToastContainer, useToastManager } from '../components/common';
 import { analyzeResumeStream, matchResumeToJobsStream } from '../lib/api';
 import type { ScanProgress } from '../lib/api';
+import { formatTimestamp } from '../lib/format';
 import type { ScannedJob, ResumeData, JobMatchItem, IconName, JobFilterCategory } from '../types';
 
 export interface ResumeMatchViewProps {
@@ -22,18 +23,7 @@ function jobIcon(index: number): IconName {
   return JOB_ICONS[index % JOB_ICONS.length];
 }
 
-function formatTimestamp(iso: string): string {
-  try {
-    const d = new Date(iso);
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${d.getFullYear()}-${month}-${day} ${hours}:${minutes}`;
-  } catch {
-    return iso;
-  }
-}
+
 
 function riskColor(score: number): string {
   if (score >= 70) return 'text-red-500';

@@ -268,6 +268,10 @@
   .border-outline-variant\/30 {
     border-color: color-mix(in srgb, var(--color-outline-variant) 30%, transparent);
   }
+  /* The app bar's divider, separating the brand from a "saved scan" marker. */
+  .border-outline-variant\/40 {
+    border-color: color-mix(in srgb, var(--color-outline-variant) 40%, transparent);
+  }
 
   .border-outline-variant\/20 {
     border-color: color-mix(in srgb, var(--color-outline-variant) 20%, transparent);
