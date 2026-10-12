@@ -101,6 +101,11 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
       reason: e.reason,
     })),
     scoreBreakdown: data.score_breakdown || undefined,
+    // Copied through, never defaulted. An empty object here would render as
+    // "the posting claimed nothing", which is a claim about the posting; what
+    // is true when the scan reports none is that we have nothing to show.
+    attributes: data.attributes,
+    searchQueries: data.search_queries,
     verificationResult: data.verificationResult,
     verificationLoading: Boolean(data.verification_context?.company_name?.trim()),
     verificationError: data.verificationError,

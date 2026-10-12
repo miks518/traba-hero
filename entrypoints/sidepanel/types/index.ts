@@ -200,6 +200,18 @@ export interface ScanResult {
   verificationResult?: VerificationResult;
   verificationLoading?: boolean;
   verificationError?: boolean;
+  /**
+   * The posting's own stated details, verbatim from the scan response.
+   *
+   * These are the claims the verification categories test, so a scan restored
+   * from history without them keeps its conclusions and loses the ground they
+   * were drawn from. Copied straight from the response; never reconstructed,
+   * and absent rather than empty when the scan reported none — an empty object
+   * would assert that the posting claimed nothing.
+   */
+  attributes?: Record<string, string>;
+  /** The searches the scan model proposed, capped at two by the backend. */
+  searchQueries?: string[];
 }
 
 export interface ScannedJob {
