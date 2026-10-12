@@ -452,6 +452,32 @@ export function ScamScanView({
     onScanResultUpdate?.(jobId, merged);
   }, [onScanResultUpdate]);
 
+  /**
+   * Send the reader to the anomalies the provenance line counted.
+   *
+   * `block: 'center'` rather than `'start'`, because the evidence group is tall
+   * and `'start'` would park its heading under the sticky action bar.
+   *
+   * Reduced motion drops the animation rather than the movement: a scroll that
+   * jumps is still a scroll, and removing the jump would leave the button doing
+   * nothing at all for those readers. This matches `useFlipReorder`, which skips
+   * its animation the same way.
+   */
+  const showEvidence = useCallback(() => {
+    const target = document.querySelector('[data-group="evidence"]') as HTMLElement | null;
+    if (!target || typeof target.scrollIntoView !== 'function') return;
+
+    const reduced =
+      typeof window !== 'undefined' &&
+      !!window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    target.scrollIntoView({
+      behavior: reduced ? 'auto' : 'smooth',
+      block: 'center',
+    });
+  }, []);
+
   const startVerification = useCallback(async (context: VerifyContext, jobId?: string) => {
     console.log('[verify] Starting verification for:', context.company_name);
     verifyAbortRef.current?.abort();
@@ -562,6 +588,7 @@ export function ScamScanView({
             </section>
           ) : (
             <RiskGauge
+              onShowEvidence={showEvidence}
               score={scanResult.riskScore ?? 0}
               riskLevel={scanResult.riskLevel}
               riskLabel={scanResult.riskLabel}

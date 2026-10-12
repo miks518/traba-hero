@@ -24,6 +24,19 @@ export interface RiskGaugeProps {
    * score is what it is, which is what a reader needs in order to act on it.
    */
   anomalyCount?: number;
+  /**
+   * Scroll the reader to the Evidence Summary, which is where the anomalies
+   * this line counts are listed.
+   *
+   * Passed in rather than looked up here, because the evidence group belongs to
+   * `ScamScanView` and it already holds the ref. A component reaching into the
+   * document for a node it does not own is how two places end up disagreeing
+   * about what the anchor is called.
+   *
+   * Optional: without it the provenance line renders as the plain sentence it
+   * was, because a button that does nothing is worse than no button.
+   */
+  onShowEvidence?: () => void;
 }
 
 function scoreColor(score: number): string {
@@ -51,8 +64,17 @@ const BAND_STARTS = [30, 50, 75];
  *
  * This existed nowhere before. A bare number with no stated basis is why a
  * first-time tester read "12" as meaningless: nothing connected it to
- * anything about their own posting. The count is not a second score â€” it is
+ * anything about their own posting. The count is not a second score — it is
  * the observable fact the score was built from.
+ *
+ * It is a button, because it names a number the reader has not been shown yet.
+ * Saying "3 things differ from normal" and leaving the reader to scroll to find
+ * them is a sentence pointing at something off-screen; making it operable closes
+ * the loop without a second instruction.
+ *
+ * Only when the count is above zero. At zero it reads "Nothing in this post
+ * stands out", there is nothing below to go to, and a control that scrolls
+ * nowhere is worse than the plain sentence it replaced.
  */
 function provenanceLine(anomalyCount: number | undefined): string | null {
   if (anomalyCount === undefined) return null;
@@ -70,6 +92,7 @@ export function RiskGauge({
   pendingNote,
   unverified = false,
   anomalyCount,
+  onShowEvidence,
 }: RiskGaugeProps) {
   const radius = 52;
   const strokeWidth = 14;
@@ -251,11 +274,33 @@ export function RiskGauge({
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
             {riskLabel ?? 'Low Risk'}
           </span>
-          {provenance && (
-            <span className="text-label-sm text-on-surface-variant text-center max-w-[240px]">
-              {provenance}
-            </span>
-          )}
+          {provenance &&
+            (onShowEvidence && anomalyCount && anomalyCount > 0 ? (
+              /* A real button, with the tactile treatment and its press.
+                 DESIGN.md is explicit that a button without a press is a
+                 container, and this one sits directly under a ring that is
+                 obviously not interactive, so the affordance has to be carried
+                 by the control itself.
+
+                 `type="button"` because the shell renders forms and a bare
+                 button defaults to submit.
+
+                 The label stays the sentence it was. Adding "View details"
+                 would say nothing the count has not already said, and would
+                 make the button wider than the line it replaces. */
+              <button
+                type="button"
+                data-role="provenance-jump"
+                onClick={onShowEvidence}
+                className="tactile-btn-accent tactile-btn-inverse max-w-[280px] rounded-lg px-4 py-2 font-label-sm cursor-pointer"
+              >
+                {provenance}
+              </button>
+            ) : (
+              <span className="text-label-sm text-on-surface-variant text-center max-w-[240px]">
+                {provenance}
+              </span>
+            ))}
         </div>
       </div>
     </section>

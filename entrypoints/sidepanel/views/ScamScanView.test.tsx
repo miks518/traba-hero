@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 
@@ -619,5 +619,107 @@ describe('the capture reminder', () => {
       { timeout: 3000 }
     );
     expect(container.querySelector('[data-role="capture-reminder"]')).not.toBeNull();
+  });
+});
+
+/**
+ * The provenance jump has to reach the evidence group, not merely exist.
+ *
+ * `RiskGauge.provenance.test.tsx` asserts the control. This asserts the effect,
+ * because a button wired to nothing passes the first and fails the second - the
+ * shape this feature has died in twice before, with `attributes` and with
+ * `search_queries` both parsed and shipped and read by nothing.
+ *
+ * `happy-dom` zeroes every rect and does no layout, so "the reader ended up
+ * looking at the summary" is not observable. What is asserted is the call it
+ * makes: which node, and with which behaviour.
+ */
+describe('the provenance jump', () => {
+  const scanWithAnomalies = {
+    ...scanResponse,
+    anomalies: [
+      { flag: 'Asks applicants to pay a processing fee', reasoning: 'The post asks for a fee', severity: 'high' },
+    ],
+    risk_score: 40,
+  };
+
+  let scrollSpy: ReturnType<typeof vi.spyOn>;
+
+  function setReducedMotion(reduced: boolean) {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        matches: query.includes('prefers-reduced-motion') ? reduced : false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+  }
+
+  async function scanWithProvenanceButton() {
+    mocks.scanScreenshotStream.mockImplementation(async (_imgs, _sig, onProgress) => {
+      onProgress?.({ percent: 60, stage: 'Analyzing' });
+      return { response: scanWithAnomalies };
+    });
+    mocks.verifyJobStream.mockImplementation(async () => ({ result: verifyResponse }));
+    mocks.analyzeOfferStream.mockResolvedValue({ data: null });
+    setReducedMotion(false);
+
+    const { ScamScanView } = await import('./ScamScanView');
+    const utils = render(React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true }));
+    await pickElement();
+    await clickScan();
+
+    await waitFor(() => {
+      expect(utils.container.querySelector('[data-role="provenance-jump"]')).toBeTruthy();
+    }, { timeout: 3000 });
+
+    scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
+    return utils;
+  }
+
+  afterEach(() => {
+    scrollSpy?.mockRestore();
+    Reflect.deleteProperty(window, 'matchMedia');
+  });
+
+  it('scrolls the evidence group into view smoothly', async () => {
+    const { container } = await scanWithProvenanceButton();
+
+    fireEvent.click(container.querySelector('[data-role="provenance-jump"]')!);
+
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+    // 'center' rather than 'start': the evidence group is tall, and 'start'
+    // would park its heading under the sticky action bar.
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+  });
+
+  it('drops the animation but still moves the reader under reduced motion', async () => {
+    // Removing the scroll entirely would leave the button doing nothing at all
+    // for these readers, which is worse than a jump.
+    const { container } = await scanWithProvenanceButton();
+    setReducedMotion(true);
+
+    fireEvent.click(container.querySelector('[data-role="provenance-jump"]')!);
+
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'auto', block: 'center' });
+  });
+
+  it('does not throw when the evidence group is absent', async () => {
+    // Defensive, not reachable: the group is always mounted. Asserted because
+    // "always mounted" is a property of the sibling layout, and this control
+    // should not depend on that continuing to hold.
+    const { container } = await scanWithProvenanceButton();
+    container.querySelector('[data-group="evidence"]')!.remove();
+
+    expect(() =>
+      fireEvent.click(container.querySelector('[data-role="provenance-jump"]')!)
+    ).not.toThrow();
   });
 });

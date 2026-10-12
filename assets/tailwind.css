@@ -180,6 +180,19 @@
     --tactile-base: var(--color-error);
   }
 
+  /* The inverse variant, for a control that must not read as a primary CTA.
+     The provenance line under the gauge is navigation, not an action taken on
+     this screen, and the green accent would overstate it.
+
+     `inverse-surface` is the token already built for this: dark in the light
+     theme, light in the dark theme, with a foreground that flips with it.
+     Geometry is identical by construction, because every stop still derives
+     from --tactile-base. */
+  .tactile-btn-accent.tactile-btn-inverse {
+    --tactile-base: var(--color-inverse-surface);
+    color: var(--color-on-inverse-surface);
+  }
+
   .tactile-btn-accent:active {
     transform: translateY(4px);
     box-shadow: 0 2px 0 0 color-mix(in srgb, var(--tactile-base), black 55%);
