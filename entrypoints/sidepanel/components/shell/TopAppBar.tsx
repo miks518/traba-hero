@@ -45,6 +45,42 @@ export function TopAppBar({
   const helpRef = useRef<HTMLDivElement>(null);
   const textSizeRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * Below this the marker's words are dropped and only the date is kept.
+   *
+   * Measured from the bar's own contents, which total roughly 500px with the
+   * words (padding 32, logo and gap 30, brand 85, divider 13, icon 12, words
+   * 118, date 104, controls 90) and roughly 380px without them. 420 sits
+   * between the two: at that width the bar can show what is load-bearing and
+   * not the sentence explaining it.
+   *
+   * A Chrome side panel drags down to about 320px, so this state is one the
+   * reader reaches by dragging the edge, not a theoretical one.
+   */
+  const MARKER_WORDS_MIN_WIDTH = 420;
+
+  const barRef = useRef<HTMLElement | null>(null);
+  const [compact, setCompact] = useState(false);
+
+  /**
+   * Measure the bar rather than the viewport.
+   *
+   * The bar has its own padding and its own content, so the panel's width is
+   * not the width the question is being asked about. A media query would also
+   * have put this in CSS, where the suite could not exercise it — happy-dom
+   * performs no layout — and this is behaviour a reader hits by dragging.
+   */
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (typeof width === 'number') setCompact(width < MARKER_WORDS_MIN_WIDTH);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     if (!showHelp) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -68,9 +104,12 @@ export function TopAppBar({
   }, [showTextSize]);
 
   return (
-    <header data-role="top-app-bar" className="bg-surface-container w-full sticky top-0 z-40 border-b border-outline-variant/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] flex justify-between items-center px-4 py-3 shrink-0">
+    <header ref={barRef} data-role="top-app-bar" className="bg-surface-container w-full sticky top-0 z-40 border-b border-outline-variant/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] flex justify-between items-center px-4 py-3 shrink-0">
       <div className="flex items-center gap-2 min-w-0">
-        <TrabaheroLogo size={22} className="text-accent-gradient" />
+        {/* `shrink-0` because this is an inline SVG and so a flex item like any
+            other: without it the mark compresses as the panel narrows, and a
+            logo that resizes with the window reads as a rendering fault. */}
+        <TrabaheroLogo size={22} className="text-accent-gradient shrink-0" />
         <span className="text-headline-sm font-headline font-bold text-accent-gradient shrink-0">
           {brandText}
         </span>
@@ -85,16 +124,23 @@ export function TopAppBar({
             className="flex items-center gap-1.5 min-w-0 pl-2 ml-1 border-l border-outline-variant/40"
           >
             <Icon name="history" className="text-xs text-on-surface-variant shrink-0" />
-            <span className="text-label-sm text-on-surface-variant truncate">
-              Saved from job history
-            </span>
-            <span className="text-label-sm text-on-surface-variant/70 font-mono shrink-0">
+            {/* The words are the first thing to go, not the date. Which is
+                which matters: "Saved from job history" says what happened,
+                and the date says when — but a reader who has just opened a
+                scan knows which one they pressed, and only the date tells
+                them the evidence behind it was retrieved then. */}
+            {!compact && (
+              <span className="text-label-sm text-on-surface-variant truncate">
+                Saved from job history
+              </span>
+            )}
+            <span className="text-label-sm text-on-surface-variant/70 shrink-0">
               {formatTimestamp(savedScan.timestamp)}
             </span>
           </div>
         )}
       </div>
-      <div className="flex gap-3 relative">
+      <div data-role="app-bar-actions" className="flex gap-3 relative shrink-0">
         {onTextSizeChange && (
           <div ref={textSizeRef}>
             <Icon
