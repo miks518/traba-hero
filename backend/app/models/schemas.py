@@ -20,6 +20,36 @@ MAX_IMAGES_PER_SCAN = 4
 MAX_IMAGE_BASE64 = 5_000_000
 
 
+# How many jobs one match request may carry.
+#
+# The extension sends `verifiedJobs`, which is `MAX_SCAN_HISTORY` at most — you
+# can only match jobs you have scanned, so the two limits are the same number by
+# construction. A server cap above that accepts work no real client could ask
+# for; a server cap below it breaks ordinary use. A test reads the frontend
+# constant and fails if the two drift apart.
+MAX_JOBS_PER_MATCH = 20
+
+# Per-field ceilings for one job in the match payload.
+#
+# A count cap alone does not bound the call: twenty 200KB job descriptions cost
+# the same tokens as one enormous one. These are set well above what a scan
+# actually produces — `job_summary` is one sentence — because a cap that is
+# merely tight enough to be safe is one that breaks a real resume.
+MAX_MATCH_JOB_ID = 200
+MAX_MATCH_JOB_TITLE = 300
+MAX_MATCH_JOB_SUMMARY = 5_000
+
+# The resume half. A caller who cannot afford many jobs can send one job and an
+# enormous resume instead, so bounding only the list leaves the cheaper door.
+MAX_RESUME_SUMMARY = 5_000
+MAX_RESUME_LIST_ITEMS = 100
+MAX_RESUME_ITEM_CHARS = 200
+
+# A short string, bounded on both length and count. Written once because
+# `skills`, `job_titles` and `industries` are the same field three times over.
+ResumeListItem = Annotated[str, StringConstraints(max_length=MAX_RESUME_ITEM_CHARS)]
+
+
 class ScanRequest(BaseModel):
     # Bounded and rejected, never truncated. Dropping images 5-40 and scanning
     # the first four would return a result describing four images while claiming
@@ -105,17 +135,17 @@ class ResumeAnalysisRequest(BaseModel):
 
 
 class ResumeData(BaseModel):
-    skills: list[str] = []
+    skills: list[ResumeListItem] = Field(default=[], max_length=MAX_RESUME_LIST_ITEMS)
     experience_years: float = 0
-    job_titles: list[str] = []
-    industries: list[str] = []
-    summary: str = ""
+    job_titles: list[ResumeListItem] = Field(default=[], max_length=MAX_RESUME_LIST_ITEMS)
+    industries: list[ResumeListItem] = Field(default=[], max_length=MAX_RESUME_LIST_ITEMS)
+    summary: str = Field(default="", max_length=MAX_RESUME_SUMMARY)
 
 
 class JobForMatch(BaseModel):
-    id: str
-    title: str
-    summary: str = ""
+    id: str = Field(..., max_length=MAX_MATCH_JOB_ID)
+    title: str = Field(..., max_length=MAX_MATCH_JOB_TITLE)
+    summary: str = Field(default="", max_length=MAX_MATCH_JOB_SUMMARY)
 
 
 class JobMatchResult(BaseModel):
@@ -132,7 +162,11 @@ class JobMatchResult(BaseModel):
 
 class MatchRequest(BaseModel):
     resume: ResumeData
-    jobs: list[JobForMatch] = []
+    # Rejected, never truncated: dropping the 21st job and matching the first
+    # twenty returns a ranking of a subset while claiming to rank all of them.
+    # The reader cannot tell the difference, which makes it worse than a
+    # refusal.
+    jobs: list[JobForMatch] = Field(default=[], max_length=MAX_JOBS_PER_MATCH)
 
 
 class MatchResponse(BaseModel):
