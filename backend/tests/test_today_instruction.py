@@ -21,7 +21,6 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.services.scanner import _today_instruction
 
-HEADERS = {"X-Trabahero-Client-Key": "test-secret-key"}
 transport = ASGITransport(app=app)
 
 
@@ -88,7 +87,7 @@ class TestItReachesTheModelRequest:
 
         with patch("app.routers.scan.chat_stream_pieces", side_effect=_capture):
             async with AsyncClient(transport=transport, base_url="http://test") as c:
-                resp = await c.post("/api/scan", json=scan_payload, headers=HEADERS)
+                resp = await c.post("/api/scan", json=scan_payload)
 
         assert resp.status_code == 200
         assert "Philippine time" in captured["text"]
@@ -99,7 +98,7 @@ class TestItReachesTheModelRequest:
 
         with patch("app.routers.scan.chat_stream_pieces", side_effect=_capture):
             async with AsyncClient(transport=transport, base_url="http://test") as c:
-                resp = await c.post("/api/scan-text", json=text_payload, headers=HEADERS)
+                resp = await c.post("/api/scan-text", json=text_payload)
 
         assert resp.status_code == 200
         assert "Philippine time" in captured["text"]

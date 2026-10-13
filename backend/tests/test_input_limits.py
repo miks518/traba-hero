@@ -33,7 +33,6 @@ from app.models.schemas import (
 )
 
 transport = ASGITransport(app=app)
-HEADERS = {"X-Trabahero-Client-Key": "test-secret-key"}
 
 
 @pytest.mark.asyncio
@@ -42,7 +41,7 @@ async def test_forty_images_in_one_request_is_refused():
     payload = {"images_base64": ["dGVzdA=="] * 40, "language": "english"}
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/scan", json=payload, headers=HEADERS)
+        resp = await client.post("/api/scan", json=payload)
 
     assert resp.status_code == 422
 
@@ -53,7 +52,7 @@ async def test_one_image_past_the_cap_is_refused():
     payload = {"images_base64": ["dGVzdA=="] * (MAX_IMAGES_PER_SCAN + 1)}
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/scan", json=payload, headers=HEADERS)
+        resp = await client.post("/api/scan", json=payload)
 
     assert resp.status_code == 422
 
@@ -65,7 +64,7 @@ async def test_exactly_the_cap_is_accepted():
     payload = {"images_base64": ["dGVzdA=="] * MAX_IMAGES_PER_SCAN}
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/scan", json=payload, headers=HEADERS)
+        resp = await client.post("/api/scan", json=payload)
 
     assert resp.status_code == 200
 
@@ -77,7 +76,7 @@ async def test_one_oversized_image_is_refused():
     payload = {"images_base64": ["A" * (MAX_IMAGE_BASE64 + 1)]}
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/scan", json=payload, headers=HEADERS)
+        resp = await client.post("/api/scan", json=payload)
 
     assert resp.status_code == 422
 
@@ -89,7 +88,7 @@ async def test_the_singular_image_field_is_capped_too():
     payload = {"image_base64": "A" * (MAX_IMAGE_BASE64 + 1)}
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/scan", json=payload, headers=HEADERS)
+        resp = await client.post("/api/scan", json=payload)
 
     assert resp.status_code == 422
 

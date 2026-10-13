@@ -877,7 +877,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | HTTPS enforcement | API calls to backend use HTTP (local) or HTTPS (production) |
 | No eval() usage | No dynamic code execution in extension or backend |
 | Sanitized output | AI responses are parsed, not rendered as raw HTML |
-| Client authentication | Extension sends `X-Trabahero-Client-Key` header; backend validates via `require_client_key` dependency against `CLIENT_SECRET_KEY` env var; returns 401 on mismatch |
+| Client authentication | **None.** The client key was removed: it shipped inside the extension bundle and was readable from `chrome://extensions`, so it was a secret-looking string rather than a secret. Abuse is bounded by cost instead — rate limits weighted per call, input caps, and a provider spending ceiling |
 
 ---
 
@@ -1030,14 +1030,12 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Requirement | Description |
 |-------------|-------------|
 | Extension env | `WXT_API_BASE` — backend URL (build-time variable) |
-| Extension env | `WXT_CLIENT_KEY` — shared secret for backend auth; must match `CLIENT_SECRET_KEY` |
 | Backend env | `AI_API_KEY`, `AI_API_URL`, `MODEL_NAME` — AI provider config |
 | Backend env | `TAVILY_API_KEY`, `TAVILY_MAX_RESULTS` — web search. Free tier is 1,000 credits/month, no card required (https://tavily.com) |
 | Backend env | `TAVILY_SEARCH_DEPTH` (`basic` = 1 credit, `advanced` = 2 credits, default advanced), `TAVILY_COUNTRY` (default `philippines`; blank disables the boost) — the recall-versus-budget trade, configurable per deployment |
 | Backend env | `AI_TEMPERATURE`, `AI_TOP_P`, `AI_MAX_TOKENS` — generation controls |
 | Backend env | `AI_REASONING_ENABLED`, `AI_REASONING_MAX_TOKENS`, `AI_REASONING_EFFORT` — reasoning-model controls, mapped to OpenRouter's `reasoning` parameter. `AI_REASONING_ENABLED=false` turns reasoning off outright and is the cleanest option; blank sends nothing |
 | Backend env | `AI_MAX_CONCURRENT`, `AI_MAX_QUEUE_DEPTH` — concurrency limits |
-| Backend env | `CLIENT_SECRET_KEY` — shared secret for extension auth; leave empty to disable (dev mode) |
 | Theme persistence | `chrome.storage.local` stores `theme`, `textSize`, `fabEnabled` |
 | Startup order | Backend → Extension |
 | Dev workflow | `npm run dev` for extension; `uvicorn --reload` for backend |
@@ -1177,7 +1175,11 @@ interface ScannedJob {
 
 ## 6. API Reference
 
-All API endpoints (except `GET /health`) require the `X-Trabahero-Client-Key` header. The extension generates a unique key per instance, stores it in `chrome.storage.local`, and sends it with every request. The backend validates this against the `CLIENT_SECRET_KEY` environment variable. If `CLIENT_SECRET_KEY` is empty, auth is disabled (development mode). Requests without a valid key receive `401 Unauthorized`.
+**The API has no authentication, and that is deliberate.** The extension previously sent an `X-Trabahero-Client-Key` header checked against `CLIENT_SECRET_KEY`. That key was compiled into the bundle, so anyone could read it from `chrome://extensions` — service worker — inspect. It looked like a security boundary and protected nothing, and a per-install token would have been equally extractable while needing a database.
+
+What replaced it is bounding rather than authenticating: per-endpoint rate limits weighted by what each call costs, hard caps on every request body, and a spending ceiling at the provider. Those hold against someone patient. An extractable string never did.
+
+The control that is still missing is CORS. `allow_origins` in `backend/app/main.py` is `["*"]`, which now lets any website a user visits call the backend from their browser. It has to be pinned to `chrome-extension://<id>`, and the manifest needs a `key` so that ID is stable in development.
 
 ### POST /api/scan
 

@@ -24,7 +24,6 @@ from app.services.scanner.verification_parser import (
 )
 
 transport = ASGITransport(app=app)
-HEADERS = {"X-Trabahero-Client-Key": "test-secret-key"}
 
 
 BLOCK = (
@@ -170,7 +169,7 @@ class TestTheFlowTellsTheTwoEmptyResultsApart:
                 return await client.post("/api/verify", json={
                     "company_name": "Acme Corp",
                     "job_summary": "Developer at Acme Corp",
-                }, headers=HEADERS)
+                })
 
     @pytest.mark.asyncio
     async def test_an_unreadable_response_is_reported_as_a_failure(self):

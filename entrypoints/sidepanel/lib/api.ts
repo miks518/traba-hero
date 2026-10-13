@@ -2,11 +2,6 @@ import type { ApiScanResponse, ResumeData, RiskScoreBreakdown, ScannedJob, Verif
 import { toScoreBreakdown } from './scoreBreakdown';
 
 const API_BASE = import.meta.env.WXT_API_BASE;
-const CLIENT_KEY = import.meta.env.WXT_CLIENT_KEY;
-
-async function authHeaders(): Promise<Record<string, string>> {
-  return { 'X-Trabahero-Client-Key': CLIENT_KEY ?? '' };
-}
 
 export interface ScanProgress {
   percent: number;
@@ -35,7 +30,7 @@ export async function pingHealth(externalSignal?: AbortSignal): Promise<boolean>
   try {
     const res = await fetch(`${API_BASE}/health`, {
       method: 'GET',
-      headers: await authHeaders(),
+      headers: {},
       signal: controller.signal,
     });
     return res.ok;
@@ -63,7 +58,7 @@ async function request<T>(
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       method,
-      headers: { ...await authHeaders(), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
@@ -150,7 +145,7 @@ export async function scanScreenshotStream(
   try {
     const res = await fetch(`${API_BASE}/api/scan`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+      headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({ images_base64: imagesBase64 }),
       signal: controller.signal,
     });
@@ -189,7 +184,7 @@ export async function scanTextStream(
   try {
     const res = await fetch(`${API_BASE}/api/scan-text`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+      headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({ text }),
       signal: controller.signal,
     });
@@ -238,7 +233,7 @@ export async function analyzeResumeStream(
   try {
     const res = await fetch(`${API_BASE}/api/analyze-resume`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+      headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({ file_base64: fileBase64, file_type: fileType }),
       signal: controller.signal,
     });
@@ -334,7 +329,7 @@ export async function matchResumeToJobsStream(
   try {
     const res = await fetch(`${API_BASE}/api/match-resume`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+      headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({
         resume,
         jobs: jobs.map(j => ({ id: j.id, title: j.title, summary: j.summary })),
@@ -437,7 +432,7 @@ export async function analyzeOfferStream(
   try {
     const res = await fetch(`${API_BASE}/api/analyze-offer`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+      headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({ text, company_name: companyName }),
       signal: controller.signal,
     });
@@ -546,7 +541,7 @@ export async function verifyJobStream(
   try {
     const res = await fetch(`${API_BASE}/api/verify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...await authHeaders() },
+      headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify(context),
       signal: controller.signal,
     });

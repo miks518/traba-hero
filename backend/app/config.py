@@ -44,10 +44,6 @@ class Settings(BaseSettings):
     ai_max_queue_depth: int = 10
     ai_acquire_timeout: float = 10.0
     ai_call_timeout: float = 120.0
-    client_secret_key: str = ""
-    # Web search. Tavily's free tier is 1,000 credits/month and needs no card.
-    # A missing key makes every search report as a failure rather than an empty
-    # result, so a broken deployment cannot look like a clean employer.
     tavily_api_key: str = ""
     # Results per verification. Credits are charged per request, so this is
     # free — what it costs is context, since every snippet becomes prompt text

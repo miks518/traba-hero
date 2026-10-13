@@ -6,6 +6,24 @@
 
 ## Phase 1: Security & API Protection
 
+> **Task 1.1 was reverted.** The shared client key it added shipped inside the
+> extension bundle, so anyone could read it from `chrome://extensions` ->
+> service worker -> inspect. It was presented as a security boundary and
+> protected nothing. A per-install token would have been equally extractable,
+> and would have needed a database to revoke.
+>
+> The boundary was removed rather than replaced. What stands in its place:
+> per-endpoint rate limits weighted by what each call costs, hard input caps on
+> every request body, and a spending ceiling at the provider. Those hold
+> against someone patient; an extractable string never did.
+>
+> **Not done, and required before any public deployment:** `allow_origins` in
+> `backend/app/main.py` is still `["*"]`. With the key gone, any website a user
+> visits can call the backend from their browser. It has to be pinned to
+> `chrome-extension://<id>`, which needs the published extension ID and a
+> `key` in the manifest to keep that ID stable in development.
+
+
 ### [x] Task 1.1: Extension-to-Backend Request Authentication
 - **Objective:** Prevent unauthorized external users from draining LLM API credits by calling backend endpoints directly.
 - **Frontend Changes (`entrypoints/`):**
@@ -85,7 +103,7 @@
   - Add a non-intrusive banner (`OfflineBanner.tsx`) at the top of the side panel when the server is unreachable.
   - Disable scan buttons while offline and display a clean "Server Unreachable" message.
 - **Verification:** Shut down the backend service while the extension is open; verify the UI immediately shows offline state without freezing.
-- **Implemented:** `pingHealth()` in `lib/api.ts` (3s timeout, always resolves to a boolean, reuses the client-key header). `useBackendHealth()` polls every 4s (~15/min, under the backend's 30/min `/health` cap), skips probes while `document.hidden`, re-probes on `visibilitychange`, never overlaps requests, and flips offline only after 2 consecutive failures so a single slow response cannot trigger a false alarm. The first successful probe restores the online state, so the banner clears itself on recovery. `OfflineBanner` renders below the top app bar with error-tint styling and a Retry button that triggers an immediate check. `App.tsx` owns the hook and passes `isOnline` to both views; `ScamScanView` disables/relabels the Scan button, `ResumeMatchView` disables Match and the resume uploader, and `ResumeUploader` now honors `disabled` for click, drag, and change (it previously only disabled the hidden input). Element picking, cropping, and history stay usable since they are local-only, and in-flight scans are left to finish on their existing timeouts. No backend changes were needed — `GET /health` already existed. 10 new vitest tests plus `npm run compile` and `npm run build` pass.
+- **Implemented:** `pingHealth()` in `lib/api.ts` (3s timeout, always resolves to a boolean). `useBackendHealth()` polls every 4s (~15/min, under the backend's 30/min `/health` cap), skips probes while `document.hidden`, re-probes on `visibilitychange`, never overlaps requests, and flips offline only after 2 consecutive failures so a single slow response cannot trigger a false alarm. The first successful probe restores the online state, so the banner clears itself on recovery. `OfflineBanner` renders below the top app bar with error-tint styling and a Retry button that triggers an immediate check. `App.tsx` owns the hook and passes `isOnline` to both views; `ScamScanView` disables/relabels the Scan button, `ResumeMatchView` disables Match and the resume uploader, and `ResumeUploader` now honors `disabled` for click, drag, and change (it previously only disabled the hidden input). Element picking, cropping, and history stay usable since they are local-only, and in-flight scans are left to finish on their existing timeouts. No backend changes were needed — `GET /health` already existed. 10 new vitest tests plus `npm run compile` and `npm run build` pass.
 
 ---
 

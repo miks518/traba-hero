@@ -30,7 +30,6 @@ from app.routers import scan as scan_router
 from app.routers import health as health_router
 
 transport = ASGITransport(app=app)
-HEADERS = {"X-Trabahero-Client-Key": "test-secret-key"}
 
 
 def _limit_of(path: str) -> int:
@@ -71,7 +70,7 @@ async def test_verify_refuses_once_the_limit_is_passed():
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         statuses = [
-            (await client.post("/api/verify", json=payload, headers=HEADERS)).status_code
+            (await client.post("/api/verify", json=payload)).status_code
             for _ in range(limit + 1)
         ]
 

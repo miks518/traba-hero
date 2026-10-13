@@ -4,7 +4,6 @@ import pytest
 from unittest.mock import patch
 
 # Set test env before importing the app
-os.environ["CLIENT_SECRET_KEY"] = "test-secret-key"
 
 from httpx import AsyncClient, ASGITransport
 from app.main import app
@@ -168,15 +167,6 @@ def _offline_ai_and_search():
         patch("app.services.search.settings.tavily_api_key", "tvly-offline-test"),
     ):
         yield
-
-
-@pytest.fixture(autouse=True)
-def _set_test_secret():
-    """Ensure the auth module uses the test secret key."""
-    import app.core.auth as auth_mod
-    auth_mod.EXPECTED_KEY = "test-secret-key"
-    yield
-    auth_mod.EXPECTED_KEY = ""
 
 
 @pytest.fixture(autouse=True)

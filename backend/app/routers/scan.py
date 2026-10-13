@@ -12,7 +12,6 @@ from fastapi.responses import StreamingResponse
 
 from app.ai_limiter import ai_limiter
 from app.config import settings
-from app.core.auth import require_client_key
 from app.exceptions import InvalidImageError
 from app.models.schemas import (
     AnalyzeOfferRequest,
@@ -125,7 +124,7 @@ def _scan_response(result: dict, company_name: str = "") -> ScanResponse:
 
 @router.post("/api/scan")
 @limiter.limit("5/minute")
-async def scan(req: ScanRequest, request: Request, _auth: None = Depends(require_client_key)):
+async def scan(req: ScanRequest, request: Request):
     images = [img for img in (req.images_base64 or [req.image_base64]) if img]
     if not images:
         raise InvalidImageError()
@@ -165,7 +164,7 @@ async def scan(req: ScanRequest, request: Request, _auth: None = Depends(require
 
 @router.post("/api/scan-text")
 @limiter.limit("5/minute")
-async def scan_text(req: ScanTextRequest, request: Request, _auth: None = Depends(require_client_key)):
+async def scan_text(req: ScanTextRequest, request: Request):
     if not req.text.strip():
         return ScanResponse(valid=False)
     log.info("Text scan: %d chars to %s", len(req.text), settings.model_name or "AI provider")
@@ -196,7 +195,7 @@ async def scan_text(req: ScanTextRequest, request: Request, _auth: None = Depend
 
 @router.post("/api/analyze-resume")
 @limiter.limit("5/minute")
-async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request, _auth: None = Depends(require_client_key)):
+async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request):
     if req.file_type.lower() in ("png", "jpg", "jpeg"):
         content: list[dict] = [
             {"type": "text", "text": RESUME_INSTRUCTION},
@@ -234,7 +233,7 @@ async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request, 
 # ten times a minute. This is the most expensive single request served - up to
 # `MAX_JOBS_PER_MATCH` jobs in one call - so it gets the tightest limit here.
 @limiter.limit("3/minute")
-async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None = Depends(require_client_key)):
+async def match_resume_endpoint(req: MatchRequest, request: Request):
     prompt = MATCH_INSTRUCTION.format(
         skills=", ".join(req.resume.skills),
         experience=req.resume.experience_years,
@@ -272,14 +271,14 @@ async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None
 # 1,000 a month, so the more expensive door cannot be the more generous one.
 # It stays level with `/api/scan`, which a human hits once per posting.
 @limiter.limit("5/minute")
-async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends(require_client_key)):
+async def verify_job(req: VerifyRequest, request: Request):
     """External verification: one Tavily search + one AI call. SSE stream."""
     return StreamingResponse(verification_event_stream(req), media_type="text/event-stream")
 
 
 @router.post("/api/analyze-offer")
 @limiter.limit("5/minute")
-async def analyze_offer(req: AnalyzeOfferRequest, request: Request, _auth: None = Depends(require_client_key)):
+async def analyze_offer(req: AnalyzeOfferRequest, request: Request):
     """Post-only analysis: used when a posting names no employer, so there is
     nothing to look up. Assesses the offer on its own terms and returns a
     verdict. One AI call, no search."""

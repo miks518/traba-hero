@@ -41,7 +41,6 @@ def test_the_endpoint_reports_not_found_over_http():
             r = await c.post(
                 "/api/debug/search",
                 json={"query": "Acme"},
-                headers={"X-Trabahero-Client-Key": "test-secret-key"},
             )
             return r.status_code
 

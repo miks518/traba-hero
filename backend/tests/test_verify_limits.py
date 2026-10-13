@@ -40,14 +40,13 @@ from app.models.schemas import (
 )
 
 transport = ASGITransport(app=app)
-HEADERS = {"X-Trabahero-Client-Key": "test-secret-key"}
 
 BODY = {"company_name": "Acme Trading", "job_summary": "Sales associate wanted"}
 
 
 async def post_verify(payload: dict):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        return await client.post("/api/verify", json=payload, headers=HEADERS)
+        return await client.post("/api/verify", json=payload)
 
 
 def anomaly(**over) -> dict:

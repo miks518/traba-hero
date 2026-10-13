@@ -14,8 +14,6 @@ from app.models.schemas import (
 )
 
 transport = ASGITransport(app=app)
-HEADERS = {"X-Trabahero-Client-Key": "test-secret-key"}
-WRONG_HEADERS = {"X-Trabahero-Client-Key": "wrong-key"}
 
 
 def _cycled(outcomes):
@@ -858,7 +856,7 @@ class TestSearchOutcomeReachesTheClient:
                 resp = await client.post("/api/verify", json={
                     "company_name": "Acme Corp",
                     "job_summary": "Developer at Acme Corp",
-                }, headers=HEADERS)
+                })
 
         assert resp.status_code == 200
         assert '"search_ok": false' in resp.text
@@ -876,7 +874,7 @@ class TestSearchOutcomeReachesTheClient:
                 resp = await client.post("/api/verify", json={
                     "company_name": "Acme Corp",
                     "job_summary": "Developer at Acme Corp",
-                }, headers=HEADERS)
+                })
 
         assert resp.status_code == 200
         assert '"search_ok": true' in resp.text
@@ -905,7 +903,7 @@ class TestSearchOutcomeReachesTheClient:
                     "company_name": "Acme Corp",
                     "job_summary": "Developer at Acme Corp",
                     "anomalies": [{"flag": "Fee", "reasoning": "r", "severity": "high"}],
-                }, headers=HEADERS)
+                })
 
         assert resp.status_code == 200
         assert '"verification_score": null' in resp.text
@@ -1015,24 +1013,8 @@ END RECOMMENDATION"""
 
 # â”€â”€ POST /api/verify: auth checks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-@pytest.mark.asyncio
-async def test_verify_missing_key_returns_401():
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/verify", json={
-            "company_name": "ACME",
-            "job_summary": "Engineer",
-        })
-    assert resp.status_code == 401
 
 
-@pytest.mark.asyncio
-async def test_verify_wrong_key_returns_401():
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/verify", json={
-            "company_name": "ACME",
-            "job_summary": "Engineer",
-        }, headers=WRONG_HEADERS)
-    assert resp.status_code == 401
 
 
 @pytest.mark.asyncio
@@ -1041,7 +1023,7 @@ async def test_verify_correct_key_passes_auth():
         resp = await client.post("/api/verify", json={
             "company_name": "ACME",
             "job_summary": "Engineer at ACME Corp",
-        }, headers=HEADERS)
+        })
     # Should return 200 with SSE stream (not 401)
     assert resp.status_code == 200
     assert "text/event-stream" in resp.headers["content-type"]
@@ -1050,7 +1032,7 @@ async def test_verify_correct_key_passes_auth():
 @pytest.mark.asyncio
 async def test_verify_empty_body_passes_auth():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/verify", json={}, headers=HEADERS)
+        resp = await client.post("/api/verify", json={})
     assert resp.status_code == 200
 
 
@@ -1060,7 +1042,7 @@ async def test_verify_sse_stream_format():
         resp = await client.post("/api/verify", json={
             "company_name": "TestCorp",
             "job_summary": "Developer at TestCorp",
-        }, headers=HEADERS)
+        })
     assert resp.status_code == 200
     body = resp.text
     # Should contain SSE data lines
@@ -1103,7 +1085,7 @@ class TestTheQueryBudget:
                     "company_name": "Acme Corp",
                     "job_summary": "Developer at Acme Corp",
                     "search_queries": model_queries or [],
-                }, headers=HEADERS)
+                })
         return resp, search
 
     @pytest.mark.asyncio
@@ -1225,7 +1207,7 @@ class TestTheQueryBudget:
                         "company_name": "Acme Corp",
                         "job_summary": "Developer at Acme Corp",
                         "search_queries": ["Acme Corp registration"],
-                    }, headers=HEADERS)
+                    })
 
         sent = chat.call_args[0][0]
         user_text = "\n".join(str(m.get("content")) for m in sent)
@@ -1246,7 +1228,7 @@ class TestTheQueryBudget:
                     await c.post("/api/verify", json={
                         "company_name": "Acme Corp",
                         "job_summary": "Developer at Acme Corp",
-                    }, headers=HEADERS)
+                    })
 
         user_text = "\n".join(str(m.get("content")) for m in chat.call_args[0][0])
         assert user_text.count("example.ph/acme") == 1
@@ -1270,7 +1252,7 @@ class TestTheQueryBudget:
                     await c.post("/api/verify", json={
                         "company_name": "Acme Corp",
                         "job_summary": "Developer at Acme Corp",
-                    }, headers=HEADERS)
+                    })
 
         # Only the user message. The system prompt legitimately names the banned
         # phrases in its own rules, so scanning it would assert nothing about
@@ -1292,7 +1274,7 @@ async def test_verify_stops_early_when_no_company_name():
             resp = await client.post("/api/verify", json={
                 "company_name": "",
                 "job_summary": "Looking for Virtual Assistant",
-            }, headers=HEADERS)
+            })
 
         assert resp.status_code == 200
         mock_chat.assert_not_called()
@@ -1314,7 +1296,7 @@ async def test_verify_reports_an_unreadable_response_as_a_failure():
             resp = await client.post("/api/verify", json={
                 "company_name": "Acme Corp",
                 "job_summary": "Developer at Acme Corp",
-            }, headers=HEADERS)
+            })
 
         assert resp.status_code == 200
         body = resp.text
@@ -1337,7 +1319,7 @@ async def test_verify_failsafe_when_a_readable_response_carries_no_checks():
             resp = await client.post("/api/verify", json={
                 "company_name": "Acme Corp",
                 "job_summary": "Developer at Acme Corp",
-            }, headers=HEADERS)
+            })
 
         assert resp.status_code == 200
         body = resp.text
@@ -1446,7 +1428,7 @@ class TestTheModelAuthoredQueriesReachTheSearch:
             patch("app.routers.scan.chat", return_value=_chat_corroboration()),
         ):
             async with AsyncClient(transport=transport, base_url="http://test") as c:
-                resp = await c.post("/api/verify", json=body, headers=HEADERS)
+                resp = await c.post("/api/verify", json=body)
         return resp, issued
 
     @pytest.mark.asyncio
@@ -1522,7 +1504,7 @@ class TestTheModelAuthoredQueriesReachTheSearch:
                     resp = await c.post("/api/verify", json={
                         "company_name": "Tanika",
                         "search_queries": ["Tanika Maingate Terminal"],
-                    }, headers=HEADERS)
+                    })
 
         assert resp.status_code == 200
         user_text = "\n".join(
@@ -1578,7 +1560,7 @@ class TestTheModelAuthoredQueriesReachTheSearch:
                 resp = await c.post("/api/verify", json={
                     "company_name": "",
                     "search_queries": ["Maingate Terminal"],
-                }, headers=HEADERS)
+                })
 
         assert resp.status_code == 200
         search.assert_not_called()
@@ -1687,7 +1669,7 @@ class TestTheScanResponseCarriesItsAttributesToRetrieval:
                     "company_name": scan.company_name,
                     "attributes": scan.attributes,
                     "search_queries": scan.search_queries,
-                }, headers=HEADERS)
+                })
 
         assert resp.status_code == 200
         # The employer's own query, then the ones the scan proposed. Not zero:
@@ -1720,7 +1702,7 @@ class TestTheScanResponseCarriesItsAttributesToRetrieval:
                 resp = await c.post("/api/verify", json={
                     "company_name": stripped.company_name,
                     "search_queries": stripped.search_queries,
-                }, headers=HEADERS)
+                })
 
         assert resp.status_code == 200
         assert issued == ["Tanika company or employer"], issued

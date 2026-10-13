@@ -36,7 +36,6 @@ from app.models.schemas import (
 )
 
 transport = ASGITransport(app=app)
-HEADERS = {"X-Trabahero-Client-Key": "test-secret-key"}
 
 RESUME = {
     "skills": ["Python"],
@@ -53,7 +52,7 @@ def job(i: int = 0, **over) -> dict:
 
 async def post_match(payload: dict):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        return await client.post("/api/match-resume", json=payload, headers=HEADERS)
+        return await client.post("/api/match-resume", json=payload)
 
 
 # ── The job list ──────────────────────────────────────────────────────────────

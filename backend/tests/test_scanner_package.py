@@ -102,12 +102,16 @@ def _blocking_provider(state):
     return stream
 
 
+# `_auth` is gone from every signature: the client key was removed as false
+# comfort, because it shipped inside the extension and any credential an
+# extension holds is extractable. See `test_no_client_key.py` for why, and for
+# the guard that stops it coming back.
 EXPECTED_ENDPOINT_PARAMETERS = {
-    "scan": ("req", "request", "_auth"),
-    "scan_text": ("req", "request", "_auth"),
-    "analyze_resume_endpoint": ("req", "request", "_auth"),
-    "match_resume_endpoint": ("req", "request", "_auth"),
-    "verify_job": ("req", "request", "_auth"),
+    "scan": ("req", "request"),
+    "scan_text": ("req", "request"),
+    "analyze_resume_endpoint": ("req", "request"),
+    "match_resume_endpoint": ("req", "request"),
+    "verify_job": ("req", "request"),
 }
 
 EXPECTED_SIGNATURES = {
