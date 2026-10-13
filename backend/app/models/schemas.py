@@ -1,9 +1,40 @@
-from pydantic import BaseModel, Field
+from typing import Annotated
+
+from pydantic import BaseModel, Field, StringConstraints
+
+
+# How many images one scan may carry.
+#
+# The extension stops at `MAX_SCREENSHOTS` in `ScamScanView.tsx` and compresses
+# each to a JPEG capped at 1280px. The API had no matching limit, so a request
+# carrying hundreds of images was a single enormous vision call against a
+# reasoning model. Vision tokens scale with pixel area, so the count is what
+# bounds cost; the per-item length below only bounds memory.
+#
+# Kept equal to the frontend's limit on purpose. A backend stricter than the
+# client it serves breaks ordinary use to solve a problem nobody has.
+MAX_IMAGES_PER_SCAN = 4
+
+# Per-image base64 ceiling. Matches `ResumeAnalysisRequest.file_base64`, so
+# there is one convention for "one thing uploaded by a person" rather than two.
+MAX_IMAGE_BASE64 = 5_000_000
 
 
 class ScanRequest(BaseModel):
-    image_base64: str = ""
-    images_base64: list[str] = []
+    # Bounded and rejected, never truncated. Dropping images 5-40 and scanning
+    # the first four would return a result describing four images while claiming
+    # to describe forty — a lie the reader cannot detect, which is worse than a
+    # refusal because a refusal is visible.
+    #
+    # Both ends are bounded: `max_length` caps how many, and the annotated item
+    # caps how large each one may be. Capping only the list leaves a single
+    # enormous image through, which is the cheaper door.
+    images_base64: list[Annotated[str, StringConstraints(max_length=MAX_IMAGE_BASE64)]] = Field(
+        default=[], max_length=MAX_IMAGES_PER_SCAN
+    )
+    # The legacy spelling, still accepted. Capping only the list would leave the
+    # cheapest door open: one call, one enormous image.
+    image_base64: str = Field(default="", max_length=MAX_IMAGE_BASE64)
     language: str = "english"
 
 
