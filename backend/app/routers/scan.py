@@ -229,7 +229,11 @@ async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request, 
 
 
 @router.post("/api/match-resume")
-@limiter.limit("10/minute")
+# Was 10/minute. Sized for LM Studio, where inference took minutes; one hosted
+# call completes in seconds and a person matches a resume a handful of times, not
+# ten times a minute. This is the most expensive single request served - up to
+# `MAX_JOBS_PER_MATCH` jobs in one call - so it gets the tightest limit here.
+@limiter.limit("3/minute")
 async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None = Depends(require_client_key)):
     prompt = MATCH_INSTRUCTION.format(
         skills=", ".join(req.resume.skills),
@@ -262,7 +266,12 @@ async def match_resume_endpoint(req: MatchRequest, request: Request, _auth: None
 
 
 @router.post("/api/verify")
-@limiter.limit("10/minute")
+# Was 10/minute, and halved. Same reason as the others — these were sized when
+# inference ran locally and took minutes. This one also spends Tavily credits
+# on top of the AI call, up to three per verification against a free tier of
+# 1,000 a month, so the more expensive door cannot be the more generous one.
+# It stays level with `/api/scan`, which a human hits once per posting.
+@limiter.limit("5/minute")
 async def verify_job(req: VerifyRequest, request: Request, _auth: None = Depends(require_client_key)):
     """External verification: one Tavily search + one AI call. SSE stream."""
     return StreamingResponse(verification_event_stream(req), media_type="text/event-stream")

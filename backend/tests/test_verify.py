@@ -6,7 +6,12 @@ from unittest.mock import patch, AsyncMock, MagicMock
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.routers.scan import _build_verify_prompt, _parse_verification_result, _parse_verify_section
-from app.models.schemas import Anomaly, VerificationItem, VerifyRequest
+from app.models.schemas import (
+    Anomaly,
+    VerificationItem,
+    VerifyAnomaly,
+    VerifyRequest,
+)
 
 transport = ASGITransport(app=app)
 HEADERS = {"X-Trabahero-Client-Key": "test-secret-key"}
@@ -52,7 +57,7 @@ class TestVerifyRequest:
         req = VerifyRequest(
             company_name="ACME",
             job_summary="Software Engineer",
-            anomalies=[Anomaly(flag="High salary", reasoning="Too good", severity="high")],
+            anomalies=[VerifyAnomaly(flag="High salary", reasoning="Too good", severity="high")],
         )
         assert req.company_name == "ACME"
         assert len(req.anomalies) == 1
@@ -96,7 +101,7 @@ class TestBuildVerifyPrompt:
         req = VerifyRequest(
             company_name="ACME",
             job_summary="UNIQUE_JOB_SUMMARY_MARKER cook role",
-            anomalies=[Anomaly(flag="UNIQUE_FLAG_MARKER Fee", reasoning="r", severity="high")],
+            anomalies=[VerifyAnomaly(flag="UNIQUE_FLAG_MARKER Fee", reasoning="r", severity="high")],
         )
         prompt = _build_verify_prompt(req, "=== SEARCH RESULTS FOR: ACME ===\nfound a site\n=== END SEARCH ===")
         assert "UNIQUE_JOB_SUMMARY_MARKER" not in prompt
@@ -201,7 +206,7 @@ class TestTheClaimsReachThePrompt:
         req = VerifyRequest(
             company_name="ACME",
             attributes={"LOCATION": "Maingate Terminal"},
-            anomalies=[Anomaly(
+            anomalies=[VerifyAnomaly(
                 flag="UNIQUE_FLAG_MARKER",
                 reasoning="r",
                 severity="high",

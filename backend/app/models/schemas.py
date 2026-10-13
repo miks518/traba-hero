@@ -50,6 +50,52 @@ MAX_RESUME_ITEM_CHARS = 200
 ResumeListItem = Annotated[str, StringConstraints(max_length=MAX_RESUME_ITEM_CHARS)]
 
 
+# ── /api/verify ───────────────────────────────────────────────────────────────
+#
+# The only endpoint that spends from two budgets at once. Every field below is
+# caller-supplied and reaches a provider: `company_name` becomes a search query,
+# and `job_summary`, `anomalies` and `attributes` are quoted into the
+# verification prompt as the claims its categories test.
+#
+# `anomalies` was the worst of them — an unbounded list of unbounded strings, so
+# a caller could send one verification carrying thousands of anomalies with
+# pages of text each and have all of it tokenised into a reasoning call.
+
+MAX_VERIFY_COMPANY_NAME = 300
+# Equal to `ScanTextRequest.text` on purpose. A verification fed from a posting
+# must accept the same text a scan accepted, or a posting that scans fine fails
+# to verify — after the reader has already paid for the scan.
+MAX_VERIFY_JOB_SUMMARY = 50_000
+MAX_VERIFY_ANOMALIES = 20
+MAX_VERIFY_ANOMALY_TEXT = 2_000
+MAX_VERIFY_ATTRIBUTES = 50
+MAX_VERIFY_ATTRIBUTE_KEY = 100
+MAX_VERIFY_ATTRIBUTE_VALUE = 2_000
+# Each query reaches Tavily verbatim. The *count* is capped at two in
+# `verification_flow`, where a client that is not this extension can be refused;
+# this caps how long each one may be.
+MAX_VERIFY_QUERY_CHARS = 500
+
+VerifyQuery = Annotated[str, StringConstraints(max_length=MAX_VERIFY_QUERY_CHARS)]
+AttributeKey = Annotated[str, StringConstraints(max_length=MAX_VERIFY_ATTRIBUTE_KEY)]
+AttributeValue = Annotated[str, StringConstraints(max_length=MAX_VERIFY_ATTRIBUTE_VALUE)]
+
+
+class VerifyAnomaly(BaseModel):
+    """One of the posting's findings, as the caller reports them.
+
+    Deliberately not `Anomaly`. That type is what the backend *emits* in a scan
+    response, and bounding it here would silently constrain our own output —
+    tightening a response schema to protect an input path is how a long but
+    legitimate finding turns into a 500 on the way back to the reader.
+    """
+
+    flag: str = Field(..., max_length=MAX_VERIFY_ANOMALY_TEXT)
+    reasoning: str = Field(default="", max_length=MAX_VERIFY_ANOMALY_TEXT)
+    severity: str = Field(default="", max_length=50)
+    query_ref: str = Field(default="", max_length=MAX_VERIFY_QUERY_CHARS)
+
+
 class ScanRequest(BaseModel):
     # Bounded and rejected, never truncated. Dropping images 5-40 and scanning
     # the first four would return a result describing four images while claiming
@@ -174,9 +220,9 @@ class MatchResponse(BaseModel):
 
 
 class VerifyRequest(BaseModel):
-    company_name: str = ""
-    job_summary: str = ""
-    anomalies: list[Anomaly] = []
+    company_name: str = Field(default="", max_length=MAX_VERIFY_COMPANY_NAME)
+    job_summary: str = Field(default="", max_length=MAX_VERIFY_JOB_SUMMARY)
+    anomalies: list[VerifyAnomaly] = Field(default=[], max_length=MAX_VERIFY_ANOMALIES)
     # What the scan read off the posting, in the poster's own words. Two uses,
     # and the same constraint binds both: an absent key means the posting said
     # nothing, which is a missing input and never earns a query or a check.
@@ -190,7 +236,9 @@ class VerifyRequest(BaseModel):
     # omitted key. All three say "the posting stated nothing", and rejecting one
     # spelling of a missing input with a 422 fails the whole verification for a
     # detail that carries no verdict.
-    attributes: dict[str, str] | None = {}
+    attributes: dict[AttributeKey, AttributeValue] | None = Field(
+        default={}, max_length=MAX_VERIFY_ATTRIBUTES
+    )
     # The searches the scan model proposed. `| None` for the same reason as
     # `attributes`: an explicit `null`, an omitted key and an empty list all
     # mean "the model proposed no search", and rejecting one spelling of that
@@ -200,7 +248,14 @@ class VerifyRequest(BaseModel):
     # name a conclusion lives in both scan prompts and nowhere else - a
     # deliberate choice, and the reason a query reaching the provider is
     # unfiltered text from a model that read a job posting.
-    search_queries: list[str] | None = []
+    # Length only, deliberately not the count.
+    #
+    # The count is capped at `lm_client.MAX_SEARCH_QUERIES` inside
+    # `verification_flow`, and that has to stay the only place it is enforced:
+    # a schema cap turns an over-long list into a 422, so the flow's own
+    # truncation becomes unreachable and the defence against a client that is
+    # not this extension is untested. Both gates, but only one of them decides.
+    search_queries: list[VerifyQuery] | None = []
 
 
 class VerificationItem(BaseModel):
