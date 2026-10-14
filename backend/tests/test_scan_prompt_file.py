@@ -390,12 +390,18 @@ GUARDRAILS = (
     # an absent salary despite both being forbidden, because this list was in
     # prompts.py and not in SYSTEM_PROMPT.md. The file the backend loads is the
     # one that was missing it.
-    ("ordinary things are never findings", "do not flag any of these on their own"),
+    ("ordinary things are never findings", "no combination of these that makes one of them a finding"),
     ("messenger applications are ordinary", "messenger-based application"),
     ("the ladder is not stretched to fit", "do not stretch the severity ladder"),
     ("mid means paid tasks, not a vague feeling", "paid tasks, orders, or referrals"),
     ("low is rarely correct", "rarely correct"),
     ("actionability bar", "do something differently after reading"),
+    # Added 2026-10-14. The model kept flagging a Gmail address after
+    # "on their own" was added as a prohibition, because "on their own" is a
+    # permission as much as a ban: it reads as "a free email domain is flaggable
+    # when something else is also wrong." Only the absolute form is pinned here,
+    # so the carve-out cannot be reintroduced as the guardrail.
+    ("a generic or personal email is never an anomaly", "a generic or personal email is not an anomaly"),
 )
 
 
@@ -403,6 +409,28 @@ def test_both_prompt_copies_carry_every_guardrail():
     for label, phrase in GUARDRAILS:
         assert phrase in low, f"SYSTEM_PROMPT.md lost the {label} guardrail"
         assert phrase in rules.lower(), f"prompts.py lost the {label} guardrail"
+
+
+def test_the_ordinary_things_rule_carries_no_carve_out():
+    """`on their own` is a permission as much as a ban.
+
+    A scan kept reporting a Gmail address as an anomaly. The prompt had been
+    fixed once, on 2026-10-12, by adding a bullet listing ordinary things not to
+    flag — but that bullet said "do not flag any of these **on their own**", and
+    the carve-out is the only statement in the prompt that permits flagging one
+    of them. A model reading a posting with a free address *plus* something else
+    unsatisfying could resolve that contradiction in favour of reporting it, and
+    two later absolute rules forbidding exactly this did not stop it.
+
+    A `GUARDRAILS` entry cannot catch this: every entry asserts a phrase is
+    present, and the defect is a phrase being *absent*. So the absence is pinned
+    here, in both copies, because either one alone reintroduces the permission.
+    """
+    for name, source in (("SYSTEM_PROMPT.md", low), ("prompts.py", rules.lower())):
+        assert "on their own" not in source, (
+            f"{name} reintroduced an 'on their own' carve-out, which permits "
+            "flagging a free email domain when the posting has another oddity"
+        )
 
 
 def test_a_guardrail_cannot_be_dropped_from_one_copy_alone():
