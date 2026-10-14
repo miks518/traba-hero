@@ -112,6 +112,31 @@ def test_a_present_but_empty_header_falls_through_to_the_peer(trusts_proxy):
     assert _get_client_ip(request) == "10.1.2.3"
 
 
+def test_a_hop_that_is_not_an_address_is_ignored_not_used_as_the_key(trusts_proxy):
+    """A garbage value is evidence of nothing. Returning it as the key would
+    hand the caller a rate-limit bucket named after their own input, and a proxy
+    that emits `unknown` instead of an address would put every such caller in one
+    shared, meaningless bucket."""
+    request = _make_request(headers={"X-Forwarded-For": "unknown"}, client_host="10.1.2.3")
+    assert _get_client_ip(request) == "10.1.2.3"
+
+
+def test_a_garbage_rightmost_falls_through_to_the_next_header(trusts_proxy):
+    request = _make_request(
+        headers={"X-Forwarded-For": "unknown", "X-Real-IP": "203.0.113.50"},
+        client_host="10.1.2.3",
+    )
+    assert _get_client_ip(request) == "203.0.113.50"
+
+
+def test_addresses_beside_a_garbage_hop_are_still_used(trusts_proxy):
+    """Skipping the garbage must not skip the good hops around it."""
+    request = _make_request(
+        headers={"X-Forwarded-For": "203.0.113.50, unknown"}, client_host="10.1.2.3"
+    )
+    assert _get_client_ip(request) == "203.0.113.50"
+
+
 def test_an_ipv4_mapped_ipv6_peer_matches_its_ipv4_trusted_entry(trusts_localhost):
     """uvicorn reports an IPv4 peer as ::ffff:127.0.0.1. Comparing that string
     against a trusted 127.0.0.1 finds nothing, so localhost would be treated as

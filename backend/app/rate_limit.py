@@ -24,6 +24,16 @@ def _parse_trusted_proxies(value: str | None) -> list[IPv4Network | IPv6Network]
     return networks
 
 
+def _is_address(value: str) -> bool:
+    """Whether `value` parses as an IP address. A hop that does not is not
+    evidence of anything, so it is ignored rather than believed."""
+    try:
+        ip_address(value)
+    except ValueError:
+        return False
+    return True
+
+
 def _in_trusted_networks(addr: str, networks: list) -> bool:
     """Whether `addr` falls inside any of the parsed trusted-proxy networks.
 
@@ -70,12 +80,17 @@ def _get_client_ip(request: Request) -> str:
 
     forwarded_for = request.headers.get("x-forwarded-for")
     if forwarded_for:
-        hops = [hop.strip() for hop in forwarded_for.split(",") if hop.strip()]
-        if hops:
-            for hop in reversed(hops):
-                if not _in_trusted_networks(hop, settings._trusted_networks):
-                    return hop
-            return hops[-1]
+        # Hops that are not addresses carry no evidence and are skipped: a proxy
+        # that emits `unknown` must not become the rate-limit identity.
+        addresses = [
+            hop for hop in (h.strip() for h in forwarded_for.split(","))
+            if _is_address(hop)
+        ]
+        for hop in reversed(addresses):
+            if not _in_trusted_networks(hop, settings._trusted_networks):
+                return hop
+        if addresses:
+            return addresses[-1]
 
     real_ip = request.headers.get("x-real-ip")
     if real_ip:
