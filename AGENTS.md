@@ -8,6 +8,19 @@ Trabahero is a job-scam detection browser extension for Filipino job seekers. It
 - **Extension** (root): React 19 + TypeScript + Tailwind, built with WXT framework
 - **Backend** (`backend/`): FastAPI Python proxy — calls OpenRouter
 
+## Harness constraints (free tier)
+
+**The operator is on opencode's free tier. Do not dispatch subagents to paid
+models** — `claude-opus-5-5`, `claude-sonnet-5-5`, `gemini-4-argon` and
+`gpt-6.1-sol` all fail with "Insufficient account funds" at dispatch time, and the
+error is the same across providers, so it costs three wasted turns to discover.
+`claude-haiku-5-5` and the `*-free` models are the ones worth naming.
+
+When a workflow wants an independent reviewer or a fresh-context implementer,
+prefer a `*-free` model, or say plainly that dispatch is unavailable and do the
+pass yourself with that stated as a limitation. A self-review labelled as a
+self-review is useful; three failed dispatches followed by a silent one is not.
+
 ## Quick Commands
 
 ```bash
