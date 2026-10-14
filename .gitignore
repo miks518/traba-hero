@@ -31,3 +31,9 @@ risk-preview.html
 
 # Superpowers execution workspace (git-ignored scratch: ledger, briefs, review packages)
 .superpowers/
+
+# Third-party agent tooling, installed with the Skills CLI. Not source - the
+same category as .wxt/ and .output/. Committing it would make a vendored
+copy of someone else's instructions part of the repository.
+.agents/
+skills-lock.json
