@@ -22,6 +22,8 @@ So all six findings are source-grounded claims with complete traces, not observe
 behaviour. Each carries a validation plan that is offline and mocked. Running
 them would move most of these to `confirmed` in one session.
 
+**Finding 1 is fixed.** See [Status](#status). The other five are open.
+
 Two limits on the audit itself, recorded so a later reader does not over-trust
 the output:
 
@@ -38,12 +40,25 @@ the output:
 
 | # | Finding | Severity |
 |---|---|---|
-| 1 | Every rate limit is keyed on a caller-supplied `X-Forwarded-For` | **HIGH** |
+| 1 | Every rate limit is keyed on a caller-supplied `X-Forwarded-For` | **HIGH** — fixed |
 | 2 | Thousands of blocking DNS lookups on the only event loop | **HIGH** |
 | 3 | Verification citations are not bound to the retrieved result set | MEDIUM |
 | 4 | No request-body ceiling; ~20 MB schema-valid body is buffered first | MEDIUM |
 | 5 | MX timeout, NXDOMAIN and absent-MX all render as `risk="high"` | LOW |
 | 6 | `pytest-asyncio` installed in the venv, absent from `requirements.txt` | hardening |
+
+## Status
+
+| Finding | State | Notes |
+|---|---|---|
+| 1 | **Fixed** 2026-10-14 | `rate_limit.py` now gates the header on a named proxy. See `docs/superpowers/plans/2026-10-14-trusted-proxy-rate-limit.md`. Needs one operator action: set `TRUSTED_PROXIES` in the deployed environment. |
+| 2–6 | Open | — |
+
+Finding 1's own validation plan was executed as part of the fix, so it carries
+direct evidence rather than the source-only trace recorded below: reverting the
+key function reproduces the bypass (six requests, no 429) while the
+no-header control still refuses the fourth, which is what makes the bypass
+result mean something.
 
 ### 1 — Rate limits are keyed on a header the caller chooses (HIGH)
 

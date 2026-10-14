@@ -51,6 +51,27 @@ app.include_router(health.router)
 app.include_router(scan.router)
 
 
+def _warn_if_no_trusted_proxies() -> None:
+    """Say out loud when the rate-limit identity is the socket peer for everyone.
+
+    Blank TRUSTED_PROXIES is the fail-closed default, and it is correct: a caller
+    must not be able to name itself. But behind a proxy it also means every
+    caller shares one bucket, and the only symptom is an unexplained 429 for
+    users who did nothing wrong. Once, at startup, naming the setting.
+    """
+    if settings.trusted_proxies.strip():
+        return
+    log.warning(
+        "TRUSTED_PROXIES is empty — forwarded headers are ignored and every "
+        "caller shares one rate-limit bucket. If this service is behind a proxy, "
+        "set TRUSTED_PROXIES to the proxy's IP ranges or the per-caller limits "
+        "will not apply."
+    )
+
+
+_warn_if_no_trusted_proxies()
+
+
 def run(reload: bool = False) -> None:
     """Serve the API on the host and port from `backend/.env`.
 
