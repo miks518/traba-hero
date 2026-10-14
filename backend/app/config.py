@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     # facts about a named company — citing one would be a claim nobody can trace
     # back to whoever asserted it. Everything else is a deployment decision.
     tavily_exclude_domains: str = "wikipedia.org"
+    # Networks whose forwarded headers we are willing to believe. Empty means we
+    # believe none, so the rate-limit identity is always the socket peer — the
+    # fail-closed direction. Behind a proxy this collapses every caller into one
+    # shared bucket until the operator lists the proxy's ranges here, which is
+    # why `rate_limit.py` logs a warning at startup while this is blank.
+    trusted_proxies: str = ""
 
     @field_validator("ai_reasoning_enabled", mode="before")
     @classmethod

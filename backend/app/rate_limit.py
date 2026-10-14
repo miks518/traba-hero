@@ -1,6 +1,25 @@
+import re
+from ipaddress import IPv4Network, IPv6Network, ip_network
+
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
+
+
+def _parse_trusted_proxies(value: str | None) -> list[IPv4Network | IPv6Network]:
+    """Turn the TRUSTED_PROXIES setting into ipaddress networks.
+
+    Entries are separated by commas or whitespace and may be bare IPs or CIDR
+    blocks. Anything unparseable is dropped rather than raised: a typo in a
+    security setting must not become an outage.
+    """
+    networks: list[IPv4Network | IPv6Network] = []
+    for entry in re.split(r"[,\s]+", value or ""):
+        try:
+            networks.append(ip_network(entry, strict=False))
+        except ValueError:
+            continue
+    return networks
 
 
 def _get_client_ip(request: Request) -> str:
