@@ -30,16 +30,21 @@ export function AnomalyCard({ anomaly }: AnomalyCardProps) {
       <div className={`${sev.bg} ${sev.text} h-8 w-8 rounded-full flex items-center justify-center shrink-0 border ${sev.border}`}>
         <Icon name={anomaly.icon} className="text-sm" />
       </div>
-      <div className="flex flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <h4 className="font-label-md text-on-surface font-bold">{anomaly.title}</h4>
+      {/* min-w-0 is what lets this column compress. A flex item defaults to
+          min-width:auto, which refuses to shrink below the min-content width of
+          its contents — so one long anomaly title, or one long unbroken word,
+          sets a floor the card cannot go below and the panel scrolls sideways
+          instead of wrapping. */}
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <h4 className="font-label-md text-on-surface font-bold min-w-0">{anomaly.title}</h4>
           {anomaly.severity && (
-            <span className={`text-[10px] font-label uppercase px-1.5 py-0.5 rounded ${sev.bg} ${sev.text}`}>
+            <span className={`text-[10px] font-label uppercase px-1.5 py-0.5 rounded shrink-0 ${sev.bg} ${sev.text}`}>
               {anomaly.severity}
             </span>
           )}
         </div>
-        <p className="font-label-sm text-on-surface-variant leading-tight">{anomaly.description}</p>
+        <p className="font-label-sm text-on-surface-variant leading-tight break-words">{anomaly.description}</p>
       </div>
     </div>
   );

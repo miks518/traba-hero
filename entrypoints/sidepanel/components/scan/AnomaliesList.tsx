@@ -34,15 +34,18 @@ export function AnomaliesList({ anomalies, critical, headingRef }: AnomaliesList
   if (anomalies.length === 0) return null;
   return (
     <section className="flex flex-col gap-stack-sm">
-      <div ref={headingRef} data-role="anomalies-heading" className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-2">
-          <Icon name="flag" className="text-error text-sm" />
-          <h3 className="font-headline-md text-lg text-error font-bold">
+      <div ref={headingRef} data-role="anomalies-heading" className="flex items-center justify-between gap-2 mb-1">
+        {/* min-w-0 lets this half compress. Without it the flex default of
+            min-width:auto floors the row at the heading's own width, and the
+            badge is pushed out of a narrow panel. */}
+        <div className="flex items-center gap-2 min-w-0">
+          <Icon name="flag" className="text-error text-sm shrink-0" />
+          <h3 className="font-headline-md text-lg text-error font-bold truncate">
             Anomalies ({anomalies.length})
           </h3>
         </div>
         {critical && (
-          <span className="bg-error text-on-error px-2 py-0.5 rounded-full font-label-sm text-[10px] font-bold">
+          <span className="bg-error text-on-error px-2 py-0.5 rounded-full font-label-sm text-[10px] font-bold shrink-0">
             HIGH SEVERITY
           </span>
         )}
