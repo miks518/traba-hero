@@ -77,6 +77,24 @@ class Settings(BaseSettings):
     # why `rate_limit.py` logs a warning at startup while this is blank.
     trusted_proxies: str = ""
 
+    @property
+    def _trusted_networks(self) -> list:
+        """The parsed TRUSTED_PROXIES networks.
+
+        Deliberately recomputed rather than cached: pydantic v2 forbids assigning
+        an undeclared attribute on a model instance, so the obvious
+        `self._cache = ...` memo raises `ValueError` at runtime. Parsing a short
+        string into a handful of networks costs microseconds on a path that is
+        already doing network I/O, so do not add the cache back without a
+        `PrivateAttr`.
+
+        The tests monkeypatch this property, which is why it is a property and
+        not a module-level read of `settings`.
+        """
+        from app.rate_limit import _parse_trusted_proxies
+
+        return _parse_trusted_proxies(self.trusted_proxies)
+
     @field_validator("ai_reasoning_enabled", mode="before")
     @classmethod
     def _blank_optional_bool_is_unset(cls, value):
