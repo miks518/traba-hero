@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 
 import uvicorn
 from fastapi import FastAPI
@@ -131,13 +132,63 @@ logging.getLogger("uvicorn.access").addFilter(DropHealthAccessLogs())
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def install_cors(app: FastAPI, configured: str | None = None) -> None:
+    """Install CORS for the origins the operator named, or for none at all.
+
+    `configured` defaults to the setting and exists so the tests do not have to
+    monkeypatch a pydantic model: patching a *class* attribute does not reach an
+    existing *instance*, whose value lives in its own `__dict__`, so the patch
+    would appear to work and the setting would not move.
+
+    This replaces `allow_origins=["*"]` with `allow_credentials=True`, which
+    reflected any request's `Origin` back with credentials permitted. That is not
+    a theoretical gap: it let any page a user visited call this backend through
+    their own browser, at their own network position, on the operator's keys.
+
+    `allow_credentials` is now False. The extension sets neither `credentials`
+    nor `mode`, so `fetch` defaults apply and no cookie is ever sent
+    cross-origin — the flag bought nothing, and paired with a wildcard origin it
+    is the shape of a credentialed-read hole.
+
+    Blank installs nothing, so a browser blocks the read. That breaks the
+    extension until it is configured, which is the point: the old default was
+    open-to-everyone, and the failure direction here is "the panel cannot reach
+    the backend", which is visible and fixable. A wildcard is refused rather than
+    honoured, because it is both the value someone reaches for when requests
+    appear blocked and the hole being closed.
+    """
+    raw = settings.cors_allowed_origins if configured is None else configured
+    origins = [o for o in re.split(r"[,\s]+", (raw or "").strip()) if o]
+
+    if "*" in origins:
+        log.error(
+            "[cors] CORS_ALLOWED_ORIGINS contains '*', which would restore the "
+            "hole this setting exists to close. No CORS middleware installed. "
+            "List the extension origin instead, e.g. "
+            "chrome-extension://<extension-id>."
+        )
+        return
+
+    if not origins:
+        log.warning(
+            "[cors] CORS_ALLOWED_ORIGINS is empty — no CORS middleware is "
+            "installed, so a browser will block every cross-origin read and the "
+            "extension cannot reach this backend. Set it to the extension's "
+            "origin, e.g. chrome-extension://<extension-id>."
+        )
+        return
+
+    log.info("[cors] Allowing cross-origin reads from: %s", ", ".join(origins))
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
+install_cors(app)
 
 app.add_exception_handler(AppError, app_error_handler)
 

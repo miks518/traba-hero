@@ -76,6 +76,19 @@ class Settings(BaseSettings):
     # shared bucket until the operator lists the proxy's ranges here, which is
     # why `rate_limit.py` logs a warning at startup while this is blank.
     trusted_proxies: str = ""
+    # Origins permitted to read responses cross-origin, comma or space separated.
+    # This is the extension's `chrome-extension://<id>`, not a website: the panel
+    # is the only legitimate caller, and a browser does not treat it as
+    # same-origin, so CORS is what lets it read anything at all.
+    #
+    # Blank means NO CORS middleware is installed, so a browser blocks every
+    # cross-origin read. That is the fail-closed direction and it breaks the
+    # extension until it is configured — deliberately so, because the alternative
+    # default is "open to every site", which is exactly what this replaces. This
+    # is also deliberately not the `CLIENT_SECRET_KEY` shape, where unset meant
+    # "disabled and silent": a removed scheme should not leave its behaviour
+    # behind as the default of its replacement. `*` is refused, not honoured.
+    cors_allowed_origins: str = ""
 
     @property
     def _trusted_networks(self) -> list:
