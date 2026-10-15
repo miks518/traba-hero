@@ -41,10 +41,10 @@ the output:
 | # | Finding | Severity |
 |---|---|---|
 | 1 | Every rate limit is keyed on a caller-supplied `X-Forwarded-For` | **HIGH** — fixed |
-| 2 | Thousands of blocking DNS lookups on the only event loop | **HIGH** |
+| 2 | Thousands of blocking DNS lookups on the only event loop | **HIGH** — removed |
 | 3 | Verification citations are not bound to the retrieved result set | MEDIUM |
 | 4 | No request-body ceiling; ~20 MB schema-valid body is buffered first | MEDIUM |
-| 5 | MX timeout, NXDOMAIN and absent-MX all render as `risk="high"` | LOW |
+| 5 | MX timeout, NXDOMAIN and absent-MX all render as `risk="high"` | LOW — removed |
 | 6 | `pytest-asyncio` installed in the venv, absent from `requirements.txt` | hardening |
 
 ## Status
@@ -52,13 +52,27 @@ the output:
 | Finding | State | Notes |
 |---|---|---|
 | 1 | **Fixed** 2026-10-14 | `rate_limit.py` now gates the header on a named proxy. See `docs/superpowers/plans/2026-10-14-trusted-proxy-rate-limit.md`. Needs one operator action: set `TRUSTED_PROXIES` in the deployed environment. |
-| 2–6 | Open | — |
+| 2 | **Fixed** 2026-10-15 by removal | `email_verifier.py` deleted. The blocking MX lookups were the whole of it. |
+| 3 | Open | — |
+| 4 | Open | — |
+| 5 | **Fixed** 2026-10-15 by removal | The resolver-failure collapse lived in the same deleted function. |
+| 6 | Open | — |
 
 Finding 1's own validation plan was executed as part of the fix, so it carries
 direct evidence rather than the source-only trace recorded below: reverting the
 key function reproduces the bypass (six requests, no 429) while the
 no-header control still refuses the fourth, which is what makes the bypass
 result mean something.
+
+**Findings 2 and 5 were closed by deleting the feature rather than fixing it.**
+`email_verifier` produced `email_verifications`, which no component ever
+rendered, so the availability risk was live for output nobody saw. The measured
+amplifier was 3,931 lookups from one 50,000-character body — `_extract_emails`
+deduped on the full address rather than the domain, so the same MX question was
+asked once per address on a single domain, inline on the only event loop serving
+every route. This also removes the third-party dependency (`dnspython`), whose
+only importer was the deleted file. FR-12 in `Documentation.md` is marked
+removed with the same reasoning.
 
 ### 1 — Rate limits are keyed on a header the caller chooses (HIGH)
 

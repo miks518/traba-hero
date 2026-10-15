@@ -25,7 +25,6 @@ const baseResponse = {
   risk_score: 0,
   risk_level: 'low',
   score_breakdown: null,
-  email_verifications: [],
 };
 
 const mocks = vi.hoisted(() => ({

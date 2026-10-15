@@ -80,7 +80,6 @@ async def test_early_exit_stops_stream_on_valid_false():
     data = _result(events)
     assert data is not None
     assert data["valid"] is False
-    assert data["email_verifications"] == []
     assert "verification_context" not in data
 
 
@@ -100,10 +99,7 @@ async def test_no_early_exit_on_valid_true():
             consumed.append(piece)
             yield piece
 
-    mock_verify = MagicMock(return_value=[])
-
     with patch("app.routers.scan.chat_stream_pieces", fake_stream), \
-         patch("app.routers.scan.verify_emails_in_text", mock_verify), \
          patch("app.routers.scan.extract_company_name", return_value="ACME"):
         events = []
         async for ev in _scan_event_stream(
@@ -169,11 +165,9 @@ async def test_invalid_skips_email_and_company_search():
         yield "ANALYSIS:\nnot a job post\nEND ANALYSIS\n"
         yield "JOB SUMMARY:\nn/a\nEND JOB SUMMARY\n"
 
-    mock_email = MagicMock(return_value=[])
     mock_company = MagicMock(return_value="ACME")
 
     with patch("app.routers.scan.chat_stream_pieces", fake_stream), \
-         patch("app.routers.scan.verify_emails_in_text", mock_email), \
          patch("app.routers.scan.extract_company_name", mock_company):
         events = []
         async for ev in _scan_event_stream(
@@ -181,10 +175,8 @@ async def test_invalid_skips_email_and_company_search():
         ):
             events.append(ev)
 
-    mock_email.assert_not_called()
     mock_company.assert_not_called()
 
     data = _result(events)
     assert data is not None
     assert data["valid"] is False
-    assert data["email_verifications"] == []

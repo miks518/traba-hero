@@ -85,7 +85,6 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | Scanner services | Prompt loading, SSE streaming, parsing, risk scoring, and verification workflows | `backend/app/services/scanner/` |
 | AI Provider | OpenRouter (cloud, OpenAI-compatible API) | External |
 | Web Search | Tavily Search API (LLM-grounded results) | External |
-| Email Verification | Local DNS/MX lookups (`email_verifier.py`) | Internal |
 
 **Communication:** The extension communicates with the backend via HTTP REST + SSE (Server-Sent Events) for streaming progress updates. The content script communicates with the side panel via Chrome `runtime.sendMessage` / `tabs.sendMessage`.
 
@@ -355,22 +354,36 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 ### FR-12: Email Verification
 
+### FR-12: Email Verification — REMOVED
+
 | Attribute | Value |
 |-----------|-------|
 | **ID** | FR-12 |
-| **Priority** | High |
-| **Component** | `email_verifier.py`, `ScamScanView.tsx` |
+| **Status** | **Removed 2026-10-15** |
+| **Was** | `email_verifier.py`, `ScamScanView.tsx` |
 
-**Description:** The system shall verify email addresses found in job postings for syntax validity, mail server availability, and disposable domain detection.
+**What it required:** extract emails from the posting and check each for syntax
+validity, MX record availability, and disposable-domain membership
+(AC-01 to AC-06). AC-07 required the results be *displayed in the scan results*.
 
-**Acceptance Criteria:**
-- AC-01: Emails are extracted from the AI-generated job summary and analysis text.
-- AC-02: Each email is checked for syntax validity using regex.
-- AC-03: Each email domain is checked for MX records via DNS lookup.
-- AC-04: Disposable/free email domains are detected against a hardcoded list of 40+ providers.
-- AC-05: Risk levels: HIGH (invalid syntax, disposable, no MX), LOW (valid infrastructure).
-- AC-06: Gmail, Yahoo, and similar free providers are considered acceptable (not flagged as disposable).
-- AC-07: Verification results are displayed in the scan results with email, domain, risk, and reason.
+**Why it was removed.** AC-07 was never implemented — the field was mapped into
+`ScanResult` and read by no component, so the backend did the work on every scan
+and showed nobody. What it cost:
+
+- **Availability.** `dns.resolver.resolve()` is blocking and was called inline in
+  the async scan generator. `_extract_emails` deduped on the full address rather
+  than the domain, so a 50,000-character posting produced 3,931 lookups whose
+  answer was identical, on the only event loop serving every route.
+- **Accuracy.** Every resolver outcome collapsed to one `False`, which was then
+  rendered as `risk="high"` and the sentence "Domain has no mail servers —
+  cannot receive emails". A DNS timeout was reported as a property of the
+  domain, and RFC 5321 §5.1's implicit MX (A record used when no MX RR is
+  published) was not implemented, so an ordinary domain with a valid address
+  record was called out too.
+
+None of it reached the risk score: `email_data` was written to the response and
+nowhere else. The findings are recorded in `docs/security-audit-2026-10-14.md`
+as 2 and 5.
 
 ---
 
@@ -1080,7 +1093,6 @@ interface ScanResult {
   companyName?: string | null;    // the employer the reader would work for
   jobSummary?: string;            // what the role is
   postingAnalysis?: string;       // the verdict on the posting
-  emailVerifications?: EmailCheck[];
   scoreBreakdown?: ScoreBreakdown;
   verificationResult?: VerificationResult;
   verificationLoading?: boolean;
@@ -1294,7 +1306,7 @@ Assesses an offer that names no employer, so there is nothing to look up. One AI
 | FR-09 | RedFlagsList, RedFlagCard | Implemented |
 | FR-10 | search.py, verification_flow.py, verification_prompt.py | Implemented — Tavily, one query, ok/results independent |
 | FR-11 | search.py, verification_prompt.py, VerificationCard | Implemented — Official Registration (SEC/DTI/PEZA/BOI/LGU) |
-| FR-12 | email_verifier.py, ScamScanView | Implemented |
+| FR-12 | _removed_ | **Removed 2026-10-15** — the MX/disposable check produced `email_verifications`, which no component ever rendered, while running a blocking DNS lookup per email address on every scan. One 50,000-character body produced 3,931 lookups on the same event loop. It also reported a resolver timeout as "Domain has no mail servers", and ignored RFC 5321's implicit MX. See `docs/security-audit-2026-10-14.md` findings 2 and 5. |
 | FR-13 | verification_flow.py, verification_prompt.py, EvidenceSummary | Implemented — six claim categories, findings + clickable sources, amber YELLOW |
 | FR-14 | ResumeUploader, ResumePreview, api.ts, scan.py | Implemented |
 | FR-15 | ResumeMatchView, JobMatchList, api.ts, scan.py | Implemented |

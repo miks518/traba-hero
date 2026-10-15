@@ -162,7 +162,6 @@ def _offline_ai_and_search():
         patch("app.routers.scan.chat", fake_chat),
         patch("app.services.lm_client.chat_stream_pieces", fake_stream),
         patch("app.services.lm_client.chat", fake_chat),
-        patch("app.routers.scan.verify_emails_in_text", return_value=[]),
         patch("app.services.search.httpx.post", _fake_tavily_post),
         patch("app.services.search.settings.tavily_api_key", "tvly-offline-test"),
     ):

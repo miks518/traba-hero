@@ -29,7 +29,6 @@ from app.models.schemas import (
 )
 from app.rate_limit import limiter
 from app.services.search import build_queries, clean_company_name, extract_company_name, is_valid_company_name, merge_results, search
-from app.services.email_verifier import verify_emails_in_text
 from app.services.image import decode_base64_image
 from app.services.lm_client import (
     _parse_custom,
@@ -84,7 +83,6 @@ router = APIRouter()
 
 
 runtime.get_chat_stream = lambda: chat_stream_pieces
-runtime.get_verify_emails = lambda: verify_emails_in_text
 runtime.get_extract_company = lambda: extract_company_name
 runtime.get_clean_company_name = lambda: clean_company_name
 runtime.get_parse_custom = lambda: _parse_custom

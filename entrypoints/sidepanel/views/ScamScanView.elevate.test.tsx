@@ -28,7 +28,6 @@ const scanResponse = {
   risk_score: 76,
   risk_level: 'critical',
   score_breakdown: { posting: 40, verification: 30, sources: ['posting', 'verification'] },
-  email_verifications: [],
 };
 
 const verifyResponse = {

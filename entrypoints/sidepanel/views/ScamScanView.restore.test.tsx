@@ -131,7 +131,6 @@ async function scanSomething(container: HTMLElement) {
       anomalies: [],
       risk_score: 10,
       risk_level: 'low',
-      email_verifications: [],
     },
   });
   mocks.analyzeOfferStream.mockResolvedValue({ data: null });
@@ -349,7 +348,7 @@ describe('reopening a scan while another is still running', () => {
 
     // Now let the abandoned request answer, as a real one would.
     await act(async () => {
-      release({ response: { valid: true, company_name: 'Late Co', anomalies: [], risk_score: 90, risk_level: 'critical', email_verifications: [] } });
+      release({ response: { valid: true, company_name: 'Late Co', anomalies: [], risk_score: 90, risk_level: 'critical' } });
       await new Promise((r) => setTimeout(r, 20));
     });
 
@@ -375,7 +374,6 @@ describe('reopening a scan while another is still running', () => {
         anomalies: [],
         risk_score: 10,
         risk_level: 'low',
-        email_verifications: [],
       },
     });
     mocks.verifyJobStream.mockImplementation(

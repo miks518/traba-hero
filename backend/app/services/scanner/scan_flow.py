@@ -82,16 +82,7 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
 
         is_invalid = early_exit or not result.get("valid", True)
 
-        email_data: list[dict] = []
         verify_text = original_text or result.get("job_summary", "")
-        if not is_invalid and verify_text.strip():
-            email_checks = runtime.get_verify_emails()(verify_text)
-            email_data = [
-                {"email": c.email, "domain": c.domain, "syntax_valid": c.syntax_valid,
-                 "has_mx_records": c.has_mx_records, "is_disposable": c.is_disposable,
-                 "risk": c.risk, "reason": c.reason}
-                for c in email_checks
-            ]
 
         company_name = ""
         if not is_invalid:
@@ -121,7 +112,6 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
         if company_data:
             resp.update(company_data)
         resp["company_name"] = company_name or None
-        resp["email_verifications"] = email_data
 
         if not is_invalid:
             log.info("[%s] is_valid=%s, company_name='%s', verify_text_len=%d", endpoint, not is_invalid, company_name, len(verify_text))

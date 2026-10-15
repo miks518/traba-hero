@@ -188,15 +188,6 @@ export interface ScanResult {
   secRegistration?: { company_name: string; sec_no: string; status: string; date_approved: string }[];
   jobSummary?: string;
   postingAnalysis?: string;
-  emailVerifications?: {
-    email: string;
-    domain: string;
-    syntaxValid: boolean;
-    hasMxRecords: boolean;
-    isDisposable: boolean;
-    risk: 'low' | 'medium' | 'high';
-    reason: string;
-  }[];
   verificationResult?: VerificationResult;
   verificationLoading?: boolean;
   verificationError?: boolean;
@@ -290,15 +281,6 @@ export interface ApiScanResponse {
   risk_score?: number;
   risk_level?: ScanRiskLevel;
   sec_registration?: { company_name: string; sec_no: string; status: string; date_approved: string }[];
-  email_verifications?: {
-    email: string;
-    domain: string;
-    syntax_valid: boolean;
-    has_mx_records: boolean;
-    is_disposable: boolean;
-    risk: 'low' | 'medium' | 'high';
-    reason: string;
-  }[];
   /**
    * The wire spells the breakdown in snake_case; `consumeSseStream` translates
    * it before the response leaves the SSE reader, so everything downstream of

@@ -168,15 +168,6 @@ function mapApiResponse(data: ApiScanResponse): ScanResult {
     secRegistration: data.sec_registration || [],
     jobSummary: data.job_summary || undefined,
     postingAnalysis: data.posting_analysis || undefined,
-    emailVerifications: (data.email_verifications ?? []).map((e) => ({
-      email: e.email,
-      domain: e.domain,
-      syntaxValid: e.syntax_valid,
-      hasMxRecords: e.has_mx_records,
-      isDisposable: e.is_disposable,
-      risk: e.risk,
-      reason: e.reason,
-    })),
     scoreBreakdown: data.score_breakdown || undefined,
     // Copied through, never defaulted. An empty object here would render as
     // "the posting claimed nothing", which is a claim about the posting; what
