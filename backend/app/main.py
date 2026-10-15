@@ -160,6 +160,30 @@ def install_cors(app: FastAPI, configured: str | None = None) -> None:
     raw = settings.cors_allowed_origins if configured is None else configured
     origins = [o for o in re.split(r"[,\s]+", (raw or "").strip()) if o]
 
+    # Checked before the scheme is filled in below, so a bare `*` is still seen
+    # for what it is.
+    if "*" in origins:
+        log.error(
+            "[cors] CORS_ALLOWED_ORIGINS contains '*', which would restore the "
+            "hole this setting exists to close. No CORS middleware installed. "
+            "List the extension origin instead, e.g. "
+            "chrome-extension://<extension-id>."
+        )
+        return
+
+    # A bare ID is the obvious thing to type and silently matches nothing: a
+    # browser sends `chrome-extension://<id>`, never `<id>`, so the entry is dead
+    # weight and the panel fails to connect with no clue why. Normalise it, and
+    # say so, rather than leaving a setting that looks configured and is not.
+    normalised = [o if "://" in o else f"chrome-extension://{o}" for o in origins]
+    if normalised != origins:
+        log.warning(
+            "[cors] CORS_ALLOWED_ORIGINS entries without a scheme were read as "
+            "extension ids and given the chrome-extension:// scheme: %s",
+            ", ".join(normalised),
+        )
+    origins = normalised
+
     if "*" in origins:
         log.error(
             "[cors] CORS_ALLOWED_ORIGINS contains '*', which would restore the "

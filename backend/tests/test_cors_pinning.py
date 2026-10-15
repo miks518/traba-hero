@@ -115,9 +115,27 @@ def test_the_setting_is_documented_in_the_env_example():
 def test_blank_says_so_out_loud(caplog):
     """Blank is fail-closed and therefore *breaks the extension*, so it has to be
     visible at startup. A silent refusal would present as "the panel cannot reach
-    the backend" with nothing to act on."""
+    the backend" with nothing to act on.
+
+    `configured=""` rather than relying on the setting, because this suite runs
+    against the developer's real `backend/.env` — and a test that reads it fails
+    for whoever has a value set, which is the mistake AGENTS.md warns about for
+    every other default assertion.
+    """
     import logging
 
     with caplog.at_level(logging.WARNING, logger="trabahero"):
-        install_cors(FastAPI())
+        install_cors(FastAPI(), configured="")
     assert "CORS_ALLOWED_ORIGINS" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_bare_extension_id_is_given_its_scheme():
+    """A bare ID is the obvious thing to type and silently matches nothing: a
+    browser sends `chrome-extension://<id>`, never `<id>`. An entry left bare is
+    dead weight, and the panel fails to connect with no clue why."""
+    app = _app_with(EXTENSION.split("://")[1])
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        r = await c.get("/ping", headers={"Origin": EXTENSION})
+    assert r.headers.get("access-control-allow-origin") == EXTENSION
