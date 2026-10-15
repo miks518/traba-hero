@@ -43,9 +43,9 @@ the output:
 | 1 | Every rate limit is keyed on a caller-supplied `X-Forwarded-For` | **HIGH** — fixed |
 | 2 | Thousands of blocking DNS lookups on the only event loop | **HIGH** — removed |
 | 3 | Verification citations are not bound to the retrieved result set | MEDIUM — fixed |
-| 4 | No request-body ceiling; ~20 MB schema-valid body is buffered first | MEDIUM |
+| 4 | No request-body ceiling; ~20 MB schema-valid body is buffered first | MEDIUM — fixed |
 | 5 | MX timeout, NXDOMAIN and absent-MX all render as `risk="high"` | LOW — removed |
-| 6 | `pytest-asyncio` installed in the venv, absent from `requirements.txt` | hardening |
+| 6 | `pytest-asyncio` installed in the venv, absent from `requirements.txt` | hardening — fixed |
 
 ## Status
 
@@ -54,15 +54,28 @@ the output:
 | 1 | **Fixed** 2026-10-14 | `rate_limit.py` now gates the header on a named proxy. See `docs/superpowers/plans/2026-10-14-trusted-proxy-rate-limit.md`. Needs one operator action: set `TRUSTED_PROXIES` in the deployed environment. |
 | 2 | **Fixed** 2026-10-15 by removal | `email_verifier.py` deleted. The blocking MX lookups were the whole of it. |
 | 3 | **Fixed** 2026-10-15 | `_bind_to_retrieved` drops any citation outside the retrieved set and demotes an unbacked `red` to `yellow`. `test_citation_binding.py` has 11 tests. |
-| 4 | Open | — |
+| 4 | **Fixed** 2026-10-15 | `LimitRequestBody` middleware, registered last so it runs first. Two paths: declared `Content-Length` refused before a byte is read, and an undeclared body caught while chunks arrive. |
 | 5 | **Fixed** 2026-10-15 by removal | The resolver-failure collapse lived in the same deleted function. |
-| 6 | Open | — |
+| 6 | **Fixed** 2026-10-15 | `pytest-asyncio==1.4.0` pinned in `requirements.txt`, guarded by `test_requirements_declared.py`. |
 
 Finding 1's own validation plan was executed as part of the fix, so it carries
 direct evidence rather than the source-only trace recorded below: reverting the
 key function reproduces the bypass (six requests, no 429) while the
 no-header control still refuses the fourth, which is what makes the bypass
 result mean something.
+
+**Every finding from the run is now closed**, three of them by deletion rather
+than by a fix. What remains open is deployment, not code: the CORS
+`allow_origins=["*"]` and the path token, both in
+`docs/superpowers/specs/2026-10-14-deployment-fences-design.md`.
+
+**Finding 4 needed two paths, not one.** A `Content-Length` check alone is a
+check the caller can decline to make, so the middleware also counts bytes as they
+arrive. The declared path is the fast one and reads nothing; the undeclared path
+is what makes the fix unbypassable. The ceiling is asserted as a *relationship* to
+the field caps — `MAX_REQUEST_BYTES > MAX_IMAGES_PER_SCAN * MAX_IMAGE_BASE64` —
+so raising an image cap without raising the ceiling fails a test rather than
+refusing legitimate scans in production.
 
 **Finding 3 was two defects, and the larger one was the score, not the link.**
 `risk_calculator` never read `source_url` at all: it scored any `red` by category

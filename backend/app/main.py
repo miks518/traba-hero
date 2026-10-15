@@ -1,3 +1,4 @@
+import json
 import logging
 
 import uvicorn
@@ -14,6 +15,99 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 log = logging.getLogger("trabahero")
 
 app = FastAPI(title="Trabahero Backend")
+
+# The largest body the field caps in `schemas.py` permit is
+# `MAX_IMAGES_PER_SCAN * MAX_IMAGE_BASE64` — four images of 5,000,000 base64
+# characters, about 20 MB. This sits above that with headroom for JSON framing,
+# and must move with it: `test_body_ceiling.py` asserts the relationship rather
+# than either number, so raising an image cap without raising this fails a test
+# instead of refusing legitimate scans in production.
+MAX_REQUEST_BYTES = 25 * 1024 * 1024
+
+
+class _BodyTooLarge(Exception):
+    """Raised out of `receive` when the running byte count passes the ceiling."""
+
+
+class LimitRequestBody:
+    """Refuse an oversized request body before the framework buffers it.
+
+    Pydantic caps the fields, but it runs after FastAPI has read and JSON-decoded
+    the whole body, so a cap on a field is not a cap on memory. That matters here
+    because the per-IP limits are charged after parsing too — `@limiter.limit`
+    decorates the endpoint function, and FastAPI resolves the body parameter
+    while solving dependencies — so an oversized body is allocated and parsed
+    before the limiter even sees the request.
+
+    Two paths, because a Content-Length check on its own is one the caller can
+    decline to make: a declared length is refused before a byte is read, and an
+    undeclared one is caught while the chunks arrive. Anything that can send a
+    large body can do it either way.
+    """
+
+    def __init__(self, app, max_bytes: int = MAX_REQUEST_BYTES):
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def _refuse(self, send) -> None:
+        body = json.dumps({
+            "detail": (
+                "Request body is too large. This endpoint accepts at most "
+                f"{self.max_bytes // (1024 * 1024)} MB."
+            )
+        }).encode()
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        for key, value in scope.get("headers", ()):
+            if key == b"content-length":
+                try:
+                    if int(value) > self.max_bytes:
+                        await self._refuse(send)
+                        return
+                except ValueError:
+                    pass
+                break
+
+        received = 0
+        started = False
+
+        async def counting_receive():
+            nonlocal received
+            message = await receive()
+            if message.get("type") == "http.request":
+                received += len(message.get("body", b""))
+                if received > self.max_bytes:
+                    raise _BodyTooLarge
+            return message
+
+        async def tracking_send(message):
+            nonlocal started
+            if message.get("type") == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, counting_receive, tracking_send)
+        except _BodyTooLarge:
+            # Nothing can have answered yet: an endpoint cannot respond without
+            # the body it was waiting for. If that is ever untrue, the response
+            # is already on the wire and the connection is the honest outcome.
+            if started:
+                raise
+            await self._refuse(send)
 
 
 class DropHealthAccessLogs(logging.Filter):
@@ -46,6 +140,11 @@ app.add_middleware(
 )
 
 app.add_exception_handler(AppError, app_error_handler)
+
+# Added last so it runs first: Starlette applies middleware in reverse order of
+# registration, so this wraps everything below it and sees the body before the
+# router does.
+app.add_middleware(LimitRequestBody, max_bytes=MAX_REQUEST_BYTES)
 
 app.include_router(health.router)
 app.include_router(scan.router)

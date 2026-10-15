@@ -7,3 +7,7 @@ slowapi==0.1.10
 pypdf==6.15.0
 httpx==0.28.1
 pytest==8.4.1
+# 85 tests carry @pytest.mark.asyncio; without this plugin they are collected and
+# never awaited, and no other manifest declares it. Pinned because it defaults to
+# strict mode, where those markers are load-bearing. See test_requirements_declared.py.
+pytest-asyncio==1.4.0
