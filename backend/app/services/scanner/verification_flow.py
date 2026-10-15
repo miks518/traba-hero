@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from app.config import settings
 from app.models.schemas import VerificationItem, VerifyRequest
 from app.services.lm_client import MAX_SEARCH_QUERIES
+from app.services.search import _canonical_url
 
 from .dependencies import runtime
 from .verification_parser import VerificationParseError
@@ -14,13 +15,71 @@ from .verification_prompt import expected_categories
 log = logging.getLogger("trabahero")
 
 
-def _read_verify_output(text: str) -> tuple[list, str, str, bool, list]:
+def _bind_to_retrieved(items: list, evidence: list, allowed: frozenset[str]) -> tuple[list, list]:
+    """Drop citations the search provider never returned, and demote any `red`
+    that nothing backs.
+
+    `VERIFY_PROMPT.md` asks for a `source_url` "copied exactly from the results"
+    and calls a constructed one a fabricated citation, but a prompt sentence is
+    not a control: both the structured path and the labeled-text fallback copied
+    whatever the model wrote, and `search.py:_canonical_url` — the normaliser a
+    membership test needs — existed only for the dedupe.
+
+    `allowed` is the set of URLs that were actually retrieved, in any spelling.
+    It is canonicalised here rather than at the call site, because a caller that
+    forgets and passes pre-canonicalised values would silently drop every
+    legitimate citation — a fail-closed failure that looks like the model
+    inventing sources.
+
+    A `red` is demoted to `yellow` rather than dropped, because `yellow` already
+    carries zero weight in `risk_calculator` and already means "we could not
+    confirm this". An unbacked `red` is precisely that, so the existing semantics
+    are the ones being enforced and the calculator needs no change. It also
+    handles the common case for free: a failed or empty search produces an empty
+    `allowed` set, and then nothing is refuted by anything.
+
+    `source_title` is cleared with the URL, because it names the page the reader
+    was just sent to.
+    """
+    permitted = {_canonical_url(u) for u in allowed if u}
+
+    bound: list[VerificationItem] = []
+    for item in items:
+        url = (item.source_url or "").strip()
+        if url and _canonical_url(url) not in permitted:
+            log.warning(
+                "[verify] Dropped a citation that was not in the retrieved results: %r", url
+            )
+            url = ""
+            item.source_title = ""
+        if not url and item.status == "red":
+            item.status = "yellow"
+        item.source_url = url
+        bound.append(item)
+
+    kept: list[dict] = []
+    for entry in evidence:
+        url = str(entry.get("url") or "").strip()
+        if not url or _canonical_url(url) not in permitted:
+            continue
+        kept.append(entry)
+    return bound, kept
+
+
+def _read_verify_output(text: str, allowed_urls: frozenset[str] = frozenset()) -> tuple[list, str, str, bool, list]:
     """Read the verification result, preferring JSON and falling back to text.
 
     JSON is the intended shape, but the provider may still answer with prose if
     it does not support structured outputs, so the labeled-text parser remains as
     a fallback rather than being deleted. Returns (items, report, recommendation,
     used_json, evidence).
+
+    `allowed_urls` holds the canonical form of every URL the search provider
+    actually returned. Anything outside it is dropped, and a `red` left without a
+    citation is demoted to `yellow` — see `_bind_to_retrieved`. It defaults to
+    empty, which drops every citation: that is the fail-closed answer for a
+    caller holding no result set to check against, and nothing should reach the
+    wire unbound by accident.
 
     Raises `VerificationParseError` when the fallback cannot read the response
     either. A request that succeeds and a response nobody can read is a failure,
@@ -60,7 +119,14 @@ def _read_verify_output(text: str) -> tuple[list, str, str, bool, list]:
                     "url": url,
                     "snippet": str(entry.get("snippet") or "").strip(),
                 })
-        return items, str(payload.get("report") or ""), str(payload.get("recommendation") or ""), True, evidence
+        bound_items, bound_evidence = _bind_to_retrieved(items, evidence, allowed_urls)
+        return (
+            bound_items,
+            str(payload.get("report") or ""),
+            str(payload.get("recommendation") or ""),
+            True,
+            bound_evidence,
+        )
 
     log.warning("[verify] Response was not JSON; falling back to the labeled-text parser.")
     try:
@@ -74,7 +140,8 @@ def _read_verify_output(text: str) -> tuple[list, str, str, bool, list]:
         raise VerificationParseError(str(exc)) from exc
     report = runtime.get_parse_verify_section()(text, "REPORT")
     recommendation = runtime.get_parse_verify_section()(text, "RECOMMENDATION")
-    return items, report, recommendation, False, []
+    bound_items, _bound_evidence = _bind_to_retrieved(items, [], allowed_urls)
+    return bound_items, report, recommendation, False, []
 
 
 async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
@@ -227,7 +294,15 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         log.info("[verify] Raw AI response (%d chars): %s", len(final_text), final_text[:1000])
         yield runtime.get_sse()({"type": "progress", "percent": 85, "stage": "Analyzing results"})
 
-        items, report, recommendation, used_json, evidence = _read_verify_output(final_text)
+        # The retrieved set, which `_bind_to_retrieved` needs and which was
+        # otherwise never consulted again until `search_count` — that gap is
+        # what left the citation unbound.
+        retrieved_urls = frozenset(
+            r.url for r in merged if getattr(r, "url", "")
+        )
+        items, report, recommendation, used_json, evidence = _read_verify_output(
+            final_text, allowed_urls=retrieved_urls
+        )
 
         # A partial parse used to be silent: the panel showed one card while the
         # raw response clearly listed three, with nothing in the log to connect

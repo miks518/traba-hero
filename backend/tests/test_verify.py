@@ -607,11 +607,23 @@ class TestVerifyOutputReading:
             "recommendation": "Ask the employer to confirm the company details in writing before you send an ID.",
         })
 
+    def _allowed(self):
+        """The fixture's own URLs, as retrieved.
+
+        `_read_verify_output` drops any citation outside the retrieved set, so a
+        test asserting the parser *reads* a field has to say the field's value was
+        actually retrieved. What is under test here is parsing, not binding;
+        `test_citation_binding.py` covers the binding.
+        """
+        return frozenset({"https://companieshouse.ph/acme"})
+
     def test_reads_finding_and_source(self):
         from app.services.scanner.verification_flow import _read_verify_output
         from app.models.schemas import VerificationItem
 
-        items, report, rec, used_json, _evidence = _read_verify_output(self._payload())
+        items, report, rec, used_json, _evidence = _read_verify_output(
+            self._payload(), allowed_urls=self._allowed()
+        )
         assert used_json is True
         reg = next(i for i in items if i.label == "Official Registration")
         assert isinstance(reg, VerificationItem)
@@ -623,7 +635,7 @@ class TestVerifyOutputReading:
     def test_a_yellow_check_carries_no_source(self):
         from app.services.scanner.verification_flow import _read_verify_output
 
-        items, *_ = _read_verify_output(self._payload())
+        items, *_ = _read_verify_output(self._payload(), allowed_urls=self._allowed())
         rep = next(i for i in items if i.label == "Reputation")
         assert rep.status == "yellow"
         assert rep.source_url == ""
@@ -631,7 +643,9 @@ class TestVerifyOutputReading:
     def test_reads_the_evidence_list(self):
         from app.services.scanner.verification_flow import _read_verify_output
 
-        items, report, rec, used_json, evidence = _read_verify_output(self._payload())
+        items, report, rec, used_json, evidence = _read_verify_output(
+            self._payload(), allowed_urls=self._allowed()
+        )
         assert evidence, "the evidence list must reach the flow"
         assert evidence[0]["url"] == "https://companieshouse.ph/acme"
         assert evidence[0]["title"].startswith("CAISHEN")

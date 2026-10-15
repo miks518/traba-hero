@@ -76,8 +76,15 @@ class TestThePromptAsksForJsonEvenWithoutASchema:
 
 
 class TestUnschemaedOutputIsRead:
-    def _read(self, text):
-        return _read_verify_output(text)
+    def _read(self, text, allowed=None):
+        # `_read_verify_output` drops citations outside the retrieved set, so a
+        # test asserting the *parser* still reads the fields has to declare the
+        # fixture's URL was retrieved. What is under test is the no-schema path,
+        # not the binding; `test_citation_binding.py` covers the binding and
+        # asserts the same fallback path is bound.
+        if allowed is None:
+            allowed = frozenset({"https://example.ph/acme"})
+        return _read_verify_output(text, allowed_urls=allowed)
 
     def test_a_bare_object_yields_every_category(self):
         items, _, _, used_json, _ = self._read(UNSCHEMALED_JSON)

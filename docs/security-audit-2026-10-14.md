@@ -42,7 +42,7 @@ the output:
 |---|---|---|
 | 1 | Every rate limit is keyed on a caller-supplied `X-Forwarded-For` | **HIGH** — fixed |
 | 2 | Thousands of blocking DNS lookups on the only event loop | **HIGH** — removed |
-| 3 | Verification citations are not bound to the retrieved result set | MEDIUM |
+| 3 | Verification citations are not bound to the retrieved result set | MEDIUM — fixed |
 | 4 | No request-body ceiling; ~20 MB schema-valid body is buffered first | MEDIUM |
 | 5 | MX timeout, NXDOMAIN and absent-MX all render as `risk="high"` | LOW — removed |
 | 6 | `pytest-asyncio` installed in the venv, absent from `requirements.txt` | hardening |
@@ -53,7 +53,7 @@ the output:
 |---|---|---|
 | 1 | **Fixed** 2026-10-14 | `rate_limit.py` now gates the header on a named proxy. See `docs/superpowers/plans/2026-10-14-trusted-proxy-rate-limit.md`. Needs one operator action: set `TRUSTED_PROXIES` in the deployed environment. |
 | 2 | **Fixed** 2026-10-15 by removal | `email_verifier.py` deleted. The blocking MX lookups were the whole of it. |
-| 3 | Open | — |
+| 3 | **Fixed** 2026-10-15 | `_bind_to_retrieved` drops any citation outside the retrieved set and demotes an unbacked `red` to `yellow`. `test_citation_binding.py` has 11 tests. |
 | 4 | Open | — |
 | 5 | **Fixed** 2026-10-15 by removal | The resolver-failure collapse lived in the same deleted function. |
 | 6 | Open | — |
@@ -63,6 +63,18 @@ direct evidence rather than the source-only trace recorded below: reverting the
 key function reproduces the bypass (six requests, no 429) while the
 no-header control still refuses the fourth, which is what makes the bypass
 result mean something.
+
+**Finding 3 was two defects, and the larger one was the score, not the link.**
+`risk_calculator` never read `source_url` at all: it scored any `red` by category
+weight, so a `red` citing nothing scored the same 25 points as a `red` citing a
+retrieved page. The fix needed no calculator change, because `yellow` is already
+zero-weight and already means "we could not confirm this" — an unbacked `red` is
+exactly that. `search.py:_canonical_url` was written and tested for the dedupe and
+used nowhere else; the membership test the normaliser existed for is now made, on
+both the structured and the labeled-text path. `allowed_urls` defaults to empty so
+nothing can reach the wire unbound by accident, which also handles the common
+case for free: a failed or empty search produces an empty set, and then nothing is
+refuted by anything.
 
 **Findings 2 and 5 were closed by deleting the feature rather than fixing it.**
 `email_verifier` produced `email_verifications`, which no component ever
