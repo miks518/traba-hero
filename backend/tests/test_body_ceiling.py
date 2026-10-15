@@ -18,11 +18,17 @@ limiter charges the request.
 
 Two paths are covered, because a Content-Length check alone is a check the caller
 can decline to make: a declared length is refused before a single byte is read,
-and an undeclared one is caught as the bytes arrive. The declared path is driven
-through the real app, which is what the ceiling is for; the undeclared path is
-driven against the middleware with a small ceiling, so the mechanism is tested
-without a test having to allocate twenty-five megabytes to prove a comparison
-happens.
+and an undeclared one is caught as the bytes arrive.
+
+Both mechanisms are driven against the middleware with a small ceiling, so they
+are tested without allocating twenty-five megabytes to prove a comparison
+happens. That was a deliberate trade and it was the wrong one: a stub downstream
+app catches the middleware's exception in the middleware, while the real app
+raises it inside FastAPI's body reader, whose `except Exception` clause rewrites
+anything that is not an `HTTPException` into `400 There was an error parsing the
+body`. Every test below the mechanism section passed against code that answered
+400 in production. A live probe found it; the two end-to-end tests at the bottom
+of this file are what keep it fixed, and they pay the megabytes on purpose.
 """
 
 import json
@@ -200,3 +206,94 @@ async def test_a_non_http_scope_passes_straight_through():
     )
 
     assert seen and seen[0]["type"] == "websocket.accept"
+
+
+# ── the undeclared path, end to end ───────────────────────────────────────────
+
+
+async def _drive_real_app(chunks, *, path="/api/scan", content_length: str | None = None):
+    """Run the *real* app over a synthetic request with no Content-Length.
+
+    `_drive` above substitutes a stub for the downstream app, which is the right
+    way to test the counting cheaply but it means the body handler never runs.
+    This one does not, which is why it needs twenty-five megabytes.
+
+    Driven as a raw ASGI callable rather than through httpx because httpx's
+    ASGITransport takes a `content` body and cannot express a stream, and an
+    undeclared length *is* the case under test.
+    """
+    body_left = list(chunks)
+    seen: list[dict] = []
+
+    async def receive():
+        if body_left:
+            return {"type": "http.request", "body": body_left.pop(0), "more_body": True}
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        seen.append(message)
+
+    headers = [(b"content-type", b"application/json")]
+    if content_length is not None:
+        headers.append((b"content-length", content_length.encode()))
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "POST",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": b"",
+        "root_path": "",
+        "headers": headers,
+        "client": ("203.0.113.9", 54321),
+        "server": ("test", 80),
+        "scheme": "http",
+    }
+    await app(scope, receive, send)
+    start = next(m for m in seen if m["type"] == "http.response.start")
+    body = b"".join(m.get("body", b"") for m in seen if m["type"] == "http.response.body")
+    return start["status"], body
+
+
+@pytest.mark.asyncio
+async def test_a_chunked_oversized_body_reports_the_ceiling_not_a_parse_error():
+    """The undeclared path, end to end, and the reason this file's earlier
+    coverage was not enough.
+
+    Every other test here drives a stub downstream app, so the middleware's
+    exception is caught by the middleware. In the real app the exception is
+    raised inside FastAPI's body reader, whose `except Exception` clause rewrites
+    anything that is not an `HTTPException` into `400 There was an error parsing
+    the body`. Production answered a syntax error for a body that was too large —
+    the ceiling held, so memory was still bounded, but the caller was told the
+    wrong thing about why, and a client retrying on a parse error would resend
+    it forever.
+
+    Asserted on the status *and* the detail, because a 413 from some other layer
+    would satisfy a status-only check while saying nothing about the message.
+    """
+    chunk = b"A" * (2 * 1024 * 1024)
+    status, body = await _drive_real_app([chunk] * 14)  # 28 MB, no Content-Length
+
+    assert status == 413, f"expected the ceiling, got {status}: {body[:200]!r}"
+    assert b"too large" in body
+    assert b"parsing the body" not in body
+
+
+@pytest.mark.asyncio
+async def test_a_chunked_body_under_the_ceiling_is_not_refused_by_it():
+    """The overcorrection for the fix above, on the same path.
+
+    `_BodyTooLarge` is now an `HTTPException`, which FastAPI's body reader
+    re-raises untouched rather than converting. That only helps if the exception
+    is raised *when the ceiling is actually passed* — so this is the check that
+    the subclass did not turn the ceiling into a blanket refusal. The body is
+    deliberately malformed, so a request that reaches the parser answers 400
+    rather than 413: the two are distinguishable, which is the point.
+    """
+    status, _ = await _drive_real_app([b"{not json at all"])
+
+    assert status != 413, "the ceiling refused a body four bytes under it"
+    assert status in (400, 422), f"expected the parser to answer, got {status}"

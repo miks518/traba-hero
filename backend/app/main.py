@@ -4,6 +4,7 @@ import re
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -26,8 +27,48 @@ app = FastAPI(title="Trabahero Backend")
 MAX_REQUEST_BYTES = 25 * 1024 * 1024
 
 
-class _BodyTooLarge(Exception):
-    """Raised out of `receive` when the running byte count passes the ceiling."""
+def _too_large_detail(max_bytes: int) -> str:
+    """The one sentence both refusal paths send.
+
+    Two paths exist because a Content-Length check alone is a check the caller can
+    decline to make. They must not be able to disagree about what the limit is,
+    or the message becomes a second, undocumented limit.
+    """
+    return (
+        "Request body is too large. This endpoint accepts at most "
+        f"{max_bytes // (1024 * 1024)} MB."
+    )
+
+
+class _BodyTooLarge(HTTPException):
+    """Raised out of `receive` when the running byte count passes the ceiling.
+
+    An `HTTPException` and not a bare `Exception`, which is load-bearing rather
+    than stylistic.
+
+    FastAPI reads the request body inside a `try` whose clauses end
+    `except HTTPException: raise` and then `except Exception: raise
+    HTTPException(400, "There was an error parsing the body")`. A plain
+    exception is therefore caught by the second clause and reported to the caller
+    as a malformed body. The ceiling still does its job — buffering stops at the
+    limit, which is the whole memory bound — and then describes itself wrongly,
+    so an oversized chunked upload is reported as a syntax error in something
+    the caller never got to finish sending.
+
+    Subclassing `HTTPException` passes through the re-raise clause untouched,
+    and the middleware's own handler below still catches it, so the caller gets
+    the 413 and the real reason. It has to be *FastAPI's* HTTPException and not
+    Starlette's: that clause catches FastAPI's class, and FastAPI's is the
+    subclass, so a Starlette base instance would miss it and be flattened anyway.
+
+    `test_a_chunked_oversized_body_reports_the_ceiling_not_a_parse_error` is the
+    test that found this. The middleware's own tests drive a stub downstream app,
+    so they exercise the counting but never meet the body handler that swallows
+    the exception — they passed against code that answered 400 in production.
+    """
+
+    def __init__(self, max_bytes: int):
+        super().__init__(status_code=413, detail=_too_large_detail(max_bytes))
 
 
 class LimitRequestBody:
@@ -51,12 +92,7 @@ class LimitRequestBody:
         self.max_bytes = max_bytes
 
     async def _refuse(self, send) -> None:
-        body = json.dumps({
-            "detail": (
-                "Request body is too large. This endpoint accepts at most "
-                f"{self.max_bytes // (1024 * 1024)} MB."
-            )
-        }).encode()
+        body = json.dumps({"detail": _too_large_detail(self.max_bytes)}).encode()
         await send({
             "type": "http.response.start",
             "status": 413,
@@ -91,7 +127,7 @@ class LimitRequestBody:
             if message.get("type") == "http.request":
                 received += len(message.get("body", b""))
                 if received > self.max_bytes:
-                    raise _BodyTooLarge
+                    raise _BodyTooLarge(self.max_bytes)
             return message
 
         async def tracking_send(message):
@@ -262,8 +298,16 @@ def run(reload: bool = False) -> None:
 
     `reload` is a development convenience. It is a parameter rather than a
     setting so a deployment cannot pick it up from the environment by accident.
+
+    The app is passed as an import string, not as the object, because uvicorn
+    refuses to reload anything else: `python -m app.main` exited immediately with
+    "You must pass the application as an import string to enable 'reload' or
+    'workers'", which made the command documented in AGENTS.md a command that
+    does not run. Passing the object still works with reload off, but the string
+    works in both modes and re-imports the module in the reloader subprocess,
+    which is what reload means anyway.
     """
-    uvicorn.run(app, host=settings.host, port=settings.port, reload=reload)
+    uvicorn.run("app.main:app", host=settings.host, port=settings.port, reload=reload)
 
 
 if __name__ == "__main__":
