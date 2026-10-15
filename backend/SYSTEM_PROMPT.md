@@ -62,10 +62,16 @@ END JOB SUMMARY
 
 7. SEARCH QUERIES
 - Propose at most two searches, on the QUERY lines. More than two is wasted: only the first two are run.
-- Write a query only for something the posting actually states. A posting naming no location produces no location query.
+- A general lookup of the employer is already run for you and is not one of your lines: the employer's name with the words "company or employer". It returns this business's own pages, its listings, and its job posts. So never write a query asking whether the company exists, what it is called, or whether it is registered. That repeats it, and you would spend both queries on pages you have already seen and leave nothing for something only you can ask.
+- Spend them on what a general lookup cannot settle. Usually one of:
+  * the location, branch or address the posting names, with the employer. A general lookup says where the business says it is, not whether that matches where it tells applicants to go.
+  * the same work posted elsewhere: the role, the tasks, the reward. This is the only way to find other postings of the same offer, and the only thing Similar Offers can be judged from.
+  * a number the posting quotes, such as a permit or licence, when it is something a search can look up.
+- Write a query for something the posting actually states, or for other postings of the same work. A posting naming no location produces no location query.
 - A query may look for what the posting claims. Name the claim and the employer together, so the search is about that employer's claim and not about the claim in general.
 - Never put a conclusion in a query. Do not use scam, fraud, fraudulent, fake, suspicious, or legitimate. A query carrying one returns pages chosen because they contain that word, which then look like confirmation of an accusation the query already made up. Search for the thing itself: the permit number, the branch, the address, the account name.
 - Use the poster's words for the part being checked, not your summary of it.
+- If both your queries would look for the same kind of thing, write only one.
 - If nothing in the posting is worth a search, write no QUERY lines at all rather than writing none.
 
 3. COMPANY NAME

@@ -402,6 +402,20 @@ GUARDRAILS = (
     # when something else is also wrong." Only the absolute form is pinned here,
     # so the carve-out cannot be reintroduced as the guardrail.
     ("a generic or personal email is never an anomaly", "a generic or personal email is not an anomaly"),
+    # Added 2026-10-16. A live scan spent both model-authored queries chasing
+    # business registration, which `build_queries` already covers with
+    # "<company> company or employer" — two of three credits buying a second copy
+    # of pages the first search had already returned, and nothing left for the
+    # two categories no query was aimed at. The model was not misbehaving: it had
+    # no way of knowing the employer lookup had already run.
+    ("the employer lookup is named", 'with the words "company or employer"'),
+    ("a query must not repeat the employer lookup", "never write a query asking whether the company exists"),
+    ("queries target what a general lookup cannot settle", "what a general lookup cannot settle"),
+    ("location is an element worth querying", "the location, branch or address the posting names"),
+    ("similar postings are an element worth querying", "the same work posted elsewhere"),
+    ("a quoted number is an element worth querying", "a number the posting quotes"),
+    ("similar offers is reachable", "the only thing similar offers can be judged from"),
+    ("two queries for one thing is one query", "write only one"),
 )
 
 
@@ -409,6 +423,41 @@ def test_both_prompt_copies_carry_every_guardrail():
     for label, phrase in GUARDRAILS:
         assert phrase in low, f"SYSTEM_PROMPT.md lost the {label} guardrail"
         assert phrase in rules.lower(), f"prompts.py lost the {label} guardrail"
+
+
+def test_the_prompt_does_not_still_forbid_a_similar_postings_query():
+    """The rule that blocked Similar Offers is gone, and its absence is asserted
+    rather than assumed.
+
+    "Write a query only for something the posting actually states" forbade the
+    one query that category can be judged from. Similar Offers asks whether a
+    result describes *other postings of this same offer*, which is not a claim
+    the posting made about itself, so the old wording ruled it out. It was
+    replaced rather than amended, which means a partial edit could leave both
+    wordings in place and the model would have to choose between them.
+    """
+    for body, label in ((low, "SYSTEM_PROMPT.md"), (rules.lower(), "prompts.py")):
+        assert "write a query only for something the posting actually states" not in body, (
+            f"{label} still forbids a query for other postings of the same work"
+        )
+        assert "or for other postings of the same work" in body, label
+
+
+def test_the_named_lookup_matches_the_query_the_backend_actually_builds():
+    """The prompt names the static lookup so the model can avoid repeating it.
+
+    That only helps while the name is true. `build_queries` is free to change,
+    and a prompt still saying "company or employer" after it stopped building
+    that query would describe a search that does not happen - so the two are
+    compared rather than trusted.
+    """
+    from app.services.search import build_queries
+
+    built = build_queries("Acme")
+    assert len(built) == 1, f"expected one employer query, got {built}"
+    assert "company or employer" in built[0].lower()
+    assert 'with the words "company or employer"' in low
+    assert 'with the words "company or employer"' in rules.lower()
 
 
 def test_the_ordinary_things_rule_carries_no_carve_out():
