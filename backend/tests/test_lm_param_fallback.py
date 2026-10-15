@@ -119,6 +119,112 @@ class TestRecognisingARejection:
         assert lm_client._rejected_param(exc, set()) is None
 
 
+class TestSamplingParameters:
+    """`temperature` and friends are preferences, not capabilities.
+
+    A provider that refuses one should cost the request nothing — the model has
+    a default and will use it. The same is emphatically not true of `reasoning`
+    or structured output, which change what comes back, so they are excluded from
+    this group and `test_capability_parameters_are_not_treated_as_sampling`
+    pins that.
+    """
+
+    def test_a_400_naming_a_sampling_parameter_is_recognised(self):
+        exc = FakeAPIError(400, "Unsupported parameter: 'temperature' is not supported")
+
+        assert lm_client._rejected_param(exc, set()) == "temperature"
+
+    def test_a_complaint_about_the_value_is_also_recognised(self):
+        """`temperature must be between 0 and 1` is not a statement about whether
+        the parameter exists. Omitting it lets the provider apply its own
+        default, which is the right degradation — and the alternative is failing
+        a scan over a sampling preference."""
+        exc = FakeAPIError(400, "temperature must be between 0 and 1")
+
+        assert lm_client._rejected_param(exc, set()) == "temperature"
+
+    def test_capability_parameters_are_not_treated_as_sampling(self):
+        """The overcorrection, and the reason the two groups are separate lists.
+
+        Recognising every rejected parameter and dropping it would silently
+        remove structured output, and `/api/verify` would then parse prose and
+        report nothing — a verification that renders empty with no error.
+        """
+        assert "reasoning" not in lm_client._GENERATION_PARAMS
+        assert "structured" not in lm_client._GENERATION_PARAMS
+
+    def test_a_400_that_names_nothing_is_still_unrecoverable(self):
+        """The honest limit, recorded as a test so it cannot be forgotten.
+
+        The real failure in production was `400 {'provider_name': 'AtlasCloud',
+        'msg': 'bad request'}` — no parameter named, no field pointing at one.
+        There is nothing to match on, so the fallback cannot help and the error
+        propagates. Adding sampling parameters does not fix that case, and this
+        test is what stops anyone reading the previous tests as though it did.
+        """
+        exc = FakeAPIError(400, "{'provider_name': 'AtlasCloud', 'msg': 'bad request'}")
+
+        assert lm_client._rejected_param(exc, set()) is None
+
+    @pytest.mark.asyncio
+    async def test_the_retry_omits_the_rejected_sampling_parameter(self, monkeypatch):
+        """Recognition alone would be worthless: the retry has to actually stop
+        sending it, and these are top-level kwargs rather than `extra_body`
+        entries, so there is no existing mechanism that would do it for free."""
+        calls: list[dict] = []
+
+        class Completions:
+            async def create(self, **kwargs):
+                calls.append(kwargs)
+                if len(calls) == 1:
+                    raise FakeAPIError(400, "Unsupported parameter: 'temperature'")
+                return "ok"
+
+        class Chat:
+            completions = Completions()
+
+        class Client:
+            chat = Chat()
+
+        monkeypatch.setattr(lm_client, "_get_client", lambda: Client())
+
+        result = await lm_client._create_completion(model="m", messages=[], temperature=0.2)
+
+        assert result == "ok"
+        assert calls[0]["temperature"] == 0.2
+        assert "temperature" not in calls[1], "the retry sent the rejected parameter again"
+
+    @pytest.mark.asyncio
+    async def test_a_dropped_sampling_parameter_is_not_sent_again(self, monkeypatch):
+        """A second scan must not re-pay for the same discovery. This is the
+        whole reason the unsupported set is consulted at send time and not only
+        inside the retry loop."""
+        calls: list[dict] = []
+
+        class Completions:
+            async def create(self, **kwargs):
+                calls.append(kwargs)
+                if len(calls) == 1:
+                    raise FakeAPIError(400, "Unsupported parameter: 'temperature'")
+                return "ok"
+
+        class Chat:
+            completions = Completions()
+
+        class Client:
+            chat = Chat()
+
+        monkeypatch.setattr(lm_client, "_get_client", lambda: Client())
+
+        await lm_client._create_completion(model="m", messages=[], temperature=0.2)
+        await lm_client._create_completion(model="m", messages=[], temperature=0.2)
+
+        assert len(calls) == 3
+        assert "temperature" not in calls[2], (
+            "the second request paid for the same rejection again"
+        )
+
+
 class TestTheRetryActuallyRetries:
     @pytest.mark.asyncio
     async def test_a_routing_404_retries_without_structured_output(self, monkeypatch):

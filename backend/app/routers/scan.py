@@ -29,7 +29,7 @@ from app.models.schemas import (
 )
 from app.rate_limit import limiter
 from app.services.search import build_queries, clean_company_name, extract_company_name, is_valid_company_name, merge_results, search
-from app.services.image import decode_base64_image
+from app.services.image import decode_base64_image, sniff_image_mime
 from app.services.lm_client import (
     _parse_custom,
     _parse_json,
@@ -126,9 +126,12 @@ async def scan(req: ScanRequest, request: Request):
     images = [img for img in (req.images_base64 or [req.image_base64]) if img]
     if not images:
         raise InvalidImageError()
+    # Decoded once and kept: the bytes are needed to identify the format, and
+    # decoding twice would be a second pass over up to 20 MB of base64.
+    decoded: list[bytes] = []
     for img in images:
         try:
-            decode_base64_image(img)
+            decoded.append(decode_base64_image(img))
         except ValueError:
             raise InvalidImageError()
 
@@ -136,8 +139,15 @@ async def scan(req: ScanRequest, request: Request):
     content: list[dict] = [
         {"type": "text", "text": IMAGE_SCAN_INSTRUCTION + "\n\n" + SCAN_OUTPUT_FORMAT + "\n\n" + _today_instruction() + "\n\n" + _language_instruction(req.language)},
     ]
-    for img in images:
-        content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}})
+    for img, raw in zip(images, decoded):
+        # The label is read off the bytes rather than assumed. It used to be
+        # hardcoded `image/png`, which is wrong for every screenshot this product
+        # takes: the extension compresses with `toDataURL('image/jpeg', 0.8)` and
+        # then strips the data-URL prefix before POSTing, so the backend receives
+        # bare base64 JPEG that this announced as PNG. Announcing a format the
+        # bytes are not is a request to decode something that is not there.
+        mime = sniff_image_mime(raw)
+        content.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{img}"}})
     messages = [
         {"role": "system", "content": load_system_prompt()},
         {"role": "user", "content": content},

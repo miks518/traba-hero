@@ -109,6 +109,23 @@ _ROUTING_REJECTION_MARKERS = (
 # supported and is the last thing to give up.
 _ROUTING_FALLBACK_ORDER = ("structured", "reasoning")
 
+# Sampling parameters, which travel as top-level arguments to `create()` rather
+# than inside `extra_body`. A provider that refuses them is refusing a
+# preference, not a capability, and refusing one of these should cost a scan
+# nothing: the model has a default and will use it.
+#
+# "Reasoning" and "structured" are excluded deliberately. Reasoning changes what
+# the model returns and structured output changes the response *shape*, so
+# dropping either is a downgrade with consequences. Dropping `temperature` is
+# not.
+_GENERATION_PARAMS = (
+    "temperature",
+    "top_p",
+    "top_k",
+    "frequency_penalty",
+    "presence_penalty",
+)
+
 
 def _rejected_param(exc: Exception, attempted: set[str]) -> str | None:
     """Name the request parameter the provider refused, or None if not that."""
@@ -126,6 +143,18 @@ def _rejected_param(exc: Exception, attempted: set[str]) -> str | None:
 
     if status != 400:
         return None
+
+    # Checked before the generic marker gate below, because naming the parameter
+    # *is* the signal and requiring a second word like "unsupported" alongside it
+    # only loses cases. Deliberately also catches a complaint about the parameter's
+    # *value* ("temperature must be between 0 and 2") rather than its existence:
+    # omitting the parameter lets the provider use its own default, which is the
+    # right degradation for a preference and beats failing the whole scan. The
+    # warning names what was dropped, so a genuine misconfiguration is still loud.
+    for param in _GENERATION_PARAMS:
+        if param in text:
+            return param
+
     if not any(h in text for h in ("reasoning", "response_format", "json_schema", "structured", "schema", "unsupported", "unknown field", "unrecognized", "not allowed", "invalid_request_error")):
         return None
     if any(h in text for h in ("response_format", "json_schema", "structured", "schema")):
@@ -150,6 +179,13 @@ async def _create_completion(**kwargs):
     not recognised at all and took the whole request down.
     """
     structured = kwargs.pop("_structured", None)
+    # A parameter already found unsupported is not sent again: a second request
+    # must not re-pay for the same discovery. `_request_extra_body` does this for
+    # reasoning and structured because they travel inside it; these travel as
+    # top-level kwargs, so it has to happen here.
+    for param in _GENERATION_PARAMS:
+        if param in _unsupported_params:
+            kwargs.pop(param, None)
     _log_sent_config(kwargs.get("model", "?"), kwargs.get("max_tokens", "?"), bool(structured))
     attempted: set[str] = set()
     while True:
@@ -163,6 +199,11 @@ async def _create_completion(**kwargs):
             attempted.add(culprit)
             # Record before recomputing, otherwise the retry sends it again.
             _unsupported_params.add(culprit)
+            if culprit in _GENERATION_PARAMS:
+                # These are top-level arguments to create(), not entries in
+                # extra_body, so the only way to stop sending one is to remove it
+                # from the call. `_request_extra_body` cannot do it.
+                kwargs.pop(culprit, None)
             log.warning(
                 "[lm] Provider rejected the %s parameter (%s: %s). Continuing without it. %s",
                 culprit,
