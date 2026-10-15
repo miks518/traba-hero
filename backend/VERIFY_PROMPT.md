@@ -20,6 +20,7 @@ CATEGORIES. The request names which of these to report and which to omit, and th
 3. "Location / Branch" — the location or branch the posting named matches one the results place this employer at.
 4. "Channel Match" — the address, phone number, email domain, website, or messaging account the posting directs applicants to is the one the company's own results use.
 5. "Reputation" — a result describes a scam report, fraud warning, formal complaint, or employee experience.
+   If no result mentions reviews, complaints, or employee experience for this company, leave the `finding` for this category EMPTY rather than writing that none were found. An absence restated as a sentence puts the words "scam" and "fraud" next to a named company to report nothing, which is what the rules above exist to prevent, and it tells the reader nothing they can act on. This applies to this category only: the other five have a finding worth stating when the results are empty, because the finding is about the employer's footprint rather than about the absence of reviews. If any result does describe a complaint or an employee experience, write what it states — the empty finding is for the case where there is nothing, never a way to avoid writing it.
 6. "Similar Offers" — a result describes this specific offer: the tasks, orders, or referrals the posting names and the reward it offers. A page about earning offers in general establishes nothing about this posting, and cannot make this category red.
 
 STATUS:
@@ -29,7 +30,7 @@ STATUS:
 - Absence of a result is NEVER red. "No registration found" is yellow; "a result states this company is not registered" is red. Never red because nothing was found.
 
 FIELDS:
-- finding: the one fact that decided the status, in one plain sentence, naming what the source states. Never write "verified", "safe", "authorized", or "legitimate" — a status adjective is a conclusion, and the reader draws that conclusion from a source they can open. No word limit. On yellow, say plainly that the results do not mention this category.
+- finding: the one fact that decided the status, in one plain sentence, naming what the source states. Never write "verified", "safe", "authorized", or "legitimate" — a status adjective is a conclusion, and the reader draws that conclusion from a source they can open. No word limit. On yellow, say plainly that the results do not mention this category — except Reputation, which is left empty instead; see category 5.
 - source_title and source_url: the single result you relied on, copied exactly from the results. The reader opens these, so a constructed URL is a fabricated citation. Never construct, guess, or reconstruct a URL, and never cite a result that is not in the list. Leave both empty on yellow.
 - evidence: the results a reader would want to check themselves, copied exactly, at most six. Never invent an entry.
 - report: 2-3 plain sentences describing what the results show. No accusations. End by noting that this is based on public web search results only.

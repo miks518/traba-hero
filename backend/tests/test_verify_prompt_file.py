@@ -112,6 +112,45 @@ class TestTheGuardrailsSurvivedTheMove:
     def test_it_asks_for_json_so_a_schema_less_model_still_answers_in_json(self):
         assert "JSON" in text
 
+    def test_an_empty_reputation_leaves_the_finding_empty(self):
+        """The one category whose unconfirmed finding is suppressed.
+
+        Every other category can say something useful when the results are empty,
+        because its finding is about the employer's footprint. Reputation could
+        only restate the absence, and it did so as a sentence naming "scam
+        reports" and "fraud warnings" beside a named company — reader-facing text
+        putting the two banned words next to a real business in order to report
+        nothing. The panel hides the card, so if this rule is dropped the card
+        simply renders that sentence again with nothing behind it.
+        """
+        low = text.lower()
+        assert "leave the `finding` for this category empty" in low
+        assert "rather than writing that none were found" in low
+
+    def test_the_empty_finding_is_scoped_to_reputation_alone(self):
+        """The overcorrection. A rule generalised to every category would empty
+        the panel: an unconfirmed Company Existence is the finding that tells a
+        reader their employer has no online footprint, and it must still be
+        written."""
+        low = text.lower()
+        assert "this applies to this category only" in low
+        assert "the other five have a finding worth stating" in low
+
+    def test_an_empty_finding_is_not_a_way_to_skip_a_real_one(self):
+        """The failure mode of an instruction the model can satisfy cheaply: it
+        returns empty for a company that plainly has reviews, and a complaint on
+        the record goes unreported. That is the case the rule must not license."""
+        low = text.lower()
+        assert "if any result does describe a complaint" in low
+        assert "never a way to avoid writing it" in low
+
+    def test_the_general_yellow_rule_points_at_the_exception(self):
+        """`finding` still says "on yellow, say plainly that the results do not
+        mention this category". Left alone, that contradicts the Reputation rule
+        and the model has to choose between them."""
+        low = text.lower()
+        assert "except reputation, which is left empty instead" in low
+
     def test_it_names_every_output_key(self):
         for key in ("checks", "evidence", "report", "recommendation"):
             assert key in text, key

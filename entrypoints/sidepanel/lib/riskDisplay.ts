@@ -1,3 +1,45 @@
+/** Just the fields a decision about rendering a check depends on. */
+export interface VisibleCheckInput {
+  label: string;
+  status: 'green' | 'yellow' | 'red';
+}
+
+/**
+ * True when a check should be rendered.
+ *
+ * One case is hidden: Reputation when nothing confirmed or contradicted it.
+ *
+ * The reasoning is about the *sentence*, not the status. A `yellow` Company
+ * Existence says something a reader can use — this employer has no online
+ * footprint — and it carries the sources that establish it. A `yellow`
+ * Reputation could only say that the results contained no reviews, which is a
+ * restatement of the absence rather than a fact about the employer, and it was
+ * phrased as one: "The search results do not contain any scam reports, fraud
+ * warnings, formal complaints, or employee reviews for <company>". That puts
+ * the words *scam* and *fraud* beside a named company in reader-facing text to
+ * report that nothing was found, which is the opposite of what the prompt rules
+ * exist to prevent. The verify prompt now asks for an empty finding there, so
+ * there is nothing left to render.
+ *
+ * Scoped to this one case on purpose, and both exclusions are load-bearing:
+ *
+ *   - `red` Reputation is shown. It carries 7 of the 50 refutation points and is
+ *     one of the few checks that can raise the score, so a rule that swallowed it
+ *     would hide the finding that matters most.
+ *   - `yellow` on every other category is shown. Those cards summarise what the
+ *     search actually returned, sources included, which is why an all-`yellow`
+ *     result still reads as a summary rather than as nothing.
+ *
+ * Matched case-insensitively because the labeled-text fallback parser takes
+ * whatever label the model wrote. It deliberately does *not* carry a legacy
+ * alias table: the backend already keeps `_LEGACY_LABELS` for this, and a second
+ * copy here is a table that can drift from the first and silently stop hiding.
+ */
+export function shouldShowCheck({ label, status }: VisibleCheckInput): boolean {
+  if (status !== 'yellow') return true;
+  return label.trim().toLowerCase() !== 'reputation';
+}
+
 export interface UnverifiedEmployerInput {
   isJobPosting: boolean;
   companyName: string | null | undefined;

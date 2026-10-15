@@ -3,6 +3,7 @@ import { Icon } from '../common';
 import { VerificationCard } from './VerificationCard';
 import { AnomaliesList } from './AnomaliesList';
 import type { Accent } from '../../lib/riskAccent';
+import { shouldShowCheck } from '../../lib/riskDisplay';
 import type { Anomaly, VerificationResult } from '../../types';
 
 interface EvidenceSummaryProps {
@@ -102,7 +103,14 @@ export function EvidenceSummary({
   accent,
   anomaliesHeadingRef,
 }: EvidenceSummaryProps) {
-  const hasItems = Boolean(result && result.items && result.items.length > 0);
+  // Derived from what will actually render, not from the raw list. Hiding a
+  // check must not leave the "Evidence Summary" heading sitting over an empty
+  // column, which asserts that evidence was summarised when none was — the one
+  // thing this component's heading rules exist to prevent. When the only check
+  // was a hidden one, `hasItems` goes false and the panel says the search
+  // produced nothing to show, which is true.
+  const visibleItems = (result?.items ?? []).filter(shouldShowCheck);
+  const hasItems = visibleItems.length > 0;
   const unreadable = result?.searchOk === false;
   const partial = Boolean(result?.searchPartial);
   // The same state the heading prefers, held separately so the body can name
@@ -195,7 +203,7 @@ export function EvidenceSummary({
 
       {hasItems && (
         <div className="flex flex-col gap-2">
-          {result!.items.map((item, i) => (
+          {visibleItems.map((item, i) => (
             <VerificationCard key={i} item={item} />
           ))}
         </div>
