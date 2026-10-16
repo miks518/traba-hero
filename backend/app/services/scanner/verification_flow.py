@@ -84,9 +84,31 @@ def _read_risk_level(raw) -> str | None:
     return None
 
 
+def _read_risk_score(raw) -> int | None:
+    """The model's magnitude, validated to a 0-100 integer or nothing.
+
+    `None` rather than a coerced default. The score drives the dial and the
+    ordering in the match list, so a wrong value is a wrong dial - and the value
+    that would be most tempting to substitute, `0`, is the one that says "nothing
+    wrong here". Out of range, non-numeric, or absent all mean the model did not
+    give one we can use.
+    """
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        log.warning("[verify] Ignoring non-numeric risk_score %r", raw)
+        return None
+    if not 0 <= value <= 100:
+        log.warning("[verify] Ignoring out-of-range risk_score %r", value)
+        return None
+    return value
+
+
 def _read_verify_output(
     text: str, allowed_urls: frozenset[str] = frozenset()
-) -> tuple[list, str, str, bool, list, str | None]:
+) -> tuple[list, str, str, bool, list, str | None, int | None]:
     """Read the verification result, preferring JSON and falling back to text.
 
     JSON is the intended shape, but the provider may still answer with prose if
@@ -147,6 +169,7 @@ def _read_verify_output(
             True,
             bound_evidence,
             _read_risk_level(payload.get("risk_level")),
+            _read_risk_score(payload.get("risk_score")),
         )
 
     log.warning("[verify] Response was not JSON; falling back to the labeled-text parser.")
@@ -165,7 +188,7 @@ def _read_verify_output(
     # None on this path, and that is the honest answer rather than a default: the
     # labeled-text format has no place to carry a level, so nothing was assessed.
     # The panel renders null as Unverified and excludes it from resume matching.
-    return bound_items, report, recommendation, False, [], None
+    return bound_items, report, recommendation, False, [], None, None
 
 
 async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
@@ -326,7 +349,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         retrieved_urls = frozenset(
             r.url for r in merged if getattr(r, "url", "")
         )
-        items, report, recommendation, used_json, evidence, risk_level = _read_verify_output(
+        items, report, recommendation, used_json, evidence, risk_level, risk_score = _read_verify_output(
             final_text, allowed_urls=retrieved_urls
         )
 
@@ -367,21 +390,22 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 report = f"Structured findings could not be parsed from the search results for '{company}', so no risk score was calculated."
             if not recommendation:
                 recommendation = "Confirm the employer independently before submitting personal details."
-            # The model produced no usable answer, so it never reached a level.
-            # Defaulting to `low` here would put a reassuring colour on the one
-            # case where we know least, which is the inverse of what happened
-            # before this moved: the ladder scored an empty result as zero.
+            # The model produced no usable answer, so it never reached a level or
+            # a score. Defaulting to `low`/`0` here would put a reassuring colour
+            # and an empty dial on the one case where we know least, which is the
+            # inverse of what happened before this moved: the ladder scored an
+            # empty result as zero.
             risk_level = None
+            risk_score = None
 
-        # The level is the model's, not the calculator's. `risk_calculator` priced
-        # the *category* of a finding - a processing fee was worth 40 whoever
-        # asked for it - and its Saaty matrix was fitted to justify a dial that
-        # had been drawn first. The verification stage holds the one thing the
-        # ladder never could: who was asking, and whether they exist. A fee from
-        # a business a reader can find is ordinary; the same fee from a name that
-        # appears nowhere is not.
+        # The level and the score are the model's, not the calculator's.
+        # `risk_calculator` priced the *category* of a finding - a processing fee
+        # was worth 40 whoever asked for it - and its Saaty matrix was fitted to
+        # justify a dial that had been drawn first. The verification stage holds
+        # the one thing the ladder never could: who was asking, and whether they
+        # exist. A fee from a business a reader can find is ordinary; the same fee
+        # from a name that appears nowhere is not.
         refutation_score = runtime.get_refutation_score()(items)
-        risk_score = None
         breakdown: dict = {"sources": ["verification"]}
 
         # The wire key stays `verification_score`; the value no longer matches
@@ -408,7 +432,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "evidence": evidence,
             "report": report,
             "recommendation": recommendation,
-            "riskScore": None,
+            "riskScore": risk_score,
             "riskLevel": risk_level,
             "scoreBreakdown": breakdown,
             # On the wire, not left to the model. A prompt instruction to "state

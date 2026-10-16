@@ -684,18 +684,31 @@ export function ScamScanView({
       if (verifyResult.result) {
         console.log('[verify] Result received:', verifyResult.result);
         const result = verifyResult.result;
-        const scored = typeof result.riskScore === 'number';
+        // Level and score are adopted independently, and deliberately.
+        //
+        // This used to be `const scored = typeof result.riskScore === 'number'`
+        // gating both, which meant a response carrying a level but no score had
+        // its level silently discarded and fell back to whatever was on screen.
+        // That is not a hypothetical: with the score retired and the level
+        // becoming the model's, every response briefly took that path and the
+        // panel kept showing the previous state. The colour and the elevation
+        // test both key off the level, so losing it loses the whole verdict.
+        //
+        // The other half: falling back to `scanResultRef.current` when the
+        // response has neither would keep a stale level on screen after a
+        // verification that failed. A missing value means missing.
+        const prev = scanResultRef.current;
+        const nextLevel = result.riskLevel ?? null;
+        const nextScore = typeof result.riskScore === 'number' ? result.riskScore : null;
         setVerificationFailed(false);
-        // Blended posting + employer score, or the posting score alone when the
-        // lookup found nothing to stand on.
         applyResult({
           verificationResult: result,
           verificationLoading: false,
-          riskScored: scored,
-          riskScore: scored ? result.riskScore! : scanResultRef.current?.riskScore ?? null,
-          riskLevel: (scored ? result.riskLevel : scanResultRef.current?.riskLevel) as ScanResult['riskLevel'],
-          riskLabel: riskLevelLabel(scored ? result.riskLevel : scanResultRef.current?.riskLevel),
-          scoreBreakdown: result.scoreBreakdown ?? scanResultRef.current?.scoreBreakdown,
+          riskScored: nextLevel !== null || nextScore !== null,
+          riskScore: nextScore ?? prev?.riskScore ?? null,
+          riskLevel: nextLevel as ScanResult['riskLevel'],
+          riskLabel: riskLevelLabel(nextLevel),
+          scoreBreakdown: result.scoreBreakdown ?? prev?.scoreBreakdown,
         }, jobId);
       } else {
         console.warn('[verify] Empty result from verifyJobStream');
@@ -784,6 +797,10 @@ export function ScamScanView({
             <RiskGauge
               onShowEvidence={showEvidence}
               score={scanResult.riskScore ?? 0}
+              /* The ring's arc is a magnitude, so it still wants the score even
+                 though no figure is printed. `?? 0` is the unassessed state and
+                 the component already renders it as the empty grey ring rather
+                 than as a dial reading zero. */
               riskLevel={scanResult.riskLevel}
               riskLabel={scanResult.riskLabel}
               unverified={scanResult.unverifiedEmployer}

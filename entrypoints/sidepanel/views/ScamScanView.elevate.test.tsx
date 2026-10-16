@@ -140,6 +140,59 @@ describe('evidence leads for a high or critical score', () => {
     });
   });
 
+  it('promotes on a level that arrives without a score', async () => {
+    // The regression `ScamScanView.test.tsx` was blind to for one commit.
+    //
+    // `const scored = typeof result.riskScore === 'number'` gated the level as
+    // well as the score. With the score retired and the level becoming the
+    // model's, every response took that path: the level was discarded, the
+    // previous one kept, and promotion - which keys off the level - never
+    // updated. Nothing reported an error anywhere.
+    //
+    // Two earlier attempts at this test passed with the bug restored, both for
+    // the same reason: they could not tell "the new level arrived" from "the old
+    // level survived". This one starts the scan at `low` and ends it at `high`,
+    // so the two states are distinguishable, and the mutation is caught.
+    const { ScamScanView } = await import('./ScamScanView');
+    mocks.scanScreenshotStream.mockImplementation(async (_i, _s, onProgress) => {
+      onProgress?.({ percent: 50, stage: 'Analyzing' });
+      return { response: { ...scanResponse, risk_level: 'low', risk_score: 10 } };
+    });
+    mocks.verifyJobStream.mockImplementation(async () => ({
+      result: { ...verifyResponse, riskScore: null, riskLevel: 'high' },
+    }));
+
+    const { container } = render(
+      React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true })
+    );
+    await scanAndSettle();
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-group="evidence"]')!.className).toContain('order-1');
+    });
+  });
+
+  it('does not keep promoting after a verification that returns no level', async () => {
+    // The other half, and the direction that catches a fallback. The scan starts
+    // at `critical` - so it promotes - and the verification returns nothing, so
+    // it must stop. A `scanResultRef.current` fallback leaves it promoted.
+    const { ScamScanView } = await import('./ScamScanView');
+    mocks.verifyJobStream.mockImplementation(async () => ({
+      result: { ...verifyResponse, riskScore: null, riskLevel: null, items: [] },
+    }));
+
+    const { container } = render(
+      React.createElement(ScamScanView, { onScanComplete: vi.fn(), isOnline: true })
+    );
+    await scanAndSettle();
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-group="evidence"]')).toBeTruthy();
+    });
+    expect(container.querySelector('[data-group="evidence"]')!.className).not.toContain('order-1');
+    expect(container.querySelector('[data-group="prose"]')!.className).not.toContain('order-2');
+  });
+
   it('keeps both groups mounted so nothing is torn down on a score change', async () => {
     const { ScamScanView } = await import('./ScamScanView');
     const { container } = render(

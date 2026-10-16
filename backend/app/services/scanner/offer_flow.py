@@ -25,6 +25,7 @@ FAILSAFE = {
     # from the scan, so the one case where the model's answer could not be read
     # printed the calmest verdict on the panel.
     "risk_level": None,
+    "risk_score": None,
 }
 
 
@@ -60,6 +61,23 @@ async def analyze_offer_event_stream(text: str, company_name: str = "") -> Async
         limiter.release()
 
 
+def _read_score(raw) -> int | None:
+    """A 0-100 integer or nothing. Same rule as the verify path's, for the same
+    reason: the value most tempting to substitute is 0, and 0 says "nothing
+    wrong here" on a dial and in a sorted match list."""
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        log.warning("[analyze-offer] Ignoring non-numeric risk_score %r", raw)
+        return None
+    if not 0 <= value <= 100:
+        log.warning("[analyze-offer] Ignoring out-of-range risk_score %r", value)
+        return None
+    return value
+
+
 def _read_offer_output(text: str) -> dict | None:
     """Read the analysis result, preferring JSON and falling back to text."""
     payload = runtime.get_parse_json()(text)
@@ -81,12 +99,14 @@ def _read_offer_output(text: str) -> dict | None:
             "what_to_check": str(payload.get("what_to_check") or "").strip(),
             "is_offer": kind.strip().upper() != NOT_OFFER_KIND if kind else True,
             "risk_level": level,
+            "risk_score": _read_score(payload.get("risk_score")),
         }
 
     log.warning("[analyze-offer] Response was not JSON; falling back to the labeled-text parser.")
     parsed = runtime.get_parse_analyze_offer()(text)
     if isinstance(parsed, dict):
-        # The labeled-text format has nowhere to carry a level, so this path
-        # yields None rather than inventing one.
+        # The labeled-text format has nowhere to carry either, so this path yields
+        # None rather than inventing them.
         parsed["risk_level"] = None
+        parsed["risk_score"] = None
     return parsed

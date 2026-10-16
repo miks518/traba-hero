@@ -141,7 +141,7 @@ class TestTheReadBoundaryRaises:
             _read_verify_output("The company appears to be legitimate.")
 
     def test_a_readable_response_still_returns_items(self):
-        items, _, _, used_json, _, _ = _read_verify_output(BLOCK)
+        items, _, _, used_json, _, _, _ = _read_verify_output(BLOCK)
         assert used_json is False
         assert [i.label for i in items] == ["Company Existence", "Channel Match"]
 
