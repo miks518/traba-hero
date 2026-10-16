@@ -112,6 +112,65 @@ class TestTheGuardrailsSurvivedTheMove:
     def test_it_asks_for_json_so_a_schema_less_model_still_answers_in_json(self):
         assert "JSON" in text
 
+    def test_a_different_channel_is_a_contradiction_not_an_absence(self):
+        """Added 2026-10-16 after a live run, not a reading of the code.
+
+        A Philippine Airforce posting linked to `paf-recruitment-portal.ph`. The
+        scan read the link correctly. Verification searched, found the real
+        Philippine Air Force at `paf.mil.ph`, and wrote:
+
+            "The results show the Philippine Air Force uses paf.mil.ph ... but do
+             not confirm the use of the specific online portal
+             paf-recruitment-portal.ph mentioned in the posting."
+
+        and then reported the status as yellow. The model had the contradiction
+        in its own sentence and still chose the weakest available status. A
+        second run on a different employer produced the same shape: "the results
+        show a different domain" ... yellow.
+
+        So the rule is pinned on the phrase that makes the distinction, not on a
+        general instruction to be careful. The absence prohibition above it is
+        unchanged and still correct; this is the case it is most often confused
+        with.
+        """
+        low = text.lower()
+        assert "show the employer using a different channel" in low
+        assert "that is a contradiction and the status is red" in low
+        assert '"no page mentions this portal" is yellow' in low
+        assert 'at a different domain" is red' in low
+
+    def test_channel_match_is_named_as_the_only_impersonation_check(self):
+        """The reason the category is ranked where it is. Without this the model
+        has no reason to prefer it over the reassuring categories, and the
+        reasoning is lost as soon as the prompt is edited."""
+        low = text.lower()
+        assert "the only one here that catches it" in low
+        assert "passes every existence, registration and branch check" in low
+
+    def test_the_abundance_of_reassuring_results_is_named_as_the_error(self):
+        """The model errs because a famous employer returns many good results,
+        and that volume feels like reassurance. Naming the mechanism is what
+        stops it reading as one — without it the rule above reads as an
+        instruction to be alarmist, which would be a different and wrong
+        failure."""
+        low = text.lower()
+        assert "abundance reads as though nothing is wrong" in low
+
+    def test_status_is_decided_across_categories_not_within_them(self):
+        """The general form of the fix. A contradiction is a relation between
+        two facts; a green in one category does not retire a red in another."""
+        low = text.lower()
+        assert "decide each status against all the results you were given" in low
+        assert "does not disappear because the first is reassuring" in low
+
+    def test_the_absence_prohibition_is_not_weakened_by_any_of_this(self):
+        """The overcorrection, and the thing a panel would check. Everything
+        added above sharpens when `red` applies. Nothing added may make `red`
+        easier to reach in general — "we found nothing" must stay yellow."""
+        low = text.lower()
+        assert "absence of a result is never red" in low
+        assert "never red because nothing was found" in low
+        assert "never write that a company" in low
     def test_an_empty_reputation_leaves_the_finding_empty(self):
         """The one category whose unconfirmed finding is suppressed.
 
