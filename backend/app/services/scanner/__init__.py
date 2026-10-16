@@ -17,9 +17,6 @@ from .prompts import (
 )
 from .resume_flow import _extract_resume_text, _resume_event_stream
 from .risk_calculator import (
-    _calculate_risk_score_from_verify,
-    _combine_scores,
-    _posting_risk_from_flags,
     _refutation_score_from_verify,
 )
 from .scan_flow import _scan_event_stream
@@ -53,10 +50,7 @@ __all__ = [
     "_extract_resume_text",
     "_resume_event_stream",
     "_match_event_stream",
-    "_calculate_risk_score_from_verify",
     "_refutation_score_from_verify",
-    "_posting_risk_from_flags",
-    "_combine_scores",
     "_build_verify_prompt",
     "_parse_verification_result",
     "_parse_verify_section",

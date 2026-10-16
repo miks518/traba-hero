@@ -70,9 +70,25 @@ class TestThePromptAsksForJsonEvenWithoutASchema:
         """
         assert "JSON" in VERIFY_SYSTEM_PROMPT
 
-    def test_the_prompt_names_all_four_keys(self):
-        for key in ("checks", "evidence", "report", "recommendation"):
-            assert key in VERIFY_SYSTEM_PROMPT, key
+    def test_the_prompt_names_every_key_the_schema_requires(self):
+        """Derived from the schema rather than restated here.
+
+        A hardcoded list of the keys passes happily when a fifth key is added to
+        the schema and named only in the schema, which is exactly the failure
+        this test exists to catch: a model with no schema-capable endpoint
+        receives a prompt that never mentions `risk_level`, answers with four
+        keys, and the parser finds nothing to read it from. One list in two
+        places is how that goes unnoticed.
+        """
+        from app.services.scanner.verification_prompt import VERIFY_RESPONSE_SCHEMA
+
+        required = VERIFY_RESPONSE_SCHEMA["required"]
+        assert len(required) >= 5, f"the schema should carry risk_level: {required}"
+        for key in required:
+            assert key in VERIFY_SYSTEM_PROMPT, (
+                f"VERIFY_PROMPT.md never names {key!r}; a schema-less model "
+                f"would answer without it and the no-schema path would lose it"
+            )
 
 
 class TestUnschemaedOutputIsRead:
@@ -87,7 +103,7 @@ class TestUnschemaedOutputIsRead:
         return _read_verify_output(text, allowed_urls=allowed)
 
     def test_a_bare_object_yields_every_category(self):
-        items, _, _, used_json, _ = self._read(UNSCHEMALED_JSON)
+        items, _, _, used_json, _, risk_level = self._read(UNSCHEMALED_JSON)
 
         assert used_json is True
         assert [i.label for i in items] == [
@@ -96,7 +112,7 @@ class TestUnschemaedOutputIsRead:
 
     def test_a_fenced_object_is_read(self):
         fenced = f"Here is the result:\n```json\n{UNSCHEMALED_JSON}\n```"
-        items, report, recommendation, used_json, evidence = self._read(fenced)
+        items, report, recommendation, used_json, evidence, risk_level = self._read(fenced)
 
         assert used_json is True
         assert len(items) == 3
@@ -111,7 +127,7 @@ class TestUnschemaedOutputIsRead:
         check them, and the panel renders the Sources section from this list, so
         an empty one removes the section entirely.
         """
-        _, _, _, _, evidence = self._read(UNSCHEMALED_JSON)
+        _, _, _, _, evidence, _level = self._read(UNSCHEMALED_JSON)
 
         assert evidence == [
             {
@@ -122,7 +138,7 @@ class TestUnschemaedOutputIsRead:
         ]
 
     def test_the_report_and_recommendation_survive(self):
-        _, report, recommendation, _, _ = self._read(UNSCHEMALED_JSON)
+        _, report, recommendation, _, _, _level = self._read(UNSCHEMALED_JSON)
 
         assert "public web search results only" in report
         assert "confirm the office address" in recommendation

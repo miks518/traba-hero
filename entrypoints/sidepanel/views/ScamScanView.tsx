@@ -807,13 +807,12 @@ export function ScamScanView({
               Whether verification ran is read off the wire instead:
               `searchOk === false` means the lookup could not complete, and no
               result at all means it never ran. */}
-          {!scanResult.verificationLoading && scanResult.riskScore !== null && (
+          {!scanResult.verificationLoading && (
             <p
               data-role="score-basis"
               className="text-label-sm text-on-surface-variant text-center -mt-1"
             >
               {describeScoreBasis({
-                riskScore: scanResult.riskScore,
                 verificationRun: verificationRun,
               })}
             </p>

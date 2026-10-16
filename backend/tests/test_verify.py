@@ -621,7 +621,7 @@ class TestVerifyOutputReading:
         from app.services.scanner.verification_flow import _read_verify_output
         from app.models.schemas import VerificationItem
 
-        items, report, rec, used_json, _evidence = _read_verify_output(
+        items, report, rec, used_json, _evidence, _level = _read_verify_output(
             self._payload(), allowed_urls=self._allowed()
         )
         assert used_json is True
@@ -643,7 +643,7 @@ class TestVerifyOutputReading:
     def test_reads_the_evidence_list(self):
         from app.services.scanner.verification_flow import _read_verify_output
 
-        items, report, rec, used_json, evidence = _read_verify_output(
+        items, report, rec, used_json, evidence, _level = _read_verify_output(
             self._payload(), allowed_urls=self._allowed()
         )
         assert evidence, "the evidence list must reach the flow"
@@ -657,7 +657,11 @@ class TestVerifyOutputReading:
             "checks": [{"category": "Reputation", "status": "yellow", "finding": "nothing", "source_title": "", "source_url": ""}],
             "report": "r", "recommendation": "x",
         })
-        *_, evidence = _read_verify_output(payload)
+        # Positional, not `*_`: the tuple grew a sixth element and a star-unpack
+        # silently rebinds "the last value" to a different field, so this would
+        # have been asserting against `risk_level` and passing or failing for no
+        # reason anyone could see.
+        *_, evidence, _level = _read_verify_output(payload)
         assert evidence == []
 
     def test_malformed_check_still_rejected(self):
@@ -921,8 +925,17 @@ class TestSearchOutcomeReachesTheClient:
 
         assert resp.status_code == 200
         assert '"verification_score": null' in resp.text
-        # The posting stage still produces a number: one high flag = 40.
-        assert '"final_score": 40' in resp.text
+        # The contract changed here and deliberately. This used to assert
+        # `"final_score": 40` - a failed search left the posting-stage ladder's
+        # number standing, which meant a lookup that never ran still produced a
+        # reassuring figure from the one stage that never saw any evidence. The
+        # ladder is retired and the level is the model's, so a response with no
+        # level in it yields no level: null, which the panel renders as
+        # Unverified and resume matching excludes. "We could not look" and "we
+        # looked and it was fine" must not print the same thing.
+        assert '"riskLevel": null' in resp.text
+        assert '"riskScore": null' in resp.text
+        assert "final_score" not in resp.text
 
 
 # â”€â”€ _parse_verification_result â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1340,10 +1353,14 @@ async def test_verify_failsafe_when_a_readable_response_carries_no_checks():
         assert '"type": "result"' in body
         assert "No structured findings could be read" in body
         assert "Company Existence" in body
-        # A verdict always exists. The posting carried no indicators, so the
-        # empty verification contributes nothing and the posting score
-        # stands on its own rather than the result being left unscored.
-        assert '"riskScore": 0' in body
+        # This used to assert `riskScore: 0` on the reasoning that "a verdict
+        # always exists". It no longer does, and the reason is the point: the
+        # response was readable and carried nothing, so the model reached no
+        # level, and 0 was the ladder's way of saying the same thing while
+        # printing a reassuring figure. A failsafe card whose whole content is
+        # "we could not read the answer" must not also carry a calm number.
+        assert '"riskLevel": null' in body
+        assert '"riskScore": null' in body
         assert '"verification_score": null' in body
 
 

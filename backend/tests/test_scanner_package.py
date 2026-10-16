@@ -52,7 +52,6 @@ PACKAGE_EXPORTS = (
     "_extract_resume_text",
     "_resume_event_stream",
     "_match_event_stream",
-    "_calculate_risk_score_from_verify",
     "_build_verify_prompt",
     "_parse_verification_result",
     "_parse_verify_section",
@@ -73,7 +72,6 @@ PURE_REEXPORTS = (
     "_language_instruction",
     "_sse",
     "_VALID_LINE_RE",
-    "_calculate_risk_score_from_verify",
     "_build_verify_prompt",
     "_parse_verification_result",
     "_parse_verify_section",
@@ -119,7 +117,6 @@ EXPECTED_SIGNATURES = {
     "load_resume_prompt": "() -> str",
     "load_match_prompt": "() -> str",
     "_extract_resume_text": "(file_base64: str, file_type: str) -> str",
-    "_calculate_risk_score_from_verify": "(items: list[app.models.schemas.VerificationItem]) -> tuple[int | None, str | None]",
     "_build_verify_prompt": "(req: app.models.schemas.VerifyRequest, search_context: str = '') -> str",
     "_parse_verification_result": "(text: str) -> list[app.models.schemas.VerificationItem]",
     "_parse_verify_section": "(text: str, name: str) -> str",
@@ -195,17 +192,28 @@ def test_scanner_prompt_loaders_resolve_backend_prompt_files():
         assert getattr(scanner, loader_name)() == expected
 
 
-def test_scanner_risk_calculator_preserves_weighted_score():
+def test_the_package_no_longer_exports_the_retired_calculator_surface():
+    """The pin this replaces, inverted.
+
+    It used to assert `_calculate_risk_score_from_verify` returned (65, "high"),
+    which kept a function nothing called looking exercised - the failure mode
+    AGENTS.md already records for it, and the reason the export has now gone.
+    Inverting the assertion is better than deleting the test: a reader who finds
+    the missing name in `PACKAGE_EXPORTS` gets an explanation instead of a diff.
+    """
     scanner = importlib.import_module("app.services.scanner")
-    items = [
-        scanner.VerificationItem(label="Company Existence", status="red", explanation="Not found"),
-        scanner.VerificationItem(label="SEC Registration", status="red", explanation="Filed"),
-    ]
-    # Company Existence red = 40 and SEC Registration red = 25, of 100. A yellow
-    # no longer contributes, so the weight table is probed with red items: a
-    # yellow would score 0 for either label and the test could not tell the
-    # weight apart from the default of 10.
-    assert scanner._calculate_risk_score_from_verify(items) == (65, "high")
+    for name in (
+        "_posting_risk_from_flags",
+        "_combine_scores",
+    ):
+        assert name not in scanner.__all__, f"{name} was retired and must not be re-exported"
+        assert not hasattr(scanner, name), (
+            f"{name} is retired; leaving it reachable is the half-wired state"
+        )
+
+    # `_refutation_score_from_verify` stays: the breakdown still records how much
+    # refuted evidence was seen, which is reporting rather than scoring.
+    assert hasattr(scanner, "_refutation_score_from_verify")
 
 
 def test_scanner_sse_encoder_preserves_wire_format():

@@ -16,6 +16,7 @@ stats-*.json
 web-ext.config.ts
 opencode.json
 tui.json
+jobposts
 
 # Editor directories and files
 .vscode/*

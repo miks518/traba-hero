@@ -20,7 +20,7 @@ prompt is then the only thing specifying the output format.
 import logging
 from pathlib import Path
 
-from app.models.schemas import VerifyRequest
+from app.models.schemas import RISK_LEVELS, VerifyRequest
 
 log = logging.getLogger("trabahero")
 
@@ -155,7 +155,7 @@ OUTPUT RULES:
 - Do not use absolutes: always, never, definitely, guaranteed, 100%.
 - Plain sentences inside the values. No markdown, bullets, headers, or emoji.
 
-OUTPUT FORMAT: return one JSON object and nothing else, with exactly four keys: "checks", "evidence", "report", "recommendation". A "checks" entry has "category", "status", "finding", "source_title", "source_url". An "evidence" entry has "title", "url", "snippet". Say this even if no output schema is supplied — the object is the answer, and the plain-sentence rule applies to what you write inside it, not to the object wrapping it.
+OUTPUT FORMAT: return one JSON object and nothing else, with exactly five keys: "checks", "evidence", "report", "recommendation", "risk_level". A "checks" entry has "category", "status", "finding", "source_title", "source_url". An "evidence" entry has "title", "url", "snippet". "risk_level" is one of low, moderate, high, critical. Say this even if no output schema is supplied — the object is the answer, and the plain-sentence rule applies to what you write inside it, not to the object wrapping it.
 
 CATEGORIES. The request names which of these to report and which to omit, and the request wins: these six are the vocabulary, not a quota. Report the ones you are told to report and no others. Never invent a category outside this list. Where the request says to omit a category, the posting made no such claim — write no entry for it, and no placeholder, empty, or "not stated" finding.
 
@@ -181,7 +181,8 @@ FIELDS:
 - source_title and source_url: the single result you relied on, copied exactly from the results. The reader opens these, so a constructed URL is a fabricated citation. Never construct, guess, or reconstruct a URL, and never cite a result that is not in the list. Leave both empty on yellow.
 - evidence: the results a reader would want to check themselves, copied exactly, at most six. Never invent an entry.
 - report: 2-3 plain sentences describing what the results show. No accusations. End by noting that this is based on public web search results only.
-- recommendation: 1-2 plain sentences addressed to a job seeker — someone looking for work, not an investigator. Name what the results showed about this employer, then give one step they can take in an ordinary hiring exchange: ask the employer to confirm something in writing, arrange to meet them at an address they give you, or not send money or personal details before they have spoken with someone. Do not tell them to check a registry, a government website, or a business permit, and do not tell them what to think about the company. The checking is this tool's job; the reader is looking for a way to respond to a job offer."""
+- recommendation: 1-2 plain sentences addressed to a job seeker — someone looking for work, not an investigator. Name what the results showed about this employer, then give one step they can take in an ordinary hiring exchange: ask the employer to confirm something in writing, arrange to meet them at an address they give you, or not send money or personal details before they have spoken with someone. Do not tell them to check a registry, a government website, or a business permit, and do not tell them what to think about the company. The checking is this tool's job; the reader is looking for a way to respond to a job offer.
+- risk_level: one of low, moderate, high, critical. This is the overall reading of the whole posting once the evidence is in, and it replaces a severity ladder that priced each kind of finding on its own. Weigh what the posting asks against who is asking and what the results show about them: the same request can be ordinary from one employer and serious from another, and you are the only stage that can tell which. A fee demanded by a business a reader can find, at an address that matches, is different from the same fee demanded by a name that appears nowhere. Give the level that a job seeker would arrive at reading your report and recommendation, not the level of your loudest single finding. Never let a green category settle it on its own, and never let one red make it high on its own either — read them together. Write only the word, nothing else."""
 
 
 def load_verify_prompt() -> str:
@@ -245,8 +246,9 @@ VERIFY_RESPONSE_SCHEMA = {
         },
         "report": {"type": "string"},
         "recommendation": {"type": "string"},
+        "risk_level": {"type": "string", "enum": list(RISK_LEVELS)},
     },
-    "required": ["checks", "evidence", "report", "recommendation"],
+    "required": ["checks", "evidence", "report", "recommendation", "risk_level"],
     "additionalProperties": False,
 }
 

@@ -3,7 +3,7 @@ import logging
 from collections.abc import AsyncIterator
 
 from app.config import settings
-from app.models.schemas import VerificationItem, VerifyRequest
+from app.models.schemas import RISK_LEVELS, VerificationItem, VerifyRequest
 from app.services.lm_client import MAX_SEARCH_QUERIES
 from app.services.search import _canonical_url
 
@@ -66,13 +66,33 @@ def _bind_to_retrieved(items: list, evidence: list, allowed: frozenset[str]) -> 
     return bound, kept
 
 
-def _read_verify_output(text: str, allowed_urls: frozenset[str] = frozenset()) -> tuple[list, str, str, bool, list]:
+def _read_risk_level(raw) -> str | None:
+    """The model's overall level, validated against the vocabulary.
+
+    Anything unrecognised becomes `None` rather than being coerced. `None` means
+    nothing was assessed, and the panel already has a rendering for it; a
+    misspelt level reaching the wire as truth would put a colour on a posting
+    that no stage ever judged. The schema's enum makes this unreachable on the
+    structured path, but the no-schema path has no enum — only this prompt's
+    wording — so the check has to exist.
+    """
+    level = str(raw or "").strip().lower()
+    if level in RISK_LEVELS:
+        return level
+    if level:
+        log.warning("[verify] Ignoring unrecognised risk_level %r", level)
+    return None
+
+
+def _read_verify_output(
+    text: str, allowed_urls: frozenset[str] = frozenset()
+) -> tuple[list, str, str, bool, list, str | None]:
     """Read the verification result, preferring JSON and falling back to text.
 
     JSON is the intended shape, but the provider may still answer with prose if
     it does not support structured outputs, so the labeled-text parser remains as
     a fallback rather than being deleted. Returns (items, report, recommendation,
-    used_json, evidence).
+    used_json, evidence, risk_level).
 
     `allowed_urls` holds the canonical form of every URL the search provider
     actually returned. Anything outside it is dropped, and a `red` left without a
@@ -126,6 +146,7 @@ def _read_verify_output(text: str, allowed_urls: frozenset[str] = frozenset()) -
             str(payload.get("recommendation") or ""),
             True,
             bound_evidence,
+            _read_risk_level(payload.get("risk_level")),
         )
 
     log.warning("[verify] Response was not JSON; falling back to the labeled-text parser.")
@@ -141,7 +162,10 @@ def _read_verify_output(text: str, allowed_urls: frozenset[str] = frozenset()) -
     report = runtime.get_parse_verify_section()(text, "REPORT")
     recommendation = runtime.get_parse_verify_section()(text, "RECOMMENDATION")
     bound_items, _bound_evidence = _bind_to_retrieved(items, [], allowed_urls)
-    return bound_items, report, recommendation, False, []
+    # None on this path, and that is the honest answer rather than a default: the
+    # labeled-text format has no place to carry a level, so nothing was assessed.
+    # The panel renders null as Unverified and excludes it from resume matching.
+    return bound_items, report, recommendation, False, [], None
 
 
 async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
@@ -171,19 +195,21 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 "The findings below come only from reading the posting itself."
             )
             recommendation = "Confirm who you would be dealing with through an official channel before sending personal details."
-            # No employer lookup happened, so the posting's own indicators remain
-            # the whole verdict. The score does not move just because the lookup
-            # was impossible.
-            posting_score, posting_level, breakdown = runtime.get_posting_risk()(req.anomalies or [])
-            breakdown["verification_score"] = None
-            breakdown["final_score"] = posting_score
-            breakdown["sources"] = ["posting"]
+            # No employer lookup happened, so nothing here can be weighed against
+            # anything. The level used to fall back to the posting-stage ladder,
+            # which meant a posting naming no employer was scored by the one
+            # stage that has never seen evidence - and a posting that names no
+            # employer is exactly where the posting text is all there is. It now
+            # carries no level, and the panel says the lookup did not happen
+            # rather than reporting a number derived from the absence of one.
+            breakdown = {"sources": [], "verification_score": None, "risk_level": None,
+                         "level_source": None}
             yield runtime.get_sse()({"type": "result", "data": {
                 "items": [item.model_dump() for item in items],
                 "report": report,
                 "recommendation": recommendation,
-                "riskScore": posting_score,
-                "riskLevel": posting_level,
+                "riskScore": None,
+                "riskLevel": None,
                 "scoreBreakdown": breakdown,
                 "search_ok": False,
                 "search_error": "No employer name was given, so nothing was searched.",
@@ -300,7 +326,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         retrieved_urls = frozenset(
             r.url for r in merged if getattr(r, "url", "")
         )
-        items, report, recommendation, used_json, evidence = _read_verify_output(
+        items, report, recommendation, used_json, evidence, risk_level = _read_verify_output(
             final_text, allowed_urls=retrieved_urls
         )
 
@@ -341,10 +367,22 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 report = f"Structured findings could not be parsed from the search results for '{company}', so no risk score was calculated."
             if not recommendation:
                 recommendation = "Confirm the employer independently before submitting personal details."
+            # The model produced no usable answer, so it never reached a level.
+            # Defaulting to `low` here would put a reassuring colour on the one
+            # case where we know least, which is the inverse of what happened
+            # before this moved: the ladder scored an empty result as zero.
+            risk_level = None
 
-        posting_score, _posting_level, breakdown = runtime.get_posting_risk()(req.anomalies or [])
+        # The level is the model's, not the calculator's. `risk_calculator` priced
+        # the *category* of a finding - a processing fee was worth 40 whoever
+        # asked for it - and its Saaty matrix was fitted to justify a dial that
+        # had been drawn first. The verification stage holds the one thing the
+        # ladder never could: who was asking, and whether they exist. A fee from
+        # a business a reader can find is ordinary; the same fee from a name that
+        # appears nowhere is not.
         refutation_score = runtime.get_refutation_score()(items)
-        risk_score, risk_level = runtime.get_combine_scores()(posting_score, refutation_score)
+        risk_score = None
+        breakdown: dict = {"sources": ["verification"]}
 
         # The wire key stays `verification_score`; the value no longer matches
         # the name. It now holds a refutation score -- a 0-50 sum over refuted
@@ -354,14 +392,10 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         # at the api boundary. Changing the wire key needs a migration for stored
         # scan history, which is why it is not done here.
         breakdown["verification_score"] = refutation_score
-        breakdown["final_score"] = risk_score
-        breakdown["sources"] = [
-            name
-            for name, value in (("posting", posting_score), ("verification", refutation_score))
-            if value is not None
-        ]
+        breakdown["risk_level"] = risk_level
+        breakdown["level_source"] = "verification"
 
-        log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, posting_score=%s, refutation_score=%s, risk_score=%s, risk_level=%s", len(items), len(report), len(recommendation), posting_score, refutation_score, risk_score, risk_level)
+        log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, refutation_score=%s, risk_level=%s", len(items), len(report), len(recommendation), refutation_score, risk_level)
         if items:
             log.info("[verify] Items: %s", items)
         if report:
@@ -374,7 +408,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "evidence": evidence,
             "report": report,
             "recommendation": recommendation,
-            "riskScore": risk_score,
+            "riskScore": None,
             "riskLevel": risk_level,
             "scoreBreakdown": breakdown,
             # On the wire, not left to the model. A prompt instruction to "state

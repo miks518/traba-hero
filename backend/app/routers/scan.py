@@ -54,8 +54,6 @@ from app.services.scanner import (
     _anomalies,
     _build_analyze_offer_prompt,
     _build_verify_prompt,
-    _calculate_risk_score_from_verify,
-    _combine_scores,
     _extract_resume_text,
     _language_instruction,
     _match_event_stream,
@@ -63,7 +61,6 @@ from app.services.scanner import (
     _parse_verification_result,
     _today_instruction,
     _parse_verify_section,
-    _posting_risk_from_flags,
     _refutation_score_from_verify,
     _resume_event_stream,
     _scan_event_stream,
@@ -104,8 +101,6 @@ runtime.get_parse_verify_section = lambda: _parse_verify_section
 runtime.get_refutation_score = lambda: _refutation_score_from_verify
 runtime.get_verify_system_prompt = lambda: VERIFY_SYSTEM_PROMPT
 runtime.get_ai_limiter = lambda: ai_limiter
-runtime.get_posting_risk = lambda: _posting_risk_from_flags
-runtime.get_combine_scores = lambda: _combine_scores
 runtime.get_analyze_offer_prompt = lambda: ANALYZE_OFFER_SYSTEM_PROMPT
 runtime.get_build_analyze_offer_prompt = lambda: _build_analyze_offer_prompt
 runtime.get_parse_analyze_offer = lambda: _parse_analyze_offer

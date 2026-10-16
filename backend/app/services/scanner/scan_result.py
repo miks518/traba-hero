@@ -4,7 +4,9 @@ from datetime import datetime, timedelta, timezone
 
 from app.models.schemas import Anomaly, ScanResponse
 from app.services.search import is_valid_company_name
-from .risk_calculator import _posting_risk_from_flags
+# `risk_calculator` was retired 2026-10-17 and is deliberately not imported
+# here. Leaving the import in with a `noqa` would be the half-wired state this
+# project cares about most: reachable, working, and looking deliberate.
 
 
 def _anomalies(flags: list) -> list[Anomaly]:
@@ -91,10 +93,15 @@ def _build_scan_response(
     flags = anomalies_factory(
         result.get("anomalies", result.get("red_flags", []))
     )
-    # The posting's own indicators always produce a verdict, so the panel has a
-    # number from the moment the scan returns rather than waiting on an employer
-    # lookup that may not be possible.
-    score, level, breakdown = _posting_risk_from_flags(flags)
+    # No level here. The scan has read a document and nothing else: it has seen
+    # no employer lookup, no retrieved page, nothing that could tell a reader
+    # whether the posting's author is who they say they are. The level arrives
+    # with the verification or offer analysis, and until one of those runs the
+    # correct value is None - "not assessed" - which the panel already renders as
+    # Unverified and resume matching already excludes. It used to be
+    # `_posting_risk_from_flags` here, which meant a posting was given a
+    # reassuring or alarming colour by a stage that had no evidence to base it
+    # on, and the colour did not change when the evidence arrived.
     return ScanResponse(
         valid=result.get("valid", False),
         anomalies=flags,
@@ -104,9 +111,9 @@ def _build_scan_response(
         posting_analysis=result.get("posting_analysis", ""),
         company_name=company_name if company_name_validator(company_name) else None,
         error=result.get("error"),
-        risk_score=score,
-        risk_level=level,
-        score_breakdown=breakdown,
+        risk_score=None,
+        risk_level=None,
+        score_breakdown={},
     )
 
 

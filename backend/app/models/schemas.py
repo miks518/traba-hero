@@ -19,6 +19,18 @@ MAX_IMAGES_PER_SCAN = 4
 # there is one convention for "one thing uploaded by a person" rather than two.
 MAX_IMAGE_BASE64 = 5_000_000
 
+# The overall level, now emitted by the model that assessed the posting.
+#
+# Defined here rather than in either prompt module because two independent
+# response schemas need it - `/api/verify` and `/api/analyze-offer` - and a
+# vocabulary restated in two places is how an enum and a prompt drift apart into
+# producing a value the other does not accept.
+#
+# There is deliberately no number. The ring's scale was the reason a severity
+# ladder existed, the ladder was fitted to the ring, and neither survived
+# contact with a posting that asked for a fee for an ordinary reason.
+RISK_LEVELS = ("low", "moderate", "high", "critical")
+
 
 # How many jobs one match request may carry.
 #
@@ -157,10 +169,23 @@ class ScanResponse(BaseModel):
     company_name: str | None = None
     sec_registration: list[dict] = []
     external_verification: dict = {}
-    # Always populated: the posting's own indicators produce a verdict whether or
-    # not an employer could be identified or looked up.
-    risk_score: int = 0
-    risk_level: str = "low"
+    # Now produced by the verification model over the posting's findings and the
+    # retrieved evidence together. It used to be `risk_calculator`'s arithmetic
+    # over a severity ladder, which priced the *category* of an anomaly rather
+    # than the situation: a processing fee was worth 40 whether it was demanded
+    # by a ghost or by a placement agency, because the ladder had no way to ask
+    # who was asking. AHP was retired along with it - the method assumes a fixed
+    # commensurable variable set, and an unstructured posting does not have one.
+    #
+    # `None` is a real value and means nothing was assessed - no employer could
+    # be named, or the lookup did not complete. It is not "low". The frontend
+    # already renders `null` as Unverified and excludes it from resume matching.
+    # Both nullable, and both None for the ordinary path. No stage produces a
+    # number any more: the level is the model's and it is a category, so there
+    # is nothing for a score to hold. Kept on the wire because stored scan
+    # history carries it, and removing a key needs a migration for that.
+    risk_score: int | None = None
+    risk_level: str | None = None
     score_breakdown: dict = {}
 
 

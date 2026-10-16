@@ -1,3 +1,35 @@
+"""RETIRED 2026-10-17. Nothing in `app/` calls this any more.
+
+Kept deliberately, not deleted, and that is a choice with a cost worth stating:
+this project has a rule that dormant code is deleted rather than left, because a
+live-looking function with passing tests is the most convincing kind of lie. The
+rule is being overridden here for one reason - the derivation below is a
+defensible artefact and re-deriving it takes a script and an afternoon - and it
+is overridden *visibly*, with `test_risk_calculator_is_retired` asserting that no
+production module imports any of it. If that test ever fails, this file is not
+dormant, it is half-wired, which is the state this project cares about most.
+
+Why it was retired. It priced the *category* of a finding, and a category cannot
+carry context: a processing fee was worth 40 whoever asked for it. The panel's
+own history is the argument. A post demanding money from a name that appears
+nowhere and a post demanding the same money from a government office with a
+matching address and its own portal were identical inputs, and the ladder could
+only give them one answer. The verification stage holds what the ladder never
+could - who is asking, and whether they exist - so the level is produced there
+now, over the observation and the evidence together.
+
+The Saaty matrix is a statement about *method*, not about these numbers. AHP
+assumes a fixed, commensurable variable set, and an unstructured job posting does
+not have one: "only woman or lesbian" had no cell in the ladder and was scored at
+whatever the model guessed, while an advance-fee demand sat in a cell that was
+worth 40 by construction. A method that cannot represent a variable should not
+be the thing deciding how dangerous a job is.
+
+What is still live: `_refutation_score_from_verify` is called by
+`verification_flow` for the breakdown's `verification_score`, which records how
+much refuted evidence was seen rather than producing a level of its own.
+"""
+
 from app.models.schemas import Anomaly, VerificationItem
 
 # Weights used to turn the indicators reported in a posting into a score. They

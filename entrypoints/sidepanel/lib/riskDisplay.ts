@@ -120,46 +120,33 @@ export function shouldElevateEvidence({
 export type VerificationRun = 'never' | 'failed' | 'refuted' | 'confirmed';
 
 /**
- * The one line under the gauge saying what the number rests on.
+ * The one line under the gauge saying what the reading rests on.
  *
- * Collapsed from two stacked sentences. The older one — "Based only on what the
- * offer itself states" — said the same thing as the newer one in every state,
- * and in the state it got wrong it contradicted it: one sentence claimed the
- * employer was unchecked while the one below credited web evidence that had
- * just been gathered. Two sentences making incompatible claims is worse than
- * one, because the reader has no way to tell which to believe.
+ * The number went. It used to open with `${riskScore}/100` in all four states,
+ * and that number was the least useful thing on the panel: it asserted a
+ * precision no stage could defend, it invited the question "how did you get
+ * 80?" with no answer available, and it was computed from a severity ladder
+ * fitted to justify it. The four states survive, because they are the real
+ * content — they say what the reader is actually looking at.
  *
- * Each state gets its own sentence because they are four different facts:
- *
- *   never     nothing was looked up — a gap in the input, not a clean result
- *   failed    the lookup was attempted and could not complete
- *   confirmed the lookup ran and no source contradicted a claim the posting made
- *   refuted   a retrieved source contradicted a claim the posting made
- *
- * `confirmed` deliberately does not say the employer was unchecked, and does not
- * claim the web evidence raised the number. Verification withholds trust and
- * never grants it, so a lookup that found nothing contradictory confirms the
- * posting's claims without making the posting safe — and saying so is the most
- * honest thing this line can do.
+ * What a reader can no longer do is rank two postings by their figures. That was
+ * never a real capability anyway: 80 against 70 separated two totals that had
+ * been added up from incomparable parts.
  */
 export function describeScoreBasis({
-  riskScore,
   verificationRun,
 }: {
-  riskScore: number;
   verificationRun: VerificationRun;
 }): string {
-  const score = `${riskScore}/100`;
-
   switch (verificationRun) {
     case 'refuted':
-      return `Posting findings and web evidence: ${score}. A retrieved source contradicted a claim the posting made.`;
+      return `A retrieved source contradicted a claim this posting made.`;
     case 'confirmed':
-      return `Posting findings and web evidence: ${score}. The employer was looked up and no source contradicted a claim the posting made.`;
+      return `The employer was looked up and no source contradicted a claim this posting made.`;
     case 'failed':
-      return `Posting findings only: ${score}. The employer lookup did not complete, so nothing online was established.`;
+      return `The employer lookup did not complete, so nothing online was established.`;
     case 'never':
     default:
-      return `Posting findings only: ${score}. The employer was not checked.`;
+      return `The employer was not checked.`;
   }
 }

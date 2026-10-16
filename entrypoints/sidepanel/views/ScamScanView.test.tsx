@@ -427,7 +427,7 @@ describe('what the score line claims about the employer', () => {
     return container.querySelector('[data-role="score-basis"]')!.textContent ?? '';
   }
 
-  it('credits the web evidence when a claim was refuted', async () => {
+  it('names the source of the contradiction when a claim was refuted', async () => {
     const line = await lineAfter({
       ...verifyResponse,
       items: [
@@ -436,8 +436,28 @@ describe('what the score line claims about the employer', () => {
       scoreBreakdown: { posting: 12, refutation: 25, sources: ['posting', 'verification'] },
     });
 
-    expect(line).toMatch(/web evidence/i);
+    // It used to match /web evidence/, which passed only because the line opened
+    // "Posting findings and web evidence: 80/100." With the number gone nothing
+    // is named, so the sentence now says what happened instead.
+    expect(line).toMatch(/retrieved source contradicted/i);
     expect(line).not.toMatch(/not checked/i);
+  });
+
+  it('prints no score figure on the panel', async () => {
+    // The end-to-end version of the removal: the rendered line, not the helper.
+    // `riskScore` is still sent on the wire for stored history, so a panel that
+    // stopped rendering it would still pass every test that only reads the type.
+    const line = await lineAfter({
+      ...verifyResponse,
+      items: [
+        { label: 'Channel Match', status: 'red', explanation: 'Their site is acme.com.', source_title: '', source_url: '' },
+      ],
+      riskScore: 80,
+      scoreBreakdown: { posting: 12, refutation: 25, sources: ['posting', 'verification'] },
+    });
+
+    expect(line).not.toMatch(/\d/);
+    expect(line).not.toMatch(/\/100/);
   });
 
   it('does not claim the employer was unchecked after a lookup confirmed everything', async () => {

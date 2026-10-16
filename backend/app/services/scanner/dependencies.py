@@ -13,8 +13,6 @@ from app.services.lm_client import (
 from .offer_parser import _parse_analyze_offer
 from .offer_prompt import ANALYZE_OFFER_RESPONSE_SCHEMA, ANALYZE_OFFER_SYSTEM_PROMPT, _build_analyze_offer_prompt
 from .risk_calculator import (
-    _combine_scores,
-    _posting_risk_from_flags,
     _refutation_score_from_verify,
 )
 from .scan_result import _VALID_LINE_RE, _anomalies, _scan_response
@@ -56,8 +54,10 @@ class ScannerDependencies:
         lambda: _structured_output_body(VERIFY_RESPONSE_SCHEMA, "verification_result")
     )
     get_ai_limiter = staticmethod(lambda: ai_limiter)
-    get_posting_risk = staticmethod(lambda: _posting_risk_from_flags)
-    get_combine_scores = staticmethod(lambda: _combine_scores)
+    # `get_posting_risk` and `get_combine_scores` were removed with the calculator
+    # they wrapped. The runtime indirection exists so tests can substitute a
+    # collaborator; a slot that no longer has a caller is just a second copy of
+    # the API that can drift from the first.
     get_analyze_offer_prompt = staticmethod(lambda: ANALYZE_OFFER_SYSTEM_PROMPT)
     get_analyze_offer_response_format = staticmethod(
         lambda: _structured_output_body(ANALYZE_OFFER_RESPONSE_SCHEMA, "offer_analysis")
