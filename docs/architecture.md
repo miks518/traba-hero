@@ -118,13 +118,35 @@ empty** — an empty container asserts something was found or withheld.
 | Absent | Why |
 |---|---|
 | Provenance line ("posted 2 days ago on a job board") | The extension screenshots a region of a page and does not know where the posting came from |
-| One-line verdict reason | No short field on the wire. `VerificationResult.report` is multi-sentence and must not be reused here |
-| Anomaly `code` pill | The taxonomy is a draft with nothing implemented — `2026-10-17-anomaly-code-set.md` |
-| Quote block per anomaly | The most load-bearing gap. Needs a verbatim `quote` **bound** to the posting; a paraphrase cannot be rendered as a quotation |
-| "Do not share" chips | Keyed to the code families above. Generic chips would be identical for every posting |
+| "Do not share" chips | Keyed to the code families, and the chips have to name what *this* posting asks for. Generic ones would be identical for every posting |
 | Report control | Nothing to report the post *to*, for the same reason as the provenance line |
 | Coverage count | Its denominator must be a constant the backend owns, or it drifts with whatever the panel renders |
 | "Was this accurate?" | No database, no destination for the answer. A dead control reads as a working feature |
+| Highlighted span inside a quotation | The wire carries the quotation but not which phrase inside it decided the finding. Highlighting the whole quote would be decoration pretending to be an analysis |
+
+#### Three slots that came back
+
+These were absent until the backend grew the fields. Each returns with a
+degradation that matters more than its happy path.
+
+| Slot | Field | Degradation |
+|---|---|---|
+| One-line verdict reason | `verificationResult.verdictReason` | Absent leaves a banner carrying only its authored headline, which is complete on its own. Suppressed entirely while the lookup is running, so the banner's wording and what sits under it cannot go out of step |
+| Anomaly `code` pill | `anomalies[].code` | Absent is **not** `OTHER`. `OTHER` is the escape valve and is shown, because its frequency is the drift signal the taxonomy exists to produce; absent means a scan predating the field |
+| Quote block per anomaly | `anomalies[].quote` | Absent degrades the card to its explanation. An empty quotation block would read as "the posting said nothing here", which is a claim about the posting rather than about our screening |
+
+The code is model-emitted from the closed set in
+`backend/app/services/anomaly_codes.py` — same shape as `EXPECTED_CATEGORIES`
+being derived from `VERIFY_CLAIM_CATEGORIES`, so there is one home for the
+vocabulary. A wrong model-picked code is visible as an `OTHER` spike; a wrong
+backend mapping would be invisible.
+
+**The quote screening is weaker than the citation binding on the verification
+side, deliberately.** The extension scans an *image*, so a span cannot be located
+in the posting and only its wording can be checked (`quote_is_clean`). On the text
+path it is located as well. Screening a quote leaves the finding intact and the
+card renders its explanation, which is the honest degradation; a fabricated quote
+is never rendered.
 
 #### `riskAccent`
 
