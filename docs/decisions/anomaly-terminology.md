@@ -7,6 +7,12 @@ Renamed artefacts: `Anomaly` (schema + TS type), `anomalies` (wire key), `ANOMAL
 (prompt line prefix), `END ANOMALIES`, `_anomalies()` (backend factory),
 `AnomaliesList` / `AnomalyCard` (components), `anomalyCount` (`riskDisplay`).
 
+**Update 2026-10-18.** `AnomaliesList` no longer exists — the report panel replaced
+it with `AnomalyCards`, which owns its own section heading and renders the rule
+code and the posting's quoted span. `AnomalyCard` survives and is still used, by
+the Match tab rather than the report. The legacy *wire* paths above are all
+untouched and still deliberate; see the note further down this file.
+
 **Why:** "red flag" is a *conclusion* delivered as a category label, before the reader
 sees any evidence. A `low`-severity note about formatting was announced with the same
 force as a request for an advance fee, which is what panelists reported. An anomaly

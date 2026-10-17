@@ -124,9 +124,13 @@ others.
 
 - `ok` is true (there *is* usable data)
 - `search_partial` is true
-- `EvidenceSummary` says "{queriesFailed} of {queriesIssued} searches failed, so some
+- `WhatWeChecked` says "{queriesFailed} of {queriesIssued} searches failed, so some
   checks were made against a thinner set of results than the others. This is not a
   finding about the employer…"
+
+  (Named `EvidenceSummary` until 2026-10-18, when the report panel split that
+  component across two slots — `WhatWeChecked` carries the check half and owns this
+  copy. See `docs/architecture.md` § The report panel.)
 
 Reporting plain `ok: true` would overstate coverage; reporting a total failure would
 discard a search that worked. **Every query failing is still the `search_ok: false`

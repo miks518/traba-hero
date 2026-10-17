@@ -15,6 +15,111 @@ for the developer to run instead.
 
 ---
 
+## OPEN AND URGENT — the action block keys safety advice to the wrong field
+
+Found by the developer on 2026-10-18, on a live run. **Not fixed.**
+
+**What was seen.** A posting whose only finding was `FEE_MANDATORY` rendered
+"What to do now" as *"Keep the conversation on the company's own domain."* — the
+**proceed** copy — beside a finding saying the post asks for money up front.
+
+**Why.** `actionsFor()` in `components/report/verdictCopy.ts` returns the `stop`
+copy only when `level === 'high' || level === 'critical'`. So that scan's level
+came back `low` or `moderate`. **The advice is keyed to the model-emitted level,
+which is the least reliable field on the panel.**
+
+This is the same defect the severity ladder had, and it is documented twice
+already: a portal impersonating a government agency while collecting identity
+documents scored **4**, because the ladder priced *the category of the ask* and
+could not see whether the asker was real. A `low` level alongside `FEE_MANDATORY`
+is that failure again, in the UI rather than the arithmetic.
+
+**The fix, once the wording is agreed.** Key the copy to the **code family**,
+which is a closed set and therefore comparable across runs:
+
+| Family | Codes | Advice |
+|---|---|---|
+| M — money | `FEE_MANDATORY`, `FEE_CONDITIONAL`, `PURCHASE_REQUIRED`, `DEPOSIT_REQUIRED`, `PAYMENT_FORWARDING` | Stop; do not send money, refundable or not |
+| I — identity | `CREDENTIALS_BEFORE_INTERVIEW`, `DOCUMENTS_VIA_THIRD_PARTY`, `IMPERSONATES_AUTHORITY` | Stop; do not send ID or credentials |
+| C — labour | `TASK_FOR_EARNING` | paid per task, not a role |
+| O — escape | `OTHER` | say less — we cannot name it |
+| *no codes* | — | fall back to the level, so pre-taxonomy history still reads |
+
+**A money or identity code must force the `stop` framing regardless of level.** A
+false "proceed" costs a job seeker money; a false "stop" costs one application.
+That asymmetry is the argument for inverting the precedence.
+
+This also makes `shareChipsFor()` — currently hardcoded to return `[]` — fall out
+for free: bank details under M, ID photos under I. The decision record rejected
+generic chips for exactly this reason, so this closes that gap rather than opening
+one.
+
+**The wording is the developer's to write.** It is read by someone deciding about
+money.
+
+**A second, smaller defect in the same block.** `stop`'s copy currently says *"even
+if the request says the fee is refundable"* unconditionally, so a posting with no
+fee in it is told to disregard one. That is the panel asserting something about a
+posting that is not there. Fixed for free by the code-family keying above.
+
+---
+
+## The report panel — what is built and what is still absent
+
+Shipped 2026-10-18 (`feat(panel)`, merged to `main`). Architecture:
+`docs/superpowers/specs/2026-10-17-report-panel-architecture.md`. Component map:
+`docs/architecture.md` § The report panel.
+
+**Built:** the slot stack, the authored verdict table, the action block, the
+anomaly cards with rule code and quoted span, `WhatWeChecked` split into three
+groups, the Full-details disclosure, the footer.
+
+**The 0-100 score and `RiskGauge` are deleted**, along with `describeScoreBasis`
+and the ring's dead keyframes. Nothing on the panel prints a figure.
+
+**Still absent, each for a stated reason — do not fill these with placeholders:**
+
+| Absent | Blocked on |
+|---|---|
+| Provenance line ("posted 2 days ago on a job board") | Nothing. The extension screenshots a region and cannot know where the post came from. **Permanently unavailable**, not deferred |
+| Report control | The same reason — there is nothing to report the post *to* |
+| "Do not share" chips | Waits on the action-block fix above; the code families exist now |
+| Coverage count ("13 of 14 done") | Its denominator must be a constant the backend owns (`checksPlanned`). A count written into the panel drifts with whatever the panel renders |
+| Reason why a check could not verify | Needs `unavailable_reason` per verification item |
+| Retrieval time per source | Needs `retrieved_at` on evidence. `FullDetails` deliberately drops the design's promise of it rather than faking one |
+| Scan id in the footer | Needs `scan_id`. Worth having: it is the join key for a gold set, a feedback rating and a backend log line |
+| "Was this accurate?" | No database. See "Reader feedback capture" below |
+| Highlighted span inside a quotation | No field says which phrase decided the finding. `.quote-badge` stays commented out with the reason recorded |
+
+**Still open from the architecture spec §8**, none of it started:
+
+1. Three or four verdict phrases, or two? Currently four (one per level), with
+   `low` and `moderate` sharing the caution tone.
+2. Does the Notes layer get populated, or ship empty? Nothing produces a note
+   today, and an empty designed slot is an invitation to fill it with form.
+3. Denominator ownership — a backend `checksPlanned` constant, or the panel
+   counting what it rendered. Only the first is honest.
+4. Does `WhatWeChecked` still need to know about the promotion reorder? It used to
+   carry the anomalies as its leading child when promoted; they have their own
+   slot now, so that logic has nothing left to do.
+
+**Not tested.** The new panel has no feature tests beyond the subject line
+(`ScamScanView.subjectLine.test.tsx`) and the three reopened slots
+(`AnomalyCards.test.tsx`). The tombstone at
+`views/report-panel-redesign.tombstone.test.ts` records exactly what is
+uncovered — including that the deleted score-line tests were honesty assertions
+about code that has no test behind it now.
+
+**Stale docs:** `Documentation.md` still names deleted files in AC-10, FR-08,
+FR-11, FR-13 and FR-31. `docs/architecture.md`, `docs/decisions/` and
+`docs/gotchas.md` were updated.
+
+**`backup/report-panel-b0f464c` is now safe to delete.** Its two backend commits
+(`7bbd1e5`, `bcf48ff`) are on `main`. Only its two UI commits remain unmerged and
+they conflict with the built panel.
+
+---
+
 ## The scan still reports something for every posting
 
 Measured live on 2026-10-12, after narrowing the severity ladder and adding an
