@@ -262,6 +262,10 @@ export function ScamScanView({
           verifying={Boolean(scanResult.verificationLoading) || session.verificationFailed}
           verificationError={Boolean(scanResult.verificationError)}
           currentQuery={session.currentSearchQuery}
+          // The reason arrives with the verification result and is held on the
+          // result itself, so it survives a later stage patching it — the same
+          // reason `applyResult` composes onto the ref rather than replacing.
+          verdictReason={scanResult.verificationResult?.verdictReason || undefined}
           // Both come from the session, not from `restoredJob`. Reading them off
           // the history record made the subject line blank on a fresh scan and
           // the date appear only when a job was reopened from the Match tab —

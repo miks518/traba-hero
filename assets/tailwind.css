@@ -477,30 +477,26 @@
     color: var(--color-chip-critical-text);
   }
 
-  /* NOT YET BUILT — the anomaly code pill, the quotation block, and the
-     segmented coverage bar. Each needs something the panel cannot yet support:
-     a verbatim `quote` span bound to the posting, the `code` from a taxonomy
-     that is still a draft, and a coverage denominator the backend owns. See the
-     note at the foot of this block.
-
-  .code-pill {
-    background: var(--color-code-pill-bg);
-    color: var(--color-code-pill-text);
-  }
-
-  .quote-badge {
-    background: var(--color-quote-highlight-bg);
-    color: var(--color-quote-highlight-text);
-    border-radius: 0.1875rem;
-    padding: 0 0.25rem;
-    font-weight: 600;
-  }
-
+  /* Recessed well for a quotation taken from the posting. Reads as "material
+     taken from the post" rather than as another card competing with the one
+     holding it. */
   .quote-well {
     background: var(--color-code-pill-bg);
     border: 1px solid var(--color-outline-variant);
     border-radius: 0.375rem;
   }
+
+  /* Monospaced identifiers — an anomaly code, a scan id. Recessed, because it is
+     metadata a reader looks up rather than reads. */
+  .code-pill {
+    background: var(--color-code-pill-bg);
+    color: var(--color-code-pill-text);
+  }
+
+  /* STILL NOT BUILT — the segmented coverage bar. The denominator has to be a
+     constant the backend owns; a count written into the panel drifts with
+     whatever the panel happens to render, which is how a "14 checks" claim
+     quietly becomes 6. See the note at the foot of this block.
 
   .coverage-seg-done {
     background: var(--color-chip-verified-text);
@@ -511,20 +507,26 @@
   }
   */
 
-  /* ── Why the classes above are commented out rather than simply absent ────
+  /* ── Why the class above is still commented out ────────────────────────
 
      Tailwind purges any class nothing references, so live-but-unused CSS never
      reaches the bundle — it sits in the stylesheet looking finished while the
      slot that would use it does not exist. A reader auditing this file would
-     find `.code-pill` and conclude the anomaly card renders a rule code.
+     find `.coverage-seg-done` and conclude the panel draws a coverage bar.
 
-     So each is commented out with the field it is waiting on, and uncommented in
+     So it is commented out with the field it is waiting on, and uncommented in
      the same commit that wires the slot. `AGENTS.md`: "Deleted is not dormant …
      a leftover helper is a trap for the next reader." The rule cuts both ways —
      a leftover *style* is the same trap as a leftover function.
 
-     The tokens they reference are kept, because tokens cost nothing when unused
-     and the dark-theme pair has to stay in step with the light one. */
+     `.quote-badge` went the same way and came back as still-absent for a
+     different reason: the wire carries a quotation but not which phrase inside
+     it decided the finding, so there is nothing to highlight. See
+     `AnomalyCards`.
+
+     The tokens the commented rules reference are kept, because tokens cost
+     nothing when unused and the dark-theme pair has to stay in step with the
+     light one. */
 
   /* Subtle outline button */
   .btn-outline-accent {

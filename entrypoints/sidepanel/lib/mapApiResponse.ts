@@ -75,6 +75,16 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
     description: f.reasoning,
     icon: SEVERITY_ICONS[f.severity] || 'warning',
     severity: f.severity as Anomaly['severity'],
+    // Copied through, never defaulted to a value. `''` means the response
+    // carried no code, which is a different claim from `OTHER` — the model
+    // deliberately answering the escape valve — and the panel shows a pill only
+    // for the second. Defaulting an absent code to `OTHER` would put a taxonomy
+    // ID on every scan taken before the field existed.
+    code: f.code || undefined,
+    // Absent rather than `''`, for the reason the backend screens it: a quote
+    // that did not survive screening is not a quote, and an empty string in this
+    // slot would render as a quotation block with nothing in it.
+    quote: f.quote || undefined,
   }));
 
   return {

@@ -601,6 +601,14 @@ export async function verifyJobStream(
             queries_failed?: number;
             model_queries?: string[];
             debug_search_raw?: Array<{ query: string; raw: string }>;
+            /**
+             * camelCase here while its neighbours stay snake_case, because
+             * `verification_flow.py` puts it in its response dict that way and the
+             * rest of that dict is untouched legacy. Read both spellings so the
+             * client does not depend on which one the backend happened to keep.
+             */
+            verdictReason?: string;
+            verdict_reason?: string;
           };
           return {
             result: {
@@ -608,6 +616,10 @@ export async function verifyJobStream(
               evidence: data.evidence ?? [],
               report: data.report ?? '',
               recommendation: data.recommendation ?? '',
+              // Empty string rather than dropped: the backend already screens
+              // what may appear here, and an absent value is what the panel reads
+              // as "no reason to show".
+              verdictReason: data.verdictReason ?? data.verdict_reason ?? '',
               riskScore: data.riskScore,
               riskLevel: data.riskLevel as 'low' | 'moderate' | 'high' | 'critical' | undefined,
               scoreBreakdown: toScoreBreakdown(data.scoreBreakdown),

@@ -16,6 +16,14 @@ export interface ReportPanelProps {
   verifying: boolean;
   verificationError: boolean;
   currentQuery: string;
+  /**
+   * The one-line reason, once verification has produced one.
+   *
+   * Held by the caller rather than read off `result` because it arrives *after*
+   * the banner first renders: the scan lands, the banner shows its authored
+   * headline, and the reason only exists once the employer lookup settles.
+   */
+  verdictReason?: string;
   /** When this was scanned. Absent for a live scan. */
   timestamp?: string;
   /** The role, as the posting states it. */
@@ -76,6 +84,7 @@ export function ReportPanel({
   verifying,
   verificationError,
   currentQuery,
+  verdictReason,
   timestamp,
   title,
   needsCompanyName,
@@ -103,7 +112,7 @@ export function ReportPanel({
     <article className="flex flex-col gap-stack-md" data-role="report-panel">
       <JobMeta timestamp={timestamp} title={title} employer={result.companyName} />
 
-      <VerdictBlock level={level} verifying={verifying} />
+      <VerdictBlock level={level} verifying={verifying} reason={verdictReason} />
 
       <ActionBlock level={level} />
 

@@ -22,28 +22,25 @@ const SEVERITY_CHIP: Record<string, { cls: string; label: string }> = {
  * count of findings makes the count a lie, and the count is what the false-
  * negative rate gets measured against.
  *
- * **No code pill yet.** The design puts a monospaced rule code
- * (`ASKS_PAYMENT`, `EMAIL_MISMATCH`) at the top right of every card. That field
- * does not exist on the wire — `docs/superpowers/specs/2026-10-17-anomaly-code-set.md`
- * is a draft with nothing implemented — so the slot is absent rather than filled
- * with the model's free-text `flag`. A code pill that is really a sentence in a
- * monospace font would be the one place on the panel where a reader looks up a
- * taxonomy and finds prose instead.
+ * **The rule code, when there is one.** `ASKS_PAYMENT`-style IDs come from
+ * `ANOMALY_CODES` and are model-emitted from a closed set, so the panel can be
+ * compared across runs and a gold set can be labelled with them. Absent for a
+ * scan predating the field, which is a different state from `OTHER` — the escape
+ * valve is shown, because its frequency is the drift signal.
  *
- * **No quote block yet.** This is the biggest missing piece in the whole panel
- * and the design's credibility rests on it: the credibility argument is quoting
- * the posting and highlighting the span that decided the finding. The scan
- * returns `flag`, `reasoning` and `severity` — three free-text fields, none of
- * which is required to be present in the posting, and one of which the prompt
- * explicitly permits to be "closely paraphrased". A paraphrase cannot be
- * rendered as a quotation. When `quote` lands it must be *bound*: a span that
- * cannot be located in the posting is not evidence, and the card degrades to the
- * explanation alone rather than showing a reconstruction.
+ * **The posting's own words, when they survived screening.** The credibility of
+ * this panel rests on quoting the posting rather than summarising it, and the
+ * backend drops a span it cannot vouch for (`quote_is_clean`, and on the text
+ * path a span it cannot locate). An absent quote degrades the card to its
+ * explanation; a fabricated one is never rendered. The design also bolds the
+ * deciding phrase inside the quotation, and no field says which phrase that was
+ * — so the quote reads plainly rather than carrying a highlight that would be
+ * decoration pretending to be analysis.
  *
- * The phrase in the card body is `anomaly.title`, which is the model's own prose
- * today. Under the code set it becomes a lookup, for the same reason the verdict
- * headline is one: it is read by someone deciding about money, and it must not
- * vary between two runs of the same scan.
+ * The phrase in the card body is `anomaly.title`, which is still the model's own
+ * prose. Under a fuller code set it becomes a lookup, for the same reason the
+ * verdict headline is one: it is read by someone deciding about money, and it
+ * must not vary between two runs of the same scan.
  */
 export function AnomalyCards({ anomalies }: AnomalyCardsProps) {
   if (anomalies.length === 0) return null;
@@ -74,8 +71,25 @@ export function AnomalyCards({ anomalies }: AnomalyCardsProps) {
                 <Icon name="warning" className="text-[11px] leading-none" />
                 {chip.label}
               </span>
-              {/* Reserved for the rule code. Absent rather than empty — see the
-                  note above. */}
+
+              {/*
+                The rule code, when the scan carried one.
+
+                Absent for a scan taken before the field existed, and that is a
+                different state from `OTHER` — `OTHER` means the model answered
+                the escape valve deliberately, and it is shown, because the
+                frequency of escape-valve answers is the drift signal the
+                taxonomy exists to produce. An absent code is a scan from before
+                the taxonomy and gets no pill at all.
+
+                Monospaced and recessed because it is metadata a reader looks up,
+                not prose they read.
+              */}
+              {anomaly.code && (
+                <span className="code-pill px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase shrink-0">
+                  {anomaly.code}
+                </span>
+              )}
             </div>
 
             <div className="flex flex-col gap-1 min-w-0">
@@ -86,6 +100,53 @@ export function AnomalyCards({ anomalies }: AnomalyCardsProps) {
                 {anomaly.description}
               </p>
             </div>
+
+            {/*
+              The posting's own words, in a recessed well.
+
+              This is the most load-bearing thing on the card: a finding a reader
+              cannot check against the posting is a claim, and a claim about a
+              named employer is the exact exposure this product's prompt rules
+              exist to prevent. Showing the span that decided it is what makes the
+              finding checkable.
+
+              **It renders only when the backend passed screening.** `quote_is_clean`
+              drops a span carrying a word the posting could not have written about
+              itself, and the text path additionally drops one that cannot be
+              located in the submitted text. An absent quote therefore means "we
+              could not show you the posting's words", and the card falls back to
+              its explanation — which is the honest degradation. The reverse is not
+              available: a fabricated quote is never rendered.
+
+              Note this is weaker than the citation binding on the verification
+              side. The extension scans an *image*, so a span cannot be located in
+              the posting and only its wording can be checked.
+            */}
+            {anomaly.quote && (
+              <div className="quote-well p-3 flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-on-surface-variant tracking-wider uppercase">
+                  From the post
+                </span>
+                {/*
+                  Rendered as one span, not highlighted.
+
+                  The design bolds the deciding phrase inside the quotation, and
+                  there is no field for which phrase that was. The wire carries
+                  the span itself and nothing about its parts. Highlighting the
+                  whole quote would be decoration pretending to be an analysis;
+                  highlighting a guess at the middle of it would be worse. So the
+                  quote reads plainly, and a future field naming the deciding
+                  offset is what unblocks the highlight.
+
+                  `.quote-badge` stays commented out in `tailwind.css` for the same
+                  reason - styling for a slot that cannot render is a trap for the
+                  next reader.
+                */}
+                <p className="text-body-sm text-on-surface leading-relaxed break-words">
+                  {anomaly.quote}
+                </p>
+              </div>
+            )}
           </article>
         );
       })}
