@@ -39,6 +39,27 @@ section that responds to hover reads as a broken control.
 **Never build a button without the press** — a hard-shadowed button that does not move
 reads as a shaded label.
 
+### The one element that is both
+
+**`.tactile-disclosure`** is the sole case where a tone-filled surface and a press state
+meet, and it is worth naming because the rule above says they never do.
+
+The "Full details and sources" header takes the verdict banner's fill so the panel
+reads as one object, and it is operable, so it moves. Splitting it therefore meant
+**sharing the surface rules with `.tactile-verdict` and adding the press separately** —
+a shared selector list for the gradient, border, extrusion and highlight, then a
+`:active` rule of its own. Two classes, one surface, no duplicated colour derivation.
+
+It is not `.tactile-verdict` with a class appended, because `.tactile-verdict`
+deliberately has no press: the banner reports a measurement, and a banner that sank
+under the reader's thumb would read as a control. **The press belongs to the
+disclosure and the surface is borrowed; reversing that pairing is the bug to watch
+for.**
+
+Its sink is 2px, not the button's 4px. A header sits flush against the body it opens,
+and a full-depth press pulls it away from what it just revealed. This replaces
+`.tactile-accordion-btn`, which was the same 2px sink on a neutral surface.
+
 ---
 
 ## The whole button treatment derives from one variable

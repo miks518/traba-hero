@@ -1,7 +1,8 @@
 import React from 'react';
-import { Icon, type IconName } from '../common';
+import { Icon } from '../common';
 import { shouldShowCheck } from '../../lib/riskDisplay';
-import type { VerificationItem, VerificationResult } from '../../types';
+import { groupBy, statusPresentation } from './checkPresentation';
+import type { VerificationResult } from '../../types';
 
 export interface WhatWeCheckedProps {
   result?: VerificationResult;
@@ -34,90 +35,22 @@ export interface WhatWeCheckedProps {
  * becomes 6. No backend constant exists yet, so rather than counting what this
  * component drew — which is exactly the lie — the count is absent.
  *
+ * **Labels only. The sentences live in `FullDetails`.** Every check carries an
+ * `explanation` — the model's own account of what decided its status — and it is
+ * deliberately not rendered here. This section's contract is that checks were
+ * performed, and a paragraph of model-written prose under a heading that asserts
+ * coverage is a different claim at a different weight: it reads as a finding
+ * sitting in the summary, and it crowds a column sized for two-word labels. The
+ * same checks appear with their explanations one disclosure away, filed by the
+ * shared grouping rather than a second copy of it, so a label above matches its
+ * sentence below.
+ *
  * **No per-line failure reason.** The design shows "The careers page did not
  * load" under a could-not-verify line. Those are *retrieval-level* facts and the
  * only channel for them today is the top-level `searchOk` / `searchPartial` /
  * `searchError` triple, which describes the search as a whole and cannot say
  * which category was thin. The lines therefore carry only what they can support.
  */
-interface Group {
-  key: 'verified' | 'contradicted' | 'unverified';
-  label: string;
-  chip: string;
-  icon: IconName;
-  /** The text colour every icon in this group takes, header and rows alike. */
-  iconClass: string;
-  items: VerificationItem[];
-}
-
-/**
- * The three groups, in the order a reader needs them.
- *
- * Contradicted sits above could-not-verify because a `red` is the only status
- * that means the evidence *disagreed with the posting* rather than merely failing
- * to confirm it. Reading order follows urgency, not the status enum.
- *
- * All three are returned whether or not they are populated; the caller drops the
- * empty ones. An absent group and an empty one are different signals — absent
- * means no check landed there, empty would mean a check ran and returned nothing
- * — and only the former is currently expressible.
- */
-function groupBy(items: VerificationItem[]): Group[] {
-  const green: VerificationItem[] = [];
-  const yellow: VerificationItem[] = [];
-  const red: VerificationItem[] = [];
-  for (const item of items) {
-    if (item.status === 'green') green.push(item);
-    else if (item.status === 'red') red.push(item);
-    else yellow.push(item);
-  }
-  return [
-    {
-      key: 'verified',
-      label: 'Verified',
-      chip: 'chip-verified',
-      icon: 'gpp_good',
-      iconClass: 'text-chip-verified-text',
-      items: green,
-    },
-    {
-      key: 'contradicted',
-      label: 'Contradicted',
-      chip: 'chip-critical',
-      icon: 'gpp_bad',
-      iconClass: 'text-chip-critical-text',
-      items: red,
-    },
-    {
-      key: 'unverified',
-      label: 'Could not verify',
-      chip: 'chip-caution',
-      // A circled question mark, not `gpp_maybe`. That glyph is a shield with an
-      // exclamation point inside, and in this column it would be a claim about
-      // the employer: a shield-and-bang announces a problem with someone. The
-      // claim here is narrower and must stay narrower — the check ran and
-      // established nothing either way. "Unknown" and "alarm" are different
-      // sentences, and this product's standing rule is not to assert what it
-      // cannot support.
-      icon: 'question_mark',
-      iconClass: 'text-chip-caution-text',
-      items: yellow,
-    },
-  ];
-}
-
-/** Which icon and colour one individual check takes, from its own status. */
-function statusPresentation(status: VerificationItem['status']): { icon: IconName; cls: string } {
-  switch (status) {
-    case 'green':
-      return { icon: 'gpp_good', cls: 'text-chip-verified-text' };
-    case 'red':
-      return { icon: 'gpp_bad', cls: 'text-chip-critical-text' };
-    case 'yellow':
-    default:
-      return { icon: 'question_mark', cls: 'text-chip-caution-text' };
-  }
-}
 
 /**
  * The heading, derived from what actually happened.

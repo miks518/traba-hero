@@ -250,14 +250,26 @@ Five coverage gaps were recorded and not closed in this run:
    used as `href` with `target="_blank"` and no scheme or host validation. This
    is the client-side half of finding 3, and the half this run could not observe.
 
-   **Relocated 2026-10-18.** The two sites named here — `VerificationCard.tsx:71-82`
-   and `EvidenceSummary.tsx:280` — were deleted with the report panel. The pattern
-   is **unfixed and still present**, now in one place:
-   `entrypoints/sidepanel/components/report/FullDetails.tsx`, the source list
-   inside the Full-details disclosure. `WhatWeChecked` no longer renders per-item
-   source links, so the exposure is narrower than it was: one disclosure, behind a
-   collapsed control, rather than a link on every check card. Narrower is not
-   fixed — the scheme is still unvalidated.
+   **Relocated 2026-10-18. Widened again 2026-10-18, later the same day.** The two
+   sites named here — `VerificationCard.tsx:71-82` and `EvidenceSummary.tsx:280` — were
+   deleted with the report panel. The pattern survived in
+   `entrypoints/sidepanel/components/report/FullDetails.tsx`, which was briefly the
+   only one: `WhatWeChecked` no longer rendered per-item source links, so the exposure
+   had narrowed to one disclosure holding the evidence list.
+
+   That narrowing was undone by the same-day change that made
+   `VerificationItem.explanation` renderable. `FullDetails` now lists each check with
+   its own bound `source_url` as a clickable link, so per-item citation links are
+   back — the same shape the finding originally described, though now behind one
+   collapsed disclosure rather than on every check card. **Still unfixed: the scheme
+   is not validated.** What bounds the values is the backend's `_bind_to_retrieved`,
+   which drops any citation not present in the retrieved result set and clears the
+   title with it; that is a membership test against search output, not a scheme check,
+   and it fails open on whatever a provider returns.
+
+   Worth noting for whoever fixes it: the honest fix is a scheme allowlist applied
+   where the `href` is built, not at the API boundary. The two `href={...}` sites in
+   `FullDetails.tsx` are now the complete list in the extension.
 2. **Extension rendering of `email_verifications`** — decides whether finding 5
    is ever shown to a reader. No in-scope backend unit can settle it.
 3. **`.docx` and `.pdf` decoding on `/api/analyze-resume`** — a

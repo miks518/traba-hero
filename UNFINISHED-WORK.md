@@ -15,6 +15,109 @@ for the developer to run instead.
 
 ---
 
+## OPEN — the panel discarded every verification finding, so no verification fix could be evaluated
+
+Found by the developer on 2026-10-18, on the CHED flyer in `jobposts/`. **Defect B is
+fixed.** **The two defects it was masking are open and unstarted.**
+
+### The scan of `jobposts/849453314_*.png` got this badly wrong
+
+The flyer is a fake recruitment poster: it carries the **real** CHED Regional
+Office VI seal and the real `ched.gov.ph` domain, and it asks applicants for a
+mandatory P1,500 application fee, a P800 pre-employment seminar fee, and ID
+submission through `recruitment.ched@outlook.com`, an `outlook.com` address
+presented as the official one. Brave Search, given the same image, produced six
+correct findings in one pass. Trabahero produced a panel that read as a real
+employer.
+
+Brave's findings split into two kinds, and only one of them is reachable from
+`/api/verify` at all:
+
+| Kind | Brave's finding | Reachable? |
+|---|---|---|
+| **External** — posting vs. retrieved evidence | `recruitment.ched@outlook.com` and `ched-region6.org` are not CHED's channels | Yes, and `Channel Match` exists for exactly this |
+| **Internal** — posting vs. itself | The wordmark reads "COMMISSION FOR **HIGH**ER LEARNING"; the real body is "Commission on Higher **Education**" | **No.** Nothing in the pipeline compares our own extracted fields to each other |
+
+### Three separate defects, not one
+
+| # | Defect | Where | State |
+|---|---|---|---|
+| **A** | Employer name read off the header wordmark as **`"Commision on High Learning"`** — misspelled, and never reconciled against the real CHED seal and `ched.gov.ph` in the same image | scan `COMPANY NAME:` extraction | **Open** |
+| **B** | `VerificationItem.explanation` reached the client and was **never rendered** | `WhatWeChecked.tsx` | **Fixed 2026-10-18** |
+| **C** | Whether a correctly-named CHED search catches the `outlook.com` channel | `Channel Match` prompt rules | **Open, and was unknowable while B stood** |
+
+**A is upstream of C.** With a misspelled name, the search is issued for a body that
+does not exist, so Brave's "wrong agency name" finding is structurally out of reach.
+Company existence was never the question worth asking — the useful question was
+whether *this* CHED is the one the results describe.
+
+**C is the hardest case for the prompt's own argument.**
+`verification_prompt.py` warns at length that an abundant, reassuring result set reads
+as though nothing is wrong. CHED is about as large-and-well-known as an employer gets,
+and this posting offers a *second* plausible channel (`hrmo6@ched.gov.ph`) for the
+model to hide behind. Whether the existing `Channel Match` rules survive that is a
+live question, and it was unanswerable while the panel withheld the sentence.
+
+### Fixed: B, on 2026-10-18
+
+`WhatWeChecked` drew `item.label` and nothing else. `explanation` was parsed,
+citation-bound by `_bind_to_retrieved`, weighed by `risk_calculator`, serialised,
+typed at `types/index.ts:120` — and dropped by one JSX expression. A `red` Channel
+Match rendered as the words "Channel Match" in a red bucket with no sentence on
+screen explaining what contradicted what.
+
+- **`FullDetails` now renders each check's explanation**, grouped under the same
+  three headings the summary above uses, so a label above lands on its sentence
+  below. The grouping is shared via a new `components/report/checkPresentation.ts`
+  rather than restated.
+- **`shouldShowCheck` runs there too.** Load-bearing: the disclosure is now the
+  surface where model-written words about a named employer actually appear, and that
+  filter is what keeps the "no scam reports found" restatement off the panel.
+  Imported, not reimplemented.
+- **The early return now counts explanations**, so a `red` whose citation
+  `_bind_to_retrieved` stripped no longer withdraws the disclosure holding the only
+  sentence explaining it.
+- **The disclosure wears the verdict's tone** via `.tactile-disclosure`, which shares
+  the banner's surface rules and adds the 2px press the banner must not have.
+- **16 tests** in `FullDetails.test.tsx`, including the one that asserts both slots
+  hide the same `yellow` Reputation. No backend change and **no AI call** — the field
+  was already on the wire.
+- **Everything inside the disclosure is a container**, added the same day after the
+  developer opened it. The three blocks ran together as bare text separated only by
+  `gap-4`, so where the check findings ended and the search report began was not
+  visible — the exact distinction the component exists to keep. Each block now sits in
+  a card inside one flat parent, the sources list gained the heading it never had, and
+  **each of the three check groups is its own card tinted by its status** (verified
+  green, contradicted red, could-not-verify amber) so a contradiction reads as a colour
+  before its sentence is read.
+- **One rule worth keeping:** *a container that holds containers is not itself a card.*
+  Applied to the disclosure body and to the wrapper around the three tinted groups, so
+  there is no `tactile-card` inside a `tactile-card` anywhere in the panel. Both cases
+  have a test asserting the absence, because it is the kind of thing a later reader
+  "fixes" by adding a shadow back.
+
+**Cost of the fix, recorded rather than forgotten:** the security audit's finding on
+unvalidated citation hrefs (`docs/security-audit-2026-10-14.md` section 1) had been
+narrowed to one disclosure because per-item links were gone. They are back. Still
+unfixed; the scheme is still not validated. Two `href={...}` sites in `FullDetails.tsx`
+are the complete list in the extension.
+
+### What to do next, in this order
+
+1. **Re-scan the CHED flyer and read the `Channel Match` sentence.** This is now
+   possible and is the cheapest thing in this document. It answers C directly and
+   costs one scan. Note what the sentence says about `recruitment.ched@outlook.com`
+   specifically — not whether a Channel Match card appeared.
+2. **A.** Decide whether the scan should report a name that its own extracted fields
+   contradict. The internal-consistency check Brave performed has no home in the
+   pipeline today, and `SYSTEM_PROMPT.md` is where it would go.
+3. **C**, only if step 1 shows the check failing.
+
+Steps 1 and 3 need live provider calls, so they are the developer's to run. Step 2 is
+prompt work.
+
+---
+
 ## OPEN AND URGENT — the action block keys safety advice to the wrong field
 
 Found by the developer on 2026-10-18, on a live run. **Not fixed.**

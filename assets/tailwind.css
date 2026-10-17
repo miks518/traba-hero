@@ -339,16 +339,22 @@
     box-shadow: 0 2px 0 0 color-mix(in srgb, var(--tactile-base), black 55%);
   }
 
-  /* ── Verdict banner ──────────────────────────────────────────────────
-     The filled tone container that replaces the risk gauge. It carries no
-     press state, deliberately: it reports a measurement rather than offering
-     an action, and DESIGN.md's boundary rule is that only operable elements
-     compress. A banner that sank under the reader's thumb would read as a
-     control.
+  /* ── Verdict surface ─────────────────────────────────────────────────
+     The filled tone container that replaces the risk gauge, and — since the
+     "Full details and sources" disclosure took the same fill — the one place
+     the two live.
 
      Every stop derives from one variable, the same way the buttons do, so a
-     tone change cannot leave one edge, border or shadow on the old colour. */
-  .tactile-verdict {
+     tone change cannot leave one edge, border or shadow on the old colour.
+     The tone modifiers below set only `--verdict-base` and `--verdict-ink`,
+     which is what lets the disclosure carry the banner's tone by carrying the
+     same modifier class: there is no second palette to keep in step.
+
+     `--verdict-base` is declared here rather than per-element so a bare
+     `.tactile-disclosure` with no tone modifier still resolves, to the same
+     grey the banner falls back to. */
+  .tactile-verdict,
+  .tactile-disclosure {
     --verdict-base: var(--color-verdict-unknown-container);
     --verdict-ink: var(--color-verdict-unknown-on);
     background: linear-gradient(180deg,
@@ -361,8 +367,15 @@
       0 4px 0 0 color-mix(in srgb, var(--verdict-base), black 55%),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
     border-radius: 0.75rem;
+  }
+
+  .tactile-verdict {
     transition: background 0.15s ease;
   }
+
+  /* No press on the banner, stated rather than merely omitted: the rule that a
+     container must not move is the same rule that keeps a card from reading as
+     a button, and it is easier to keep when the exception is written down. */
 
   .tactile-verdict-critical {
     --verdict-base: var(--color-verdict-critical-container);
@@ -379,27 +392,26 @@
     --verdict-ink: var(--color-verdict-verified-on);
   }
 
-  /* No press on the banner, stated rather than merely omitted: the rule that a
-     container must not move is the same rule that keeps a card from reading as
-     a button, and it is easier to keep when the exception is written down. */
-
   /* ── Disclosure ──────────────────────────────────────────────────────
-     The accordion header. It IS operable, so it compresses — at 2px rather than
-     the button's 4px, because a header sits flush against the body it opens and
-     a full-sink press would pull away from it. */
-  .tactile-accordion-btn {
-    background: var(--color-surface-container-lowest);
-    border: 1px solid var(--color-outline-variant);
-    border-radius: 0.5rem;
-    box-shadow:
-      0 3px 0 0 color-mix(in srgb, var(--color-outline-variant), black 35%),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+     The "Full details and sources" header, wearing the verdict's tone so the
+     panel reads as one object rather than a banner with a foreign card
+     bolted under it.
+
+     It is the one element that takes the verdict surface AND a press state,
+     which is why it is not simply `.tactile-verdict` with a class appended.
+     The banner is a measurement and must not move; this is operable and does.
+     The sink is 2px rather than the button's 4px because a header sits flush
+     against the body it opens, and a full-depth press would pull it away from
+     what it just revealed. */
+  .tactile-disclosure {
     transition: transform 0.06s ease, box-shadow 0.06s ease;
   }
 
-  .tactile-accordion-btn:active {
+  .tactile-disclosure:active {
     transform: translateY(2px);
-    box-shadow: 0 1px 0 0 color-mix(in srgb, var(--color-outline-variant), black 35%);
+    box-shadow:
+      0 2px 0 0 color-mix(in srgb, var(--verdict-base), black 55%),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
   }
 
   /* The chevron rotates rather than swapping glyphs, so the rotation is the
@@ -475,6 +487,82 @@
   .chip-critical {
     background: var(--color-chip-critical-bg);
     color: var(--color-chip-critical-text);
+  }
+
+  /* ── Status-tinted group cards ─────────────────────────────────────────
+     A whole card carrying a status colour, for the check groups in the Full
+     details disclosure. The fill is the chip's own `--bg` token, which already
+     exists as a pale tint chosen to sit under saturated text — so a card uses
+     the same value the chip does rather than introducing a second, near-identical
+     palette that could drift from it.
+
+     **The border is derived, not a flat grey.** `color-mix` against the chip's
+     text token ties the edge to the same status, and 70% transparent keeps it a
+     boundary rather than a second statement. */
+
+  .status-card-verified {
+    background: var(--color-chip-verified-bg);
+    border-color: color-mix(in srgb, var(--color-chip-verified-text), transparent 70%);
+  }
+
+  .status-card-caution {
+    background: var(--color-chip-caution-bg);
+    border-color: color-mix(in srgb, var(--color-chip-caution-text), transparent 70%);
+  }
+
+  .status-card-critical {
+    background: var(--color-chip-critical-bg);
+    border-color: color-mix(in srgb, var(--color-chip-critical-text), transparent 70%);
+  }
+
+  /* The chip inside a status-tinted card.
+
+     Declared after the `.chip-*` rules on purpose — same specificity, so source
+     order is what makes this win, and it wins on `background` only. Without it
+     the chip is chip-colour on a card of the same chip colour and disappears
+     entirely, which is the failure this class exists to prevent. The chip keeps
+     its saturated text, so the status still reads; only the fill is replaced, and
+     it reads as a label cut out of the card rather than another layer of tint. */
+  .chip-cutout {
+    background: var(--color-surface-container-lowest);
+  }
+
+  /* ── Status-tinted group cards ─────────────────────────────────────────
+     A whole card carrying a status colour, for the check groups in the Full
+     details disclosure. The fill is the chip's own `--bg` token, which already
+     exists as a pale tint chosen to sit under saturated text — so a card uses
+     the same value the chip does rather than introducing a second, near-identical
+     palette that could drift from it.
+
+     **The border is derived, not a flat grey.** `color-mix` against the chip's
+     text token ties the edge to the same status, and 70% transparent keeps it a
+     boundary rather than a second statement. */
+
+  .status-card-verified {
+    background: var(--color-chip-verified-bg);
+    border-color: color-mix(in srgb, var(--color-chip-verified-text), transparent 70%);
+  }
+
+  .status-card-caution {
+    background: var(--color-chip-caution-bg);
+    border-color: color-mix(in srgb, var(--color-chip-caution-text), transparent 70%);
+  }
+
+  .status-card-critical {
+    background: var(--color-chip-critical-bg);
+    border-color: color-mix(in srgb, var(--color-chip-critical-text), transparent 70%);
+  }
+
+  /* The chip inside a status-tinted card.
+
+     Declared after the `.chip-*` rules on purpose — same specificity, so source
+     order is what makes this win, and it wins on `background` only. Without it
+     the chip is chip-colour on a card of the same chip colour and disappears
+     entirely, which is the failure this class exists to prevent. The chip keeps
+     its saturated text, so the status still reads; only the fill is replaced, and
+     it reads as a label cut out of the card rather than another layer of tint. */
+  .chip-cutout {
+    background: var(--color-surface-container-lowest);
   }
 
   /* Recessed well for a quotation taken from the posting. Reads as "material

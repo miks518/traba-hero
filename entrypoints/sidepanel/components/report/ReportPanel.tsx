@@ -6,6 +6,7 @@ import { AnomalyCards } from './AnomalyCards';
 import { WhatWeChecked } from './WhatWeChecked';
 import { FullDetails } from './FullDetails';
 import { ReportFooter } from './ReportFooter';
+import { VERIFYING, verdictFor } from './verdictCopy';
 import { CompanyNameNeeded, InvalidContentError, OfferAnalysisCard } from '../scan';
 import { useFlipReorder } from '../../lib/useFlipReorder';
 import type { ScanResult } from '../../types';
@@ -73,6 +74,14 @@ export interface ReportPanelProps {
  *     with nowhere to go reads as a working feature and silently discards the
  *     only signal that would tell us the verdict taxonomy is wrong.
  *
+ * **The disclosure now carries the model's per-check sentences.** `WhatWeChecked`
+ * shows labels in three buckets; `FullDetails` shows the same checks with what
+ * each one found, sharing the grouping so a label above matches its sentence
+ * below. Until this, `VerificationItem.explanation` reached the client and was
+ * never rendered — the panel asserted contradictions it gave no account of. The
+ * disclosure wears the banner's tone for the same reason it sits here: it is the
+ * same report, not a separate artefact.
+ *
  * **Conditional rendering is load-bearing.** Slots 5–7 are absent in some states
  * and their absence is meaningful. An empty container is not a neutral
  * placeholder: "Anomalies detected — 0 found" asserts that we looked for
@@ -96,6 +105,13 @@ export function ReportPanel({
   const flip = useFlipReorder(elevate);
 
   const level = result.riskLevel;
+
+  // The banner's tone, resolved once here and handed to both the banner and the
+  // disclosure below it. `VerdictBlock` looks this up for itself from the same
+  // two inputs, so there is one rule rather than two — but it is a lookup from
+  // the authored table, not a second definition of which level means what, and
+  // the two components have to agree or the panel reads as two objects.
+  const tone = (verifying ? VERIFYING : verdictFor(level)).tone;
 
   // `VALID: false` is a state of its own, not an empty report. The scan found no
   // offer of work to assess, so there is no verdict, no findings and no checks
@@ -168,7 +184,7 @@ export function ReportPanel({
         )}
 
         {!needsCompanyName && (
-          <FullDetails result={result.verificationResult} />
+          <FullDetails result={result.verificationResult} tone={tone} />
         )}
       </div>
 

@@ -62,10 +62,11 @@ it deliberates over. Raise it only if dense small print starts scanning badly.
 | `VerdictBlock.tsx` | 3 | Tone container + **authored** headline. Replaces `RiskGauge` |
 | `ActionBlock.tsx` | 4 | Two authored instruction lines. The share chips and report control are absent |
 | `AnomalyCards.tsx` | 5 | One card per finding. **No code pill, no quote block** — see below |
-| `WhatWeChecked.tsx` | 7 | **Asserts checks ran.** Heading derived from state — see below |
-| `FullDetails.tsx` | 8 | **Shows what retrieval returned.** Split from §7 for the reason below |
+| `WhatWeChecked.tsx` | 7 | **Asserts checks ran.** Heading derived from state — see below. **Labels only** |
+| `FullDetails.tsx` | 8 | **Shows what retrieval returned,** including each check's `explanation`. Split from §7 for the reason below |
 | `ReportFooter.tsx` | 10 | Disclaimer, ruleset version. No scan id — no field carries one |
-| `verdictCopy.ts` | 3, 4 | Every authored string. **Nothing here may be model-written** |
+| `verdictCopy.ts` | 3, 4, 8 | Every authored string. **Nothing here may be model-written** |
+| `checkPresentation.ts` | 7, 8 | The three groups and the per-status icon. **Shared, because both slots render the same checks** |
 
 `ScamScanView.tsx` is now a composition of this panel plus the capture
 affordances. The scan lifecycle lives in `hooks/useScanSession.ts`; the wire
@@ -95,6 +96,74 @@ column loses the single most important thing verification can produce.
 
 `shouldShowCheck` still applies: a `yellow` Reputation is hidden, because it could
 only restate an absence and put the word *scam* beside a named employer to do it.
+
+#### Why §7 shows labels and §8 shows the sentences
+
+**`VerificationItem.explanation` is rendered in §8 and nowhere else.** Every check
+carries the model's account of what decided its status. Until 2026-10-18 that field
+was parsed, bound to a retrieved URL, weighed by `risk_calculator`, serialised onto
+the wire and typed on the client — and never displayed. §7 drew the label alone, so a
+`red` Channel Match rendered as the two words "Channel Match" in a red bucket with no
+sentence on screen explaining what contradicted what.
+
+The split is §7's, not §8's: §7 asserts that checks ran, and a paragraph of
+model-written prose under a heading that asserts coverage is a different claim at a
+different weight. §8 shows what retrieval returned, which is where a sentence
+belongs.
+
+**§8 repeats the three groups so the two slots correlate.** A label above has to land
+on its sentence below. Both components therefore call `groupBy` and
+`statusPresentation` from `checkPresentation.ts` rather than restating them — a second
+copy would let a status read green above and be filed under "Could not verify" below,
+which is worse than showing no sentence at all.
+
+**§8 runs `shouldShowCheck` too, and that is load-bearing, not tidiness.** Before this,
+the only surface for per-check model prose was one label, so the guardrail had a
+bounded exposure. Now that the sentences render, §8 is the surface where a model's
+words about a named employer actually appear, and the filter that keeps the *scam* /
+*fraud* restatement off the panel has to cover it. It is imported, not reimplemented:
+two policies is one too many. Items with a blank explanation are dropped as well — a
+label over an empty paragraph is a placeholder.
+
+**§8 no longer hides itself when there is nothing but a sentence.** Its early return
+was keyed on `evidence` and `report` only. A `red` whose citation
+`_bind_to_retrieved` stripped arrives with no URL and no evidence entry, so that
+condition would have withdrawn the disclosure holding the only explanation of the
+contradiction. Explanations are now a third reason to render.
+
+**§8 wears the banner's tone.** `ReportPanel` resolves `(verifying ? VERIFYING :
+verdictFor(level)).tone` once and passes it down, so the panel reads as one object
+rather than a banner with a foreign card under it. `tactile-disclosure` shares the
+verdict surface rules with `tactile-verdict` and adds the press state the banner must
+not have — a banner is a measurement and does not move; a disclosure is operable and
+does. See `docs/decisions/design-system.md`.
+
+**Everything inside §8 is a container, and each check group is tinted by its status.**
+The checks, the report prose and the sources each sit in a card, inside one flat parent
+(`BODY_CLASS`). Within the checks, each of the three groups is its own `tactile-card`
+filled with that status's chip tint — `status-card-verified` / `-critical` / `-caution` —
+so the three read apart by shape and colour before a word is read. Bare text separated
+only by `gap-4` made the blocks read as one run, so a reader could not tell a *finding*
+from a *summary* from a *source*, and could not see a contradiction as a colour at all.
+
+Four rules, each with a failure it prevents:
+
+- **The tints reuse the chip `--bg` tokens** rather than introducing a second palette.
+  Those values already exist as pale tints chosen to sit under saturated text, so a card
+  and a chip can share one and cannot drift apart.
+- **The chip inside a tinted card drops its own fill** (`chip-cutout`) and keeps its
+  saturated text. A chip-coloured chip on a chip-coloured card is invisible, and the
+  symptom — a tint that "doesn't work" — points at the wrong thing.
+- **A container that holds containers is not itself a card.** `BODY_CLASS` and
+  `WRAPPER_CLASS` carry a fill and a border and no `tactile-card`; the shadows belong to
+  the leaves inside them. Stacking extrusions spends the elevation cue on nothing, and
+  the shadow is only worth anything while it means something.
+- **One neutral step for the non-status blocks.** The five `surface-container` steps are
+  a depth scale, not a palette; stepping between them would encode a difference that
+  does not exist between a summary and a source list.
+
+The sources block also gained a **Sources** heading. The list previously ran straight
+into the block above it with nothing marking where it began.
 
 #### Promotion is restated, not kept
 
