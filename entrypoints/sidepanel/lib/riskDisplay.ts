@@ -119,34 +119,9 @@ export function shouldElevateEvidence({
  */
 export type VerificationRun = 'never' | 'failed' | 'refuted' | 'confirmed';
 
-/**
- * The one line under the gauge saying what the reading rests on.
- *
- * The number went. It used to open with `${riskScore}/100` in all four states,
- * and that number was the least useful thing on the panel: it asserted a
- * precision no stage could defend, it invited the question "how did you get
- * 80?" with no answer available, and it was computed from a severity ladder
- * fitted to justify it. The four states survive, because they are the real
- * content — they say what the reader is actually looking at.
- *
- * What a reader can no longer do is rank two postings by their figures. That was
- * never a real capability anyway: 80 against 70 separated two totals that had
- * been added up from incomparable parts.
- */
-export function describeScoreBasis({
-  verificationRun,
-}: {
-  verificationRun: VerificationRun;
-}): string {
-  switch (verificationRun) {
-    case 'refuted':
-      return `A retrieved source contradicted a claim this posting made.`;
-    case 'confirmed':
-      return `The employer was looked up and no source contradicted a claim this posting made.`;
-    case 'failed':
-      return `The employer lookup did not complete, so nothing online was established.`;
-    case 'never':
-    default:
-      return `The employer was not checked.`;
-  }
-}
+// `describeScoreBasis` was deleted with the score. It was the one line under the
+// gauge saying what the number rested on, and a number it can no longer be
+// attached to. Its reasoning is not lost — it is the reasoning behind
+// `VerificationRun` above, and behind the four states `WhatWeChecked` derives its
+// heading from, which is where the distinction it was protecting actually lives
+// now.

@@ -5,7 +5,9 @@ from pydantic import BaseModel, Field, StringConstraints
 
 # How many images one scan may carry.
 #
-# The extension stops at `MAX_SCREENSHOTS` in `ScamScanView.tsx` and compresses
+# The extension stops at `MAX_SCREENSHOTS` in `hooks/useScanSession.ts` (it was
+# in `ScamScanView.tsx` until the view was split into a composition and a
+# lifecycle hook) and compresses
 # each to a JPEG capped at 1280px. The API had no matching limit, so a request
 # carrying hundreds of images was a single enormous vision call against a
 # reasoning model. Vision tokens scale with pixel area, so the count is what

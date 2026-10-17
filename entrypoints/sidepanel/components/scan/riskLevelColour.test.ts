@@ -1,11 +1,16 @@
 /**
- * The ring and the button must mean the same thing.
+ * The level colours are tokens, and the ink on them is measured.
  *
- * They are two elements on the same card showing the same finding, so a reader
- * who sees an amber ring above a green button has to work out which one is
- * lying. That is why the level colours are tokens in `tailwind.css` rather than
- * `hsl(...)` literals inside `RiskGauge` - two tables of the same numbers is two
- * chances to disagree, and neither would fail anything.
+ * They became tokens so the gauge ring and the buttons could not disagree — two
+ * elements on the same card showing the same finding, so a reader who saw an
+ * amber ring above a green button would have had to work out which one was
+ * lying. That reasoning outlived the ring: the ring is gone with the score it
+ * drew, and what these assertions protect now is the token pair itself.
+ *
+ * Two assertions were deleted rather than left failing. `RiskGauge` no longer
+ * exists, so "the ring stroke reads the token" and "the ring has no literal hsl
+ * to drift from" have no subject. The token values they guarded are still pinned
+ * below, which is the part that outlives the component.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -15,12 +20,11 @@ import { dirname, resolve } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const css = readFileSync(resolve(here, '../../../../assets/tailwind.css'), 'utf8');
-const gauge = readFileSync(resolve(here, 'RiskGauge.tsx'), 'utf8');
 
 const LEVELS = ['low', 'moderate', 'high', 'critical'] as const;
 
 describe('the risk level colours', () => {
-  it('are declared as tokens rather than written into the component', () => {
+  it('are declared as tokens rather than written into a component', () => {
     for (const level of LEVELS) {
       expect(css).toContain(`--color-risk-${level}:`);
     }
@@ -28,7 +32,7 @@ describe('the risk level colours', () => {
 
   it('are the values the ring used before they became tokens', () => {
     // The exact hsl() the ring was reading, converted. If someone retunes a
-    // level this fails and they retune the token instead of the component.
+    // level this fails and they retune the token rather than a component.
     const expected: Record<string, string> = {
       low: '#4dc819',
       moderate: '#c89c19',
@@ -40,12 +44,6 @@ describe('the risk level colours', () => {
     }
   });
 
-  it('are what the ring stroke reads', () => {
-    for (const level of LEVELS) {
-      expect(gauge).toContain(`var(--color-risk-${level})`);
-    }
-  });
-
   it('are what each button variant is built from', () => {
     for (const level of LEVELS) {
       if (level === 'low') continue; // deliberately the default accent
@@ -53,14 +51,6 @@ describe('the risk level colours', () => {
         new RegExp(`\\.tactile-btn-risk-${level}\\s*\\{[^}]*--tactile-base:\\s*var\\(--color-risk-${level}\\)`)
       );
     }
-  });
-
-  it('leave the ring with no literal hsl to drift from', () => {
-    // One remaining literal is the out-of-band branch of scoreColor, which is
-    // unreachable inside the low band. If someone changes the band maths this
-    // is the line that should stop them.
-    const literals = gauge.match(/hsl\([^)]*\)/g) ?? [];
-    expect(literals.length).toBeLessThanOrEqual(1);
   });
 });
 

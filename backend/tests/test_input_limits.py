@@ -103,12 +103,15 @@ def test_the_limit_matches_what_the_extension_sends():
     either direction — a backend that rejects a normal four-image scan, or one
     that raises its own cap without the client being able to reach it.
     """
+    # Moved 2026-10-18, when the scan view was split into a composition
+    # (`ScamScanView.tsx`) and a lifecycle hook (`useScanSession.ts`). The constant
+    # went with the lifecycle, where the screenshot limit is actually enforced.
     frontend = Path(__file__).resolve().parents[2] / (
-        "entrypoints/sidepanel/views/ScamScanView.tsx"
+        "entrypoints/sidepanel/hooks/useScanSession.ts"
     )
     match = re.search(r"const MAX_SCREENSHOTS\s*=\s*(\d+)", frontend.read_text(encoding="utf-8"))
 
-    assert match, "MAX_SCREENSHOTS not found in ScamScanView.tsx"
+    assert match, "MAX_SCREENSHOTS not found in hooks/useScanSession.ts"
     assert int(match.group(1)) == MAX_IMAGES_PER_SCAN
 
 

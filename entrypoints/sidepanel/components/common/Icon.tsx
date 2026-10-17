@@ -53,6 +53,12 @@ export type IconName =
   | 'gpp_good'
   | 'gpp_maybe'
   | 'gpp_bad'
+  // A circled question mark, for "could not verify". Deliberately not
+  // `gpp_maybe`, which is a shield with an exclamation point inside: that reads
+  // as a warning about the *employer*, where this column's claim is only that we
+  // learned nothing. A question mark says "unknown"; a shield-and-bang says
+  // "alarm", and only one of those is true here.
+  | 'question_mark'
   | 'cloud_off'
 
 export interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {

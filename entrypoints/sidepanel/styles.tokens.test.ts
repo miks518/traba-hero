@@ -42,13 +42,14 @@ function collect(pattern: RegExp): Set<string> {
  * Each entry names where it is set instead, so the list cannot grow silently.
  * An empty allowlist would make this test fail on a correct stylesheet; an
  * unexplained one would make it pass on a broken one.
+ *
+ * **Currently empty.** It held `--ring-glow-color`, set per-element by the risk
+ * gauge's ring, which was deleted with the score it drew. Nothing sets that
+ * property at runtime any more, so the entry was pointing at a file that no
+ * longer existed — a stale pointer that would have let a genuine typo through if
+ * someone reintroduced the name.
  */
-const SET_AT_RUNTIME: Record<string, string> = {
-  // RiskGauge sets this per ring, once for the unverified outline grey and once
-  // for the scored level colour. It cannot be a stylesheet declaration because
-  // the value differs per element.
-  '--ring-glow-color': 'entrypoints/sidepanel/components/scan/RiskGauge.tsx',
-};
+const SET_AT_RUNTIME: Record<string, string> = {};
 
 describe('the stylesheet', () => {
   const declared = collect(DECLARED);

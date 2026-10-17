@@ -51,7 +51,9 @@ export type IconName =
   | 'badge'
   | 'gpp_good'
   | 'gpp_maybe'
-  | 'gpp_bad';
+  | 'gpp_bad'
+  | 'question_mark'
+  | 'cloud_off';
 
 export type JobFilterCategory = 'all' | 'verified' | 'suspicious' | 'risky' | 'low' | 'moderate' | 'high' | 'critical';
 

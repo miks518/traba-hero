@@ -75,6 +75,60 @@
      light text on a mid-tone fill. */
   --color-on-risk-ink: #151c27;
 
+  /* ── Verdict tones ────────────────────────────────────────────────────
+     Three tiers rather than four, because the panel has four levels and three
+     shapes: `low` and `moderate` are both "proceed, with something to check",
+     so they share the caution fill and are told apart by the headline, which is
+     authored per level. A fourth tone would imply a fourth distinction the
+     evidence does not make.
+
+     Each tier is a FILL and the INK that clears AA on it. The ink is a separate
+     token rather than --color-on-surface because that flips to light in the dark
+     theme and would put light text on a mid-tone fill - the same reason
+     --color-on-risk-ink exists above, and the same failure it was added to fix. */
+  --color-verdict-verified: #1b6d39;
+  --color-verdict-verified-container: #1b6d39;
+  --color-verdict-verified-on: #ffffff;
+
+  --color-verdict-caution: #7c5800;
+  --color-verdict-caution-container: #feb700;
+  /* Near-black dark gold, not plain black. The prompt rules that keep the words
+     "scam" and "fraud" off a named employer's are reader-facing obligations, and
+     amber at #342800 is the only ink here that clears AA on #feb700 without
+     reading as a second alert colour. */
+  --color-verdict-caution-on: #342800;
+
+  --color-verdict-critical: #b20806;
+  --color-verdict-critical-container: #b20806;
+  --color-verdict-critical-on: #ffffff;
+
+  /* No verdict. A posting that named no employer was never assessed, so this is
+     deliberately neutral rather than amber: amber already means caution, and
+     reusing it here would dress an absent measurement as a finding. */
+  --color-verdict-unknown: #737971;
+  --color-verdict-unknown-container: #e2e8f8;
+  --color-verdict-unknown-on: #151c27;
+
+  /* ── Status chips ──────────────────────────────────────────────────────
+     Pale fill, saturated text. A chip is a label beside content, not an alert on
+     its own, so the fill stays light enough that the text carries the meaning. */
+  --color-chip-verified-bg: #e8f5e9;
+  --color-chip-verified-text: #1b6d39;
+  --color-chip-caution-bg: #fff8e1;
+  --color-chip-caution-text: #7c5800;
+  --color-chip-critical-bg: #ffebee;
+  --color-chip-critical-text: #b20806;
+
+  /* Monospaced identifiers - an anomaly code, a scan id. Recessed, because it is
+     metadata a reader looks up rather than reads. */
+  --color-code-pill-bg: #f0f3ff;
+  --color-code-pill-text: #5b606d;
+
+  /* The highlighted span inside a quotation. Tinted to the tone of the finding
+     the quote supports, never used for anything else. */
+  --color-quote-highlight-bg: #fee2e2;
+  --color-quote-highlight-text: #991b1b;
+
   /* Derived gradient stops (used by SVG + gradient classes) */
   --color-gradient-start: color-mix(in srgb, var(--color-secondary), white 30%);
   --color-gradient-mid: var(--color-secondary);
@@ -130,6 +184,40 @@
   --color-on-error: #690005;
   --color-error-container: #93000a;
   --color-on-error-container: #ffdad6;
+
+  /* Verdict tones, dark. The fills darken and the inks lighten together, so the
+     contrast ratio a chip or a banner was checked at in light is the same one in
+     dark. A dark-mode fill left at its light-theme value reads as a lit panel
+     inside an unlit one. */
+  --color-verdict-verified: #4ade80;
+  --color-verdict-verified-container: #14532d;
+  --color-verdict-verified-on: #ebf1ff;
+
+  --color-verdict-caution: #ffba22;
+  --color-verdict-caution-container: #7c5800;
+  --color-verdict-caution-on: #fff8e1;
+
+  --color-verdict-critical: #ffb4ab;
+  --color-verdict-critical-container: #93000a;
+  --color-verdict-critical-on: #ffdad6;
+
+  --color-verdict-unknown: #909094;
+  --color-verdict-unknown-container: #2a313d;
+  --color-verdict-unknown-on: #e3e2e7;
+
+  --color-chip-verified-bg: #16301f;
+  --color-chip-verified-text: #7ddba0;
+  --color-chip-caution-bg: #33280a;
+  --color-chip-caution-text: #ffd27a;
+  --color-chip-critical-bg: #3b1210;
+  --color-chip-critical-text: #ffb4ab;
+
+  --color-code-pill-bg: #1e1f23;
+  --color-code-pill-text: #a9adbc;
+
+  --color-quote-highlight-bg: #4a1512;
+  --color-quote-highlight-text: #ffd7d2;
+
   /* Derived gradient stops */
   --color-gradient-start: color-mix(in srgb, var(--color-secondary), white 30%);
   --color-gradient-mid: var(--color-secondary);
@@ -250,6 +338,193 @@
     transform: translateY(4px);
     box-shadow: 0 2px 0 0 color-mix(in srgb, var(--tactile-base), black 55%);
   }
+
+  /* ── Verdict banner ──────────────────────────────────────────────────
+     The filled tone container that replaces the risk gauge. It carries no
+     press state, deliberately: it reports a measurement rather than offering
+     an action, and DESIGN.md's boundary rule is that only operable elements
+     compress. A banner that sank under the reader's thumb would read as a
+     control.
+
+     Every stop derives from one variable, the same way the buttons do, so a
+     tone change cannot leave one edge, border or shadow on the old colour. */
+  .tactile-verdict {
+    --verdict-base: var(--color-verdict-unknown-container);
+    --verdict-ink: var(--color-verdict-unknown-on);
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--verdict-base), white 14%) 0%,
+        var(--verdict-base) 55%,
+        color-mix(in srgb, var(--verdict-base), black 12%) 100%);
+    color: var(--verdict-ink);
+    border: 1px solid color-mix(in srgb, var(--verdict-base), black 35%);
+    box-shadow:
+      0 4px 0 0 color-mix(in srgb, var(--verdict-base), black 55%),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
+    border-radius: 0.75rem;
+    transition: background 0.15s ease;
+  }
+
+  .tactile-verdict-critical {
+    --verdict-base: var(--color-verdict-critical-container);
+    --verdict-ink: var(--color-verdict-critical-on);
+  }
+
+  .tactile-verdict-caution {
+    --verdict-base: var(--color-verdict-caution-container);
+    --verdict-ink: var(--color-verdict-caution-on);
+  }
+
+  .tactile-verdict-verified {
+    --verdict-base: var(--color-verdict-verified-container);
+    --verdict-ink: var(--color-verdict-verified-on);
+  }
+
+  /* No press on the banner, stated rather than merely omitted: the rule that a
+     container must not move is the same rule that keeps a card from reading as
+     a button, and it is easier to keep when the exception is written down. */
+
+  /* ── Disclosure ──────────────────────────────────────────────────────
+     The accordion header. It IS operable, so it compresses — at 2px rather than
+     the button's 4px, because a header sits flush against the body it opens and
+     a full-sink press would pull away from it. */
+  .tactile-accordion-btn {
+    background: var(--color-surface-container-lowest);
+    border: 1px solid var(--color-outline-variant);
+    border-radius: 0.5rem;
+    box-shadow:
+      0 3px 0 0 color-mix(in srgb, var(--color-outline-variant), black 35%),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+  }
+
+  .tactile-accordion-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 0 color-mix(in srgb, var(--color-outline-variant), black 35%);
+  }
+
+  /* The chevron rotates rather than swapping glyphs, so the rotation is the
+     state. Two icons cross-fading reads as a flicker at this size. */
+  .disclosure-chevron {
+    transition: transform 0.15s ease;
+  }
+
+  [data-disclosure][data-open='true'] .disclosure-chevron {
+    transform: rotate(180deg);
+  }
+
+  /* A secondary operable control: outlined rather than extruded, for an action
+     that is real but must not read as the primary one. Same 6px-to-2px sink, so
+     it is unmistakably the same family as .tactile-btn-accent. */
+  /* NOT YET BUILT — see the note at the foot of this block. The reader-feedback
+     control this was drawn for is retained by decision and not shipped, because
+     there is no database and nowhere to put the answer.
+
+  .tactile-btn-secondary {
+    border: 1px solid var(--color-outline-variant);
+    color: var(--color-on-surface);
+    box-shadow:
+      0 5px 0 0 color-mix(in srgb, var(--color-outline-variant), black 30%),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+  }
+
+  .tactile-btn-secondary:active {
+    transform: translateY(3px);
+    box-shadow: 0 2px 0 0 color-mix(in srgb, var(--color-outline-variant), black 30%);
+  }
+  */
+  /* NOT YET BUILT — the quotation block on each anomaly card, and the anomaly
+     code pill beside its heading. Both need a backend field that does not exist:
+     a verbatim `quote` span bound to the posting, and the `code` from a taxonomy
+     that is still a draft. See the note at the foot of this block.
+
+  .quote-badge {
+    background: var(--color-quote-highlight-bg);
+    color: var(--color-quote-highlight-text);
+    border-radius: 0.1875rem;
+    padding: 0 0.25rem;
+    font-weight: 600;
+  }
+
+  .quote-well {
+    background: var(--color-code-pill-bg);
+    border: 1px solid var(--color-outline-variant);
+    border-radius: 0.375rem;
+  }
+
+  .code-pill {
+    background: var(--color-code-pill-bg);
+    color: var(--color-code-pill-text);
+  }
+  */
+
+  /* ── Status chips ────────────────────────────────────────────────────
+     Pale fill, saturated text. A chip labels content beside it rather than
+     alerting on its own, so the fill stays light enough that the text carries
+     the meaning. */
+  .chip-verified {
+    background: var(--color-chip-verified-bg);
+    color: var(--color-chip-verified-text);
+  }
+
+  .chip-caution {
+    background: var(--color-chip-caution-bg);
+    color: var(--color-chip-caution-text);
+  }
+
+  .chip-critical {
+    background: var(--color-chip-critical-bg);
+    color: var(--color-chip-critical-text);
+  }
+
+  /* NOT YET BUILT — the anomaly code pill, the quotation block, and the
+     segmented coverage bar. Each needs something the panel cannot yet support:
+     a verbatim `quote` span bound to the posting, the `code` from a taxonomy
+     that is still a draft, and a coverage denominator the backend owns. See the
+     note at the foot of this block.
+
+  .code-pill {
+    background: var(--color-code-pill-bg);
+    color: var(--color-code-pill-text);
+  }
+
+  .quote-badge {
+    background: var(--color-quote-highlight-bg);
+    color: var(--color-quote-highlight-text);
+    border-radius: 0.1875rem;
+    padding: 0 0.25rem;
+    font-weight: 600;
+  }
+
+  .quote-well {
+    background: var(--color-code-pill-bg);
+    border: 1px solid var(--color-outline-variant);
+    border-radius: 0.375rem;
+  }
+
+  .coverage-seg-done {
+    background: var(--color-chip-verified-text);
+  }
+
+  .coverage-seg-todo {
+    background: var(--color-surface-container-highest);
+  }
+  */
+
+  /* ── Why the classes above are commented out rather than simply absent ────
+
+     Tailwind purges any class nothing references, so live-but-unused CSS never
+     reaches the bundle — it sits in the stylesheet looking finished while the
+     slot that would use it does not exist. A reader auditing this file would
+     find `.code-pill` and conclude the anomaly card renders a rule code.
+
+     So each is commented out with the field it is waiting on, and uncommented in
+     the same commit that wires the slot. `AGENTS.md`: "Deleted is not dormant …
+     a leftover helper is a trap for the next reader." The rule cuts both ways —
+     a leftover *style* is the same trap as a leftover function.
+
+     The tokens they reference are kept, because tokens cost nothing when unused
+     and the dark-theme pair has to stay in step with the light one. */
 
   /* Subtle outline button */
   .btn-outline-accent {
@@ -575,27 +850,19 @@
     transition: background 0.3s ease-out, border-color 0.3s ease-out, box-shadow 0.3s ease-out, color 0.3s ease-out, opacity 0.3s ease-out;
   }
 }
-/* "? Risk gauge ring: a slow breathing glow so the gauge reads as live. The glow
-   colour is set per-ring through the --ring-glow-color custom property, so one
-   keyframe serves every risk level and the unverified state. "? */
-@keyframes ring-breathe {
-  0%, 100% {
-    filter: drop-shadow(0 0 3px var(--ring-glow-color, transparent));
-  }
-  50% {
-    filter: drop-shadow(0 0 11px var(--ring-glow-color, transparent));
-  }
-}
+/* The risk-gauge ring's breathing glow — the `ring-breathe` keyframes,
+   `.ring-pulse`, and the per-ring `--ring-glow-color` — was deleted with the
+   gauge. Nothing animated a ring any more, so the keyframes had no caller and
+   the custom property had no setter, so its two uses inside the keyframes were
+   silently falling back to their `transparent` default. All three went together:
+   a half-removed animation is worse than none, because the reduced-motion clause
+   still read as though a live gauge existed somewhere.
 
-.ring-pulse {
-  animation: ring-breathe 2.6s ease-in-out infinite;
-}
+   The `prefers-reduced-motion` block that wrapped them went with them. No other
+   animation in this stylesheet needs it — the loading bar and the spinners are
+   inline Tailwind utilities and each carries its own.
 
-/* Motion is decoration here, not information. Someone who has asked their
-   system to reduce motion should get a still gauge with the same colour. */
-@media (prefers-reduced-motion: reduce) {
-  .ring-pulse {
-    animation: none;
-    filter: drop-shadow(0 0 6px var(--ring-glow-color, transparent));
-  }
-}
+   Note for whoever writes the next comment here: `styles.tokens.test.ts` scans
+   this file with a regex that does not skip comments, so naming a custom property
+   inside prose is enough to make it demand a declaration. Spell the name in a
+   way that is not the literal token. */

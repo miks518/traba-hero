@@ -56,6 +56,43 @@ export default {
         'on-error':                  'var(--color-on-error)',
         'error-container':           'var(--color-error-container)',
         'on-error-container':        'var(--color-on-error-container)',
+
+        // ── Verdict tones ──────────────────────────────────────────────
+        // Three tones for four levels. `low` and `moderate` share the caution
+        // fill and are told apart by the authored headline, because a fourth
+        // colour would imply a distinction the evidence does not make.
+        //
+        // Each tone is a FILL plus the INK that clears AA on it. The ink is
+        // separate from `on-surface` because that flips to light in the dark
+        // theme, which would put light text on a mid-tone fill.
+        'verdict-verified':          'var(--color-verdict-verified)',
+        'verdict-verified-container':'var(--color-verdict-verified-container)',
+        'verdict-verified-on':       'var(--color-verdict-verified-on)',
+        'verdict-caution':           'var(--color-verdict-caution)',
+        'verdict-caution-container': 'var(--color-verdict-caution-container)',
+        'verdict-caution-on':        'var(--color-verdict-caution-on)',
+        'verdict-critical':          'var(--color-verdict-critical)',
+        'verdict-critical-container':'var(--color-verdict-critical-container)',
+        'verdict-critical-on':       'var(--color-verdict-critical-on)',
+        'verdict-unknown':           'var(--color-verdict-unknown)',
+        'verdict-unknown-container': 'var(--color-verdict-unknown-container)',
+        'verdict-unknown-on':        'var(--color-verdict-unknown-on)',
+
+        // ── Status chips ───────────────────────────────────────────────
+        // Pale fill, saturated text. A chip labels content beside it rather than
+        // alerting on its own, so the fill stays light enough that the text
+        // carries the meaning.
+        'chip-verified-bg':          'var(--color-chip-verified-bg)',
+        'chip-verified-text':        'var(--color-chip-verified-text)',
+        'chip-caution-bg':           'var(--color-chip-caution-bg)',
+        'chip-caution-text':         'var(--color-chip-caution-text)',
+        'chip-critical-bg':          'var(--color-chip-critical-bg)',
+        'chip-critical-text':        'var(--color-chip-critical-text)',
+
+        // Monospaced identifiers — an anomaly code, a scan id. Recessed,
+        // because it is metadata a reader looks up rather than reads.
+        'code-pill-bg':              'var(--color-code-pill-bg)',
+        'code-pill-text':            'var(--color-code-pill-text)',
       },
       // ── Typography ──────────────────────────────────────────────────
       fontFamily: {

@@ -49,52 +49,88 @@ it deliberates over. Raise it only if dense small print starts scanning badly.
 - The `redFlags` → `anomalies` field migration is deliberate — see
   `docs/decisions/anomaly-terminology.md`.
 
-### Result cards
+### The report panel
 
-| Component | Notes |
+`components/report/` replaces the score-and-gauge panel. Architecture:
+`docs/superpowers/specs/2026-10-17-report-panel-architecture.md` §1 (slot stack) and
+§7 (migration map). Visual source: `jobposts/stitch/01-do-not-proceed.html`.
+
+| Component | Slot | Notes |
+|---|---|---|
+| `ReportPanel.tsx` | — | The slot stack, and the promotion restatement below |
+| `JobMeta.tsx` | 1–2 | Scan time, role, employer. **No provenance line** — see below |
+| `VerdictBlock.tsx` | 3 | Tone container + **authored** headline. Replaces `RiskGauge` |
+| `ActionBlock.tsx` | 4 | Two authored instruction lines. The share chips and report control are absent |
+| `AnomalyCards.tsx` | 5 | One card per finding. **No code pill, no quote block** — see below |
+| `WhatWeChecked.tsx` | 7 | **Asserts checks ran.** Heading derived from state — see below |
+| `FullDetails.tsx` | 8 | **Shows what retrieval returned.** Split from §7 for the reason below |
+| `ReportFooter.tsx` | 10 | Disclaimer, ruleset version. No scan id — no field carries one |
+| `verdictCopy.ts` | 3, 4 | Every authored string. **Nothing here may be model-written** |
+
+`ScamScanView.tsx` is now a composition of this panel plus the capture
+affordances. The scan lifecycle lives in `hooks/useScanSession.ts`; the wire
+mapping in `lib/mapApiResponse.ts`.
+
+#### Why §7 and §8 are two components
+
+**They answer different questions and carry opposite honesty requirements.** §7
+asserts that checks were performed, so a line there that cannot be backed by a
+real check is a false claim about coverage wearing the honest hat. §8 shows what
+retrieval returned, which is safe to show whether or not it amounts to anything.
+Collapsing them back into one component means choosing which rule to obey.
+
+#### `WhatWeChecked` heading rule — unchanged, and it still binds
+
+**The heading is derived from state, never constant.** "What we checked" is
+reachable only when checks exist. A lookup still running, one that could not
+complete, and one that ran and found nothing each get their own heading.
+
+**A section titled "What we checked" over an empty list asserts checks were
+performed when none were.**
+
+Three groups, not two: **Verified**, **Contradicted**, **Could not verify**. A
+contradicted claim is not a failed check — it is the check *succeeding* and
+finding the opposite of what the posting stated. Folding `red` into either
+column loses the single most important thing verification can produce.
+
+`shouldShowCheck` still applies: a `yellow` Reputation is hidden, because it could
+only restate an absence and put the word *scam* beside a named employer to do it.
+
+#### Promotion is restated, not kept
+
+The old scheme moved a **pair of sibling groups** — evidence up, prose down — so
+the evidence rose above the posting analysis. The new stack is a **single fixed
+order** with the verdict and instructions already at the top, so there is nothing
+above them to promote.
+
+**Promotion now means the neutral context drops below the findings.** On a settled
+high or critical level, `[data-group="context"]` lands under
+`[data-group="findings"]`; otherwise it leads. A reader who has just been told not
+to send money does not need the coverage count in their first viewport.
+
+Both groups stay mounted across a level change so nothing is torn down.
+
+#### What is absent, and why
+
+Every one of these is a slot the panel cannot yet support. Each is **absent, not
+empty** — an empty container asserts something was found or withheld.
+
+| Absent | Why |
 |---|---|
-| `OfferAnalysisCard.tsx` | Verdict for offers that name no employer: what it asks, what it offers, what to check |
-| `EvidenceSummary.tsx` | **The heading is derived from state, never constant** — see below |
-| `VerificationCard.tsx` | Per-category status card |
-| `CompanyNameNeeded.tsx` | Prompt shown when a posting names no employer |
-| `AnomaliesList.tsx` / `AnomalyCard.tsx` | The posting's findings |
-| `RiskGauge.tsx` | **Being replaced** by the report redesign |
-
-#### `EvidenceSummary` heading rule
-
-**The heading is derived from state, never constant.** "Evidence Summary" is reachable
-only when results exist; a search that ran and found nothing, one that could not run, and
-one where some queries failed each get their own heading.
-
-**A section titled "Evidence Summary" over an empty list asserts evidence was summarised
-when none was.**
-
-It carries the anomalies as its first child when there is one to lead, and they stay a
-sibling in `ScamScanView` when there is not — a posting with no employer still has them.
-
-#### `VerificationCard` colour rule
-
-**`yellow` is amber, deliberately, and it used to be a neutral grey** (`bg-outline/10`) —
-a 10% grey wash on an already-grey surface, which is an absent colour rather than a weak
-one, and `yellow` is the most common status the panel produces.
-
-It was **never** the accent `secondary`, which is `#4ade80` in the dark theme,
-byte-identical to the positive status.
-
-**Amber collides with the `moderate` level, so the scope limit matters:** the gauge's
-*unverified* ring stays **grey**, because "nothing was measured" and "searched and could
-not confirm" are different claims. That rule lives in `RiskGauge.tsx` and is covered there
-by a real render test.
-
-#### `AnomaliesList` heading
-
-Severity drives the per-card border and chip (`AnomalyCard.tsx`) but **not** the heading,
-which is a known open question (`2026-10-17-anomaly-code-set.md` §8), not an oversight.
+| Provenance line ("posted 2 days ago on a job board") | The extension screenshots a region of a page and does not know where the posting came from |
+| One-line verdict reason | No short field on the wire. `VerificationResult.report` is multi-sentence and must not be reused here |
+| Anomaly `code` pill | The taxonomy is a draft with nothing implemented — `2026-10-17-anomaly-code-set.md` |
+| Quote block per anomaly | The most load-bearing gap. Needs a verbatim `quote` **bound** to the posting; a paraphrase cannot be rendered as a quotation |
+| "Do not share" chips | Keyed to the code families above. Generic chips would be identical for every posting |
+| Report control | Nothing to report the post *to*, for the same reason as the provenance line |
+| Coverage count | Its denominator must be a constant the backend owns, or it drifts with whatever the panel renders |
+| "Was this accurate?" | No database, no destination for the answer. A dead control reads as a working feature |
 
 #### `riskAccent`
 
 Token-based risk colour for chrome — headers, borders, button. **Never returns a hex or
-hsl literal; body prose deliberately has no entry.**
+hsl literal; body prose deliberately has no entry.** Still applied to the primary
+capture action, and only while a high or critical level is settled.
 
 ---
 
@@ -320,57 +356,66 @@ named employer is verified normally.
 `moderate` level, and borrowing it would read as a mid risk score rather than an unchecked
 one.
 
-### Ring animation
+### Ring animation - deleted
 
-`.ring-pulse` in `assets/tailwind.css` animates a `drop-shadow` whose colour comes from a
-per-ring `--ring-glow-color`, so **one keyframe serves every risk level and the unverified
-state.** The scored ring sets it to its level colour and the unverified ring to the outline
-grey.
-
-It is decoration, so it is disabled under `prefers-reduced-motion: reduce`. It replaced a
-static inline `filter`, which conflicted with the keyframe.
-
+There is none. `.ring-pulse`, the `ring-breathe` keyframes and the per-ring
+`--ring-glow-color` all went with the gauge that used them, so the property had
+no setter and its two uses fell back to `transparent`. The
+`prefers-reduced-motion` clause that disabled the animation went with them too:
+no other animation in the stylesheet needs it, as the loading bar and the spinners
+are inline Tailwind utilities and each carries its own.
 ### Evidence promotion
 
-A high or critical score reorders the results so the evidence leads:
+**Restated, not kept.** The old scheme moved a pair of sibling groups so the
+evidence rose above the posting analysis. The new stack is a **single fixed
+order** with the verdict and the instructions already at the top, so there is
+nothing above them to promote.
 
 ```
-Normal:        Gauge → Posting Analysis → Job Summary → [shots] → [Anomalies · Offer · Evidence]
-High/Critical: Gauge → [Anomalies · Offer · Evidence] → Posting Analysis → Job Summary → [shots]
+(old) Normal:        Gauge -> Posting Analysis -> Job Summary -> [shots] -> [Anomalies - Offer - Evidence]
+(old) High/Critical: Gauge -> [Anomalies - Offer - Evidence] -> Posting Analysis -> Job Summary -> [shots]
+
+(new) Always:    Job meta -> Verdict -> What to do now -> Findings -> Context -> Footer
+(new) Elevated:  the same, with Context moved below Findings
 ```
 
-- **A high/critical score moves the reader's answer to their first question.** The reader
-  opens a panel wanting to know why it is dangerous, and the anomalies and the employer
-  check are what say so. Everything else is context for after that decision.
+- **What promotion means now is the neutral context dropping *below* the
+  findings.** A reader who has just been told not to send money does not need
+  the coverage count in their first viewport.
 - **`shouldElevateEvidence()` waits for the level to settle.** The scan returns a
-  posting-stage score that verification then adds a penalty to, so a posting can read
-  "high" and settle at "critical". Promoting on the intermediate value would move the
-  evidence out from under the reader and put it back a moment later. `verificationLoading`
-  and `offerAnalysisLoading` both gate it. **A failed verification still promotes**, because
-  the posting stage's score is real.
-- **Both groups stay mounted; `order` on the flex parent decides which leads.** Unmounting
-  to reorder would give FLIP nothing to animate and would reset a collapsed Sources
-  disclosure on every score change.
-  **`display: contents` is the trap here:** it looks like the tidier way to drop a wrapper,
-  but it generates no box and `order` has no effect on a box that does not exist.
-- **`order` reorders every sibling, not just the pair.** An element with no order value
-  sorts at `0`, so the groups on `order-1`/`order-2` pushed the `sticky bottom-0` action bar
-  above the results. It carries `order-3` and the capture preview `order-4`.
-  **`order-last` is not the fix** — a later sibling swaps with it.
-- **`useFlipReorder` animates the move, both directions.** A fade cannot express a
-  reorder: the content dissolves and reappears elsewhere, which reads as a glitch. Skipped
-  under `prefers-reduced-motion`, matching `.ring-pulse`.
-- **Colour is chrome, not prose.** `riskAccent()` tints headers, borders, and the primary
-  button. **Body prose has no entry on purpose**: long blocks of red or amber on a light
-  surface are the hardest thing on the panel to read, and this is where someone reads a
-  verdict carefully enough to act on it. The accent is temporary by construction — it
-  rides on the displayed result, which `resetAll()` already clears when a new element is
-  picked, so there is no timer.
-- **Tests assert the mechanism, not the pixels.** `happy-dom` performs no flex layout and
-  zeroes every rect, so `ScamScanView.elevate.test.tsx` asserts the `order-*` and accent
-  classes. The FLIP delta arithmetic is unit-tested separately, and whether the animation
-  *looks* fluid is not verified by the suite.
-
+  level from the posting alone and verification can move it, so a posting can
+  read "high" and settle at "moderate". Promoting on the intermediate value
+  would move the evidence out from under the reader and put it back a moment
+  later. `verificationLoading` and `offerAnalysisLoading` both gate it. **A failed
+  verification still promotes**, because the posting stage's findings are real
+  regardless of whether the employer lookup ran.
+- **Both groups stay mounted; `order` on the flex parent decides which leads.**
+  Unmounting to reorder would give FLIP nothing to animate and would reset a
+  collapsed disclosure on every level change.
+  **`display: contents` is the trap here:** it looks like the tidier way to drop a
+  wrapper, but it generates no box and `order` has no effect on a box that does
+  not exist.
+- **`order` reorders every sibling, not just the pair.** An element with no order
+  value sorts at `0`, so the groups on `order-1`/`order-2` pushed the
+  `sticky bottom-0` action bar above the results. It carries `order-3` and the
+  capture preview `order-4`. **`order-last` is not the fix** - a later sibling
+  swaps with it.
+- **`useFlipReorder` animates the move, both directions.** A fade cannot express
+  a reorder: the content dissolves and reappears elsewhere, which reads as a
+  glitch.
+- **Colour is chrome, not prose.** `riskAccent()` tints the primary capture
+  button, and only while a high or critical level is settled. **Body prose has no
+  entry on purpose**: long blocks of red or amber on a light surface are the
+  hardest thing on the panel to read, and this is where someone reads a verdict
+  carefully enough to act on it. The accent is temporary by construction - it
+  rides on the displayed result, which `resetAll()` already clears when a new
+  element is picked.
+- **The score is gone.** The retired 0-100 index and the gauge ring that drew it
+  are deleted, along with the ring's `ring-breathe` keyframes and the
+  `--ring-glow-color` property they read. What replaced them is a short authored
+  instruction in `verdictCopy.ts`, looked up by level, so it cannot drift between
+  runs and keeps the libel guardrail in code. See
+  `docs/decisions/report-panel-redesign.md`.
 ### Filter categories (`ResumeMatchView`)
 
 | Filter | Icon | Condition |

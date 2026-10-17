@@ -60,7 +60,13 @@ def test_no_search_debug_request_model():
         ("entrypoints/sidepanel/types/index.ts", r"debugPrompt"),
         ("entrypoints/sidepanel/lib/api.ts", r"debugSearchStream"),
         ("entrypoints/sidepanel/App.tsx", r"SearchDebugView"),
-        ("entrypoints/sidepanel/components/scan/EvidenceSummary.tsx", r"SearchRawPanel"),
+        # Moved 2026-10-18. `EvidenceSummary.tsx` was deleted with the report
+        # panel and split into `WhatWeChecked` (the check half, below) and
+        # `FullDetails` (the retrieval half). The raw-response diagnostic it
+        # carried lives on in `WhatWeChecked`, so that is where this assertion
+        # now has to look — pointing it at a deleted file would make the whole
+        # check vacuous.
+        ("entrypoints/sidepanel/components/report/WhatWeChecked.tsx", r"SearchRawPanel"),
         ("entrypoints/sidepanel/views/ScamScanView.tsx", r"debugPrompt"),
     ],
 )
@@ -97,7 +103,8 @@ def test_backend_stops_shipping_the_prompt_to_the_client():
         "actually returns. Remove SearchOutcome.raw_response from "
         "app/services/search.py, the debug_search_raw field in "
         "verification_flow.py, and the debugSearchRaw block in "
-        "EvidenceSummary.tsx — then remove this skip."
+        "entrypoints/sidepanel/components/report/WhatWeChecked.tsx (it moved "
+        "there from the deleted EvidenceSummary.tsx) - then remove this skip."
     )
 )
 def test_the_search_outcome_no_longer_carries_the_raw_provider_body():

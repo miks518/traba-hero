@@ -246,10 +246,18 @@ loss, not caller authentication, and the panel deserves to hear it that way.
 
 Five coverage gaps were recorded and not closed in this run:
 
-1. **Extension rendering of verification citations** — `VerificationCard.tsx:71-82`
-   and `EvidenceSummary.tsx:280` use backend-supplied values as `href` with
-   `target="_blank"` and no scheme or host validation. This is the client-side
-   half of finding 3, and the half this run could not observe.
+1. **Extension rendering of verification citations** — backend-supplied values are
+   used as `href` with `target="_blank"` and no scheme or host validation. This
+   is the client-side half of finding 3, and the half this run could not observe.
+
+   **Relocated 2026-10-18.** The two sites named here — `VerificationCard.tsx:71-82`
+   and `EvidenceSummary.tsx:280` — were deleted with the report panel. The pattern
+   is **unfixed and still present**, now in one place:
+   `entrypoints/sidepanel/components/report/FullDetails.tsx`, the source list
+   inside the Full-details disclosure. `WhatWeChecked` no longer renders per-item
+   source links, so the exposure is narrower than it was: one disclosure, behind a
+   collapsed control, rather than a link on every check card. Narrower is not
+   fixed — the scheme is still unvalidated.
 2. **Extension rendering of `email_verifications`** — decides whether finding 5
    is ever shown to a reader. No in-scope backend unit can settle it.
 3. **`.docx` and `.pdf` decoding on `/api/analyze-resume`** — a
