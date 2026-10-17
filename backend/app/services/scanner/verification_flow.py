@@ -9,7 +9,7 @@ from app.services.search import _canonical_url
 
 from .dependencies import runtime
 from .verification_parser import VerificationParseError
-from .verification_prompt import expected_categories
+from .verification_prompt import clean_verdict_reason, expected_categories
 
 
 log = logging.getLogger("trabahero")
@@ -170,6 +170,7 @@ def _read_verify_output(
             bound_evidence,
             _read_risk_level(payload.get("risk_level")),
             _read_risk_score(payload.get("risk_score")),
+            clean_verdict_reason(payload.get("verdict_reason")),
         )
 
     log.warning("[verify] Response was not JSON; falling back to the labeled-text parser.")
@@ -188,7 +189,10 @@ def _read_verify_output(
     # None on this path, and that is the honest answer rather than a default: the
     # labeled-text format has no place to carry a level, so nothing was assessed.
     # The panel renders null as Unverified and excludes it from resume matching.
-    return bound_items, report, recommendation, False, [], None, None
+    # Likewise empty for the reason: the labeled-text fallback has no
+    # VERDICT_REASON section, and the block degrades to its authored headline
+    # rather than the parser inventing a reason from the report prose.
+    return bound_items, report, recommendation, False, [], None, None, ""
 
 
 async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
@@ -349,7 +353,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         retrieved_urls = frozenset(
             r.url for r in merged if getattr(r, "url", "")
         )
-        items, report, recommendation, used_json, evidence, risk_level, risk_score = _read_verify_output(
+        items, report, recommendation, used_json, evidence, risk_level, risk_score, verdict_reason = _read_verify_output(
             final_text, allowed_urls=retrieved_urls
         )
 
@@ -426,6 +430,8 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             log.info("[verify] Report: %s", report[:200])
         if recommendation:
             log.info("[verify] Recommendation: %s", recommendation[:200])
+        if verdict_reason:
+            log.info("[verify] Verdict reason: %s", verdict_reason)
 
         yield runtime.get_sse()({"type": "result", "data": {
             "items": [item.model_dump() for item in items],
@@ -434,6 +440,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "recommendation": recommendation,
             "riskScore": risk_score,
             "riskLevel": risk_level,
+            "verdictReason": verdict_reason,
             "scoreBreakdown": breakdown,
             # On the wire, not left to the model. A prompt instruction to "state
             # that the search did not complete" only works if the model obeys;

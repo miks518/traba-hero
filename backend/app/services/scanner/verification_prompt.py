@@ -155,7 +155,7 @@ OUTPUT RULES:
 - Do not use absolutes: always, never, definitely, guaranteed, 100%.
 - Plain sentences inside the values. No markdown, bullets, headers, or emoji.
 
-OUTPUT FORMAT: return one JSON object and nothing else, with exactly six keys: "checks", "evidence", "report", "recommendation", "risk_level", "risk_score". A "checks" entry has "category", "status", "finding", "source_title", "source_url". An "evidence" entry has "title", "url", "snippet". "risk_level" is one of low, moderate, high, critical, and "risk_score" is an integer from 0 to 100. Say this even if no output schema is supplied — the object is the answer, and the plain-sentence rule applies to what you write inside it, not to the object wrapping it.
+OUTPUT FORMAT: return one JSON object and nothing else, with exactly seven keys: "checks", "evidence", "report", "recommendation", "risk_level", "risk_score", "verdict_reason". A "checks" entry has "category", "status", "finding", "source_title", "source_url". An "evidence" entry has "title", "url", "snippet". "risk_level" is one of low, moderate, high, critical, and "risk_score" is an integer from 0 to 100. Say this even if no output schema is supplied - the object is the answer, and the plain-sentence rule applies to what you write inside it, not to the object wrapping it.
 
 CATEGORIES. The request names which of these to report and which to omit, and the request wins: these six are the vocabulary, not a quota. Report the ones you are told to report and no others. Never invent a category outside this list. Where the request says to omit a category, the posting made no such claim — write no entry for it, and no placeholder, empty, or "not stated" finding.
 
@@ -183,7 +183,8 @@ FIELDS:
 - report: 2-3 plain sentences describing what the results show. No accusations. End by noting that this is based on public web search results only.
 - recommendation: 1-2 plain sentences addressed to a job seeker — someone looking for work, not an investigator. Name what the results showed about this employer, then give one step they can take in an ordinary hiring exchange: ask the employer to confirm something in writing, arrange to meet them at an address they give you, or not send money or personal details before they have spoken with someone. Do not tell them to check a registry, a government website, or a business permit, and do not tell them what to think about the company. The checking is this tool's job; the reader is looking for a way to respond to a job offer.
 - risk_level: one of low, moderate, high, critical. This is the overall reading of the whole posting once the evidence is in, and it replaces a severity ladder that priced each kind of finding on its own. Weigh what the posting asks against who is asking and what the results show about them: the same request can be ordinary from one employer and serious from another, and you are the only stage that can tell which. A fee demanded by a business a reader can find, at an address that matches, is different from the same fee demanded by a name that appears nowhere. Give the level that a job seeker would arrive at reading your report and recommendation, not the level of your loudest single finding. Never let a green category settle it on its own, and never let one red make it high on its own either — read them together. Write only the word, nothing else.
-- risk_score: an integer from 0 to 100 behind that level, and it exists for two narrow jobs the level cannot do: ordering several postings against each other, and showing how far into a band this one sits. It is not printed as a headline figure for the reader. Two readings of the same level are genuinely different situations — a fee demanded by an untraceable name and a fee demanded by an office whose address checks out are both "high", and the reader should be able to see which is worse. Place the score inside the band its level describes: low is 0 to 30, moderate 31 to 50, high 51 to 75, critical 76 to 100. Do not invent precision. Use round numbers unless something in the evidence genuinely sits between two."""
+- risk_score: an integer from 0 to 100 behind that level, and it exists for two narrow jobs the level cannot do: ordering several postings against each other, and showing how far into a band this one sits. It is not printed as a headline figure for the reader. Two readings of the same level are genuinely different situations - a fee demanded by an untraceable name and a fee demanded by an office whose address checks out are both "high", and the reader should be able to see which is worse. Place the score inside the band its level describes: low is 0 to 30, moderate 31 to 50, high 51 to 75, critical 76 to 100. Do not invent precision. Use round numbers unless something in the evidence genuinely sits between two.
+- verdict_reason: ONE sentence, 140 characters or fewer, naming what this posting asks the reader to give up. This is the only sentence of yours shown as the panel's headline line, so it carries the whole tone ban: no accusation, no hedge, no absolute. Write what the posting does, never what it is - "This post asks you to pay a fee before you are hired", never "This is a scam post". Name the concrete thing where you can, because the reader is looking at one posting and not at a category: "It sends your documents to a site that is not the employer's own" beats "There is a channel concern". If the posting asks for nothing and nothing was found, say so plainly - "Nothing in this post asks for money" is a correct answer, and it is not the same as claiming the employer is safe, so do not add that. Never write a hedge: no likely, probably, appears, suggests, might, may, could, always, never, definitely. If you cannot say it in one sentence without one of those, say less."""
 
 
 def load_verify_prompt() -> str:
@@ -249,10 +250,60 @@ VERIFY_RESPONSE_SCHEMA = {
         "recommendation": {"type": "string"},
         "risk_level": {"type": "string", "enum": list(RISK_LEVELS)},
         "risk_score": {"type": "integer", "minimum": 0, "maximum": 100},
+        # The panel's one-line reason. Capped here rather than truncated in
+        # code: truncation ends a sentence mid-clause, which reads as a bug.
+        "verdict_reason": {"type": "string", "maxLength": 140},
     },
-    "required": ["checks", "evidence", "report", "recommendation", "risk_level", "risk_score"],
+    "required": ["checks", "evidence", "report", "recommendation", "risk_level", "risk_score", "verdict_reason"],
     "additionalProperties": False,
 }
+
+# Words the panel's one-line reason may not contain.
+#
+# This is the panel's most prominent sentence and the only one a model writes —
+# the headline above it is authored from the level precisely so it cannot drift.
+# So the tone ban the prompts state in prose is enforced here in code, where a
+# violation is dropped rather than displayed.
+#
+# Three groups, matching the prompt's own `OUTPUT RULES`: accusations, inference
+# hedges, and absolutes. A verdict naming a post a scam is the libel exposure the
+# whole rule set exists to prevent, and this slot would make it the most
+# prominent instance of exactly that.
+_VERDICT_REASON_BANNED = (
+    # accusations
+    "scam", "scammer", "fraud", "fraudulent", "fake", "falsify", "falsified",
+    "suspicious", "illegitimate", "criminal",
+    # inference hedges
+    "likely", "probably", "seemingly", "appears to", "appears that",
+    "suggests that", "suggests the", "might be", "may be a", "could indicate",
+    "potentially",
+    # absolutes
+    "always", "never", "definitely", "guaranteed", "100%",
+    # and the reassurance that is the same claim told backwards
+    "legitimate", "trustworthy", "genuine",
+)
+
+
+def verdict_reason_is_clean(raw: object) -> bool:
+    """Whether a model-written reason may be shown as the panel's headline line.
+
+    A rejection degrades the verdict block to its authored headline, which is
+    safe and still actionable. Showing the reader a conclusion is not available
+    as a failure mode.
+    """
+    if raw is None:
+        return False
+    text = str(raw).strip()
+    if not text:
+        return False
+    lowered = text.lower()
+    return not any(word in lowered for word in _VERDICT_REASON_BANNED)
+
+
+def clean_verdict_reason(raw: object) -> str:
+    """The reason if it may be shown, else empty."""
+    text = str(raw or "").strip()
+    return text if verdict_reason_is_clean(text) else ""
 
 
 RETRIEVAL_FAILED = """=== SEARCH RESULTS FOR: {company} ===

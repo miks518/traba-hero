@@ -621,7 +621,7 @@ class TestVerifyOutputReading:
         from app.services.scanner.verification_flow import _read_verify_output
         from app.models.schemas import VerificationItem
 
-        items, report, rec, used_json, _evidence, _level, _score = _read_verify_output(
+        items, report, rec, used_json, _evidence, _level, _score, _reason = _read_verify_output(
             self._payload(), allowed_urls=self._allowed()
         )
         assert used_json is True
@@ -643,7 +643,7 @@ class TestVerifyOutputReading:
     def test_reads_the_evidence_list(self):
         from app.services.scanner.verification_flow import _read_verify_output
 
-        items, report, rec, used_json, evidence, _level, _score = _read_verify_output(
+        items, report, rec, used_json, evidence, _level, _score, _reason = _read_verify_output(
             self._payload(), allowed_urls=self._allowed()
         )
         assert evidence, "the evidence list must reach the flow"
@@ -661,7 +661,7 @@ class TestVerifyOutputReading:
         # silently rebinds "the last value" to a different field, so this would
         # have been asserting against `risk_level` and passing or failing for no
         # reason anyone could see.
-        *_, evidence, _level, _score = _read_verify_output(payload)
+        *_, evidence, _level, _score, _reason = _read_verify_output(payload)
         assert evidence == []
 
     def test_malformed_check_still_rejected(self):
