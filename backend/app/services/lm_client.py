@@ -323,7 +323,7 @@ _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "cr
 # purpose, and leaving a silent gap would read as an oversight. The rule is in
 # both scan prompts instead.
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|LOCATION|CONTACT[_\s]*METHOD|MEETING[_\s]*SPOT|PAY|REGISTERED[_\s]*AS|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|CODE|QUOTE|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|LOCATION|CONTACT[_\s]*METHOD|MEETING[_\s]*SPOT|PAY|REGISTERED[_\s]*AS|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 
@@ -392,6 +392,10 @@ def _parse_custom(raw: str) -> dict | None:
     attributes: dict[str, str] = {}
     in_attributes = False
     in_queries = False
+    # Opened by an ANOMALY line, closed by END ANOMALIES and by any other
+    # keyword. CODE and QUOTE are gated on it because both are ordinary English
+    # words; see the gate above.
+    in_anomalies = False
     search_queries: list[str] = []
     last_anomaly: dict | None = None
     section: str | None = None
@@ -479,10 +483,29 @@ def _parse_custom(raw: str) -> dict | None:
             buf.append(line.rstrip())
             continue
 
+        if kw in ("CODE", "QUOTE") and not in_anomalies and section:
+            # `CODE:` and `QUOTE:` are ordinary English words. "Enter CODE: 4471
+            # at the gate" inside a job summary matches this regex, and a matched
+            # keyword closes the section first - so reading it as a key silently
+            # truncated the verdict at that line, which is the documented failure
+            # mode for the ATTRIBUTES keys. Appended back, for the same reason
+            # and with the same consequence of dropping it.
+            buf.append(line.rstrip())
+            continue
+
         if kw == "ATTRIBUTES":
             in_attributes = True
         elif kw not in _ATTRIBUTE_KEYWORDS:
             in_attributes = False
+
+        # The anomaly block closes on any other keyword, exactly as the
+        # attributes block does. END ANOMALIES is a non-attribute keyword, so it
+        # lands here and clears the flag without needing its own branch — which
+        # matters, because a dedicated `continue` for it would also skip the
+        # handler chain below and change what `matched_any` ends up as. That is
+        # pre-existing behaviour and changing it is a separate question.
+        if kw not in ("ANOMALY", "ANOMALIES", "RED FLAG", "CODE", "QUOTE", "QUERY_REF"):
+            in_anomalies = False
 
         close_section()
         matched_any = True
@@ -547,8 +570,22 @@ def _parse_custom(raw: str) -> dict | None:
                 "reasoning": reasoning,
                 "severity": final_severity,
                 "query_ref": "",
+                "code": "",
+                "quote": "",
             }
             flags.append(last_anomaly)
+            in_anomalies = True
+        elif kw == "CODE":
+            # Which taxonomy entry this finding is. Attaches to the anomaly
+            # above it, like QUERY_REF. A CODE line with no anomaly above it is
+            # ignored rather than guessed at — there is nothing to label.
+            if last_anomaly is not None:
+                last_anomaly["code"] = rest.strip()
+        elif kw == "QUOTE":
+            # The posting's own words for this finding. Kept as written here and
+            # screened in `_anomalies`, which is the last gate before the wire.
+            if last_anomaly is not None:
+                last_anomaly["quote"] = rest.strip()
         elif kw == "QUERY_REF":
             # Which search this finding relates to. Optional: an anomaly judged
             # not worth a query has none, and therefore no corroboration path —

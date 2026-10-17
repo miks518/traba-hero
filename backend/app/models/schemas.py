@@ -146,6 +146,24 @@ class Anomaly(BaseModel):
     # the scoring stage can tell "confirms something already counted" from
     # "reveals something new" — without it the double-count returns silently.
     query_ref: str = ""
+    # The taxonomy ID from `app.services.anomaly_codes.ANOMALY_CODES`, or OTHER
+    # when the model's answer was outside the set, or "" when the response
+    # carried no code at all.
+    #
+    # Optional on read, and that is deliberate: scan history predates this field,
+    # so requiring it would render every stored scan unloadable. "" is not folded
+    # into OTHER, because absent and OTHER are different claims — see
+    # `normalise_code`.
+    code: str = ""
+    # A verbatim span of the posting that decided this finding, quoted for the
+    # reader rather than summarised.
+    #
+    # Empty when the model emitted none, when the span carried a word the
+    # posting could not have written about itself, or — on the text path only —
+    # when the span could not be found in the submitted text. An empty quote
+    # degrades the card to its explanation; a fabricated one is the failure this
+    # field exists to prevent, so it is never rendered.
+    quote: str = ""
 
 
 class ScanResponse(BaseModel):

@@ -3,6 +3,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from app.models.schemas import Anomaly, ScanResponse
+from app.services.anomaly_codes import clean_quote, normalise_code
 from app.services.search import is_valid_company_name
 # `risk_calculator` was retired 2026-10-17 and is deliberately not imported
 # here. Leaving the import in with a `noqa` would be the half-wired state this
@@ -28,6 +29,11 @@ def _anomalies(flags: list) -> list[Anomaly]:
             reasoning=reasoning,
             severity=severity or "mid",
             query_ref=str(f.get("query_ref") or "").strip(),
+            # Normalised here rather than only in the parser: this is the last
+            # gate before the wire, and a caller that builds the dict itself
+            # would otherwise put an unchecked value on it.
+            code=normalise_code(f.get("code")),
+            quote=clean_quote(f.get("quote")),
         ))
     return out
 

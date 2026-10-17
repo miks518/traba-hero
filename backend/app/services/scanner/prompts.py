@@ -31,6 +31,8 @@ NO_ONLINE_ACCESS = (
 # separate copies and could drift.
 SCAN_FORMAT_BLOCK = """VALID: true
 ANOMALY: label | reasoning | severity
+CODE: one code from the ANOMALY CODES list
+QUOTE: the exact words from the posting that show this
 END ANOMALIES
 ATTRIBUTES:
 COMPANY: <exact employer name, or omit>
@@ -61,7 +63,21 @@ SCAN_FIELD_RULES = """Field rules:
   * Work followed by payment is the ordinary order and is not a flag by itself; most jobs are paid that way. What separates a task-for-earning offer is the unit of work â€” a task or an earning event rather than a role. If the posting describes a role and what the person in it does, this pattern does not apply.
   * If the posting has no anomalies, output no ANOMALY lines at all â€” go straight to END ANOMALIES. This is the expected outcome for most postings and is not a failure.
   * After an ANOMALY line, a QUERY_REF line may name the posting detail the search under SEARCH QUERIES checks. Omit it for a low-severity anomaly.
-  * Never invent a flag, and never output a placeholder or default flag. Every flag must quote or closely paraphrase text actually present in the posting.
+  * Never invent a flag, and never output a placeholder or default flag. Every flag must point to text actually present in the posting.
+  * After each ANOMALY line write a CODE line naming the entry below that this finding belongs to, and a QUOTE line holding the exact words from the posting that show it. The QUOTE must be copied verbatim and no longer than one sentence, and must contain only what the posting itself says: never your own judgment in it, no "likely", no "suspicious", no "scam", and no advice to the reader. If you cannot find exact supporting words, omit the QUOTE line rather than paraphrasing. A paraphrase presented as a quotation is a fabricated quote, which is worse than no quote at all.
+  * Choose the code by what the posting asks the reader to give up: money, identity documents, or their labour. The codes are labels, not a checklist and not a gate. If a posting contains something a reader would act on that none of them names, report it with OTHER and describe it in your label instead of staying silent. Staying silent because no code fits loses the finding entirely, which is worse than an imprecise label.
+  * ANOMALY CODES:
+    - FEE_MANDATORY: a fee the applicant must pay to be considered or to start, stated as non-refundable
+    - FEE_CONDITIONAL: a fee refunded on some later event, such as completing a seminar, passing, or being hired
+    - PURCHASE_REQUIRED: equipment, a uniform, materials or a kit that must be bought before work begins
+    - DEPOSIT_REQUIRED: a deposit or security bond to hold a role
+    - PAYMENT_FORWARDING: the applicant is asked to receive, pass on, withdraw or bank money on someone else's behalf
+    - CREDENTIALS_BEFORE_INTERVIEW: identification, bank details or passwords requested before any interview or offer
+    - DOCUMENTS_VIA_THIRD_PARTY: identity or personal documents sent through a domain, address or account that is not the employer's own
+    - IMPERSONATES_AUTHORITY: presents itself as a government agency, the armed forces, or a named company, through a channel or domain it does not control
+    - TASK_FOR_EARNING: discrete tasks, orders or referrals completed for payment, rather than a role with duties
+    - OTHER: anything real that the entries above do not cover. Your label already carries the description, so OTHER plus a clear label is a complete finding.
+  * A code must name a demand the posting makes. Do not choose a code for a detail the posting merely has.
   * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high. An "anomaly" is a description, so the label must not name a conclusion â€” write "Asks applicants to pay a processing fee", never "Scam fee request".
   * Severity means:
     - high: the posting asks the applicant for money, goods, or a deposit, or contains a concrete instruction matching a known scam mechanic.

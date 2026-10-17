@@ -5,6 +5,8 @@ Respond ONLY in the following format:
 
 VALID: <true or false>
 ANOMALY: <label> | <reasoning> | <severity>
+CODE: <one code from the ANOMALY CODES list>
+QUOTE: <the exact words from the posting that show this>
 END ANOMALIES
 ATTRIBUTES:
 COMPANY: <exact employer name, or omit>
@@ -36,7 +38,8 @@ END JOB SUMMARY
 
 2. ANOMALIES
 - An anomaly is something in the posting that differs from the ordinary case. It is a description of what the posting contains, not a conclusion about what it means: a genuine posting can be poorly written and still be entirely legitimate.
-- Output an ANOMALY line only for something you can point to in the posting, quoted or closely paraphrased from its text. Base anomalies ONLY on observable evidence in the text/image.
+- Output an ANOMALY line only for something you can point to in the posting. Base anomalies ONLY on observable evidence in the text/image.
+- After each ANOMALY line, write a `QUOTE:` line holding the exact words from the posting that show this finding, copied verbatim and no longer than one sentence. A QUOTE must contain only what the posting itself says. Never put your own judgment in a QUOTE: no "likely", no "suspicious", no "scam", and no advice to the reader. If you cannot find exact supporting words, omit the QUOTE line rather than paraphrasing. A paraphrase presented as a quotation is a fabricated quote, which is worse than no quote at all.
 - Before reporting anything, ask: would a job seeker do something differently after reading this? If the answer is no, report nothing. A posting you have no specific concern about is the expected outcome and is not a failure.
 - Never flag the absence of something. Do not output an anomaly because the posting does not ask for a processing fee, does not mention a contract, does not state a salary, does not state a company name, or does not include something else a posting might have included. The absence of an element is never evidence of anything, and "it does not ask for money" is a clean posting, not a warning. Do not build an anomaly out of an absence either - "urgent hiring, and it states no salary" is still two ordinary things.
 - Do not flag any of these: a free email domain (Gmail, Yahoo), a missing office address, a generic job title, "no experience needed", informal or Messenger-based application, or the absence of a formal application process. These are ordinary in Philippine job postings, including ones written on Facebook groups, and reporting them buries the findings that matter. There is no combination of these that makes one of them a finding: a posting that is wrong in some other way is still not made suspicious by its author having a Gmail address.
@@ -54,6 +57,25 @@ END JOB SUMMARY
 - Do not stretch the severity ladder to fit an observation. If a finding does not match a definition above, it is not an anomaly.
 - If no anomalies exist, emit no `ANOMALY:` lines and go straight to `END ANOMALIES`. This is the expected outcome for most postings and is not a failure.
 - A label is 3-6 words naming what the posting does, and must not name a conclusion. Write "Asks applicants to pay a processing fee", never "Scam fee request".
+- After an ANOMALY line, a CODE line names which entry below this finding belongs to, and a QUOTE line holds the posting's own words for it. Both are optional in the sense that a finding without them still stands, but write them whenever you can.
+
+ANOMALY CODES:
+FEE_MANDATORY: a fee the applicant must pay to be considered or to start, stated as non-refundable
+FEE_CONDITIONAL: a fee refunded on some later event, such as completing a seminar, passing, or being hired
+PURCHASE_REQUIRED: equipment, a uniform, materials or a kit that must be bought before work begins
+DEPOSIT_REQUIRED: a deposit or security bond to hold a role
+PAYMENT_FORWARDING: the applicant is asked to receive, pass on, withdraw or bank money on someone else's behalf
+CREDENTIALS_BEFORE_INTERVIEW: identification, bank details or passwords requested before any interview or offer
+DOCUMENTS_VIA_THIRD_PARTY: identity or personal documents sent through a domain, address or account that is not the employer's own
+IMPERSONATES_AUTHORITY: presents itself as a government agency, the armed forces, or a named company, through a channel or domain it does not control
+TASK_FOR_EARNING: discrete tasks, orders or referrals completed for payment, rather than a role with duties
+OTHER: anything real that the entries above do not cover
+END ANOMALY CODES
+
+- Choose the code by what the posting asks the reader to give up: money, identity documents, or their labour. Several codes may fit one finding; write the one that names the thing actually asked for.
+- The codes are labels, not a checklist. They are not a gate: if a posting contains something a reader would act on that none of them names, report it with `OTHER` and describe it in your label instead of staying silent. Staying silent because no code fits loses the finding entirely, which is the one outcome worse than an imprecise label.
+- `OTHER` needs no extra explanation field. Your label already carries the description, so `OTHER` plus a clear label is a complete finding.
+- A code must name a demand the posting makes. Do not choose a code for a detail the posting merely has.
 - After an ANOMALY line, a QUERY_REF line may name the posting detail the search under SEARCH QUERIES checks. Omit it for a low-severity anomaly.
 
 6. ATTRIBUTES

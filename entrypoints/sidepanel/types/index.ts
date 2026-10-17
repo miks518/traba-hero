@@ -78,6 +78,29 @@ export interface Anomaly {
   description: string;
   icon: IconName;
   severity?: 'low' | 'mid' | 'high';
+  /**
+   * The taxonomy ID from the backend's `ANOMALY_CODES`, or `OTHER` when the
+   * model's answer fell outside the set, or `undefined` for a scan recorded
+   * before the field existed.
+   *
+   * `undefined` is not the same as `OTHER`: absent means the response carried
+   * no code at all, while `OTHER` means the model deliberately answered the
+   * escape valve. Collapsing them would make stored history look like drift.
+   *
+   * Optional on read — scan history predates this field, so requiring it would
+   * render every stored scan unloadable.
+   */
+  code?: string;
+  /**
+   * A verbatim span of the posting that decided this finding.
+   *
+   * Empty or absent when the model emitted none, when the span carried a word
+   * the posting could not have written about itself, or — on the text path
+   * only — when it could not be found in the submitted text. An absent quote
+   * degrades the card to its description; a fabricated one is never rendered,
+   * so the card must not treat "no quote" as an error.
+   */
+  quote?: string;
 }
 
 export interface SkillGap {
