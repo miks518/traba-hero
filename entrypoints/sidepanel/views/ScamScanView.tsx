@@ -262,7 +262,13 @@ export function ScamScanView({
           verifying={Boolean(scanResult.verificationLoading) || session.verificationFailed}
           verificationError={Boolean(scanResult.verificationError)}
           currentQuery={session.currentSearchQuery}
-          timestamp={restoredJob?.job.timestamp}
+          // Both come from the session, not from `restoredJob`. Reading them off
+          // the history record made the subject line blank on a fresh scan and
+          // the date appear only when a job was reopened from the Match tab —
+          // so the panel looked different depending on how you arrived at the
+          // same reading. The session holds both on every path now.
+          timestamp={session.scannedAt ?? undefined}
+          title={session.jobTitle ?? undefined}
           needsCompanyName={session.needsCompanyName}
           elevate={session.elevate}
         />

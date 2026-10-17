@@ -85,6 +85,23 @@ export function useScanSession({
   const [currentSearchQuery, setCurrentSearchQuery] = useState('');
   const [verificationFailed, setVerificationFailed] = useState(false);
 
+  /**
+   * When this reading was taken, and what the posting is called.
+   *
+   * **Both used to live only on the history record**, which is why the report's
+   * subject line was blank on a fresh scan and showed a date only when the reader
+   * reopened the job from the Match tab. The panel states two facts about the
+   * reading itself — when it was taken, and what it is a reading *of* — and
+   * neither is a property of the history entry. They belong to the result on
+   * screen, so they are held here and survive the result being replaced.
+   *
+   * `jobTitle` is the same string `onScanComplete` writes to history, derived the
+   * same way, so the panel and the history entry cannot disagree about what the
+   * posting is called.
+   */
+  const [scannedAt, setScannedAt] = useState<string | null>(null);
+  const [jobTitle, setJobTitle] = useState<string | null>(null);
+
   const abortRef = useRef<AbortController | null>(null);
   const verifyAbortRef = useRef<AbortController | null>(null);
 
@@ -275,6 +292,11 @@ export function useScanSession({
     setIsLoading(false);
     setHasSelection(false);
     setScanResult(null);
+    // Cleared with the result. A subject line left over from the previous reading
+    // would sit above a fresh capture with nothing under it, which reads as a
+    // title for a scan that has not happened.
+    setScannedAt(null);
+    setJobTitle(null);
     setProgress(null);
     setVerificationFailed(false);
     onScanProgressChange?.(null);
@@ -335,6 +357,10 @@ export function useScanSession({
       const data = result.response;
       const mapped = mapApiResponse(data);
       setScanResult(mapped);
+      // Set before the early return below, so a posting with no employer still
+      // gets a subject line. It is a fact about the capture, not about the
+      // verification.
+      setScannedAt(new Date().toISOString());
       // Set synchronously, not by mirroring render state. Verification can
       // reject before React commits the render above — a backend that is down
       // fails on the first attempt — and a ref that tracks state would still be
@@ -349,6 +375,9 @@ export function useScanSession({
           ? data.job_summary.slice(0, 60).replace(/\s+\S*$/, '')
           : mapped.scanningTarget;
         const jobId = generateJobId();
+        // The same string the history entry carries, so the subject line and the
+        // Match tab cannot disagree about what this posting is.
+        setJobTitle(jobTitle);
         onScanComplete?.({
           id: jobId,
           title: jobTitle,
@@ -423,6 +452,11 @@ export function useScanSession({
     // different values would write a mix of the pre-restore and post-restore
     // result into history.
     scanResultRef.current = restored;
+    // A reopened scan has its own subject line, from the record rather than from
+    // a capture that is no longer happening. Restoring these is what makes the
+    // date show here as well as on a fresh scan — the two paths must not differ.
+    setScannedAt(restoredJob.job.timestamp ?? null);
+    setJobTitle(restoredJob.job.title ?? null);
     setHasScanned(true);
     setHasSelection(false);
     setScreenshots([]);
@@ -484,6 +518,8 @@ export function useScanSession({
     progress,
     progressPercent: progress?.percent ?? 0,
     scanResult,
+    scannedAt,
+    jobTitle,
     currentSearchQuery,
     verificationFailed,
     verificationRun,
