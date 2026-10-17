@@ -499,6 +499,47 @@ High/Critical: Gauge → [Anomalies · Offer · Evidence] → Posting Analysis �
 - `/api/verify` logs raw AI response and parsed items at INFO/WARNING level for debugging
 - `extract_company_name()` in `search.py` runs every pattern over the text as zero-width lookaheads and trims each capture at the first clause boundary, so "Acme Corp. We are hiring" does not become a company name. Evaluate new patterns against that rule — a greedy capture that runs into the next sentence produces a name the search cannot resolve, which then looks like an unverifiable company.
 
+## New Panel Architecture (report redesign)
+
+`jobposts/Job Post Scan Report (updated1).html` is the **architectural foundation** for
+the panel that replaces the score-and-gauge UI. Treat it as structure, not content:
+the layout, the section order, the tone treatment, and the token usage are the design;
+the copy and the specific items in it are placeholders.
+
+- **What is settled and should be preserved when it is built.** The verdict is a
+  short instruction to the reader plus a one-line reason, not a number or a level
+  word. Evidence sits in a "Why we think so" block that **quotes the posting** and
+  highlights the quoted span. Checks are split into *Verified* and *Could not verify*,
+  and the second carries its reason. A coverage count ("13 of 14 done") is a
+  first-class figure. "Do not share" / "Hold back until verified" gates the reader's
+  next action. Findings sit in a disclosure that says minor ones are inside.
+- **It reads DESIGN.md properly** — semantic tokens, `tactile-card` for containers,
+  `tactile-btn-accent` compound selectors for buttons, zero-blur hard shadows with
+  the 6px→2px press, Hanken Grotesk + Inter. Severity comes from tone containers
+  rather than a saturated banner, so a clean result looks calm. Keep all of that.
+- **Its furniture is not its architecture.** The codes in it (`EMAIL_MISMATCH`,
+  `PAY_ABOVE_MARKET`, `NEW_DOMAIN`, `CHAT_ONLY_INTERVIEW`) are a generic job-scam
+  checklist, **not** the taxonomy in `docs/superpowers/specs/2026-10-17-anomaly-code-set.md`.
+  `EMAIL_MISMATCH` is the free-email-domain finding this project has fixed three
+  times and has a dedicated test against. `PAY_ABOVE_MARKET` is a non-finding that
+  the prompt forbids. `NEW_DOMAIN` is a verification item, not a posting anomaly.
+  "What we checked" also lists checks that were never built (scam watchlists,
+  employee reviews, text-copy detection, WHOIS domain age) — **a line in that list
+  has to be a check that actually ran**, or the coverage count is a false claim.
+- **A control in the design has no implementation.** "Was this accurate?" is retained
+  by decision but cannot ship without somewhere to put the answer; there is no
+  database. **Do not ship it as a live button.** See the "Reader feedback capture"
+  entry in `UNFINISHED-WORK.md`.
+- **The four states the design does not draw** and the panel already has: no employer
+  named (`CompanyNameNeeded`), verification failed, `VALID: false`, offline.
+
+The slot-by-slot contract — what each section binds to, which bindings **do not
+exist yet**, and the eight-state matrix — is in
+`docs/superpowers/specs/2026-10-17-report-panel-architecture.md`. Read it before
+building any of this. The short version: **the anomaly `code`, a verbatim `quote`,
+a per-category unavailable reason, and a scan id are the whole gap**, and none of
+the three verdict phrases is model-written.
+
 ## Offline Mode
 
 - `useBackendHealth()` is the single source of truth for reachability and is mounted once in `App.tsx`; views receive `isOnline` as a prop (default `true`)

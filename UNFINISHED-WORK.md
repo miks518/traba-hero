@@ -214,6 +214,63 @@ Also confirm:
 
 ---
 
+## Reader feedback capture ("Was this accurate?") — deferred by decision
+
+The redesigned report panel carries a **"Was this accurate? Yes / No, it was wrong"**
+control in its architecture (`jobposts/Job Post Scan Report (updated1).html`, all
+three states). It is **kept in the design and not built**, because there is no
+database. The developer reviewed this and chose to keep the affordance rather than
+cut it.
+
+**Why it cannot ship now.** A click with nowhere to go is worse than no control: it
+reads as a working feature and silently discards the only signal that would tell us
+the verdict taxonomy is wrong. This is the same failure as the score — presenting a
+measurement that was never taken.
+
+**What is missing, concretely.** There is no persistence layer of any kind.
+`chrome.storage.local` holds scan history and nothing else; the backend is
+stateless and holds no user records by design (Task 2.2, zero-retention). So a
+rating has no destination, and a captured rating that cannot be read by anyone is
+not data.
+
+**The constraint is the developer's, and it is a sound one** — a thesis project
+should not accumulate a database of what real job seekers were shown. Recorded so a
+later session does not read the absence as an oversight.
+
+**Options when it is picked up, best first:**
+
+1. **Local capture plus manual export.** Append `(scanId, codes[], level, rating,
+   timestamp)` to a `chrome.storage.local` list, and give the reader an "Export
+   feedback" control producing a JSON file the user sends to the team. No backend, no
+   database, nothing retained server-side. **This is the only option consistent with
+   zero-retention**, and it is the one that fits a gold set built by hand anyway.
+2. **A mailto or form post to an address the team controls.** No database either, but
+   it puts applicant-relevant content — a posting's employer name and findings — in
+   an inbox, which is the retention Task 2.2 exists to avoid. Needs a decision first.
+3. **A backend endpoint writing to a datastore.** Out of scope while there is no
+   database.
+
+**Three things to get right when it is built, each of which is a way the obvious
+implementation is wrong:**
+
+- **A three-way control, not two.** "Yes / No" forces every uncertain reader into a
+  bucket and biases any rate we publish toward confirmation. It needs a third
+  "Partly" or "Not sure". The design as drawn has two options and should change.
+- **The rating is only interpretable against the codes, not the verdict.** Store the
+  anomaly code set alongside it. A bare "this was wrong" cannot say which code was
+  wrong, and the per-code false-negative rate in `§6.3` is the number worth having.
+  The retired numeric score made this impossible to reconstruct; codes are what make
+  a rating re-analysable later.
+- **Self-selection is a real bias and must be stated wherever the rate is quoted.**
+  Readers click when they were burned, not at random. An 80% "yes" rate from a
+  convenience sample is not an 80% accuracy figure, and a thesis panel will ask.
+
+**Related:** `docs/superpowers/specs/2026-10-17-anomaly-code-set.md` §6 lists what
+the codes make measurable; the feedback capture is the only route to measuring drift
+in the field rather than against the gold set alone.
+
+---
+
 ## Task 2.1 — Data Privacy Consent Modal
 
 Not started. Resume upload currently goes straight to `/api/analyze-resume`
