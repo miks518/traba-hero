@@ -6,9 +6,14 @@ FastAPI backend that proxies OpenRouter.
 **Extension** (repo root): React 19 + TypeScript + Tailwind, WXT.
 **Backend** (`backend/`): FastAPI, Python.
 
-**Read `UNFINISHED-WORK.md` first in a new session.** It is the canonical list of what is
-known-incomplete, the manual output-quality checklist, and the reasoning-model notes.
-**A red test in this repo is a finding, not a condition.**
+**Start with `docs/architecture.md`** for the component map and API surface, then the
+decision record for whatever you are about to change. **A red test in this repo is a
+finding, not a condition.**
+
+> `UNFINISHED-WORK.md` was the canonical open-work list and is **deprecated** — it
+> drifted from the code it described. Known-open items now live in the decision
+> records and in the contradictions list at the end of this file. Do not
+> reconstruct it; if you find an unfinished thread, add it here.
 
 ---
 
@@ -32,7 +37,6 @@ Detail lives in `docs/`. Each fact is stated in exactly one place.
 | `docs/decisions/reasoning-models.md` | The token-budget failure and the three ways out |
 | `docs/decisions/report-panel-redesign.md` | What the new report UI settles, and the slots with no possible source |
 | `docs/superpowers/specs/` | Design specs and plans, newest first |
-| `SCORING-SOURCES.md` | Sources and derivations for every weight |
 | `docs/security-audit-2026-10-14.md` | The audit that produced the current boundaries |
 
 ---
@@ -154,16 +158,18 @@ Listed, **not resolved** — each needs a decision or a check against live code.
 
 1. **`REFUTATION_WEIGHTS` has two value sets across the repo.** The architecture and
    scoring docs describe `25/13/7/4/2/2`, described as AHP-derived with CR = 0.0448. The
-   `risk_calculator` entry and `UNFINISHED-WORK.md` both give `25/15/10/8/6/6` and describe
-   the weights as *not yet derived*. One of these is stale; which is which is not
-   determinable from the prose.
-2. **`POSTING_SEVERITY_WEIGHTS` is described both ways.** `docs/scoring.md` calls
-   40/12/4 AHP-derived from a 3/9/3 Saaty matrix at CR = 0.0000. `SCORING-SOURCES.md` §8
-   and `UNFINISHED-WORK.md` describe the same numbers as originally set by judgement.
+   deprecated `UNFINISHED-WORK.md` records `25/15/10/8/6/6` and calls the weights *not yet
+   derived*. One of these is stale; which is which is not determinable from the prose.
+   The code in `risk_calculator.py` currently reads `25/13/7/4/2/2`.
+2. **`POSTING_SEVERITY_WEIGHTS` provenance is now one-sided.** `docs/scoring.md` calls
+   40/12/4 AHP-derived from a 3/9/3 Saaty matrix at CR = 0.0000, and `test_risk_model.py`
+   recomputes it. The conflicting account — that the numbers were originally set by
+   judgement — lived only in the deleted `SCORING-SOURCES.md` §8 and can no longer be
+   checked. The derivation is the surviving record.
 3. **`risk_calculator.py` is described as retired**, yet the filter categories and the
    score bands are still documented as computed there, while `risk_level` and `risk_score`
    are now model-emitted. It is unclear which parts of `risk_calculator` still run.
-4. **`REFUTATION_WEIGHTS` ordering versus anchor.** One entry gives per-category weights as
-   25/15/10/8/6/6 across six categories and another gives 25/13/7/4/2/2 — both purport to
-   be the same table, and the sum differs, so at most one can be a principal eigenvector
-   normalised to a 25-point anchor.
+4. **`REFUTATION_WEIGHTS` ordering versus anchor.** The deprecated `UNFINISHED-WORK.md`
+   gives per-category weights as 25/15/10/8/6/6 across six categories; `docs/scoring.md`
+   gives 25/13/7/4/2/2. Both purport to be the same table, and the sum differs, so at most
+   one can be a principal eigenvector normalised to a 25-point anchor.

@@ -1,6 +1,8 @@
 # Scoring
 
-Sources and derivations: `SCORING-SOURCES.md` (repo root).
+Sources: the derivations are executable. `backend/scripts/derive_refutation_weights.py`
+holds the pairwise matrices, and `backend/tests/test_risk_model.py` recomputes them on
+every run.
 Decision records: `docs/decisions/scoring-model.md`.
 
 ---
@@ -65,9 +67,10 @@ failure.
 
 ### The anchor is the free parameter, and it sits at a boundary on purpose
 
-AHP yields proportions, never points. `SCORING-SOURCES.md` §9 shows the stable plateau
-is anchor 25–30 and that the two boundaries fail in opposite directions: below 25 the
-three-red case *understates*, above 30 a clean posting is *overstated*.
+AHP yields proportions, never points. `TestTheDocumentedSensitivityIsReal` recomputes the
+plateau at anchors 25 and 30 on every run; it holds at 25–30, and the two boundaries fail
+in opposite directions: below 25 the three-red case *understates*, above 30 a clean
+posting is *overstated*.
 
 Choosing 25 means the reachable error is understatement, which is the right direction
 for a tool whose output is read as advice about money.
@@ -88,8 +91,10 @@ exist to prevent.**
 
 ## Known-unreconciled statements
 
-Two statements about the weight tables disagree and are listed in `AGENTS.md` rather
-than resolved here. See the contradictions list:
+Listed in `AGENTS.md` rather than resolved here:
 
-- `REFUTATION_WEIGHTS` is recorded with two different value sets across the repo.
-- `POSTING_SEVERITY_WEIGHTS` is described both as originally chosen and as AHP-derived.
+- `REFUTATION_WEIGHTS` is recorded with two different value sets across the repo. The
+  `25/15/10/8/6/6` set survives only in the deprecated `UNFINISHED-WORK.md`; the code and
+  the tests use `25/13/7/4/2/2`.
+- `POSTING_SEVERITY_WEIGHTS` provenance is one-sided since `SCORING-SOURCES.md` was
+  deleted. This file says AHP-derived, and `test_risk_model.py` re-derives it.

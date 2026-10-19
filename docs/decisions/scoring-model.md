@@ -85,8 +85,9 @@ impersonation, since a real employer passes every existence, registration and br
 check.
 
 The weights themselves are recorded in `docs/scoring.md` along with their Saaty
-derivation. `SCORING-SOURCES.md` §8 describes the debt the earlier employer-category
-weights carried, and that debt is what the re-derivation replaced.
+derivation. The earlier employer-category weights were set by judgement, and that debt is
+what the re-derivation replaced; the judgment list now lives in
+`backend/scripts/derive_refutation_weights.py`, which the tests run against the live table.
 
 **Note:** two statements about the weight values disagree across the repo. They are
 listed in the contradictions section of `AGENTS.md` rather than resolved here, because

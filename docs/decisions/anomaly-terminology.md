@@ -61,7 +61,7 @@ the wire format for no reader-visible gain.
 `test_scan_prompt_file.py` had 11 failures. **They are fixed, and the note that called
 them pre-existing was wrong.**
 
-An earlier version of `UNFINISHED-WORK.md` described them as predating the anomaly
+An earlier, since-deprecated version of `UNFINISHED-WORK.md` described them as predating the anomaly
 rename and not worth reading as rename damage. That was half right and dangerous in the
 wrong direction: they *did* predate the rename, so they read as unrelated, but they
 were not stale tests.

@@ -113,4 +113,4 @@ plausible number, or an empty result rather than an error.
   user. Raise the limit or back off to 6s if seen.
 - **The SEC client was deleted; nothing calls it.** Any test or doc claiming an SEC
   integration is describing something that no longer exists — Tavily is the only retrieval
-  path. See `Task 3.2` in `UNFINISHED-WORK.md`.
+  path.

@@ -103,7 +103,7 @@ over.
 
 `OUTPUT_RULES` and `SCAN_FIELD_RULES` in `prompts.py` now build only
 `FALLBACK_SYSTEM_PROMPT`, so the two copies can still drift. **Nothing enforces that
-yet** — see `UNFINISHED-WORK.md`.
+yet.**
 
 ---
 

@@ -90,7 +90,8 @@ that actually ran**, or the coverage count is a false claim.
 the answer; there is no database. Do not ship it as a live button.**
 
 Full reasoning, the three compatible options, and the three things to get right when it
-is built are in the "Reader feedback capture" entry in `UNFINISHED-WORK.md`.
+is built survive only in the "Reader feedback capture" entry of the deprecated
+`UNFINISHED-WORK.md` — that file is not maintained, so treat it as an archive.
 
 ---
 

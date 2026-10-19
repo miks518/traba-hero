@@ -1,8 +1,12 @@
 # Unfinished Work
 
+> **Deprecated — 2026-10-19.** This file drifted from the code it described and is no
+> longer maintained. Open work now lives in `docs/decisions/` and in the contradictions
+> list at the end of `AGENTS.md`. Read what follows as history, not as a task list.
+
 Running list of what was left undone, why, and how to verify it. Newest task first.
 
-**Start here in a new session.** The developer has manually confirmed the scan
+**Status when this was written.** The developer had manually confirmed the scan
 pipeline works end to end with the tightened prompts, the two-stage score, and
 `AI_MAX_TOKENS=2048` + `AI_REASONING_EFFORT=low`. What is still open is the
 formal output-quality pass below, the outstanding tests, and the deferred

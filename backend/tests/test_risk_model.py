@@ -579,7 +579,7 @@ class TestTheRetiredEmployerStageIsStillExported:
 class TestTheEvidenceWeightsAreDerivedNotChosen:
     """The claim in the module comment, re-checked on every run.
 
-    `REFUTATION_WEIGHTS` used to be judgement, and `SCORING-SOURCES.md` section 8
+    `REFUTATION_WEIGHTS` used to be judgement, and the since-deleted sources document
     flagged it as the one number in the file with no method behind it. A comment
     saying a weight is derived from a pairwise matrix is worth nothing if nothing
     re-derives it, so the matrix, the eigenvector, the consistency ratio and the
@@ -648,7 +648,7 @@ class TestTheEvidenceWeightsAreDerivedNotChosen:
         assert refuted > low, "a refuted registration claim must move the number"
 
 class TestTheDocumentedSensitivityIsReal:
-    """SCORING-SOURCES.md section 9 states a stability interval. Check it.
+    """`docs/scoring.md` states a stability interval. Check it.
 
     A table in a document that nothing computes is a claim, not a result. These
     recompute it at run time, so a weight change that quietly narrows the stable

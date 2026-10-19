@@ -141,8 +141,8 @@ def anchor_to_points(weights: list[float], anchor_criterion: str, anchor_points:
     """Scale proportions so `anchor_criterion` is worth exactly `anchor_points`.
 
     AHP yields proportions, never point values. This is the free parameter
-    `SCORING-SOURCES.md` section 1 calls out for the severity weights, and it is
-    defended the same way here - by sensitivity analysis, section 9.
+    `docs/scoring.md` calls out for the severity weights, and it is
+    defended the same way here - by sensitivity analysis.
 
     Largest-remainder rounding, so the vector still sums in proportion rather
     than drifting a point or two.
