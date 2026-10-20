@@ -176,7 +176,13 @@ calling `code_verdict` or if the schema starts asking for a level again.
   contracts.
 - `tests/test_channel_match_regressions.py` — the two permanent fixtures through
   `/api/verify`: Knollridges is not "Do not proceed"; Fake CHED is critical and the
-  `chred` channel is red. Both mock search and chat at the router boundary.
+  `chred` channel is red. Both mock search and chat at the router boundary. The
+  fixtures assert the **headline the reader sees**, not only the level, by reading
+  `verdictCopy.ts`'s own table — the level and the words are a contract, and a test
+  that pins one half lets the other half drift into saying "Do not proceed".
+- `entrypoints/sidepanel/components/report/verdictCopy.test.ts` — the other half of
+  that contract: the level → headline mapping, and that no level below `critical`
+  ever tells the reader to stop.
 
 ---
 

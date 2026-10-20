@@ -18,6 +18,8 @@ test in this file reaches a provider.
 """
 
 import json
+import re
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -28,6 +30,39 @@ from app.services.search import SearchOutcome, SearchResult
 
 
 transport = ASGITransport(app=app)
+
+VERDICT_COPY = (
+    Path(__file__).resolve().parents[2]
+    / "entrypoints"
+    / "sidepanel"
+    / "components"
+    / "report"
+    / "verdictCopy.ts"
+)
+
+
+def _headline_for(level: str | None) -> str:
+    """The headline the panel renders for a level, read from the real file.
+
+    **The two halves of the verdict are a contract, and this is the seam.** The
+    backend decides the level; `verdictCopy.ts` decides the words; the reader
+    sees the words. A test that asserts only the level pins one half, and the
+    other half can be edited into saying "Do not proceed" for a level the
+    backend chose carefully - which is exactly the bug these fixtures exist to
+    prevent, and exactly what happened before the level moved into code.
+
+    So the assertion reads the frontend's own table rather than restating the
+    expected string. If the mapping changes, this fails and says so, instead of
+    the two sides drifting apart quietly.
+    """
+    if not level:
+        return "No verdict on this one"
+    source = VERDICT_COPY.read_text(encoding="utf-8")
+    match = re.search(
+        rf"\b{re.escape(level)}:\s*\{{\s*headline:\s*'([^']+)'", source
+    )
+    assert match, f"verdictCopy.ts has no headline for level {level!r}"
+    return match.group(1)
 
 
 def _result(resp) -> dict:
@@ -243,6 +278,15 @@ async def test_knollridges_does_not_become_do_not_proceed():
     assert data["riskLevel"] == "low"
     assert data["riskScore"] == 0
 
+    # The reader-visible half. The panel renders `verdictCopy.ts`'s headline for
+    # the level, and `low` is the only level that means "Proceed, with a quick
+    # check". Asserting the level alone leaves the outcome unpinned: the
+    # mapping could be edited to say "Do not proceed" for `low` and every test
+    # in this file would still pass, with this exact bug back in the panel.
+    # The mapping itself is pinned in
+    # `entrypoints/sidepanel/components/report/verdictCopy.test.ts`.
+    assert _headline_for(data["riskLevel"]) == "Proceed, with a quick check"
+
 
 @pytest.mark.asyncio
 async def test_fake_ched_stays_critical_and_the_chred_domain_is_red():
@@ -275,6 +319,13 @@ async def test_fake_ched_stays_critical_and_the_chred_domain_is_red():
     # 100. The model tried to say low/0.
     assert data["riskLevel"] == "critical"
     assert data["riskScore"] == 100
+
+    # The reader-visible half. `critical` is the one level whose headline is the
+    # flat stop, and it needs a combined score above 75 - which is what two
+    # high fee findings plus a refuted government channel reaches. The mapping
+    # is pinned in
+    # `entrypoints/sidepanel/components/report/verdictCopy.test.ts`.
+    assert _headline_for(data["riskLevel"]) == "Do not proceed"
 
 
 @pytest.mark.asyncio
