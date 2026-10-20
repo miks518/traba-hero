@@ -26,10 +26,23 @@ Verification is asymmetric: **it can only raise the number, never lower it.** Se
 `docs/decisions/scoring-model.md` for why the 60/40 blend was replaced and why
 substitution would be equally wrong.
 
+`verdict.py` produces the final level from these two stages. The verify model no
+longer returns `risk_level` or `risk_score`; if an old response carries them, the
+flow logs them and ignores them. A strong Channel Match contradiction — a
+government claim with a non-`.gov.ph` channel, or a lookalike of the official
+domain — gets a floor of `high` (51). It does not reach `critical` on its own;
+the combined score still has to pass 75.
+
 ### Posting stage (always runs)
 
 `_posting_risk_from_flags` counts the indicators the scan actually reported — high 40,
 mid 12, low 4, capped at 100.
+
+A `stale` anomaly assessment removes that specific finding before this count. This
+is the one way the model's evidence work moves the level: a retrieved
+employer-specific source that accounts for a finding means the finding no longer
+stands, and the code should not keep pricing it. `yellow` and `red` assessments
+do not change the posting score.
 
 This depends on nothing but the posting, so an offer that names no employer, or one that
 cannot be looked up, still gets a verdict.
@@ -81,8 +94,11 @@ for a tool whose output is read as advice about money.
 
 ## Never synthesise a score in the client
 
-The number the panel shows is computed in `risk_calculator.py` and sent in
-`score_breakdown`, which records which stages contributed.
+The number is computed in `verdict.py`, which calls `risk_calculator.py`'s
+arithmetic, and sent in `score_breakdown`, which records which stages contributed.
+The verify model does not produce it. The panel renders the level and the authored
+instruction, not the number; the score is still used for the level bands and resume
+matching.
 
 **Presenting a number the system never measured is the exact exposure the prompt rules
 exist to prevent.**

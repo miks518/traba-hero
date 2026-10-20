@@ -1,6 +1,40 @@
 # Decision record — the scoring model
 
-Owner file: `backend/app/services/scanner/risk_calculator.py`.
+Owner files: `backend/app/services/scanner/risk_calculator.py` (weights and
+arithmetic), `backend/app/services/scanner/verdict.py` (the code-owned final
+level), `backend/app/services/scanner/channel_match.py` (Channel Match severity).
+
+---
+
+## Amendment (2026-10-21): the level is code-owned again
+
+The model's `risk_level` and `risk_score` are no longer inputs to the verdict.
+The reason is a reproducible false positive, not a preference: a real employer
+whose posting used `name.company@gmail.com` while its own site was
+`company.com.ph` produced a red Channel Match and, because the same model emitted
+the overall level, "Do not proceed" from one weak observation.
+
+The split that replaced it:
+
+- The model reports Channel Match **facts** in `channel_match`: the printed
+  channels, the official channels, whether the posting claims to be government,
+  and a factual sentence. It does not assign the category's status.
+- `channel_match.py` assigns that status from the facts. A free email at an
+  otherwise matching company is yellow. A government claim with a non-`.gov.ph`
+  channel, or a lookalike of the official domain, is red. A non-matching channel
+  plus an independent finding is red. Everything else is yellow.
+- `verdict.py` combines the posting's findings with `_refutation_score_from_verify`
+  using the arithmetic below. A strong Channel Match red gets a floor of
+  `high` (51), not `critical`; the most serious headline still needs the combined
+  score to reach 76.
+- A `stale` anomaly assessment removes that specific finding from the posting
+  score. This keeps the 2026-10-20 feature's purpose without letting the model
+  write the level. `yellow` and `red` assessments change nothing.
+
+The model's fields are still read by the parser for old or schema-less responses,
+and logged when present, but the flow does not pass them to `code_verdict`. The
+schema no longer asks for them. `tests/test_code_verdict.py` fails if the flow
+stops calling `code_verdict` or if the schema starts asking for a level again.
 
 ---
 
@@ -28,6 +62,34 @@ plain 50/50 mean would report three high-severity anomalies plus an unlookable e
 as 50 — "moderate" — because half of nothing is nothing. The floor keeps the posting
 stage's own full 0–100 range intact and gives evidence a guaranteed share of the
 ceiling above it.
+
+---
+
+## Amendment (2026-10-20, superseded in part on 2026-10-21): stale findings
+
+The additive asymmetry above still governs the arithmetic. The 2026-10-20
+amendment moved the level to the verify model so it could weigh the anomaly
+assessments. The 2026-10-21 amendment takes the level back into code; the stale
+rule survives, implemented as an exclusion rather than a model judgement:
+
+- A finding an **employer-specific** source accounts for (`stale`) is removed
+  from the posting score. The finding no longer stands, and the code should not
+  keep pricing it.
+- A finding a source contradicts (`red`) keeps its weight. The contradiction is
+  not a reason to stop counting what the posting asked for.
+- A finding that is `yellow` never lowers it. A general page about a practice,
+  an absent source, or a failed search is not evidence in the reader's favour.
+
+The parser only keeps a `stale` assessment when its `source_url` was retrieved,
+and demotes an unbacked one to `yellow`. The exclusion is therefore reading a
+fact the retrieval layer checked, not a model conclusion on its own. It does not
+make the employer's record clean and cannot subtract from unrelated findings.
+
+The earlier rule's reason still binds on the status-bearing checks: a `green`
+category carries zero weight, and the absence of a bad record must not make an
+advance-fee posting look safer. See
+`docs/superpowers/specs/2026-10-20-anomaly-evidence-assessment-design.md` §7 and
+`docs/decisions/verification-design.md`.
 
 ---
 
@@ -66,13 +128,13 @@ so those tests would have passed without guarding the rename at all.
 
 ## `_calculate_risk_score_from_verify()` is dead code that reads as live
 
-Nothing calls it; the verification flow calls `_refutation_score_from_verify()`. It is
-retained only because `test_scanner_package.py` pins the package's symbol list, and
-`test_verify.py` still asserts its output — which is exactly why a reader following the
-score lands there and is misled.
+Nothing calls it; `verdict.py` calls `_posting_risk_from_flags()` and
+`_combine_scores()`. It is retained only because `test_scanner_package.py` pins
+the package's symbol list, and `test_verify.py` still asserts its output — which
+is exactly why a reader following the score lands there and is misled.
 
-Its scale is a *different* one (a share of the old 40/25/35 category weights normalised
-to 100), so it is **not** a drop-in for the stage that replaced it.
+Its scale is a *different* one (a share of the old 40/25/35 category weights
+normalised to 100), so it is **not** a drop-in for the stage that replaced it.
 
 **Do not treat a passing test against it as evidence that the evidence stage works.**
 

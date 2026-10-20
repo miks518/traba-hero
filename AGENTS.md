@@ -30,6 +30,7 @@ Detail lives in `docs/`. Each fact is stated in exactly one place.
 | `docs/decisions/libel-guardrail.md` | Every prompt rule, and the three failure shapes they were written against |
 | `docs/decisions/scoring-model.md` | Why the blend was replaced, why subtraction would be equally wrong, the dead function |
 | `docs/decisions/verification-design.md` | The six claim categories, `Official Registration`, `finding` + source schema |
+| `docs/decisions/channel-match-severity.md` | Channel Match facts, the free-email / government / lookalike / combination rules, the strong-channel floor |
 | `docs/decisions/security-boundaries.md` | Removed auth, rate-limit identity, CORS, body ceiling, citation binding |
 | `docs/decisions/parser-resilience.md` | `_SECTION_RE` ordering, attribute gating, deleted sections, the 404 param fallback |
 | `docs/decisions/anomaly-terminology.md` | **The rename decision record.** Legacy parser paths are deliberate — do not "clean them up" |
@@ -166,9 +167,13 @@ Listed, **not resolved** — each needs a decision or a check against live code.
    recomputes it. The conflicting account — that the numbers were originally set by
    judgement — lived only in the deleted `SCORING-SOURCES.md` §8 and can no longer be
    checked. The derivation is the surviving record.
-3. **`risk_calculator.py` is described as retired**, yet the filter categories and the
-   score bands are still documented as computed there, while `risk_level` and `risk_score`
-   are now model-emitted. It is unclear which parts of `risk_calculator` still run.
+3. **`risk_calculator.py` was described as retired**, yet the filter categories and the
+   score bands were still documented as computed there, while `risk_level` and `risk_score`
+   were model-emitted. **Resolved 2026-10-21:** the calculator is live again as the
+   arithmetic behind `verdict.py`. `_posting_risk_from_flags`, `_combine_scores`,
+   `_level_for` and `_refutation_score_from_verify` run;
+   `_calculate_risk_score_from_verify` remains dead. The model no longer emits a level.
+   See `docs/decisions/scoring-model.md`.
 4. **`REFUTATION_WEIGHTS` ordering versus anchor.** The deprecated `UNFINISHED-WORK.md`
    gives per-category weights as 25/15/10/8/6/6 across six categories; `docs/scoring.md`
    gives 25/13/7/4/2/2. Both purport to be the same table, and the sum differs, so at most

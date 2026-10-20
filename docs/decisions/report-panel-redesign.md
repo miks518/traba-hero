@@ -7,6 +7,12 @@ the panel that replaces the score-and-gauge UI.
 treatment and the token usage are the design. The copy and the specific items in it are
 placeholders.
 
+> **Current state lives in `docs/architecture.md`.** The "settled" list below records
+> what the redesign settled at the time. Several pieces of the visual source — the
+> coverage count, the highlighted span inside a quotation, the "Do not share" chips and
+> the report control — were later rejected as unsupportable and are listed as absent
+> there. Do not treat this list as a build checklist.
+
 The slot-by-slot contract, the migration map, the state matrix and the build sequence
 are in `docs/superpowers/specs/2026-10-17-report-panel-architecture.md`. **Read that
 before building any of this.** This record holds only the decisions.
@@ -77,8 +83,8 @@ that actually ran**, or the coverage count is a false claim.
 ## Two slots have no possible source and must not be built yet
 
 - **"posted 2 days ago on a job board"** — the extension screenshots a region of a page
-  and cannot know where the posting came from. Inferring it would be the same move as the
-  retired score.
+  and cannot know where the posting came from. Inferring it would be the same move as
+  synthesising a score the system never measured.
 - **The report control's target** — for the same reason there is nothing to report the
   post *to*.
 
@@ -92,6 +98,36 @@ the answer; there is no database. Do not ship it as a live button.**
 Full reasoning, the three compatible options, and the three things to get right when it
 is built survive only in the "Reader feedback capture" entry of the deprecated
 `UNFINISHED-WORK.md` — that file is not maintained, so treat it as an archive.
+
+---
+
+## Anomaly verdicts are not severities, and the cards do not wait
+
+The finding card is present from the moment the scan lands and is never hidden while
+verification runs. The scan's severity is input to the evidence check, not the chip the
+reader sees first.
+
+| Card state | When | What the reader sees |
+|---|---|---|
+| Checking | The verify request is in flight | Neutral `Checking` chip, no severity colour, a confirming box with a ring |
+| Stale | A retrieved source about this employer accounts for the finding | Grey `Stale` chip and grey strip, the source linked |
+| Contradicted | A retrieved source states something different | Red strip, the scan's severity chip, the source linked |
+| Unconfirmed | No employer, a failed lookup, no verdict, or results that did not settle it | Amber `Unconfirmed` chip and amber strip |
+
+`Stale` is grey, not green. A retired finding is not a clean employer record, and green
+is the six category checks' pass colour. The verify model does not emit a second
+severity: the client derives the chip from the verdict, so the chip and the strip cannot
+disagree.
+
+**No finding is dropped.** The omitted cards from the 20-finding request cap stay on
+screen with an amber note, and the section heading still says **Anomalies detected** and
+counts the cards shown. A saved scan from before the check, a scan with no employer, and a
+failed lookup each get their own amber sentence rather than a spinner or an invented
+`Stale`.
+
+The initial-scan loader is a report skeleton, not the old circular pulse. It mirrors the
+panel's slot order with grey `animate-pulse` shapes, uses no verdict colour, and yields to
+the real panel as soon as the scan lands. It does not draw the unbuilt controls.
 
 ---
 

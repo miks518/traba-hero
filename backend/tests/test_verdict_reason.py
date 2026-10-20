@@ -70,7 +70,7 @@ def test_the_schema_caps_the_reason_at_a_length_a_one_line_slot_can_hold():
 
 
 def test_the_reason_is_read_from_the_json():
-    _, _, _, _, _, _, _, reason = _read_verify_output(
+    _, _, _, _, _, _, _, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
         '"risk_level": "high", "risk_score": 70, '
         '"verdict_reason": "This post asks you to send application documents to a third-party site."}'
@@ -83,7 +83,7 @@ def test_an_absent_reason_is_empty_rather_than_an_error():
     """A verification recorded before this field must still render. The
     headline carries the verdict on its own; the reason is an addition.
     """
-    _, _, _, _, _, _, _, reason = _read_verify_output(
+    _, _, _, _, _, _, _, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
         '"risk_level": "low", "risk_score": 10}'
     )
@@ -92,7 +92,7 @@ def test_an_absent_reason_is_empty_rather_than_an_error():
 
 
 def test_a_blank_reason_is_empty():
-    _, _, _, _, _, _, _, reason = _read_verify_output(
+    _, _, _, _, _, _, _, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
         '"risk_level": "low", "risk_score": 10, "verdict_reason": "   "}'
     )
@@ -152,7 +152,7 @@ def test_a_banned_reason_leaves_the_verdict_intact():
     """Degradation, not failure. The level and the checks are unaffected; only
     the sentence is withheld, so the reader still gets the verdict.
     """
-    items, _, _, _, _, level, score, reason = _read_verify_output(
+    items, _, _, _, _, level, score, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
         '"risk_level": "critical", "risk_score": 95, '
         '"verdict_reason": "This is definitely a scam."}'
@@ -252,8 +252,12 @@ async def test_a_banned_reason_reaches_the_wire_as_empty():
 
     assert '"verdictReason": ""' in resp.text
     assert "definitely a scam" not in resp.text
-    # The verdict itself is untouched - only the sentence is withheld.
-    assert '"riskLevel": "critical"' in resp.text
+    # The model's `risk_level` is no longer the verdict. This response carries
+    # no usable check and no channel facts, so the code has nothing to score and
+    # emits no level. The sentence is withheld and the model's "critical" did
+    # not reach the wire - which is the point of moving the level into code.
+    assert '"riskLevel": "critical"' not in resp.text
+    assert '"riskLevel": null' in resp.text
 
 
 # --- the prompt contract -------------------------------------------------
