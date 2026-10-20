@@ -21,12 +21,12 @@ MAX_IMAGES_PER_SCAN = 4
 # there is one convention for "one thing uploaded by a person" rather than two.
 MAX_IMAGE_BASE64 = 5_000_000
 
-# The overall level, now emitted by the model that assessed the posting.
-#
-# Defined here rather than in either prompt module because two independent
-# response schemas need it - `/api/verify` and `/api/analyze-offer` - and a
-# vocabulary restated in two places is how an enum and a prompt drift apart into
-# producing a value the other does not accept.
+# The overall level vocabulary. `/api/analyze-offer` still asks its model for a
+# level; `/api/verify` now computes its level in `verdict.py` from the posting's
+# findings and the code-assigned Channel Match severity. Defined here rather than
+# in a prompt module because both schemas need the same words, and a vocabulary
+# restated in two places is how an enum and a prompt drift apart into producing a
+# value the other does not accept.
 #
 # There is deliberately no number. The ring's scale was the reason a severity
 # ladder existed, the ladder was fitted to the ring, and neither survived
@@ -82,6 +82,7 @@ MAX_VERIFY_COMPANY_NAME = 300
 MAX_VERIFY_JOB_SUMMARY = 50_000
 MAX_VERIFY_ANOMALIES = 20
 MAX_VERIFY_ANOMALY_TEXT = 2_000
+MAX_VERIFY_ANOMALY_CODE = 100
 MAX_VERIFY_ATTRIBUTES = 50
 MAX_VERIFY_ATTRIBUTE_KEY = 100
 MAX_VERIFY_ATTRIBUTE_VALUE = 2_000
@@ -108,6 +109,29 @@ class VerifyAnomaly(BaseModel):
     reasoning: str = Field(default="", max_length=MAX_VERIFY_ANOMALY_TEXT)
     severity: str = Field(default="", max_length=50)
     query_ref: str = Field(default="", max_length=MAX_VERIFY_QUERY_CHARS)
+    # The taxonomy ID the scan emitted, and the posting span that decided the
+    # finding. Both are forwarded so the verify prompt can put the finding and
+    # its own quote in front of the model, rather than asking it to assess a
+    # paraphrase it cannot see the source of.
+    code: str = Field(default="", max_length=MAX_VERIFY_ANOMALY_CODE)
+    quote: str = Field(default="", max_length=MAX_VERIFY_ANOMALY_TEXT)
+
+
+class AnomalyAssessment(BaseModel):
+    """The verify stage's verdict on one posting finding.
+
+    Internal shape, not a request model. `index` is 1-based and matches the
+    numbered findings block the prompt builds. `status` is one of `stale`,
+    `yellow`, `red`; the parser validates it before constructing one, because a
+    model that answers with a different word must degrade to amber rather than
+    reaching the wire as a status the panel has no rendering for.
+    """
+
+    index: int
+    status: str
+    finding: str = ""
+    source_title: str = ""
+    source_url: str = ""
 
 
 class ScanRequest(BaseModel):
@@ -311,6 +335,13 @@ class VerificationItem(BaseModel):
     # can click through and check the finding instead of taking it on trust.
     source_title: str = ""
     source_url: str = ""
+    # Code-owned, and only used by Channel Match. The values are the rule that
+    # produced the status (`government`, `lookalike`, `free_email`,
+    # `free_email_with_findings`, `unconfirmed`, `unconfirmed_with_findings`,
+    # `match`, `no_data`). Empty on every other category and on a stored response
+    # from before the facts split. `verdict.py` reads this for the strong-channel
+    # floor; the panel ignores it.
+    escalation: str = ""
 
 
 class VerificationEvidence(BaseModel):

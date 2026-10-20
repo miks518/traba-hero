@@ -1,48 +1,171 @@
 import React from 'react';
 import { Icon } from '../common';
-import type { Anomaly } from '../../types';
+import type { Anomaly, AnomalyAssessment, IconName } from '../../types';
 
 export interface AnomalyCardsProps {
   anomalies: Anomaly[];
+  /**
+   * The employer lookup is still running. Read `result.verificationLoading`
+   * directly, never the sticky `verificationFailed` flag: a failed lookup must
+   * stop the spinner, not keep it forever.
+   */
+  checking?: boolean;
+  /** The posting named no employer, so nothing could be searched. */
+  needsCompanyName?: boolean;
+  /** The employer search did not finish. */
+  verificationError?: boolean;
+  /**
+   * Whether the verify response carried `anomaly_assessments` at all. `false`
+   * means the reading predates the check; it never means the findings were
+   * stale.
+   */
+  assessmentRun?: boolean;
 }
 
-const SEVERITY_CHIP: Record<string, { cls: string; label: string }> = {
-  high: { cls: 'chip-critical', label: 'Critical' },
-  mid: { cls: 'chip-caution', label: 'Serious' },
-  low: { cls: 'chip-verified', label: 'Minor' },
+type DisplayState = 'checking' | 'stale' | 'low' | 'mid' | 'high' | 'unconfirmed';
+
+const CHIP: Record<DisplayState, { cls: string; label: string; icon: IconName }> = {
+  checking: {
+    cls: 'border border-outline-variant/40 text-on-surface-variant',
+    label: 'Checking',
+    icon: 'search',
+  },
+  // Grey, not green. The finding is retired, not a clean employer record.
+  stale: { cls: 'chip-stale', label: 'Stale', icon: 'check_circle' },
+  high: { cls: 'chip-critical', label: 'Critical', icon: 'warning' },
+  mid: { cls: 'chip-caution', label: 'Serious', icon: 'warning' },
+  low: { cls: 'chip-verified', label: 'Minor', icon: 'warning' },
+  unconfirmed: { cls: 'chip-caution', label: 'Unconfirmed', icon: 'question_mark' },
 };
+
+const STRIP: Record<
+  AnomalyAssessment['status'],
+  { cls: string; label: string; icon: IconName; iconCls: string }
+> = {
+  stale: {
+    cls: 'status-card-stale',
+    label: 'No longer a concern',
+    icon: 'check_circle',
+    iconCls: 'text-on-surface-variant',
+  },
+  red: {
+    cls: 'status-card-critical',
+    label: 'Contradicted by a public source',
+    icon: 'gpp_bad',
+    iconCls: 'text-error',
+  },
+  yellow: {
+    cls: 'status-card-caution',
+    label: 'Not confirmed',
+    icon: 'gpp_maybe',
+    iconCls: 'text-verdict-caution',
+  },
+};
+
+/**
+ * The card's display state.
+ *
+ * The scan's severity is input, not the answer. A finding the evidence
+ * accounts for is `stale` (grey) whatever the scan weighed it at; a finding
+ * the evidence contradicts keeps the scan's severity; anything unresolved is
+ * amber `Unconfirmed`. `Checking` is its own state and carries no severity.
+ */
+function displayState(
+  anomaly: Anomaly,
+  checking: boolean,
+  assessment: AnomalyAssessment | null,
+): DisplayState {
+  if (checking) return 'checking';
+  if (!assessment) return 'unconfirmed';
+  if (assessment.status === 'stale') return 'stale';
+  if (assessment.status === 'red') return anomaly.severity ?? 'mid';
+  return 'unconfirmed';
+}
+
+/**
+ * The assessment to show, or the honest reason there is none.
+ *
+ * A failed lookup and a missing employer override an assessment left over from
+ * an earlier run: the current reading did not complete, and the card says so
+ * rather than presenting the previous verdict as current.
+ */
+function resolvedAssessment(
+  anomaly: Anomaly,
+  props: Pick<AnomalyCardsProps, 'checking' | 'needsCompanyName' | 'verificationError' | 'assessmentRun'>,
+): AnomalyAssessment | null {
+  if (props.checking) return null;
+  if (props.needsCompanyName) {
+    return {
+      status: 'yellow',
+      finding: 'This post names no employer, so there was nothing to search. Shown so you notice it.',
+    };
+  }
+  if (props.verificationError) {
+    return {
+      status: 'yellow',
+      finding: 'The employer search did not finish, so this finding was not checked.',
+    };
+  }
+  if (anomaly.assessment) {
+    const assessment = anomaly.assessment;
+    // The backend demotes an unbacked `stale`/`red` already. Repeating the rule
+    // here is not belt-and-braces: a saved scan, a hand-edited response, or a
+    // future caller can all reach the card without passing through that parser,
+    // and a retired finding shown without its source is the one state this
+    // component must never render.
+    if (assessment.status !== 'yellow' && !assessment.sourceUrl) {
+      return {
+        status: 'yellow',
+        finding: 'No public source was recorded for this finding, so it was not confirmed.',
+      };
+    }
+    return assessment;
+  }
+  if (props.assessmentRun) {
+    return {
+      status: 'yellow',
+      finding: 'No evidence verdict was recorded for this finding.',
+    };
+  }
+  return {
+    status: 'yellow',
+    finding: 'This reading has no evidence verdict. It may have been saved before findings were checked.',
+  };
+}
 
 /**
  * The findings, one card each.
  *
- * Three things this component does *not* do, each load-bearing.
+ * **The card is present from the moment the scan lands.** The finding is what
+ * the scan detected; verification cannot un-detect it. While the lookup runs
+ * the chip is neutral `Checking` and the evidence strip is a spinner, so no
+ * severity is asserted before the evidence is in.
  *
- * **No count of "checks".** The design's "3 found" line is here and it counts
- * anomalies, and nothing else is counted alongside it. A non-finding inside a
- * count of findings makes the count a lie, and the count is what the false-
- * negative rate gets measured against.
+ * **The final chip follows the evidence, not a second model judgement.**
+ * `stale → Stale` (grey), `red → the scan's severity`, `yellow → Unconfirmed`,
+ * waiting → `Checking`. The mapping is derived here, so the chip cannot
+ * disagree with the strip above it.
  *
- * **The rule code, when there is one.** `ASKS_PAYMENT`-style IDs come from
- * `ANOMALY_CODES` and are model-emitted from a closed set, so the panel can be
- * compared across runs and a gold set can be labelled with them. Absent for a
- * scan predating the field, which is a different state from `OTHER` — the escape
- * valve is shown, because its frequency is the drift signal.
+ * **Grey is not green.** A stale finding is retired, not a clean record for the
+ * employer. The six category checks still use green for a confirmed claim; this
+ * card deliberately does not.
  *
- * **The posting's own words, when they survived screening.** The credibility of
- * this panel rests on quoting the posting rather than summarising it, and the
- * backend drops a span it cannot vouch for (`quote_is_clean`, and on the text
- * path a span it cannot locate). An absent quote degrades the card to its
- * explanation; a fabricated one is never rendered. The design also bolds the
- * deciding phrase inside the quotation, and no field says which phrase that was
- * — so the quote reads plainly rather than carrying a highlight that would be
- * decoration pretending to be analysis.
+ * **No finding is silently dropped.** A finding that is missing a verdict, that
+ * was too numerous to check, or that belongs to a failed lookup stays on screen
+ * with an amber note saying which.
  *
- * The phrase in the card body is `anomaly.title`, which is still the model's own
- * prose. Under a fuller code set it becomes a lookup, for the same reason the
- * verdict headline is one: it is read by someone deciding about money, and it
- * must not vary between two runs of the same scan.
+ * The rule code and the posting's own words are unchanged: `code` is the
+ * taxonomy ID when the scan carried one, and `quote` is the screened span the
+ * finding was drawn from. An absent value degrades the card rather than being
+ * filled with a guess.
  */
-export function AnomalyCards({ anomalies }: AnomalyCardsProps) {
+export function AnomalyCards({
+  anomalies,
+  checking = false,
+  needsCompanyName = false,
+  verificationError = false,
+  assessmentRun = false,
+}: AnomalyCardsProps) {
   if (anomalies.length === 0) return null;
 
   return (
@@ -58,17 +181,28 @@ export function AnomalyCards({ anomalies }: AnomalyCardsProps) {
       </div>
 
       {anomalies.map((anomaly) => {
-        const chip = SEVERITY_CHIP[anomaly.severity ?? 'mid'] ?? SEVERITY_CHIP.mid;
+        const assessment = resolvedAssessment(anomaly, {
+          checking,
+          needsCompanyName,
+          verificationError,
+          assessmentRun,
+        });
+        const state = displayState(anomaly, checking, assessment);
+        const chip = CHIP[state];
+        const strip = assessment ? STRIP[assessment.status] : null;
+
         return (
           <article
             key={anomaly.id}
+            data-role="anomaly-card"
+            data-state={state}
             className="tactile-card bg-surface-container-lowest border border-outline-variant/20 rounded-lg p-4 flex flex-col gap-2.5"
           >
             <div className="flex items-center justify-between gap-2">
               <span
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${chip.cls}`}
               >
-                <Icon name="warning" className="text-[11px] leading-none" />
+                <Icon name={chip.icon} className="text-[11px] leading-none" />
                 {chip.label}
               </span>
 
@@ -81,9 +215,6 @@ export function AnomalyCards({ anomalies }: AnomalyCardsProps) {
                 frequency of escape-valve answers is the drift signal the
                 taxonomy exists to produce. An absent code is a scan from before
                 the taxonomy and gets no pill at all.
-
-                Monospaced and recessed because it is metadata a reader looks up,
-                not prose they read.
               */}
               {anomaly.code && (
                 <span className="code-pill px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase shrink-0">
@@ -109,43 +240,64 @@ export function AnomalyCards({ anomalies }: AnomalyCardsProps) {
               named employer is the exact exposure this product's prompt rules
               exist to prevent. Showing the span that decided it is what makes the
               finding checkable.
-
-              **It renders only when the backend passed screening.** `quote_is_clean`
-              drops a span carrying a word the posting could not have written about
-              itself, and the text path additionally drops one that cannot be
-              located in the submitted text. An absent quote therefore means "we
-              could not show you the posting's words", and the card falls back to
-              its explanation — which is the honest degradation. The reverse is not
-              available: a fabricated quote is never rendered.
-
-              Note this is weaker than the citation binding on the verification
-              side. The extension scans an *image*, so a span cannot be located in
-              the posting and only its wording can be checked.
             */}
             {anomaly.quote && (
               <div className="quote-well p-3 flex flex-col gap-1">
                 <span className="text-[10px] font-bold text-on-surface-variant tracking-wider uppercase">
                   From the post
                 </span>
-                {/*
-                  Rendered as one span, not highlighted.
-
-                  The design bolds the deciding phrase inside the quotation, and
-                  there is no field for which phrase that was. The wire carries
-                  the span itself and nothing about its parts. Highlighting the
-                  whole quote would be decoration pretending to be an analysis;
-                  highlighting a guess at the middle of it would be worse. So the
-                  quote reads plainly, and a future field naming the deciding
-                  offset is what unblocks the highlight.
-
-                  `.quote-badge` stays commented out in `tailwind.css` for the same
-                  reason - styling for a slot that cannot render is a trap for the
-                  next reader.
-                */}
                 <p className="text-body-sm text-on-surface leading-relaxed break-words">
                   {anomaly.quote}
                 </p>
               </div>
+            )}
+
+            {state === 'checking' ? (
+              <div
+                role="status"
+                aria-busy="true"
+                className="rounded-md border border-outline-variant/30 bg-surface-container-low p-3 flex items-start gap-2.5"
+              >
+                <span
+                  aria-hidden="true"
+                  className="mt-0.5 w-4 h-4 shrink-0 rounded-full border-2 border-outline-variant border-t-transparent animate-spin"
+                />
+                <span className="text-body-sm text-on-surface-variant leading-snug">
+                  Confirming this finding against public sources…
+                </span>
+              </div>
+            ) : (
+              strip && assessment && (
+                <div
+                  className={`${strip.cls} border rounded-md p-3 flex flex-col gap-1`}
+                  data-role="anomaly-evidence"
+                  data-status={assessment.status}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Icon name={strip.icon} className={`text-sm leading-none ${strip.iconCls}`} />
+                    <span className="text-[10px] font-bold text-on-surface-variant tracking-wider uppercase">
+                      {strip.label}
+                    </span>
+                  </div>
+                  {assessment.finding && (
+                    <p className="text-body-sm text-on-surface leading-relaxed break-words">
+                      {assessment.finding}
+                    </p>
+                  )}
+                  {assessment.sourceUrl && (
+                    <a
+                      href={assessment.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      data-role="anomaly-source"
+                      className="inline-flex items-center gap-1 text-body-sm font-semibold text-on-surface underline underline-offset-2 hover:text-on-surface-variant break-all"
+                    >
+                      <Icon name="open_in_new" className="text-sm leading-none shrink-0" />
+                      {assessment.sourceTitle || assessment.sourceUrl}
+                    </a>
+                  )}
+                </div>
+              )
             )}
           </article>
         );

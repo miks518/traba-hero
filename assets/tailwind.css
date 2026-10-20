@@ -489,6 +489,15 @@
     color: var(--color-chip-critical-text);
   }
 
+  /* A finding a public source accounted for. Deliberately grey, not green:
+     the card is retiring the finding, not praising the employer. Green is the
+     category checks' pass colour, and reusing it here would read as a clean
+     employer record. */
+  .chip-stale {
+    background: var(--color-surface-container-high);
+    color: var(--color-on-surface-variant);
+  }
+
   /* ── Status-tinted group cards ─────────────────────────────────────────
      A whole card carrying a status colour, for the check groups in the Full
      details disclosure. The fill is the chip's own `--bg` token, which already
@@ -513,6 +522,14 @@
   .status-card-critical {
     background: var(--color-chip-critical-bg);
     border-color: color-mix(in srgb, var(--color-chip-critical-text), transparent 70%);
+  }
+
+  /* The evidence strip for a retired finding. Grey carries the meaning: the
+     source is still linked, so the reader can check it, but the finding no
+     longer stands. */
+  .status-card-stale {
+    background: var(--color-surface-container-high);
+    border-color: color-mix(in srgb, var(--color-outline-variant), transparent 30%);
   }
 
   /* The chip inside a status-tinted card.
@@ -551,6 +568,14 @@
   .status-card-critical {
     background: var(--color-chip-critical-bg);
     border-color: color-mix(in srgb, var(--color-chip-critical-text), transparent 70%);
+  }
+
+  /* The evidence strip for a retired finding. Grey carries the meaning: the
+     source is still linked, so the reader can check it, but the finding no
+     longer stands. */
+  .status-card-stale {
+    background: var(--color-surface-container-high);
+    border-color: color-mix(in srgb, var(--color-outline-variant), transparent 30%);
   }
 
   /* The chip inside a status-tinted card.

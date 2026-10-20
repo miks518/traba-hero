@@ -19,9 +19,9 @@ class Settings(BaseSettings):
     # unchanged. See resolve_model().
     ai_model_scan: str = ""
     ai_model_verify: str = ""
-    ai_temperature: float = 0.2
-    ai_top_p: float = 1.0
-    ai_max_tokens: int = 2048
+    ai_temperature: float = 0
+    ai_top_p: float = 0.1
+    ai_max_tokens: int = 8192
     # Per-endpoint budget overrides, mirroring AI_MODEL_SCAN / AI_MODEL_VERIFY.
     # Every endpoint used to pass a hardcoded max_tokens, so this setting was
     # honoured by the scan alone and the other four silently ignored it — the

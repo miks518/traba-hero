@@ -103,7 +103,7 @@ class TestUnschemaedOutputIsRead:
         return _read_verify_output(text, allowed_urls=allowed)
 
     def test_a_bare_object_yields_every_category(self):
-        items, _, _, used_json, _, risk_level, risk_score, _reason = self._read(UNSCHEMALED_JSON)
+        items, _, _, used_json, _, risk_level, risk_score, _reason, _assessments = self._read(UNSCHEMALED_JSON)
 
         assert used_json is True
         assert [i.label for i in items] == [
@@ -112,7 +112,7 @@ class TestUnschemaedOutputIsRead:
 
     def test_a_fenced_object_is_read(self):
         fenced = f"Here is the result:\n```json\n{UNSCHEMALED_JSON}\n```"
-        items, report, recommendation, used_json, evidence, risk_level, risk_score, _reason = self._read(fenced)
+        items, report, recommendation, used_json, evidence, risk_level, risk_score, _reason, _assessments = self._read(fenced)
 
         assert used_json is True
         assert len(items) == 3
@@ -127,7 +127,7 @@ class TestUnschemaedOutputIsRead:
         check them, and the panel renders the Sources section from this list, so
         an empty one removes the section entirely.
         """
-        _, _, _, _, evidence, _level, _score, _reason = self._read(UNSCHEMALED_JSON)
+        _, _, _, _, evidence, _level, _score, _reason, _assessments = self._read(UNSCHEMALED_JSON)
 
         assert evidence == [
             {
@@ -138,7 +138,7 @@ class TestUnschemaedOutputIsRead:
         ]
 
     def test_the_report_and_recommendation_survive(self):
-        _, report, recommendation, _, _, _level, _score, _reason = self._read(UNSCHEMALED_JSON)
+        _, report, recommendation, _, _, _level, _score, _reason, _assessments = self._read(UNSCHEMALED_JSON)
 
         assert "public web search results only" in report
         assert "confirm the office address" in recommendation

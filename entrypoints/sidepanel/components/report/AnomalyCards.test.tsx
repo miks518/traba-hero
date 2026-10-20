@@ -164,6 +164,191 @@ describe('the one-line verdict reason', () => {
   });
 });
 
+describe('the evidence verdict on a finding', () => {
+  it('checks without asserting a severity while the lookup runs', () => {
+    // The finding is visible from the moment the scan lands, but nothing about
+    // its final weight is: the scan's severity is what verification may change.
+    const { container } = render(
+      React.createElement(AnomalyCards, { anomalies: [anomaly()], checking: true }),
+    );
+    const card = container.querySelector('[data-role="anomaly-card"]');
+    const status = card?.querySelector('[role="status"]');
+
+    expect(card?.getAttribute('data-state')).toBe('checking');
+    expect(card?.textContent).toContain('Checking');
+    expect(card?.textContent).not.toContain('Critical');
+    expect(status?.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('keeps the heading and the count while checking', () => {
+    // The count is measured against the panel; a loading state that hid it
+    // would make the count depend on whether verification had finished.
+    const { container } = render(
+      React.createElement(AnomalyCards, { anomalies: [anomaly()], checking: true }),
+    );
+    expect(container.textContent).toContain('Anomalies detected');
+    expect(container.textContent).toContain('1 found');
+  });
+
+  it('retires a stale finding in grey, with the source that accounts for it', () => {
+    const { container } = render(
+      React.createElement(AnomalyCards, {
+        anomalies: [
+          anomaly({
+            assessment: {
+              status: 'stale',
+              finding: 'The careers page lists the exam fee as paid before deployment.',
+              sourceTitle: 'Careers',
+              sourceUrl: 'https://employer.example/careers',
+            },
+          }),
+        ],
+      }),
+    );
+    const card = container.querySelector('[data-role="anomaly-card"]');
+    const link = card?.querySelector('[data-role="anomaly-source"]');
+
+    expect(card?.getAttribute('data-state')).toBe('stale');
+    expect(card?.textContent).toContain('Stale');
+    expect(card?.textContent).not.toContain('Critical');
+    expect(card?.querySelector('.chip-stale')).toBeTruthy();
+    expect(card?.querySelector('.status-card-stale')).toBeTruthy();
+    expect(link?.getAttribute('href')).toBe('https://employer.example/careers');
+    expect(link?.textContent).toContain('Careers');
+  });
+
+  it('keeps the scan severity when a source contradicts the finding', () => {
+    const { container } = render(
+      React.createElement(AnomalyCards, {
+        anomalies: [
+          anomaly({
+            severity: 'high',
+            assessment: {
+              status: 'red',
+              finding: 'The employer states on its own page that no fee is charged.',
+              sourceTitle: 'Careers',
+              sourceUrl: 'https://employer.example/careers',
+            },
+          }),
+        ],
+      }),
+    );
+    const card = container.querySelector('[data-role="anomaly-card"]');
+
+    expect(card?.getAttribute('data-state')).toBe('high');
+    expect(card?.textContent).toContain('Critical');
+    expect(card?.textContent).toContain('Contradicted by a public source');
+    expect(card?.querySelector('.status-card-critical')).toBeTruthy();
+    expect(card?.querySelector('[data-role="anomaly-source"]')).toBeTruthy();
+  });
+
+  it('shows an unresolved finding as amber, not as a pass', () => {
+    const { container } = render(
+      React.createElement(AnomalyCards, {
+        anomalies: [
+          anomaly({
+            assessment: {
+              status: 'yellow',
+              finding: 'The results do not mention this fee.',
+            },
+          }),
+        ],
+      }),
+    );
+    const card = container.querySelector('[data-role="anomaly-card"]');
+
+    expect(card?.getAttribute('data-state')).toBe('unconfirmed');
+    expect(card?.textContent).toContain('Unconfirmed');
+    expect(card?.querySelector('.chip-caution')).toBeTruthy();
+    expect(card?.querySelector('.status-card-caution')).toBeTruthy();
+    // No source is named because none was relied on.
+    expect(card?.querySelector('[data-role="anomaly-source"]')).toBeNull();
+  });
+
+  it('demotes a stale finding that lost its source', () => {
+    // The backend already demotes one, but the card is the last place a retired
+    // finding can appear without evidence, and "stale" is the assertion that
+    // retires it.
+    const { container } = render(
+      React.createElement(AnomalyCards, {
+        anomalies: [
+          anomaly({
+            assessment: { status: 'stale', finding: 'A source accounted for it.' },
+          }),
+        ],
+      }),
+    );
+    const card = container.querySelector('[data-role="anomaly-card"]');
+
+    expect(card?.getAttribute('data-state')).toBe('unconfirmed');
+    expect(card?.textContent).not.toContain('Stale');
+    expect(card?.textContent).toContain('not confirmed');
+  });
+
+  it('says no employer was named instead of spinning forever', () => {
+    const { container } = render(
+      React.createElement(AnomalyCards, {
+        anomalies: [anomaly()],
+        needsCompanyName: true,
+      }),
+    );
+    const card = container.querySelector('[data-role="anomaly-card"]');
+
+    expect(card?.getAttribute('data-state')).toBe('unconfirmed');
+    expect(card?.textContent).toContain('names no employer');
+    expect(card?.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('shows a failed lookup as amber, with no spinner left running', () => {
+    const { container } = render(
+      React.createElement(AnomalyCards, {
+        anomalies: [anomaly()],
+        verificationError: true,
+      }),
+    );
+    const card = container.querySelector('[data-role="anomaly-card"]');
+
+    expect(card?.getAttribute('data-state')).toBe('unconfirmed');
+    expect(card?.textContent).toContain('did not finish');
+    expect(card?.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('tells an old reading apart from one the check could not settle', () => {
+    const old = render(
+      React.createElement(AnomalyCards, { anomalies: [anomaly()], assessmentRun: false }),
+    );
+    expect(old.container.textContent).toContain('saved before');
+
+    cleanup();
+
+    const ran = render(
+      React.createElement(AnomalyCards, { anomalies: [anomaly()], assessmentRun: true }),
+    );
+    expect(ran.container.textContent).toContain('No evidence verdict was recorded');
+  });
+
+  it('lets the checking state override a verdict left from an earlier run', () => {
+    const { container } = render(
+      React.createElement(AnomalyCards, {
+        anomalies: [
+          anomaly({
+            assessment: {
+              status: 'stale',
+              finding: 'A previous run found this.',
+              sourceUrl: 'https://employer.example/careers',
+            },
+          }),
+        ],
+        checking: true,
+      }),
+    );
+    const card = container.querySelector('[data-role="anomaly-card"]');
+
+    expect(card?.getAttribute('data-state')).toBe('checking');
+    expect(card?.querySelector('.chip-stale')).toBeNull();
+  });
+});
+
 describe('the wire mapping', () => {
   it('carries the code and quote through, and absent stays absent', () => {
     const mapped = mapApiResponse(

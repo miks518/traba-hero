@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ReportPanel } from '../components/report';
+import { ReportPanel, ReportSkeleton } from '../components/report';
 import { ScanActions, PickerButton } from '../components/scan';
 import { Icon, ToastContainer, useToastManager } from '../components/common';
 import { useScanSession, restoreScanResult } from '../hooks/useScanSession';
@@ -278,25 +278,7 @@ export function ScamScanView({
         />
       )}
 
-      {isLoading && !showReport && (
-        <section
-          className="tactile-card bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5"
-          aria-busy="true"
-        >
-          <div className="flex flex-col items-center gap-4 text-center">
-            <div className="w-[132px] h-[132px] rounded-full bg-surface-container-high animate-pulse" />
-            <div className="flex flex-col gap-1.5 min-w-0 w-full">
-              <div className="mx-auto w-32 h-4 rounded bg-surface-container-high animate-pulse" />
-              <div className="mx-auto w-full max-w-[220px] h-3 rounded bg-surface-container-high animate-pulse" />
-              <div className="mx-auto w-3/4 max-w-[180px] h-3 rounded bg-surface-container-high animate-pulse" />
-            </div>
-            <div className="flex items-center gap-2 text-on-surface-variant">
-              <span className="w-2 h-2 rounded-full bg-secondary animate-ping" />
-              <span className="font-label-md">Scanning… {progressPercent}%</span>
-            </div>
-          </div>
-        </section>
-      )}
+      {isLoading && !showReport && <ReportSkeleton progressPercent={progressPercent} />}
 
       {/*
         `order-3`, and it must stay ahead of the capture preview below. This bar is

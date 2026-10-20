@@ -1,5 +1,7 @@
 export { ReportPanel } from './ReportPanel';
 export type { ReportPanelProps } from './ReportPanel';
+export { ReportSkeleton } from './ReportSkeleton';
+export type { ReportSkeletonProps } from './ReportSkeleton';
 export { JobMeta } from './JobMeta';
 export { VerdictBlock } from './VerdictBlock';
 export { ActionBlock } from './ActionBlock';

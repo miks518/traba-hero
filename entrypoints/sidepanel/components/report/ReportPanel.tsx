@@ -61,11 +61,8 @@ export interface ReportPanelProps {
  *
  *   - the provenance line in the subject ("posted 2 days ago on a job board") —
  *     the system does not know where the posting came from
- *   - the one-line verdict reason — no short field on the wire
- *   - the anomaly rule code — the code set is a draft with nothing implemented
- *   - the quote block on each anomaly card — the most load-bearing gap in the
- *     design, and the one that cannot be faked from a paraphrase
- *   - the "Do not share" chips — keyed to the code families above
+ *   - the "Do not share" chips — keyed to code families the backend does not
+ *     yet emit
  *   - the report control — nothing to report the post *to*, for the same reason
  *     as the provenance line
  *   - the coverage count — its denominator must be a backend constant, or the
@@ -73,6 +70,12 @@ export interface ReportPanelProps {
  *   - "Was this accurate?" — no database, no destination for the answer. A click
  *     with nowhere to go reads as a working feature and silently discards the
  *     only signal that would tell us the verdict taxonomy is wrong.
+ *
+ * The three slots that used to be on this list now ship: the one-line verdict
+ * reason (`verdict_reason`), the anomaly rule code (`Anomaly.code`), and the
+ * quote block on each anomaly card (`Anomaly.quote`). Each was held back until
+ * there was a real field behind it, because a slot filled from a paraphrase is
+ * the same failure as a score the system never measured.
  *
  * **The disclosure now carries the model's per-check sentences.** `WhatWeChecked`
  * shows labels in three buckets; `FullDetails` shows the same checks with what
@@ -154,7 +157,16 @@ export function ReportPanel({
         data-group="findings"
         ref={flip.register('findings')}
       >
-        <AnomalyCards anomalies={result.anomalies} />
+        <AnomalyCards
+          anomalies={result.anomalies}
+          // `verificationLoading`, not the caller's sticky `verifying`: that flag
+          // stays true after a failed lookup, and a spinner that never stops is
+          // worse than an honest "not checked".
+          checking={Boolean(result.verificationLoading)}
+          needsCompanyName={needsCompanyName}
+          verificationError={verificationError}
+          assessmentRun={Boolean(result.anomalyAssessmentRun)}
+        />
 
         {/*
           The no-employer path. The posting stage still produced a level and its

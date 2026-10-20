@@ -60,6 +60,19 @@ class TestVerifyRequest:
         assert req.company_name == "ACME"
         assert len(req.anomalies) == 1
 
+    def test_a_finding_carries_its_code_and_quote(self):
+        finding = VerifyAnomaly(
+            flag="Fee", reasoning="r", severity="high",
+            code="FEE_MANDATORY", quote="a refundable 500 peso fee",
+        )
+        assert finding.code == "FEE_MANDATORY"
+        assert finding.quote == "a refundable 500 peso fee"
+
+    def test_a_finding_without_code_or_quote_stays_empty(self):
+        finding = VerifyAnomaly(flag="Fee", reasoning="r", severity="high")
+        assert finding.code == ""
+        assert finding.quote == ""
+
 
 # â”€â”€ VerificationItem model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -88,13 +101,15 @@ class TestBuildVerifyPrompt:
         prompt = _build_verify_prompt(req)
         assert "Company to verify: ACME" in prompt
 
-    def test_excludes_job_summary_and_anomalies(self):
-        """Only the search results go in.
+    def test_includes_the_bounded_job_summary_and_numbered_findings(self):
+        """The findings are the claims the verify stage assesses.
 
-        The model reports what the search says about a company. Handing it the
-        posting's anomalies invites it to answer about the posting instead â€” an
-        anomaly about the posting is not a fact about the employer, and it
-        already fed the posting-stage score.
+        They used to be excluded because the model was asked only what the
+        search showed about the employer. That left the anomaly cards with no
+        evidence verdict at all. They now go in as a numbered, delimited block,
+        labelled as the posting's claims rather than facts about the employer,
+        and the prompt tells the model not to let them decide the six
+        categories.
         """
         req = VerifyRequest(
             company_name="ACME",
@@ -102,11 +117,22 @@ class TestBuildVerifyPrompt:
             anomalies=[VerifyAnomaly(flag="UNIQUE_FLAG_MARKER Fee", reasoning="r", severity="high")],
         )
         prompt = _build_verify_prompt(req, "=== SEARCH RESULTS FOR: ACME ===\nfound a site\n=== END SEARCH ===")
-        assert "UNIQUE_JOB_SUMMARY_MARKER" not in prompt
-        assert "UNIQUE_FLAG_MARKER" not in prompt
-        assert "Anomalies detected" not in prompt
-        assert "Job Posting Summary" not in prompt
+
+        assert "UNIQUE_JOB_SUMMARY_MARKER" in prompt
+        assert "JOB POSTING SUMMARY" in prompt
+        assert "UNIQUE_FLAG_MARKER Fee" in prompt
+        assert "1. [high] UNIQUE_FLAG_MARKER Fee" in prompt
+        assert "=== POSTING FINDINGS" in prompt
+        assert "Do not let them decide the six category statuses" in prompt
         assert "found a site" in prompt
+        # The findings come before the results, so the model reads the results
+        # with the claims it has to settle already in view.
+        assert prompt.index("UNIQUE_FLAG_MARKER") < prompt.index("found a site")
+
+    def test_the_job_summary_excerpt_is_bounded(self):
+        req = VerifyRequest(company_name="ACME", job_summary="Q" * 5_000)
+        prompt = _build_verify_prompt(req)
+        assert prompt.count("Q") == 4_000
 
     def test_search_context_is_included(self):
         req = VerifyRequest(company_name="ACME", job_summary="Job")
@@ -155,10 +181,11 @@ class TestTheClaimsReachThePrompt:
     employer from one borrowing its name — cannot fire even once. The prompt was
     asking a question nobody answered.
 
-    Attributes are excluded from the anomaly rule above for a reason that does
-    not apply here: an anomaly is a model's characterisation of the posting,
-    while an attribute is a detail quoted out of it. What is tested is a claim
-    the posting made, not a conclusion about it.
+    Attributes are separate from the findings block for the same reason: an
+    attribute is a detail quoted out of the posting, while a finding is the
+    scan's characterisation of it. What the categories test is a claim the
+    posting made, not a conclusion about it, and the prompt tells the model to
+    keep the two apart.
     """
 
     def test_a_stated_location_reaches_the_prompt(self):
@@ -194,12 +221,13 @@ class TestTheClaimsReachThePrompt:
         assert "LOCATION" not in prompt
         assert "CONTACT_METHOD" not in prompt
 
-    def test_the_anomaly_exclusion_is_not_a_door_attributes_walk_back_through(self):
-        """The block carries the posting's words and nothing else.
+    def test_the_findings_block_is_separate_from_the_claims_block(self):
+        """The findings carry the posting's claim, not the scan's query trail.
 
-        `Anomaly` objects may carry a `query_ref` and a severity, and both are
-        the model's characterisation rather than the posting's content. Letting
-        them in through the claims block would undo the rule above.
+        The claims block still carries only the posting's own words, because
+        those are what three of the six categories test. The findings have their
+        own block so a model can assess them without one block contaminating the
+        other. `query_ref` is the scan's own plumbing and is not sent at all.
         """
         req = VerifyRequest(
             company_name="ACME",
@@ -214,8 +242,12 @@ class TestTheClaimsReachThePrompt:
         prompt = _build_verify_prompt(req)
 
         assert "Maingate Terminal" in prompt
-        assert "UNIQUE_FLAG_MARKER" not in prompt
+        assert "UNIQUE_FLAG_MARKER" in prompt
         assert "UNIQUE_QUERY_REF_MARKER" not in prompt
+        # The claims block ends where the findings block begins.
+        claims_block = prompt.split("=== POSTING FINDINGS")[0]
+        assert "UNIQUE_FLAG_MARKER" not in claims_block
+        assert prompt.index("Maingate Terminal") < prompt.index("UNIQUE_FLAG_MARKER")
 
     def test_the_employer_is_stated_once_never_twice(self):
         """Two names for one employer, and a model asked to compare them.
@@ -621,7 +653,7 @@ class TestVerifyOutputReading:
         from app.services.scanner.verification_flow import _read_verify_output
         from app.models.schemas import VerificationItem
 
-        items, report, rec, used_json, _evidence, _level, _score, _reason = _read_verify_output(
+        items, report, rec, used_json, _evidence, _level, _score, _reason, _assessments = _read_verify_output(
             self._payload(), allowed_urls=self._allowed()
         )
         assert used_json is True
@@ -643,7 +675,7 @@ class TestVerifyOutputReading:
     def test_reads_the_evidence_list(self):
         from app.services.scanner.verification_flow import _read_verify_output
 
-        items, report, rec, used_json, evidence, _level, _score, _reason = _read_verify_output(
+        items, report, rec, used_json, evidence, _level, _score, _reason, _assessments = _read_verify_output(
             self._payload(), allowed_urls=self._allowed()
         )
         assert evidence, "the evidence list must reach the flow"
@@ -661,7 +693,7 @@ class TestVerifyOutputReading:
         # silently rebinds "the last value" to a different field, so this would
         # have been asserting against `risk_level` and passing or failing for no
         # reason anyone could see.
-        *_, evidence, _level, _score, _reason = _read_verify_output(payload)
+        *_, evidence, _level, _score, _reason, _assessments = _read_verify_output(payload)
         assert evidence == []
 
     def test_malformed_check_still_rejected(self):
@@ -1308,6 +1340,10 @@ async def test_verify_stops_early_when_no_company_name():
         body = resp.text
         assert "Cannot verify company name" in body
         assert "no_company_name" in body
+        # The key is present and empty. That is how the client tells "the check
+        # ran and could not carry a verdict" from "this reading predates the
+        # check"; absence would make a live no-employer scan look like history.
+        assert '"anomaly_assessments": []' in body
 
 
 @pytest.mark.asyncio

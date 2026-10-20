@@ -10,10 +10,103 @@ import {
 import { compressImage } from '../lib/imageUtils';
 import { mapApiResponse, riskLevelLabel } from '../lib/mapApiResponse';
 import { shouldElevateEvidence, type VerificationRun } from '../lib/riskDisplay';
-import type { ScanResult, ScannedJob } from '../types';
+import type { Anomaly, AnomalyAssessment, ScanResult, ScannedJob } from '../types';
 
 /** How many screenshots one scan may carry. */
 const MAX_SCREENSHOTS = 4;
+
+/**
+ * How many findings one verify request may carry.
+ *
+ * Equal to the backend's `MAX_VERIFY_ANOMALIES`; exceeding it is a 422, so the
+ * client has to cap before sending. The cap keeps the highest-severity
+ * findings, because losing a serious finding to a low-severity formatting note
+ * would understate the reading. The omitted cards stay on screen with their own
+ * amber note.
+ */
+export const MAX_VERIFY_ANOMALIES = 20;
+
+const SEVERITY_RANK: Record<string, number> = { high: 3, mid: 2, low: 1 };
+
+/**
+ * The original indices to send, highest severity first, capped.
+ *
+ * Returned in ascending original order so the numbered findings block reads in
+ * the same order as the cards. The verify model's 1-based indices then map
+ * through this list back to the original findings.
+ */
+export function selectVerifiableIndices(anomalies: Anomaly[]): number[] {
+  return anomalies
+    .map((anomaly, index) => ({
+      index,
+      rank: SEVERITY_RANK[anomaly.severity ?? 'mid'] ?? 2,
+    }))
+    .sort((a, b) => b.rank - a.rank || a.index - b.index)
+    .slice(0, MAX_VERIFY_ANOMALIES)
+    .map((entry) => entry.index)
+    .sort((a, b) => a - b);
+}
+
+/**
+ * Attach the verdicts to the findings they were about.
+ *
+ * The verify request may carry a capped subset, so `assessment.index` is
+ * relative to `selected`, not to the full list. An omitted finding gets an
+ * amber "too many findings" verdict only when the check actually ran; if it did
+ * not, the card's own honest note is better than inventing a reason. A selected
+ * finding without a new verdict has any earlier verdict cleared, so the card
+ * renders its amber "no verdict recorded" note rather than an old reading
+ * presented as this one's. A check that did not run leaves a stored verdict
+ * alone.
+ */
+export function mergeAnomalyAssessments(
+  anomalies: Anomaly[],
+  selected: number[],
+  assessments: AnomalyAssessment[] | undefined,
+  assessmentRun: boolean,
+): Anomaly[] {
+  const byOriginalIndex = new Map<number, AnomalyAssessment>();
+  for (const assessment of assessments ?? []) {
+    if (typeof assessment.index !== 'number') continue;
+    const originalIndex = selected[assessment.index - 1];
+    if (originalIndex === undefined || byOriginalIndex.has(originalIndex)) continue;
+    byOriginalIndex.set(originalIndex, assessment);
+  }
+
+  const selectedSet = new Set(selected);
+  return anomalies.map((anomaly, index) => {
+    const assessment = byOriginalIndex.get(index);
+    if (assessment) return { ...anomaly, assessment };
+    if (assessmentRun) {
+      // The current check ran. A selected finding it did not answer must not
+      // keep the verdict from an earlier run: that is the previous reading
+      // presented as this one's. Clearing it lets the card say "no evidence
+      // verdict was recorded". A finding the request did not carry gets the
+      // cap note instead, for the same reason.
+      return {
+        ...anomaly,
+        assessment: selectedSet.has(index)
+          ? undefined
+          : {
+              status: 'yellow',
+              finding: 'Not checked — there were more findings than one search can check. Shown so you notice it.',
+            },
+      };
+    }
+    // The check did not run: keep a stored verdict if this scan already has one.
+    return anomaly;
+  });
+}
+
+function toVerifyFinding(anomaly: Anomaly) {
+  return {
+    flag: anomaly.title,
+    reasoning: anomaly.description,
+    severity: anomaly.severity ?? '',
+    code: anomaly.code,
+    quote: anomaly.quote,
+  };
+}
 
 function generateJobId(): string {
   return `job-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -194,9 +287,20 @@ export function useScanSession({
       setCurrentSearchQuery('');
       setVerificationFailed(false);
 
+      // Send the findings in the order the cards show them, capped at the
+      // backend's limit. Rebuilt from the current result rather than from
+      // `context.anomalies` so the model's 1-based indices and the merge below
+      // describe the same list even if the caller handed over a different one.
+      const currentAnomalies = scanResultRef.current?.anomalies ?? [];
+      const selected = selectVerifiableIndices(currentAnomalies);
+      const requestContext = {
+        ...context,
+        anomalies: selected.map((index) => toVerifyFinding(currentAnomalies[index])),
+      };
+
       try {
         const verifyResult = await verifyJobStream(
-          context,
+          requestContext,
           controller.signal,
           (p) => setProgress(p),
           (query) => setCurrentSearchQuery(query),
@@ -216,11 +320,23 @@ export function useScanSession({
           const prev = scanResultRef.current;
           const nextLevel = result.riskLevel ?? null;
           const nextScore = typeof result.riskScore === 'number' ? result.riskScore : null;
+          const assessmentRun = result.anomalyAssessmentRun === true;
+          const mergedAnomalies = mergeAnomalyAssessments(
+            prev?.anomalies ?? [],
+            selected,
+            result.anomalyAssessments,
+            assessmentRun,
+          );
           setVerificationFailed(false);
           applyResult(
             {
               verificationResult: result,
               verificationLoading: false,
+              // The cards' final severity lives on the findings, not in the
+              // verification result. `stale` retires a finding, `red` keeps the
+              // scan's severity, and the card derives the chip from this.
+              anomalies: mergedAnomalies,
+              anomalyAssessmentRun: assessmentRun,
               riskScored: nextLevel !== null || nextScore !== null,
               riskScore: nextScore ?? prev?.riskScore ?? null,
               riskLevel: nextLevel as ScanResult['riskLevel'],

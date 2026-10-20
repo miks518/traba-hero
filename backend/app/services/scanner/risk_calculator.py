@@ -1,22 +1,28 @@
-"""RETIRED 2026-10-17. Nothing in `app/` calls this any more.
+"""Live again as of 2026-10-21, as the arithmetic behind `verdict.py`.
 
-Kept deliberately, not deleted, and that is a choice with a cost worth stating:
-this project has a rule that dormant code is deleted rather than left, because a
-live-looking function with passing tests is the most convincing kind of lie. The
-rule is being overridden here for one reason - the derivation below is a
-defensible artefact and re-deriving it takes a script and an afternoon - and it
-is overridden *visibly*, with `test_risk_calculator_is_retired` asserting that no
-production module imports any of it. If that test ever fails, this file is not
-dormant, it is half-wired, which is the state this project cares about most.
+This file was retired on 2026-10-17 because it priced the *category* of a
+finding, and a category cannot carry context: a processing fee was worth 40
+whoever asked for it. A post demanding money from a name that appears nowhere
+and a post demanding the same money from a government office with a matching
+address and its own portal were identical inputs, and the ladder could only give
+them one answer. The retirement assumed the verification model would own the
+level, because that stage holds what the ladder never could - who is asking, and
+whether they exist.
 
-Why it was retired. It priced the *category* of a finding, and a category cannot
-carry context: a processing fee was worth 40 whoever asked for it. The panel's
-own history is the argument. A post demanding money from a name that appears
-nowhere and a post demanding the same money from a government office with a
-matching address and its own portal were identical inputs, and the ladder could
-only give them one answer. The verification stage holds what the ladder never
-could - who is asking, and whether they exist - so the level is produced there
-now, over the observation and the evidence together.
+That assumption failed in a specific, observable way. A real employer whose
+posting used a Gmail address while its own site was `company.com.ph` produced a
+red Channel Match and, because the same model also emitted `risk_level`, "Do not
+proceed". The model had the context and still priced a category; one weak
+observation carried the whole verdict.
+
+The current split keeps the part the model is good at - reporting what the
+posting names and what the employer's own results use - and puts the severity of
+that comparison in `channel_match.py`. The final level is this file's arithmetic
+over two code-owned inputs: the posting's findings and the refutation score. The
+retirement's objection still stands as a limit: the weights price a category and
+cannot tell who is asking. `verdict.py` compensates in one visible place, with a
+floor for a strong Channel Match contradiction, and documents why the rest of the
+objection is why the model's own `risk_level` is not an input.
 
 The Saaty matrix is a statement about *method*, not about these numbers. AHP
 assumes a fixed, commensurable variable set, and an unstructured job posting does
@@ -25,9 +31,10 @@ whatever the model guessed, while an advance-fee demand sat in a cell that was
 worth 40 by construction. A method that cannot represent a variable should not
 be the thing deciding how dangerous a job is.
 
-What is still live: `_refutation_score_from_verify` is called by
-`verification_flow` for the breakdown's `verification_score`, which records how
-much refuted evidence was seen rather than producing a level of its own.
+What is live: `_posting_risk_from_flags`, `_combine_scores`, `_level_for`, and
+`_refutation_score_from_verify` are called by `verdict.py`. `tests/test_code_verdict.py`
+guards that wiring, and the three "unassessed is not low" contracts that the
+retirement introduced are still asserted there.
 """
 
 from app.models.schemas import Anomaly, VerificationItem

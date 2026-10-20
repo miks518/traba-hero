@@ -1,4 +1,4 @@
-import type { ApiScanResponse, ResumeData, RiskScoreBreakdown, ScannedJob, VerificationResult } from '../types';
+import type { AnomalyAssessment, ApiScanResponse, ResumeData, RiskScoreBreakdown, ScannedJob, VerificationResult } from '../types';
 import { toScoreBreakdown } from './scoreBreakdown';
 
 const API_BASE = import.meta.env.WXT_API_BASE;
@@ -514,7 +514,19 @@ async function consumeSseStreamOffer(
 export interface VerifyContext {
   company_name: string;
   job_summary: string;
-  anomalies?: { flag: string; reasoning: string; severity: string }[];
+  /**
+   * The findings the verify stage assesses. `code` and `quote` are forwarded so
+   * the prompt can show the model the scan's own rule and the posting's words,
+   * not just a paraphrase. They are optional because a scan from before either
+   * field existed still has findings worth checking.
+   */
+  anomalies?: {
+    flag: string;
+    reasoning: string;
+    severity: string;
+    code?: string;
+    quote?: string;
+  }[];
   attributes?: Record<string, string>;
   search_queries?: string[];
 }
@@ -522,6 +534,48 @@ export interface VerifyContext {
 export interface VerifyStreamResult {
   result?: VerificationResult & { riskScore?: number; riskLevel?: string; scoreBreakdown?: RiskScoreBreakdown };
   timedOut?: boolean;
+}
+
+export interface WireAnomalyAssessment {
+  index?: number;
+  status?: string;
+  finding?: string;
+  source_title?: string;
+  source_url?: string;
+}
+
+/**
+ * The verify wire's assessment list, in the client's shape.
+ *
+ * `undefined` means the key was absent, which the panel reads as "this reading
+ * predates the check". `[]` means the key was present and empty, which means the
+ * check ran and produced no verdict. Those two produce different amber notes, so
+ * the distinction is preserved rather than defaulted away.
+ *
+ * A status outside the closed set degrades to `yellow`. The backend already
+ * drops one, but a client that trusted the string would pass an unknown value to
+ * the card's lookup and render no strip at all — a silent gap where a finding
+ * should be.
+ */
+export function mapAnomalyAssessments(
+  raw: WireAnomalyAssessment[] | undefined,
+): AnomalyAssessment[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw
+    .filter(
+      (assessment): assessment is WireAnomalyAssessment =>
+        Boolean(assessment) && typeof assessment === 'object',
+    )
+    .map((assessment): AnomalyAssessment => ({
+      index: Number.isInteger(assessment.index) ? assessment.index : undefined,
+      status:
+        assessment.status === 'stale' || assessment.status === 'red'
+          ? assessment.status
+          : 'yellow',
+      finding: assessment.finding ?? '',
+      sourceTitle: assessment.source_title || undefined,
+      sourceUrl: assessment.source_url || undefined,
+    }));
 }
 
 export async function verifyJobStream(
@@ -602,6 +656,18 @@ export async function verifyJobStream(
             model_queries?: string[];
             debug_search_raw?: Array<{ query: string; raw: string }>;
             /**
+             * Present-and-empty is different from absent: the first means the
+             * check ran, the second means this reading predates it. The key is
+             * kept as the marker and never defaulted to `[]`.
+             */
+            anomaly_assessments?: Array<{
+              index: number;
+              status: string;
+              finding: string;
+              source_title?: string;
+              source_url?: string;
+            }>;
+            /**
              * camelCase here while its neighbours stay snake_case, because
              * `verification_flow.py` puts it in its response dict that way and the
              * rest of that dict is untouched legacy. Read both spellings so the
@@ -630,6 +696,8 @@ export async function verifyJobStream(
               queriesFailed: data.queries_failed,
               modelQueries: data.model_queries,
               debugSearchRaw: data.debug_search_raw,
+              anomalyAssessments: mapAnomalyAssessments(data.anomaly_assessments),
+              anomalyAssessmentRun: Array.isArray(data.anomaly_assessments),
             },
           };
         } else if (event.type === 'error') {

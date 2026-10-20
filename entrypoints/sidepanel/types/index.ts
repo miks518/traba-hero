@@ -72,6 +72,35 @@ export interface NavTab {
  * formatting was announced with the same force as a request for an advance fee.
  * Severity carries the weight; this only says the posting differs.
  */
+export interface AnomalyAssessment {
+  /**
+   * 1-based index into the findings list the verify request sent.
+   *
+   * Only meaningful at the API boundary: `useScanSession` uses it to map the
+   * verdict back to the original finding, then attaches the assessment without
+   * relying on the index. Kept optional so an assessment stored on an
+   * `Anomaly` does not claim an index that stopped being its identity.
+   */
+  index?: number;
+  /**
+   * The evidence verdict on this finding.
+   *
+   * `stale` means a source about this employer accounted for it and the finding
+   * no longer stands. `red` means a source contradicts it. `yellow` means the
+   * results did not settle it, or nothing could be checked.
+   *
+   * Not the same vocabulary as the six category checks: those still use
+   * `green | yellow | red`. `green` is deliberately absent here — a retired
+   * finding is grey, not a success colour.
+   */
+  status: 'stale' | 'yellow' | 'red';
+  /** What the source says, in one plain sentence. */
+  finding: string;
+  /** The retrieved result the verdict relies on, for stale/red. */
+  sourceTitle?: string;
+  sourceUrl?: string;
+}
+
 export interface Anomaly {
   id: string;
   title: string;
@@ -101,6 +130,15 @@ export interface Anomaly {
    * so the card must not treat "no quote" as an error.
    */
   quote?: string;
+  /**
+   * The verify stage's verdict, when one was recorded for this finding.
+   *
+   * Absent is a real state, not "stale": the finding may predate the check, the
+   * employer may not have been named, or the verification may have failed. The
+   * card renders each of those as amber with its own note, never as a retired
+   * finding.
+   */
+  assessment?: AnomalyAssessment;
 }
 
 export interface SkillGap {
@@ -143,6 +181,19 @@ export interface VerificationResult {
   evidence?: VerificationEvidence[];
   report: string;
   recommendation: string;
+  /**
+   * The verify model's verdicts on the findings the request sent. Indices are
+   * 1-based against that request's list, which may be a capped subset of the
+   * findings on screen; `useScanSession` maps them back to the original list.
+   */
+  anomalyAssessments?: AnomalyAssessment[];
+  /**
+   * Whether the backend's response carried the `anomaly_assessments` key at
+   * all. `true` with an empty list means the check ran and produced no verdict;
+   * `false` means the reading predates the check. The two get different amber
+   * notes, and neither is allowed to invent a `stale`.
+   */
+  anomalyAssessmentRun?: boolean;
   /**
    * One sentence, capped at 140 characters, naming what the posting asks the
    * reader to give up. The panel's one-line reason under the verdict headline.
@@ -231,6 +282,12 @@ export interface ScanResult {
   verificationResult?: VerificationResult;
   verificationLoading?: boolean;
   verificationError?: boolean;
+  /**
+   * Whether the verify stage reported on the findings at all. Survives a
+   * restored scan; `undefined` is the pre-feature state, and the cards say so
+   * rather than guessing.
+   */
+  anomalyAssessmentRun?: boolean;
   /**
    * The posting's own stated details, verbatim from the scan response.
    *

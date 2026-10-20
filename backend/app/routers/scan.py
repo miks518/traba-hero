@@ -61,7 +61,6 @@ from app.services.scanner import (
     _parse_verification_result,
     _today_instruction,
     _parse_verify_section,
-    _refutation_score_from_verify,
     _resume_event_stream,
     _scan_event_stream,
     _sse,
@@ -98,7 +97,6 @@ runtime.get_merge_results = lambda: merge_results
 runtime.get_build_verify_prompt = lambda: _build_verify_prompt
 runtime.get_parse_verification_result = lambda: _parse_verification_result
 runtime.get_parse_verify_section = lambda: _parse_verify_section
-runtime.get_refutation_score = lambda: _refutation_score_from_verify
 runtime.get_verify_system_prompt = lambda: VERIFY_SYSTEM_PROMPT
 runtime.get_ai_limiter = lambda: ai_limiter
 runtime.get_analyze_offer_prompt = lambda: ANALYZE_OFFER_SYSTEM_PROMPT
