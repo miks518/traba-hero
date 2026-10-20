@@ -509,6 +509,9 @@ def _read_verify_output(
     """
 
     parsed = _parse_custom(text)
+    # Handle empty/None response from parser
+    if parsed is None:
+        return ([], "", "", False, [], None, None, "", [])
 
     # Build VerificationItem list from parsed anomalies
     # lm_client._parse_custom returns anomalies: {flag, reasoning, severity}

@@ -12,9 +12,6 @@ from app.services.lm_client import (
 
 from .offer_parser import _parse_analyze_offer
 from .offer_prompt import ANALYZE_OFFER_RESPONSE_SCHEMA, ANALYZE_OFFER_SYSTEM_PROMPT, _build_analyze_offer_prompt
-from .risk_calculator import (
-    _refutation_score_from_verify,
-)
 from .scan_result import _VALID_LINE_RE, _anomalies, _scan_response
 from .sse import _sse
 from .verification_parser import _missing_categories, _parse_verification_result, _parse_verify_section
@@ -48,10 +45,9 @@ class ScannerDependencies:
     get_parse_verification_result = staticmethod(lambda: _parse_verification_result)
     get_parse_verify_section = staticmethod(lambda: _parse_verify_section)
     get_missing_categories = staticmethod(lambda: _missing_categories)
-    get_refutation_score = staticmethod(lambda: _refutation_score_from_verify)
     get_verify_system_prompt = staticmethod(lambda: VERIFY_SYSTEM_PROMPT)
     get_verify_response_format = staticmethod(
-        lambda: _structured_output_body(VERIFY_RESPONSE_SCHEMA, "verification_result")
+        lambda: {"response_format": {"type": "text"}}
     )
     get_ai_limiter = staticmethod(lambda: ai_limiter)
     # `get_posting_risk` and `get_combine_scores` were removed with the calculator
