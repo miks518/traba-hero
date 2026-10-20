@@ -214,3 +214,19 @@ Listed, **not resolved** — each needs a decision or a check against live code.
    gives per-category weights as 25/15/10/8/6/6 across six categories; `docs/scoring.md`
    gives 25/13/7/4/2/2. Both purport to be the same table, and the sum differs, so at most
    one can be a principal eigenvector normalised to a 25-point anchor.
+5. **The offer path still has a model-owned level.** `/api/analyze-offer` asks the model
+   for `risk_level` and `risk_score` directly. It is the one path where the model still
+   writes the number, and it carries the exact failure the verify path just fixed: the
+   model prices a category instead of reading the whole offer. It cannot produce the
+   Knollridges false positive — there is no Channel Match category and no employer to
+   compare against — but the shape of the risk is the same. It was left alone because
+   the path has no code-owned input to work from (`AnalyzeOfferRequest` carries only
+   `text`, `company_name` and `language`; no anomalies, no retrieval), so moving it
+   into code is a design change and not a mechanical one. **Needs a decision.**
+6. **`escalation` reaches the wire and nothing reads it.** `VerificationItem.escalation`
+   carries the code-owned Channel Match rule that fired (`free_email`, `government`,
+   `lookalike`, `free_email_with_findings`, `unconfirmed`, `unconfirmed_with_findings`,
+   `no_data`), and the frontend's `VerificationItem` type does not declare it. It is
+   backend-only for now, which is fine, but the day the panel explains *why* a Channel
+   Match card is red, this is the field it should read. It must be shown as what the
+   rule decided, never as a conclusion about the employer.

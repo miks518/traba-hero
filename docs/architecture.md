@@ -325,11 +325,20 @@ After a successful scan, the backend adds `verification_context` to the scan res
 
 If no company name is found, `verification_context` is absent and the frontend never
 calls `/api/verify`; it calls `POST /api/analyze-offer` instead, which assesses the offer
-on its own terms and returns a verdict. **Either path produces a level; the employer check
-can move it once evidence is in.** A source that accounts for a finding removes that
-finding from the posting score, a source that contradicts one adds to the refutation
-score, and an unresolved finding never lowers it. The final number is computed in
-`verdict.py`; the verify model does not return `risk_level` or `risk_score`.
+on its own terms and returns a verdict. **Both paths produce a level, but they are not
+the same kind of level, and the difference is deliberate.** The verify path's level is
+computed in `verdict.py` from the posting's findings and the retrieved evidence. The
+offer path's level is the model's own reading, because that path has no employer to look
+up, no anomalies to price, and no retrieval to contradict anything — the prompt says so
+in as many words. It is a separate design, not an oversight, and it carries the same
+risk the verify path used to carry: a model that prices a category instead of reading
+the whole offer. `docs/decisions/scoring-model.md` records why the verify path moved
+into code; the offer path has not been revisited.
+
+On the verify path, a source that accounts for a finding removes that finding from the
+posting score, a source that contradicts one adds to the refutation score, and an
+unresolved finding never lowers it. The final number is computed in `verdict.py`; the
+verify model does not return `risk_level` or `risk_score`.
 
 The verify prompt carries the scan's findings as a numbered block, plus a 4,000-character
 excerpt of `job_summary` as context. It returns `anomaly_assessments`, one per finding.
