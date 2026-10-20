@@ -9,7 +9,7 @@ from app.models.schemas import (
     VerificationItem,
     VerifyRequest,
 )
-from app.services.lm_client import MAX_SEARCH_QUERIES, _parse_custom
+from app.services.lm_client import MAX_SEARCH_QUERIES
 from app.services.search import _canonical_url
 
 from .channel_match import (
@@ -279,218 +279,18 @@ def _read_anomaly_assessments(
     return assessments
 
 
-def _parse_custom_verify(text: str) -> dict:
-    """Parse the custom verification text format from SYSTEM_PROMPT.md.
-
-    The model outputs a custom labeled-text format (defined in SYSTEM_PROMPT.md)
-    rather than JSON structured output. This parser extracts the fields needed
-    for the verification stage: valid, items, attributes, search queries, etc.
-
-    Returns a dict with: valid, items (list of {label, status, explanation}),
-    attributes (dict), search_queries (list), employer_name, posting_analysis,
-    job_summary.
-    """
-    import re
-
-    result: dict = {
-        "valid": None,
-        "items": [],
-        "attributes": {},
-        "search_queries": [],
-        "employer_name": "",
-        "posting_analysis": "",
-        "job_summary": "",
-    }
-
-    lines = text.splitlines()
-    i = 0
-    in_anomalies = False
-    in_attributes = False
-    in_search_queries = False
-    current_anomaly: dict | None = None
-
-    while i < len(lines):
-        line = lines[i].strip()
-        i += 1
-
-        # Handle section headers by checking uppercase version
-        upper = line.upper()
-
-        # VALID: true/false
-        if upper.startswith("VALID:"):
-            result["valid"] = upper[len("VALID:"):].strip().lower() == "true"
-            continue
-
-        # ANOMALY: label | reasoning | severity
-        if upper.startswith("ANOMALY:"):
-            in_anomalies = True
-            current_anomaly = {"label": "", "status": "", "reasoning": ""}
-            # Parse the rest of the line
-            parts = line[len("ANOMALY:"):].strip().split("|")
-            if len(parts) >= 1:
-                current_anomaly["label"] = parts[0].strip()
-            if len(parts) >= 2:
-                current_anomaly["reasoning"] = parts[1].strip()
-            if len(parts) >= 3:
-                current_anomaly["status"] = parts[2].strip()
-            # Continue to next line to collect any additional text
-            # But we already consumed this line, so continue
-            continue
-
-        # END ANOMALIES - finalize current anomaly
-        if upper == "END ANOMALIES":
-            if current_anomaly and current_anomaly.get("label") and current_anomaly.get("status"):
-                result["items"].append({
-                    "label": current_anomaly["label"],
-                    "status": current_anomaly["status"],
-                    "explanation": current_anomaly.get("reasoning", ""),
-                })
-            current_anomaly = None
-            in_anomalies = False
-            continue
-
-        # ATTRIBUTES: section
-        if upper.startswith("ATTRIBUTES:"):
-            in_attributes = True
-            # The next line with KEY: value will be an attribute
-            # But we need to check if this line itself has content after the colon
-            # e.g., "ATTRIBUTES:" with nothing after, or "ATTRIBUTES: COMPANY: ..."
-            # Actually looking at the format, ATTRIBUTES: is a header and the
-            # attributes follow on subsequent lines
-            continue
-
-        # END ATTRIBUTES
-        if upper == "END ATTRIBUTES":
-            in_attributes = False
-            # Reset attributes for next scan
-            result["attributes"] = {}
-            continue
-
-        # SEARCH QUERIES: section
-        if upper.startswith("SEARCH QUERIES:"):
-            in_search_queries = True
-            continue
-
-        # END SEARCH QUERIES
-        if upper == "END SEARCH QUERIES":
-            in_search_queries = False
-            # Only keep first 2 queries
-            if len(result["search_queries"]) > 2:
-                result["search_queries"] = result["search_queries"][:2]
-            continue
-
-        # EMPLOYER NAME:
-        if upper.startswith("EMPLOYER NAME:"):
-            result["employer_name"] = line[len("EMPLOYER NAME:"):].strip()
-            continue
-
-        # POSTING ANALYSIS: section
-        if upper.startswith("POSTING ANALYSIS:"):
-            # Content follows on subsequent lines until END POSTING ANALYSIS
-            result["posting_analysis"] = ""
-            # We'll collect lines below
-            # But need to track we're in this section
-            # Actually, we'll collect when we see lines between POSTING ANALYSIS and END POSTING ANALYSIS
-            # For now, just note we're in it
-            in_attributes = False  # Not in attributes anymore
-            # We'll collect posting_analysis text in the general line handling below
-            continue
-
-        # END POSTING ANALYSIS
-        if upper == "END POSTING ANALYSIS":
-            # posting_analysis already collected
-            continue
-
-        # JOB SUMMARY:
-        if upper.startswith("JOB SUMMARY:"):
-            # Content follows on subsequent lines until END JOB SUMMARY
-            result["job_summary"] = ""
-            continue
-
-        # END JOB SUMMARY
-        if upper == "END JOB SUMMARY":
-            continue
-
-        # If we're in ANOMALIES section and line doesn't match a header,
-        # it's part of the anomaly detail
-        if in_anomalies and current_anomaly is not None:
-            # Additional text for the anomaly - append to reasoning
-            if current_anomaly["reasoning"]:
-                current_anomaly["reasoning"] += " " + line
-            else:
-                current_anomaly["reasoning"] = line
-            continue
-
-        # If we're in ATTRIBUTES section, parse KEY: value lines
-        if in_attributes and ":" in line:
-            key, _, value = line.partition(":")
-            key = key.strip().upper()
-            value = value.strip()
-            # Map attribute keys from the custom format
-            attr_map = {
-                "COMPANY": "COMPANY",
-                "LOCATION": "LOCATION",
-                "CONTACT_METHOD": "CONTACT_METHOD",
-                "MEETING_SPOT": "MEETING_SPOT",
-                "PAY": "PAY",
-                "REGISTERED_AS": "REGISTERED_AS",
-            }
-            if key in attr_map:
-                result["attributes"][attr_map[key]] = value
-            continue
-
-        # If we're in SEARCH QUERIES, collect QUERY: lines
-        if in_search_queries and line.startswith("QUERY:"):
-            result["search_queries"].append(line[len("QUERY:"):].strip())
-            continue
-
-        # If we're collecting POSTING ANALYSIS text
-        # Check if we're between POSTING ANALYSIS and END POSTING ANALYSIS
-        # For simplicity, collect any non-header line as part of posting analysis
-        # when we're past the POSTING ANALYSIS header
-        if result["posting_analysis"] is not None and upper not in [
-            "VALID:", "ANOMALY:", "END ANOMALIES", "ATTRIBUTES:", "END ATTRIBUTES",
-            "SEARCH QUERIES:", "END SEARCH QUERIES", "EMPLOYER NAME:",
-            "POSTING ANALYSIS:", "END POSTING ANALYSIS",
-            "JOB SUMMARY:", "END JOB SUMMARY"
-        ] and line:
-            # Add to posting analysis
-            if result["posting_analysis"]:
-                result["posting_analysis"] += " " + line
-            else:
-                result["posting_analysis"] = line
-            continue
-
-        # If we're collecting JOB SUMMARY text
-        if result["job_summary"] is not None and upper not in [
-            "VALID:", "ANOMALY:", "END ANOMALIES", "ATTRIBUTES:", "END ATTRIBUTES",
-            "SEARCH QUERIES:", "END SEARCH QUERIES", "EMPLOYER NAME:",
-            "POSTING ANALYSIS:", "END POSTING ANALYSIS",
-            "JOB SUMMARY:", "END JOB SUMMARY"
-        ] and line:
-            if result["job_summary"]:
-                result["job_summary"] += " " + line
-            else:
-                result["job_summary"] = line
-            continue
-
-    # Clean up collected text
-    result["posting_analysis"] = result["posting_analysis"].strip() if result["posting_analysis"] else ""
-    result["job_summary"] = result["job_summary"].strip() if result["job_summary"] else ""
-
-    return result
-
-
 def _read_verify_output(
     text: str,
     allowed_urls: frozenset[str] = frozenset(),
     anomaly_count: int = 0,
 ) -> tuple[list, str, str, bool, list, str | None, int | None, str, list[AnomalyAssessment]]:
-    """Read the verification result using the custom text format from SYSTEM_PROMPT.md.
+    """Read the verification result, preferring JSON and falling back to text.
 
-    The model outputs a custom labeled-text format (defined in SYSTEM_PROMPT.md)
-    rather than JSON structured output. This parser extracts the fields needed
-    for the verification stage: items, report, attributes, search queries, etc.
+    JSON is the intended shape, but the provider may still answer with prose if
+    it does not support structured outputs, so the labeled-text parser remains as
+    a fallback rather than being deleted. Returns (items, report, recommendation,
+    used_json, evidence, risk_level, risk_score, verdict_reason,
+    anomaly_assessments).
 
     `anomaly_count` is the number of findings the request sent, which is what
     the assessments' 1-based indices refer to. It defaults to zero, so a caller
@@ -504,116 +304,94 @@ def _read_verify_output(
     caller holding no result set to check against, and nothing should reach the
     wire unbound by accident.
 
-    Returns (items, report, recommendation, used_json, evidence, risk_level,
-    risk_score, verdict_reason, anomaly_assessments).
+    Raises `VerificationParseError` when the fallback cannot read the response
+    either. A request that succeeds and a response nobody can read is a failure,
+    and returning an empty item list here would hide it — the panel would render
+    its empty-result notice as though the model had reported nothing.
     """
-
-    parsed = _parse_custom(text)
-    # Handle empty/None response from parser
-    if parsed is None:
-        return ([], "", "", False, [], None, None, "", [])
-
-    # Build VerificationItem list from parsed anomalies
-    # lm_client._parse_custom returns anomalies: {flag, reasoning, severity}
-    items: list[VerificationItem] = []
-    for anomaly in parsed.get("anomalies", []):
-        flag = anomaly.get("flag", "").strip()
-        reasoning = anomaly.get("reasoning", "").strip()
-        severity = anomaly.get("severity", "").lower().strip()
-        
-        # Map severity to verification status
-        status_map = {"high": "red", "medium": "yellow", "low": "yellow", "mid": "yellow"}
-        status = status_map.get(severity, "yellow")
-        
-        # Only add if we have a valid flag and status
-        if flag and status:
+    payload = runtime.get_parse_json()(text)
+    if isinstance(payload, dict) and isinstance(payload.get("checks"), list):
+        items = []
+        for check in payload["checks"]:
+            if not isinstance(check, dict):
+                continue
+            category = str(check.get("category") or "").strip()
+            status = str(check.get("status") or "").strip().lower()
+            if not category or status not in ("green", "yellow", "red"):
+                log.warning("[verify] Ignoring malformed check entry: %r", check)
+                continue
             items.append(VerificationItem(
-                label=flag,
+                label=category,
                 status=status,
-                explanation=reasoning,
-                source_title="",
-                source_url="",
+                explanation=str(check.get("finding") or check.get("detail") or "").strip(),
+                source_title=str(check.get("source_title") or "").strip(),
+                source_url=str(check.get("source_url") or "").strip(),
             ))
 
-    # Bind items to retrieved URLs
-    bound_items, bound_evidence = _bind_to_retrieved(items, [], allowed_urls)
+        evidence = []
+        raw_evidence = payload.get("evidence")
+        if isinstance(raw_evidence, list):
+            for entry in raw_evidence:
+                if not isinstance(entry, dict):
+                    continue
+                url = str(entry.get("url") or "").strip()
+                if not url:
+                    continue
+                evidence.append({
+                    "title": str(entry.get("title") or "").strip(),
+                    "url": url,
+                    "snippet": str(entry.get("snippet") or "").strip(),
+                })
+        # Channel Match is code-owned. When the response carries the facts
+        # object, any model-written Channel Match check is discarded: its status
+        # is the thing this split exists to stop trusting. An older response with
+        # no facts object keeps its check for compatibility, and the flow demotes
+        # it to yellow before the verdict.
+        if payload.get("channel_match") is not None:
+            items = [item for item in items if item.label != "Channel Match"]
+            channel_item = _read_channel_item(payload, allowed_urls)
+            if channel_item is not None:
+                items.append(channel_item)
 
-    # Extract risk level and score - custom format doesn't carry these,
-    # so we set them to None. The code-owned verdict (code_verdict) will
-    # compute them from the posting anomalies.
-    risk_level: str | None = None
-    risk_score: int | None = None
+        bound_items, bound_evidence = _bind_to_retrieved(items, evidence, allowed_urls)
+        return (
+            bound_items,
+            str(payload.get("report") or ""),
+            str(payload.get("recommendation") or ""),
+            True,
+            bound_evidence,
+            _read_risk_level(payload.get("risk_level")),
+            _read_risk_score(payload.get("risk_score")),
+            clean_verdict_reason(payload.get("verdict_reason")),
+            _read_anomaly_assessments(payload, anomaly_count, allowed_urls),
+        )
 
-    # Build verdict reason from the items if available (max 140 chars)
-    explanations = [i.explanation for i in items if i.explanation]
-    verdict_reason = clean_verdict_reason(
-        " ".join(explanations)[:140] if explanations else ""
-    )
-
-    # Build the report from posting_analysis (the full text is the report)
-    # In the custom format, POSTING ANALYSIS contains 2-3 sentences ending
-    # with a recommended action. Sentence 3 is the recommendation.
-    posting_analysis = parsed.get("posting_analysis", "")
-
-    # Split into sentences to extract recommendation
-    sentences = [s.strip() for s in posting_analysis.replace("? ", "?").split(". ") if s.strip()]
-    
-    # Ensure report is the full posting analysis (sentences 1-2 describe, sentence 3 is action)
-    report = posting_analysis
-
-    # Extract recommendation from sentence 3 of posting analysis
-    # If there are 3+ sentences, the 3rd is the recommendation
-    # If there are 2 sentences, the 2nd is the recommendation
-    # If there's 1 sentence, it's both description and recommendation
-    recommendation = ""
-    if len(sentences) >= 3:
-        recommendation = sentences[2] + "."
-    elif len(sentences) == 2:
-        recommendation = sentences[1] + "."
-    elif len(sentences) == 1:
-        recommendation = sentences[0] + "."
-
-    # Build evidence from attributes
-    attrs = parsed.get("attributes", {})
-    evidence = []
-    if attrs.get("COMPANY"):
-        evidence.append({
-            "title": attrs["COMPANY"],
-            "url": "",
-            "snippet": "",
-        })
-    if attrs.get("LOCATION"):
-        evidence.append({
-            "title": attrs["LOCATION"],
-            "url": "",
-            "snippet": "",
-        })
-    if attrs.get("CONTACT_METHOD"):
-        evidence.append({
-            "title": attrs["CONTACT_METHOD"],
-            "url": "",
-            "snippet": "",
-        })
-    if attrs.get("PAY"):
-        evidence.append({
-            "title": attrs["PAY"],
-            "url": "",
-            "snippet": "",
-        })
-
-    used_json = False  # We used the custom text format, not JSON
-
-    return (
-        bound_items,
-        report,
-        recommendation,
-        used_json,
-        evidence,
-        risk_level,
-        risk_score,
-        verdict_reason,
-        [],  # anomaly_assessments - empty for custom format path
-    )
+    log.warning("[verify] Response was not JSON; falling back to the labeled-text parser.")
+    try:
+        items = runtime.get_parse_verification_result()(text)
+    except VerificationParseError as exc:
+        # The request succeeded and the response could not be read. Returning an
+        # empty list here would render three empty cards with no error anywhere,
+        # so the failure is reported instead.
+        log.error("[verify] Response was neither JSON nor readable labeled text: %s. raw=%s",
+                  exc, text[:400])
+        raise VerificationParseError(str(exc)) from exc
+    report = runtime.get_parse_verify_section()(text, "REPORT")
+    recommendation = runtime.get_parse_verify_section()(text, "RECOMMENDATION")
+    bound_items, _bound_evidence = _bind_to_retrieved(items, [], allowed_urls)
+    # None on this path, and that is the honest answer rather than a default: the
+    # labeled-text format has no place to carry a level, so nothing was assessed.
+    # The panel renders null as Unverified and excludes it from resume matching.
+    # Likewise empty for the reason: the labeled-text fallback has no
+    # VERDICT_REASON section, and the block degrades to its authored headline
+    # rather than the parser inventing a reason from the report prose.
+    #
+    # The labeled-text format has no anomaly assessment section either, so the
+    # list is empty. The key still reaches the wire, which is how the client
+    # tells "this backend ran the check and could not carry a verdict" from
+    # "this reading predates the check" — both render amber, with different
+    # notes, and neither invents a stale finding.
+    return bound_items, report, recommendation, False, [], None, None, "", []
 
 
 async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:

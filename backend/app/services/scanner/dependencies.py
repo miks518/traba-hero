@@ -47,7 +47,7 @@ class ScannerDependencies:
     get_missing_categories = staticmethod(lambda: _missing_categories)
     get_verify_system_prompt = staticmethod(lambda: VERIFY_SYSTEM_PROMPT)
     get_verify_response_format = staticmethod(
-        lambda: {"response_format": {"type": "text"}}
+        lambda: _structured_output_body(VERIFY_RESPONSE_SCHEMA, "verification_result")
     )
     get_ai_limiter = staticmethod(lambda: ai_limiter)
     # `get_posting_risk` and `get_combine_scores` were removed with the calculator
