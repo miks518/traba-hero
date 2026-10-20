@@ -113,6 +113,41 @@ non-obvious, are in `docs/gotchas.md`.
 
 ---
 
+## Commits
+
+**The agent commits its own work.** A change that is complete and verified gets
+committed by the agent. It does not get handed back as a dirty working tree for
+someone else to sort out.
+
+This rule exists because of a specific failure, and the history still carries it.
+A session that ended mid-task with a model switch left three problems in one
+tree: a half-finished change staged beside an unrelated one, scratch debug files
+committed alongside real code, and a hand-written `revert: regression` needed to
+undo the mess. The reader of that history pays for all of it. The commit rule
+below is the fix for the cause, not for the symptom.
+
+- **One logical change per commit.** A change that touches the prompt, the
+  parser, the schema, and the frontend is four commits, not one.
+- **The message says what changed and why.** Imperative subject, and a body that
+  carries the reason. `fix: ...` with no body is a commit nobody can review.
+- **Read `git status` before staging.** Scratch files do not get committed — they
+  get deleted. Probe scripts, `debug*.py`, `fix_*.py`, `test_lm*.py`, `.bak`,
+  `.new`, output dumps, and `.txt` scratch files are all in this category.
+  `git ls-files` after committing is how one that slipped in gets caught.
+- **Do not rewrite the user's history.** No `reset --hard`, no rebase of
+  published commits, no force-push, and no amending a commit the user wrote. If a
+  commit has to be undone, add a new commit that undoes it.
+- **Verify first.** A commit asserts the tree is in a working state. Run
+  `python -m pytest tests/ -q` and `npm test -- --run` from the repo root, plus
+  `npm run compile` for the extension. If the suite has failures, they are
+  either pre-existing or they are new; say which in the commit message rather
+  than leaving the reader to work it out.
+- **Committing is authorised. Pushing is not**, unless the user asks for it.
+- **Never commit a secret.** `backend/.env` and the root `.env` are ignored;
+  `.env.example` carries placeholder values only.
+
+---
+
 ## Conventions
 
 - **WXT globals**: `defineBackground()` and `defineContentScript()` are auto-imported — do
@@ -139,8 +174,9 @@ These hold everywhere and are not stylistic preferences.
   `docs/decisions/libel-guardrail.md`.
 - **Absence is never `red`.** A claim nobody could confirm is `yellow`. Points require a
   retrieved source that *contradicts* a claim.
-- **Never synthesise a score in the client.** The number comes from `risk_calculator.py`
-  via `score_breakdown`. Presenting a number the system never measured is the exact
+- **Never synthesise a score in the client.** The number is computed by
+  `verdict.py`, which calls `risk_calculator.py`'s arithmetic, and sent in
+  `score_breakdown`. Presenting a number the system never measured is the exact
   exposure the prompt rules exist to prevent.
 - **The scan's findings are `anomalies`, not red flags.** Three legacy code paths support
   the old name deliberately — `docs/decisions/anomaly-terminology.md`. **Do not clean them
