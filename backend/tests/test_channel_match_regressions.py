@@ -142,7 +142,7 @@ def _knollridges_payload() -> dict:
 
 def _fake_ched_payload() -> dict:
     # The source poster is
-    # jobposts/849453314_1725304345239568_5019491814499416862_n.png. This payload
+    # jobposts/fakeched.png. This payload
     # is the model's read of it, kept offline so the regression never spends a
     # provider call or a search credit.
     return {
