@@ -148,6 +148,20 @@ face of the posting:
    employer's registered premises: DMW-CAR calls meetings, interviews and
    payments in malls, restaurants, private homes or chat platforms "clear
    signs of illegal activity" where an agency is involved.
+4. **`DOCUMENTS_VIA_THIRD_PARTY` stops covering free email.** The corpus
+   measured the model using this code for "the posting uses a Gmail address"
+   — the code means "through a domain or account that is **not the employer's
+   own**", and a free-provider address is not a *third party*, it is the
+   absence of a domain. A free address belongs to the ordinary class; the
+   code is for documents routed through somebody else's named account.
+5. **`OTHER` stops being a severity carrier.** The corpus measured `OTHER` at
+   `mid` on four legitimate postings, for "grocery bags for walk-ins", "be
+   there at 7am", and a gender preference. `OTHER` is the escape valve for a
+   finding whose shape is not in the set; it cannot also be a charge, because
+   the charge is defined by the shape. `OTHER` becomes a *finding* with no
+   class, and the verdict follows the class of everything else in the posting.
+   If everything in the posting is `OTHER`, the posting's class is *cannot be
+   classified* and the verdict is a question.
 
 `IMPERSONATES_AUTHORITY` is not a class of request at all. It is a claim
 about *who is asking*, and it is read as an establishment signal (§3.3); it
@@ -211,7 +225,24 @@ The code decides:
      contradicts.
    Materiality is **identity-level only**. A wrong phone number beside a
    matching domain is not a contradiction of who is asking; it is `supported`
-   with the mismatch recorded.
+   with the mismatch recorded. The corpus measured what the opposite rule
+   costs: a 600-store franchise's posting naming one branch produced a **red**
+   `Location / Branch` card, because the company's own page listed a different
+   venue.
+
+   **[CALL] The government case survives the citation binding.** This is a
+   defect the corpus measured, not a refinement. `assess_channel_match`
+   returns `red`/`government`/`strong` for the Fake CHED facts — the posting
+   made the claim and the posting supplied the domain, so the rule needs no
+   retrieved source, as its own comment says. `_bind_to_retrieved` then
+   demotes it to `yellow` because the cited `https://ched.gov.ph` was not in
+   the retrieved set, and the strong-channel floor never applies. The
+   impersonation was detected, written out on the card in plain words ("That
+   is outside the .gov.ph domain"), and scored **zero**; the verdict rested
+   entirely on the two fees. The binding's rule is right for a claim about an
+   employer's identity and wrong for a claim the posting makes about itself,
+   so the government branch is exempted from it. The reproduction is in
+   `docs/research/2026-10-21-corpus-baseline.md` §5 and §10.
 2. `confirmed` when (i) and (ii) hold. **(ii) is checked by code against the
    fetched text** — the fetched page must contain the role title (or the fee
    amount), case-insensitively — not by the model's boolean. A model-proposed
@@ -707,12 +738,23 @@ today.
 
 The taxonomy changes from the research (§3.1) land here too, because the grid
 cannot be implemented without them: `CREDENTIALS_BEFORE_INTERVIEW` splits,
-and `FEE_REASON` / `FEE_RECIPIENT` / `FEE_TIMING` and `meeting_spot.nature`
-are extracted. That is a prompt change and a parser change, and it is the
-part of commit 1 that needs the corpus to validate — a misclassified fee
-recipient is a misclassified charge, and a misclassified charge on a
-legitimate posting is exactly the cry-wolf failure the grid exists to
-prevent.
+`DOCUMENTS_VIA_THIRD_PARTY` stops covering free email, `OTHER` stops carrying
+a severity, and `FEE_REASON` / `FEE_RECIPIENT` / `FEE_TIMING` and
+`meeting_spot.nature` are extracted. That is a prompt change and a parser
+change, and it is the part of commit 1 that needs the corpus to validate — a
+misclassified fee recipient is a misclassified charge, and a misclassified
+charge on a legitimate posting is exactly the cry-wolf failure the grid exists
+to prevent.
+
+**The citation-binding demotion is fixed in this commit too, and it is the
+first thing in it.** The corpus measured a 2-in-10 false-positive rate on
+legitimate postings and an unscored impersonation on the flagship forgery
+(`docs/research/2026-10-21-corpus-baseline.md`). Both are one-line changes in
+the code that stands behind them — a split and an exemption — and both are
+worth having even if the rest of the design is abandoned. The regression
+fixture for the demotion is the Fake CHED facts **without** a retrieved
+`ched.gov.ph`, which is the case the existing fixture cannot reach because it
+supplies that URL by hand.
 
 **[CALL] The provisional establishment mapping for commits 1–3.** `confirmed`
 is not reachable before commit 4, because nothing today fetches the employer's
@@ -770,6 +812,22 @@ runnable in every commit above.
   charge), **Fake CHED is STOP** with establishment `contradicted` and the
   impersonation in the statement, not the fee. The fixture's method — reading
   the headline out of the copy module rather than restating it — is kept.
+- **A third fixture, and it is the one the existing two cannot reach:** the
+  Fake CHED facts **without** a retrieved `https://ched.gov.ph`. The existing
+  fixture mocks the search to return that URL, so the citation binds and the
+  red survives — the flagship case passes because the test hands the system the
+  evidence the pipeline failed to find. The corpus baseline §5 shows the live
+  pipeline demotes the same facts to yellow and scores the impersonation zero.
+  The regression asserts that the government branch survives the citation
+  binding.
+- **A corpus regression.** The eleven legitimate postings in `jobposts/` and
+  the verdicts in `docs/research/2026-10-21-corpus-baseline.md` §3 are the
+  acceptance baseline: no legitimate posting may reach `stop` or `caution`,
+  and every verdict change is explained by a named rule. The baseline is a
+  document, not a test — the postings are images and the verdicts came from
+  live runs — so the regression is over *fixtures* transcribed from the
+  corpus, with the corpus itself re-measured by hand when the procedure
+  changes.
 - `test_risk_model.py` — deleted, with a tombstone. It recomputes the AHP
   weights.
 - `backend/scripts/mutation_check.py` — re-pointed at the new rules: break the
@@ -842,15 +900,18 @@ research and by the base-rate constraint — see
 information architecture (§7.2) and the endpoint shape (§5) were settled by
 the reviewer on 2026-10-21. What remains:
 
-1. **The corpus run** (§10). The reviewer has granted permission for live
-   provider calls, up to about twenty runs today. The corpus is the
-   constraint: `jobposts/` currently holds **two job postings** (the Fake CHED
-   flyer and one screenshot) and one PDF that is a reference document rather
-   than a posting. A false-positive *rate* cannot be measured on n = 2. The
-   reviewer offered to add more postings, and the corpus has to be mostly
-   legitimate postings for the measurement to mean anything.
-2. **Copy at the class boundaries** (§7.1). A fee paid to a licensed agency
-   at exactly the statutory one-month cap, after a signed contract, is lawful
+1. **The controlled-pair corpus** (§10). The "before" column is measured —
+   `docs/research/2026-10-21-corpus-baseline.md` — and it found a 2-in-10
+   false-positive rate on legitimate postings and an impersonation that is
+   detected and then scored zero. What the corpus cannot do is measure the
+   true-positive side: **no legitimate posting in it asks for money**, so the
+   prohibited class has exactly one member. The pairs in the baseline §8 are
+   the way to fix that, and they are the reviewer's own method — the Fake CHED
+   flyer is an edited real posting, and controlled editing makes the ground
+   truth true by construction. The pairs that matter are A/B (the same fee,
+   two shapes) and C/D (the same document family, two classes).
+2. **Copy at the class boundaries** (§7.1). A fee paid to a licensed agency at
+   exactly the statutory one-month cap, after a signed contract, is lawful
    (DMW §56). Whether the panel says so or simply has nothing to say is a
    copy question rather than a rule question, and it belongs with whoever
    writes the final words.
@@ -944,6 +1005,10 @@ per cell with the specific facts substituted (§7.1), and the wire's
 - `docs/research/2026-10-21-verdict-grid-research.md` — the research behind
   §3.1 and §3.4: the Philippine red-flag taxonomy, the legal tests, the
   base-rate argument, and the citations.
+- `docs/research/2026-10-21-corpus-baseline.md` — the measured "before"
+  column for the thirteen postings in `jobposts/`, the false-positive rate,
+  the unscored Fake CHED impersonation and its reproduction, and the
+  controlled-pair corpus the true-positive side needs.
 - `docs/decisions/verdict-procedure.md` — new decision record. The two axes,
   the grid, the materiality rule, the burden of proof, and why the score is
   gone.
