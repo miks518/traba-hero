@@ -523,25 +523,37 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 # as "the check did not produce a verdict" rather than as a
                 # saved reading from before the check existed.
                 "anomaly_assessments": [],
+                # The same reason, for the same reason. `rounds` is what the
+                # other result event carries, and a client reading it must not
+                # have to handle its absence on exactly the response that most
+                # obviously searched nothing. Nothing was looked up, so the
+                # record is empty rather than missing.
+                "rounds": [],
                 "no_company_name": True,
             }})
             return
 
         yield runtime.get_sse()({"type": "progress", "percent": 10, "stage": "Searching company info"})
-        # Two query families, one flat result set, one model call. Neither family
-        # carries a category suffix: the model sorts the merged results into the
-        # categories itself, so nothing here decides what a result is.
+        # One anchor query, then the model's own proposals. One flat result set,
+        # one model call. Neither family carries a category suffix: the model
+        # sorts the merged results into the categories itself, so nothing here
+        # decides what a result is.
         #
-        # The company queries find what is published about the employer. Two of
-        # them because one cannot serve every category — `"<company> Philippines"`
-        # ranks the employer's own site first, and those pages do not state
-        # registration numbers.
+        # The anchor query finds what is published about the employer. It used
+        # to be two queries, because one could not serve every category —
+        # `"<company> Philippines"` ranks the employer's own site first, and
+        # those pages do not state registration numbers. `build_queries` now
+        # returns one: `"<company> company or employer"`, which surfaces the
+        # employer's own pages, a PESO listing and a job board post in one
+        # result set. The two targeted rankings it replaced were starving each
+        # other, and `Official Registration` and `Reputation` now depend on the
+        # one query surfacing the right page rather than asking for it by name.
         #
-        # They also find nothing when a scam borrows a real company's name,
+        # It also finds nothing when a scam borrows a real company's name,
         # because the real company's reputation is clean, which is exactly why
-        # the impersonation is invisible to them. The scheme queries name a
-        # detail the posting itself stated, so they reach the pages that pair
-        # the claim with the employer making it.
+        # the impersonation is invisible to it. The model's proposed queries
+        # name a detail the posting itself stated, so they reach the pages that
+        # pair the claim with the employer making it.
         #
         # `getattr` because the request may predate the field: a client that
         # never sends `attributes` must produce no scheme query, not an
@@ -651,9 +663,10 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             }
         else:
             # The `fixed` path: whatever the scan model proposed, unscoped, with
-            # no round between them. Two queries of one kind rather than two
-            # rounds, because nothing here was chosen from a result — which is
-            # the whole difference between the modes.
+            # no round between them. Up to two queries of one kind rather than
+            # a second round, because nothing here was chosen from a result —
+            # which is the whole difference between the modes. The ceiling is
+            # the anchor plus these, so three credits at `basic` depth.
             for i, query in enumerate(model_queries, len(company_queries) + 1):
                 yield runtime.get_sse()({"type": "search", "query": query, "round": i})
             rest_collected, rest_failures, rest_raw, rest_per_query = await _issue(

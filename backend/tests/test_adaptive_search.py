@@ -410,3 +410,22 @@ class TestRoundsOnTheWire:
 
         recorded = [r["query"] for r in _result_payload(resp)["rounds"]]
         assert recorded == _queries(recorder), (recorded, _queries(recorder))
+
+    @pytest.mark.asyncio
+    async def test_the_no_company_result_carries_the_same_keys(self, monkeypatch):
+        """Both result events carry `rounds`, so a client reading it never has to
+        handle its absence.
+
+        The response that most obviously searched nothing is exactly the one a
+        client would read `rounds` on first, and a missing key there reads as a
+        field that does not exist rather than as a field that is empty.
+        """
+        recorder = Recorder(default=_ok(*ROUND1))
+        _adaptive(monkeypatch)
+        with patch("app.routers.scan.search", recorder):
+            resp = await _post({"company_name": "", "job_summary": "Cashier"})
+
+        payload = _result_payload(resp)
+        assert payload["rounds"] == []
+        assert payload["anomaly_assessments"] == []
+        assert recorder.calls == []
