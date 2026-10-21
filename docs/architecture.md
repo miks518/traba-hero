@@ -61,7 +61,7 @@ it deliberates over. Raise it only if dense small print starts scanning badly.
 | `JobMeta.tsx` | 1–2 | Scan time, role, employer. **No provenance line** — see below |
 | `VerdictBlock.tsx` | 3 | Tone container + **authored** headline. Replaces `RiskGauge` |
 | `ActionBlock.tsx` | 4 | Two authored instruction lines. The share chips and report control are absent |
-| `AnomalyCards.tsx` | 5 | One card per finding. **No code pill, no quote block** — see below |
+| `AnomalyCards.tsx` | 5 | One card per finding: code pill, quote well, and the evidence verdict strip. **Checking / Stale / Contradicted / Unconfirmed** — see below |
 | `WhatWeChecked.tsx` | 7 | **Asserts checks ran.** Heading derived from state — see below. **Labels only** |
 | `FullDetails.tsx` | 8 | **Shows what retrieval returned,** including each check's `explanation`. Split from §7 for the reason below |
 | `ReportFooter.tsx` | 10 | Disclaimer, ruleset version. No scan id — no field carries one |
@@ -71,6 +71,12 @@ it deliberates over. Raise it only if dense small print starts scanning badly.
 `ScamScanView.tsx` is now a composition of this panel plus the capture
 affordances. The scan lifecycle lives in `hooks/useScanSession.ts`; the wire
 mapping in `lib/mapApiResponse.ts`.
+
+`ReportSkeleton.tsx` is the initial-scan placeholder, not a report slot: it
+mirrors the order and proportions above with grey `animate-pulse` blocks and
+yields to the real panel as soon as the scan lands. It never uses a verdict
+colour and never draws the unbuilt controls. Verification uses the per-card
+confirming box, not a second skeleton.
 
 #### Why §7 and §8 are two components
 
@@ -217,6 +223,30 @@ path it is located as well. Screening a quote leaves the finding intact and the
 card renders its explanation, which is the honest degradation; a fabricated quote
 is never rendered.
 
+#### The anomaly evidence verdict
+
+`Anomaly.assessment` is optional, and absence is a real state rather than a
+`stale`. One of four card states is derived in the client:
+
+- **`Checking`** — the verify request is in flight. Neutral chip, no severity
+  colour, and a confirming box with `role="status"` and `aria-busy="true"` under
+  the quote. Driven by `result.verificationLoading`, never the panel's sticky
+  `verifying` flag.
+- **`Stale`** — grey chip and `status-card-stale` strip. A source about this
+  employer accounted for the finding and it no longer stands.
+- **Contradicted** — red `status-card-critical` strip; the chip keeps the scan's
+  severity. A source states something different from the posting.
+- **`Unconfirmed`** — amber chip and `status-card-caution` strip. No employer,
+  a failed lookup, a missing verdict, or results that did not settle it.
+
+`stale` and `red` are shown only with a bound retrieved URL. The parser demotes
+an unbacked one to `yellow`, and the card repeats the rule as a last guard
+against a saved or hand-edited response. `AnomalyCards` never drops a finding:
+the omitted cards from the 20-finding request cap get their own amber note, and
+`anomalyAssessmentRun` separates "the check ran and missed this one" from "this
+reading predates the check". The heading stays **Anomalies detected** and counts
+the cards shown.
+
 #### `riskAccent`
 
 Token-based risk colour for chrome — headers, borders, button. **Never returns a hex or
@@ -235,8 +265,10 @@ capture action, and only while a high or critical level is settled.
 | `backend/app/services/search.py` | Tavily web search — see `docs/decisions/search-retrieval.md` |
 | `backend/app/services/scanner/verification_prompt.py` | Loads `VERIFY_PROMPT.md`, owns the response schema and search-context formatters |
 | `backend/app/services/scanner/verification_parser.py` | Fallback labeled-text parser |
+| `backend/app/services/scanner/channel_match.py` | Channel Match facts, free-provider detection, lookalike detection, and the code-owned severity |
+| `backend/app/services/scanner/verdict.py` | The code-owned final level: posting findings + refutation score, with the strong-channel floor |
 | `backend/app/services/scanner/offer_prompt.py`, `offer_parser.py`, `offer_flow.py` | Post-only analysis for offers naming no employer; its own endpoint and parser so it cannot break the scan or verify paths |
-| `backend/app/services/scanner/risk_calculator.py` | Two-stage scoring — see `docs/scoring.md` |
+| `backend/app/services/scanner/risk_calculator.py` | Weights and two-stage arithmetic behind `verdict.py` — see `docs/scoring.md` |
 | `backend/app/config.py` | Settings via pydantic-settings, loads from `backend/.env` |
 | `backend/app/rate_limit.py` | Rate limiting — see `docs/decisions/security-boundaries.md` |
 | `backend/app/ai_limiter.py` | Concurrency control (semaphore + queue depth) |
@@ -293,11 +325,32 @@ After a successful scan, the backend adds `verification_context` to the scan res
 
 If no company name is found, `verification_context` is absent and the frontend never
 calls `/api/verify`; it calls `POST /api/analyze-offer` instead, which assesses the offer
-on its own terms and returns a verdict. **Either path produces a score; the employer check
-only ever adds to one.**
+on its own terms and returns a verdict. **Both paths produce a level, but they are not
+the same kind of level, and the difference is deliberate.** The verify path's level is
+computed in `verdict.py` from the posting's findings and the retrieved evidence. The
+offer path's level is the model's own reading, because that path has no employer to look
+up, no anomalies to price, and no retrieval to contradict anything — the prompt says so
+in as many words. It is a separate design, not an oversight, and it carries the same
+risk the verify path used to carry: a model that prices a category instead of reading
+the whole offer. `docs/decisions/scoring-model.md` records why the verify path moved
+into code; the offer path has not been revisited.
+
+On the verify path, a source that accounts for a finding removes that finding from the
+posting score, a source that contradicts one adds to the refutation score, and an
+unresolved finding never lowers it. The final number is computed in `verdict.py`; the
+verify model does not return `risk_level` or `risk_score`.
+
+The verify prompt carries the scan's findings as a numbered block, plus a 4,000-character
+excerpt of `job_summary` as context. It returns `anomaly_assessments`, one per finding.
+`stale` and `red` require a retrieved URL; an unbacked verdict is demoted to `yellow`.
+The five status-bearing category checks stay evidence-only: the findings are labelled as
+the posting's claims and may not make a category green or red. Channel Match is not one of
+those status-bearing checks; the model reports its facts in a `channel_match` object and
+`channel_match.py` assigns the status. The labeled-text fallback returns no assessments,
+so every card is amber, and its missing `channel_match` facts leave the category yellow.
 
 `/api/verify` logs the raw AI response and parsed items at INFO/WARNING level for
-debugging.
+debugging, and warns when a finding came back without an assessment.
 
 ---
 
@@ -316,26 +369,26 @@ All four prompt files are in `backend/` root, resolved via
 Verification design — categories, schema, and why the file is the source of truth — is in
 `docs/decisions/verification-design.md`.
 
-**What `_build_verify_prompt` sends** is four blocks, in order: the employer name, the
-gating instruction, the posting's own stated claims (`attributes`), and the findings a
-first reading of the posting already produced (`anomalies`) — then the search results.
-The findings carry the scan's own severity, code and quote, and they are labelled as
-untrusted posting claims rather than facts about the employer; the model returns one
-`anomaly_assessments` entry per numbered finding. The findings never decide one of the
-six category statuses — the categories are tested against the results alone. What the
-model may and may not say about a finding is in
-`docs/decisions/verification-design.md`, and what the code does with the answer is in
+**What `_build_verify_prompt` sends** is five blocks, in order: the employer name, the
+gating instruction, the posting's own stated claims (`attributes`), a bounded
+`job_summary` excerpt, and the findings a first reading of the posting already produced
+(`anomalies`) — then the search results. The findings carry the scan's own severity,
+code and quote, and they are labelled as untrusted posting claims rather than facts
+about the employer; the model returns one `anomaly_assessments` entry per numbered
+finding. The findings never decide one of the six category statuses — the categories are
+tested against the results alone. What the model may and may not say about a finding is
+in `docs/decisions/verification-design.md`, and what the code does with the answer is in
 `docs/decisions/report-panel-redesign.md`.
 
 The scan prompt's `CONTACT_METHOD` has to hold *every* channel the posting directs
 applicants to, not one — one typed line each (`email | address@host`), which
 `lm_client.py` accumulates rather than overwriting. It is the slot that opens
-`Channel Match`, and a channel the posting never wrote down is a channel nothing
-can test. `CLAIMED_TYPE` is the same observation's other half: whether the poster
-presents itself as a government office is a different fact from the name it
-prints. Both are in `docs/decisions/scan-channel-enumeration.md`, which also holds the
-separator contract with the search planner. The rules that compare those channels
-against the employer's own are in `docs/decisions/channel-match-severity.md`.
+`Channel Match`, and a channel the posting never wrote down is a channel nothing can
+test. `CLAIMED_TYPE` is the same observation's other half: whether the poster presents
+itself as a government office is a different fact from the name it prints. Both are in
+`docs/decisions/scan-channel-enumeration.md`, which also holds the separator contract
+with the search planner. The rules that compare those channels against the employer's
+own are in `docs/decisions/channel-match-severity.md`.
 
 ---
 
@@ -448,6 +501,12 @@ raised with it.**
 - There is **no text input** for the company name. A typed name would flow straight into
   the verification prompt, which produces a verdict naming a real company; guidance only,
   by decision.
+- **The anomaly cards are present before verification and never hidden.** While the
+  lookup runs they show `Checking` with no severity; a no-employer or failed lookup shows
+  amber `Unconfirmed` and no spinner. `stale` and `red` always carry a bound source.
+- **The initial-scan loader is `ReportSkeleton`**, which mirrors the report with grey
+  pulsing blocks. It is not used for verification, and it does not draw the unbuilt
+  controls.
 
 ### Unverified employer
 
@@ -494,13 +553,14 @@ nothing above them to promote.
 - **What promotion means now is the neutral context dropping *below* the
   findings.** A reader who has just been told not to send money does not need
   the coverage count in their first viewport.
-- **`shouldElevateEvidence()` waits for the level to settle.** The scan returns a
-  level from the posting alone and verification can move it, so a posting can
-  read "high" and settle at "moderate". Promoting on the intermediate value
-  would move the evidence out from under the reader and put it back a moment
-  later. `verificationLoading` and `offerAnalysisLoading` both gate it. **A failed
-  verification still promotes**, because the posting stage's findings are real
-  regardless of whether the employer lookup ran.
+- **`shouldElevateEvidence()` waits for the level to settle.** The scan carries no
+  level; the verify response returns the code-owned one from the posting's
+  findings plus the evidence, so a posting can read "high" on its findings and
+  settle at "moderate" after a stale finding is accounted for. Promoting on the
+  intermediate value would move the evidence out from under the reader and put it
+  back a moment later. `verificationLoading` and `offerAnalysisLoading` both gate
+  it. **A failed verification still promotes**, because the posting stage's
+  findings are real regardless of whether the employer lookup ran.
 - **Both groups stay mounted; `order` on the flex parent decides which leads.**
   Unmounting to reorder would give FLIP nothing to animate and would reset a
   collapsed disclosure on every level change.
@@ -522,10 +582,11 @@ nothing above them to promote.
   carefully enough to act on it. The accent is temporary by construction - it
   rides on the displayed result, which `resetAll()` already clears when a new
   element is picked.
-- **The score is gone.** The retired 0-100 index and the gauge ring that drew it
-  are deleted, along with the ring's `ring-breathe` keyframes and the
-  `--ring-glow-color` property they read. What replaced them is a short authored
-  instruction in `verdictCopy.ts`, looked up by level, so it cannot drift between
+- **The gauge is gone.** The 0-100 gauge ring that drew the index is deleted,
+  along with the ring's `ring-breathe` keyframes and the `--ring-glow-color`
+  property they read. The number still exists in the backend for the level bands,
+  resume matching and `score_breakdown`, but the panel renders a short authored
+  instruction from `verdictCopy.ts`, looked up by level, so it cannot drift between
   runs and keeps the libel guardrail in code. See
   `docs/decisions/report-panel-redesign.md`.
 ### Filter categories (`ResumeMatchView`)
