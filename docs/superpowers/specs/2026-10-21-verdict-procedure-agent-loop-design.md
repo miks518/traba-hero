@@ -1,7 +1,9 @@
 # Design — the verdict procedure, and the agentic loop that feeds it
 
 Date: 2026-10-21
-Status: draft for review (rev. 2, after builder check)
+Status: draft for review (rev. 3, after the research and the reviewer's
+answers on 2026-10-21)
+Research: `docs/research/2026-10-21-verdict-grid-research.md`
 Supersedes: `docs/scoring.md`, `docs/decisions/scoring-model.md`,
 `docs/decisions/verification-design.md` (the category-status section),
 the token-budget section of `docs/decisions/reasoning-models.md`,
@@ -101,35 +103,61 @@ fix, one level up.
 
 ## 3. The verdict procedure
 
-### 3.1 Exposure — what the posting asks the reader to give up
+### 3.1 The class of the request — what shape is it?
 
-Derived from the anomaly code. `app/services/anomaly_codes.py` documents the
-codes in families by what the reader gives up, but **the family grouping
-exists only in that module's comments** — `ANOMALY_CODES` is a flat tuple with
-no family mapping in code. A code→exposure table has to be written:
+**This section was rewritten on 2026-10-21 after the research.** The first
+draft indexed the grid by *exposure* (money / documents / labour / none). The
+research found that the exposure is the wrong axis: the Philippine rules
+attach to the **shape** of a request, not to the category of what it takes.
+A fee to the employer for a uniform is ordinary; a fee to an agency before a
+contract is prohibited; a fee to a personal account is prohibited. All three
+are "money".
 
-| Family | Codes | Exposure |
+The research note is `docs/research/2026-10-21-verdict-grid-research.md`. It
+carries the citations (DMW, DOLE, POEA, NTC, CICC, DOLE Department Order
+No. 141-14, DMW-DC-01-2023, TESDA Circular 023-2020, RA 10173 §11(d), NPC
+Advisory Opinion 2019-034, and Axelsson's base-rate result) and the derivation.
+
+So the primary axis is the **class of the request**, decided from facts on the
+face of the posting:
+
+| Class | Test | Weight |
 |---|---|---|
-| M | `FEE_MANDATORY`, `FEE_CONDITIONAL`, `PURCHASE_REQUIRED`, `DEPOSIT_REQUIRED`, `PAYMENT_FORWARDING` | `money` |
-| I | `CREDENTIALS_BEFORE_INTERVIEW`, `DOCUMENTS_VIA_THIRD_PARTY` | `documents` |
-| C | `TASK_FOR_EARNING` | `labour` |
-| — | `OTHER`, and any finding whose code is absent | `none` |
+| **ordinary** | a shape the rules permit and Philippine hiring does routinely: a free email address, an application through a messenger, the ordinary applicant packet (résumé, 2×2 photo, transcript, NBI clearance, medical results), a uniform or medical cost charged by the employer, no experience needed, no formal process | no charge |
+| **cannot be classified** | the shape is real but the facts that decide it are not stated — a fee whose recipient is not stated, a meeting place that is not named | a question |
+| **prohibited** | a shape the rules forbid: a fee charged by a recruitment agency before a contract (DOLE DO 141-14 §35; DMW §56, §59), a fee paid to a personal account or remittance centre (POEA Advisory 62), account credentials before hiring (RA 10173 §11(d) — not excessive for the purpose), documents routed through a third party, impersonation, payment pass-through, task-for-earning | a charge |
 
-`IMPERSONATES_AUTHORITY` sits in Family I in that module, but **is not an
-exposure**. It is a claim about *who is asking*, and it is read as an
-establishment signal (§3.3). It contributes no exposure of its own: a posting
-that only impersonates and asks for nothing has exposure `none`. The family
-comment in `anomaly_codes.py` gets a note saying so.
+**Three taxonomy changes follow from the research**, and they are not optional
+— the classes cannot be decided without them:
 
-**[CALL] A posting can have more than one exposure** — a fee *and* identity
-papers. The grid is indexed by the **highest** exposure, in the order
-`documents > money > labour > none`, because identity papers are the least
-reversible thing a reader can hand over. The statement lists *all* of the
-exposures; the grid uses the worst one. A compound-exposure row set would
-multiply the authored statements for a case the reader experiences as "it
-wants several things, the worst being my documents". **[OPEN 1]** if the
-reviewer wants compounds, the grid grows and the statement table grows with
-it.
+1. **`CREDENTIALS_BEFORE_INTERVIEW` splits.** The code currently covers
+   "identification, bank details or passwords". Those are not alike here:
+   asking for the ordinary applicant packet is ordinary Philippine practice
+   (PESO checklists; the pre-employment packets employers publish), and asking
+   for bank details, an e-wallet number, an OTP or a password before hiring is
+   the mechanism by which an applicant becomes a mule account. The code becomes
+   `APPLICATION_DOCUMENTS` (ordinary) and `ACCOUNT_CREDENTIALS` (prohibited).
+2. **Two facts are extracted that were not.** `FEE_RECIPIENT`
+   (`employer | agency | third party | individual account | not stated`) and
+   `FEE_TIMING` (`before hiring | at hiring | after a contract | not stated`).
+   These two decide the money class, and they are facts, not judgements.
+   `FEE_REASON` — the reason the posting gives — is extracted as a third fact
+   and appears in the statement; it does not decide the class.
+3. **`MEETING_SPOT` gains a nature.** "A named place" is not enough. The rule
+   the research found is about whether the transaction happens at the
+   employer's registered premises: DMW-CAR calls meetings, interviews and
+   payments in malls, restaurants, private homes or chat platforms "clear
+   signs of illegal activity" where an agency is involved.
+
+`IMPERSONATES_AUTHORITY` is not a class of request at all. It is a claim
+about *who is asking*, and it is read as an establishment signal (§3.3); it
+contributes no request class of its own. The family comment in
+`anomaly_codes.py` gets a note saying so.
+
+**[CALL] A posting can carry more than one request.** The grid is indexed by
+the **worst** class present, in the order `prohibited > cannot be classified >
+ordinary`, because a prohibited shape is a charge whatever else is in the
+posting. The statement lists all of them.
 
 ### 3.2 Establishment — what the record says about who is asking
 
@@ -193,12 +221,14 @@ The code decides:
 
 **`unknown` is never punished on its own.** It is the state of a small
 employer with no web footprint, which is the ordinary case for the people this
-product exists for. It is punished only in combination with an exposure, and
-the reasoning is stated in §3.4: the exposure is certain either way, and that
-is what makes it a caution rather than a green light. *Reconciliation with the
-standing rule:* "absence is never red" is not violated — `unknown` produces no
-red, no charge, and no accusation; it is a fact, and the fact that a small
-employer cannot be looked up is not a finding about them.
+product exists for. In the research-backed grid it never, by itself, produces
+anything above a question. *Reconciliation with the standing rule:* "absence is
+never red" is not violated — `unknown` produces no red, no charge, and no
+accusation; it is a fact, and the fact that a small employer cannot be looked
+up is not a finding about them. The base-rate constraint is the reason it is
+not punished: a rule that fires on "the employer has no website" fires on
+ordinary life, and a panel that cries wolf teaches its reader to ignore it
+(Axelsson 2000).
 
 A finding the employer's own record accounts for is **retired** — the existing
 `stale` rule, unchanged in meaning, and re-expressed in the new vocabulary
@@ -211,62 +241,64 @@ Authored. Hand-written. Not computed, and not a function of any number.
 | Exposure | `confirmed` | `supported` | `unknown` | `contradicted` |
 |---|---|---|---|---|
 | `none` | CLEAR | CLEAR | CLEAR | **STOP** |
-| `money` | CLEAR | NOTE | CAUTION | **STOP** |
-| `documents` | CLEAR | CAUTION | CAUTION | **STOP** |
-| `labour` | CLEAR | NOTE | CAUTION | **STOP** |
+| Class of the request | `confirmed` | `supported` | `unknown` | `contradicted` |
+|---|---|---|---|---|
+| ordinary only | CLEAR | CLEAR | CLEAR | **STOP** |
+| cannot be classified | NOTE | NOTE | NOTE | **STOP** |
+| prohibited | NOTE | CAUTION | CAUTION | **STOP** |
 
-The reasoning behind each choice, because the grid is a set of judgements and
-not a derivation:
+**The cells are settled by the research, not by taste.** The derivation and
+the citations are in `docs/research/2026-10-21-verdict-grid-research.md` §6;
+the reasoning is:
 
-- **Exposure `none` + `contradicted` is STOP.** The posting is not from the
-  employer it names, which is the product's whole purpose, and nothing is
-  asked of the reader. The reader still loses their time and leaves a trail.
-- **Exposure `none` is CLEAR at every other establishment.** Nothing is asked
-  that cannot be walked away from. A free email address is a **fact in the
-  record**, not a finding and not a charge. This is the false-caution fix.
-- **Exposure + `unknown` is at least CAUTION.** The reader has a certain
-  exposure — the money leaves their pocket either way, and whether the
-  employer is real does not change that — and the counterparty is
-  unestablished. That combination is what a caution is for.
-- **Exposure + `supported` is softer than + `unknown`**, because the employer
-  exists and nothing contradicts them. It is a NOTE, except for documents,
-  where an unestablished channel for identity papers is one step worse than
-  money.
-- **Exposure + `confirmed` is CLEAR**, because nothing is hidden: the employer's
-  own site publishes the role and the terms, so the reader can see what they
-  are agreeing to before they send anything.
+- **`contradicted` is the only path to STOP, and it requires a retrieved
+  official source.** This is the reviewer's "ace card" rule — "Do not
+  proceed" is said only on hard evidence — and it is what the base-rate
+  constraint demands: the strongest output needs the hardest evidence.
+- **A prohibited shape with a `confirmed` counterparty softens to NOTE**,
+  because the reader can go and see the thing on the employer's own site and
+  judge it themselves.
+- **`unknown` never, on its own, produces anything above a question.** NTC
+  lists "companies that cannot be found online" as a red flag, and the panel
+  reports it — as a fact in the record, not as an alarm. The base-rate
+  argument is decisive here: a large minority of legitimate Philippine
+  employers are small and have no website, so a rule that fires on that fires
+  on ordinary life. Axelsson's result is the reason: a low posterior detection
+  rate "would quickly teach the [user] to safely ignore all alarms".
+- **CAUTION is reserved for the prohibited class alone.** That is what keeps
+  it from becoming common, and it is the whole fix for the false-caution
+  flood: the old system produced cautions out of a free email and an ordinary
+  finding, because it had no rule for what is ordinary.
 
-**[OPEN 1] The grid cells the reviewer must settle**, because they are the
-arguable ones and they decide how often the panel says what:
+The four worked examples, from the research note:
 
-- `documents` + `unknown` — CAUTION or STOP? For STOP: identity papers are
-  irreversible. For CAUTION: most small Philippine employers are `unknown`,
-  and STOP on every one of them would cry wolf.
-- `money` + `confirmed` — CLEAR or NOTE? For CLEAR: a fee the employer's own
-  site publishes is a published term, not a hidden one. For NOTE: the reader
-  may still decide against it, and saying CLEAR says the reader's decision
-  has been made for them.
-- `money` + `supported` — NOTE or CAUTION? For NOTE: the fee has a stated
-  reason and the employer is real. For CAUTION: their site does not mention
-  the fee, and that is a question the reader should have answered before
-  they pay it.
+| Posting | Class | Establishment | Verdict |
+|---|---|---|---|
+| Real employer, Gmail address, no demands | ordinary | supported | CLEAR |
+| Employer charges ₱500 for a uniform, stated | ordinary | unknown | CLEAR |
+| Agency asks ₱1,500 before hiring, paid to a personal account | prohibited | unknown | CAUTION |
+| Fake CHED — claims to be CHED Region VI, gives `chred-region6.org`, asks for fees | prohibited **and** contradicted | contradicted | **STOP** |
 
-### 3.5 A fee with a reason, and a fee without one
+The last row is the one the reviewer asked about: the impersonation wins,
+because `contradicted` is the only path to STOP and it is the fact the reader
+needs. The fees are in the record and are not in the headline.
 
-A fee the posting explains (medical, uniform, a training kit) and a fee it
-does not are not the same. The scan model reports the reason as a **fact**,
-verbatim, and never judges it:
+**[OPEN 1] is closed.** The three cells the reviewer would not sign off on
+are decided by published rules and by the base-rate constraint, and the
+reasoning is written down rather than asserted.
 
-```
-FEE_REASON: <the reason the posting gives, or omit>
-```
+### 3.5 A CLEAR verdict is a statement about the posting, not about the employer
 
-**[CALL] The reason does not change the verdict.** Only exposure and
-establishment do. What it changes is how the record says it: a fee with a
-stated reason is reported as "they ask for ₱1,500 for medical clearance", and
-a fee without one as "they ask for ₱1,500 and give no reason". Whether a
-reasonless fee should be worse is a fifth row in the grid, and it is not
-added here. **[OPEN 1]** if the reviewer wants it, it is decided in §3.4.
+A CLEAR verdict never says the employer is safe, and it never says the posting
+asks for nothing if it does. A posting that asks for a ₱500 uniform is CLEAR
+and its statement says so: "They ask for ₱500 for a uniform, and nothing else
+before you start." The statement is a statement about the posting, and every
+word of it has to be true of the posting.
+
+This is why the statement is rendered from the record (§7.1) rather than
+written per cell as a fixed sentence. A fixed CLEAR sentence would be false
+for the uniform-fee posting, and a false statement on the panel is the one
+thing the libel guardrail cannot tolerate.
 
 ---
 
@@ -453,11 +485,9 @@ was reached:
 The `rule` field names the cell of the grid that fired. It is the thing that
 makes the verdict auditable without a number: it says which fact decided it.
 
-**[OPEN 3] The endpoint shape.** The agent has to replace both stages — the
-scan and the verify — or the relay survives. That is a protocol change with
-real consequences: `useScanSession.startVerification` fires the verify only
-after the scan returns, `verificationLoading`, `CompanyNameNeeded`,
-`ScanResponse`, and the offer path all move. The three shapes are:
+**[SETTLED 2026-10-21] The endpoint shape is (b): a new `/api/assess`
+replaces both, and `/api/scan` and `/api/verify` are deleted.** The three
+shapes that were on the table:
 
 - **(a)** `/api/scan` becomes the agent endpoint and `/api/verify` is deleted.
   The extension makes one call. The scan is image-only in practice today
@@ -469,9 +499,16 @@ after the scan returns, `verificationLoading`, `CompanyNameNeeded`,
 - **(c)** `/api/verify` becomes the agent endpoint and is fed the scan's
   parsed output — which reinstates the relay the design exists to remove.
 
-The author's preference is **(b)**: the endpoint name should say what it does,
-and a new name makes the deletion of the old pair a deliberate act rather than
-a silent overwrite. **(a)** is smaller and equally honest.
+**The reviewer chose (b)**: the endpoint name should say what it does, and a
+new name makes the deletion of the old pair a deliberate act rather than a
+silent overwrite. `(a)` was smaller and equally honest, and remains a one-line
+change to the same decision if the reviewer changes their mind.
+
+Consequences that travel with the choice: `useScanSession.startVerification`
+fires the verify only after the scan returns, so the two-phase loading state
+collapses into one; `verificationLoading`, `CompanyNameNeeded`,
+`ScanResponse`, the offer path and `verification_context` all move; and the
+extension makes one call instead of two.
 
 ---
 
@@ -484,11 +521,13 @@ The agent's final answer is structured, not prose, and the code reads it:
   "valid": true,
   "findings": [
     {"label": "...", "reasoning": "...", "code": "FEE_MANDATORY",
-     "quote": "...", "fee_reason": "medical clearance"}
+     "quote": "...", "fee_reason": "medical clearance",
+     "fee_recipient": "employer", "fee_timing": "before hiring"}
   ],
   "attributes": {"company": "...", "job_title": "...", "location": "...",
                  "claimed_type": "...", "channels": [{"type":"email","value":"..."}],
-                 "pay": "...", "registered_as": "..."},
+                 "pay": "...", "registered_as": "...",
+                 "meeting_spot": {"value": "...", "nature": "employer premises | elsewhere | not stated"}},
   "employer_record": {
     "domain": {"value": "knollridges.com.ph", "source_url": "https://knollridges.com.ph"},
     "pages": [{"title": "...", "url": "...", "snippet": "..."}],
@@ -498,6 +537,11 @@ The agent's final answer is structured, not prose, and the code reads it:
   "record": [ {"claim": "...", "source_title": "...", "source_url": "..."} ]
 }
 ```
+
+The `fee_recipient`, `fee_timing` and `meeting_spot.nature` fields are the
+three facts the research added (§3.1). They are the difference between a fee
+that is ordinary and a fee that is prohibited, and they are extracted as
+facts — the code decides what they mean.
 
 Every fact about the employer's record carries the URL it came from —
 including the domain, which carries no URL in an earlier draft of this
@@ -528,14 +572,20 @@ on Higher Learning not being CHED. It is not said for a caution. A product
 that says it for everything says it for nothing.
 
 For the other verdicts the statement is evidentiary, because the reader is the
-judge:
+judge. Every statement has **two parts** — what the posting asks for, and what
+the record showed — because a statement that says only the second is not
+actionable and one that says only the first is not evidence:
 
 | Verdict | Statement shape |
 |---|---|
-| CLEAR | "This posting does not ask you for money, documents, or work before you start." |
-| NOTE | "They ask for ₱500 for medical clearance. Their site lists this role, but not that fee." |
-| CAUTION | "They ask you to pay ₱1,500 before you start, and we could not find a record of this agency." |
+| CLEAR | "They ask for ₱500 for a uniform, and nothing else before you start." |
+| NOTE | "They ask for ₱1,500 and do not say who it is paid to. Their site lists this role, but not that fee." |
+| CAUTION | "They ask you to pay ₱1,500 to a personal account before you start, and we could not find a record of this agency." |
 | STOP | "This posting is not from the employer it names." |
+
+The first part is rendered from the finding's structured facts (the amount, the
+fee's recipient, the reason if stated, what kind of documents). The second is
+rendered from the establishment state. Neither is written by the model.
 
 The options block is authored per verdict family and offers the reader's
 choices — ask for something in writing, meet at an address they give you, do
@@ -579,14 +629,10 @@ finding, and it does not count toward the exposure. `verdict.py`'s
 `_without_stale` keeps its rule and changes its input: it consumes the
 agent's per-finding status rather than a separate assessment list.
 
-**[OPEN 2] The panel's information architecture.** §7.2 says the categories
-survive as the grouping of the record and their statuses go. The alternative
-is to rebuild the panel around the record and the establishment state, with
-the categories dissolved. The first is a smaller change; the second is a
-cleaner panel and a bigger one. The author's preference is the first, because
-it preserves `WhatWeChecked` and `FullDetails` — the parts of the panel that
-earn their place — and because the categories are a good way to organise a
-record.
+**[SETTLED 2026-10-21] The panel's information architecture is the first
+option: the six claim categories survive as the grouping of the record, and
+their green/yellow/red statuses retire onto the four states.** The reviewer
+took the author's preference.
 
 ### 7.3 Naming
 
@@ -638,6 +684,8 @@ procedure. A stored scan is never silently re-labelled as a new verdict.
 | `offer_prompt.py`'s model-owned `risk_level` | the offer path gets the same procedure. It has no employer, so establishment is `unknown` by construction and exposure carries the whole verdict. This closes contradiction #5 in `AGENTS.md`. |
 | `verification_prompt.py`'s `verdict_reason` | retired (§7.1). |
 | `VerificationItem.status` (green/yellow/red) | retired in favour of the four states (§7.2). |
+| `CREDENTIALS_BEFORE_INTERVIEW` | **split** into `APPLICATION_DOCUMENTS` (ordinary) and `ACCOUNT_CREDENTIALS` (prohibited). §3.1, and the research note §4. |
+| `FEE_REASON`, `FEE_RECIPIENT`, `FEE_TIMING` | new extracted facts, on the finding and in the attributes (§3.1). |
 
 **`docs/scoring.md` is deleted, not rewritten.** The AHP work is not wrong; it
 answers a question this product no longer asks. The thesis claim changes from
@@ -656,6 +704,15 @@ Four commits, each one runnable and each one tested.
 grid, the authored statements and options. The **existing** pipeline feeds it:
 the scan model still extracts, the verify model still reports what it reports
 today.
+
+The taxonomy changes from the research (§3.1) land here too, because the grid
+cannot be implemented without them: `CREDENTIALS_BEFORE_INTERVIEW` splits,
+and `FEE_REASON` / `FEE_RECIPIENT` / `FEE_TIMING` and `meeting_spot.nature`
+are extracted. That is a prompt change and a parser change, and it is the
+part of commit 1 that needs the corpus to validate — a misclassified fee
+recipient is a misclassified charge, and a misclassified charge on a
+legitimate posting is exactly the cry-wolf failure the grid exists to
+prevent.
 
 **[CALL] The provisional establishment mapping for commits 1–3.** `confirmed`
 is not reachable before commit 4, because nothing today fetches the employer's
@@ -724,9 +781,10 @@ runnable in every commit above.
   whose posting asks for nothing. That is the case contradiction #7 says is
   uncaught today, and it is the case the loop exists to catch.
 
-**[OPEN 4] The corpus.** The acceptance criterion needs three things the design
-does not yet have: a corpus (today `jobposts/` holds three images and one PDF
-plus the stitch mockups), a "before" verdict per posting, and an ordering
+**[OPEN 1] the corpus.** The acceptance criterion needs three things the design
+does not yet have: a corpus (today `jobposts/` holds two job postings — the
+Fake CHED flyer and one screenshot — and one PDF that is a reference document
+rather than a posting), a "before" verdict per posting, and an ordering
 across two vocabularies so that "worse" is checkable.
 
 **[CALL] The ordering**, for the criterion to be checkable at all:
@@ -742,13 +800,23 @@ a rename, not a worsening; `high` and `critical` both become `stop`. So
 that was `low` or `moderate` must not become `stop`, and a posting that was
 `high` or `critical` must not become `clear` or `note`.
 
-**[OPEN 4] the live question.** Producing the "before" column needs the live
-model and live Tavily, and `AGENTS.md` forbids running anything that calls the
-provider without explicit permission — including throwaway probe scripts,
-because the key is shared. So the corpus run is either run live with the
-reviewer's explicit go-ahead, or computed offline from fixtures. The author's
-preference is offline first (the two permanent fixtures plus new ones), and
-live only once the reviewer says so.
+**[CALL] the live run is permitted.** The reviewer granted permission on
+2026-10-21 for live provider calls, up to about twenty runs today, so the
+"before" column can be produced against the running system rather than
+guessed. Two things follow from the grant and are conditions on it:
+
+- The Tavily budget is spent by these runs. A verification costs one to three
+  credits and the free tier is 1,000 per month, so twenty runs cost at most
+  sixty credits. The runs are also the only thing that will produce a
+  false-positive *rate*, and the rate is what §3.4's soft edges are argued
+  from.
+- **The corpus is the binding constraint, not the budget.** A rate measured on
+  two postings is not a rate. The corpus needs mostly *legitimate* postings —
+  real small employers, Gmail addresses, ordinary notices, a uniform fee, an
+  ordinary applicant packet — because the thing being measured is the false
+  positive, and the false positive only appears on legitimate postings. The
+  reviewer offered to add postings to `jobposts/`; that is the next task, and
+  it is worth more than the twenty runs.
 
 ---
 
@@ -768,24 +836,36 @@ live only once the reviewer says so.
 
 ## 12. Open questions
 
-1. **The grid cells** — §3.4: `documents` + `unknown` (CAUTION or STOP),
-   `money` + `confirmed` (CLEAR or NOTE), `money` + `supported` (NOTE or
-   CAUTION); and §3.1: whether a posting with several exposures gets one
-   verdict from the worst exposure (the author's call) or a compound row.
-2. **The panel's information architecture** — §7.2: do the six claim
-   categories survive as the grouping of the record with their statuses
-   retired (the author's preference), or is the panel rebuilt around the
-   record and the establishment state?
-3. **The endpoint shape** — §5: `/api/scan` becomes the agent (a), a new
-   `/api/assess` replaces both (b, the author's preference), or `/api/verify`
-   is fed the scan's output (c, which reinstates the relay).
-4. **The corpus run** — §10: live with the reviewer's explicit permission, or
-   offline from fixtures.
+**Two of the four are closed.** The grid cells (§3.4) are settled by the
+research and by the base-rate constraint — see
+`docs/research/2026-10-21-verdict-grid-research.md` — and the panel's
+information architecture (§7.2) and the endpoint shape (§5) were settled by
+the reviewer on 2026-10-21. What remains:
 
-Two further questions were raised by the builder check and are settled here as
-the author's calls rather than left open: the fee reason does not change the
-verdict (§3.5), and the statement is authored per cell with the specific fact
-substituted (§7.1).
+1. **The corpus run** (§10). The reviewer has granted permission for live
+   provider calls, up to about twenty runs today. The corpus is the
+   constraint: `jobposts/` currently holds **two job postings** (the Fake CHED
+   flyer and one screenshot) and one PDF that is a reference document rather
+   than a posting. A false-positive *rate* cannot be measured on n = 2. The
+   reviewer offered to add more postings, and the corpus has to be mostly
+   legitimate postings for the measurement to mean anything.
+2. **Copy at the class boundaries** (§7.1). A fee paid to a licensed agency
+   at exactly the statutory one-month cap, after a signed contract, is lawful
+   (DMW §56). Whether the panel says so or simply has nothing to say is a
+   copy question rather than a rule question, and it belongs with whoever
+   writes the final words.
+3. **A caution the reader can act on.** The research says the CAUTION class is
+   reserved for the prohibited shapes, which are rare by construction. That
+   makes the CAUTION verdict meaningful — and it also means the *options*
+   block for a CAUTION has to carry the weight: what exactly is the reader
+   supposed to do about "a fee to a personal account before you start"? The
+   options are authored (§7.1), and this is a design question for them.
+
+Questions raised by the builder check and settled here as the author's calls:
+the fee reason does not change the verdict (§3.5), the statement is authored
+per cell with the specific facts substituted (§7.1), and the wire's
+`VerificationResult` type is a frontend type while the wire key is
+`riskLevel` inside the SSE payload (§5).
 
 ---
 
@@ -861,6 +941,9 @@ substituted (§7.1).
 
 **Docs**
 
+- `docs/research/2026-10-21-verdict-grid-research.md` — the research behind
+  §3.1 and §3.4: the Philippine red-flag taxonomy, the legal tests, the
+  base-rate argument, and the citations.
 - `docs/decisions/verdict-procedure.md` — new decision record. The two axes,
   the grid, the materiality rule, the burden of proof, and why the score is
   gone.
@@ -871,9 +954,13 @@ substituted (§7.1).
   becomes a code control in every mode, not only in `adaptive`.
 - `docs/decisions/libel-guardrail.md` — amended: the burden of proof, and the
   rule that memory is not a source.
+- `docs/superpowers/specs/2026-10-17-anomaly-code-set.md` — amended: the
+  split of `CREDENTIALS_BEFORE_INTERVIEW`, and the §7 note that the fee
+  question is now closed by the research rather than left open.
 - `docs/architecture.md`, `Documentation.md`, `AGENTS.md` — updated;
   contradictions #3 and #5 closed, #6 and #8 given their new homes
   (`establishment.reason` and the agent transcript), #7 addressed by commit 4.
+  `AGENTS.md`'s documentation map gains a row for `docs/research/`.
 - `docs/gotchas.md` — the new traps.
 
 ---

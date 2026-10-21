@@ -39,6 +39,7 @@ Detail lives in `docs/`. Each fact is stated in exactly one place.
 | `docs/decisions/reasoning-models.md` | The token-budget failure and the three ways out |
 | `docs/decisions/report-panel-redesign.md` | What the new report UI settles, and the slots with no possible source |
 | `docs/superpowers/specs/` | Design specs and plans, newest first |
+| `docs/research/` | Research that backs a decision: what the evidence said, with citations |
 | `docs/security-audit-2026-10-14.md` | The audit that produced the current boundaries |
 
 ---
