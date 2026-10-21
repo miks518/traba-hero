@@ -18,6 +18,17 @@ an in-module Python fallback that must stay in step.
 
 **Spec:** `docs/superpowers/specs/2026-10-18-verification-comparison-design.md`
 
+> **Partly superseded, 2026-10-21.** This plan was never executed as written. `main`
+> moved the same ground in the opposite direction: the model emits facts and the code
+> assigns the verdict (`channel_match.py`, `verdict.py`), and the findings reach the
+> verifier as `anomaly_assessments` rather than as a severity-free claims block. The
+> decision record this plan creates — `docs/decisions/verification-findings.md` — was
+> **not** created; it is superseded by
+> `docs/decisions/scan-channel-enumeration.md` and
+> `docs/decisions/channel-match-severity.md`. The channel-enumeration half (Task 3)
+> was built and ported. See
+> `docs/superpowers/plans/2026-10-21-port-verification-comparison.md`.
+
 ## Global Constraints
 
 - **The default test suite must be fully offline.** No live provider calls, ever, in

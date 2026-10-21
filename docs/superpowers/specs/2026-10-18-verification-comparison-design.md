@@ -5,6 +5,16 @@ Status: design approved, Part 1 unbuilt
 Reverses: `verification_prompt.py:_build_verify_prompt` — "the posting's anomalies
 used to be sent as well, and both are actively harmful here"
 
+> **Partly superseded, 2026-10-21.** `main` moved the same ground in the opposite
+> direction: the model emits facts and the code assigns the verdict
+> (`channel_match.py`, `verdict.py`), and the findings reach the verifier as
+> `anomaly_assessments` rather than as a severity-free claims block. The decision
+> record this design names — `docs/decisions/verification-findings.md` — was **not
+> created**; it is superseded by `docs/decisions/scan-channel-enumeration.md` and
+> `docs/decisions/channel-match-severity.md`. The channel-enumeration half (Part 1b)
+> was built and ported. See
+> `docs/superpowers/specs/2026-10-21-port-verification-comparison-design.md`.
+
 ## Intent and why
 
 Trabahero's scan of a fake CHED recruitment flyer produced a panel that read as a

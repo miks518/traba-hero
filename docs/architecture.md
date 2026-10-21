@@ -319,9 +319,13 @@ Verification design — categories, schema, and why the file is the source of tr
 **What `_build_verify_prompt` sends** is four blocks, in order: the employer name, the
 gating instruction, the posting's own stated claims (`attributes`), and the findings a
 first reading of the posting already produced (`anomalies`) — then the search results.
-The findings are in as facts and **not** as severities, which is the whole point of
-them being in at all. Why, and the three prompt rules that depend on it, is in
-`docs/decisions/verification-findings.md`.
+The findings carry the scan's own severity, code and quote, and they are labelled as
+untrusted posting claims rather than facts about the employer; the model returns one
+`anomaly_assessments` entry per numbered finding. The findings never decide one of the
+six category statuses — the categories are tested against the results alone. What the
+model may and may not say about a finding is in
+`docs/decisions/verification-design.md`, and what the code does with the answer is in
+`docs/decisions/report-panel-redesign.md`.
 
 The scan prompt's `CONTACT_METHOD` has to hold *every* channel the posting directs
 applicants to, not one — one typed line each (`email | address@host`), which
@@ -329,7 +333,9 @@ applicants to, not one — one typed line each (`email | address@host`), which
 `Channel Match`, and a channel the posting never wrote down is a channel nothing
 can test. `CLAIMED_TYPE` is the same observation's other half: whether the poster
 presents itself as a government office is a different fact from the name it
-prints. Same decision record.
+prints. Both are in `docs/decisions/scan-channel-enumeration.md`, which also holds the
+separator contract with the search planner. The rules that compare those channels
+against the employer's own are in `docs/decisions/channel-match-severity.md`.
 
 ---
 

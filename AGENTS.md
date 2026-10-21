@@ -30,6 +30,7 @@ Detail lives in `docs/`. Each fact is stated in exactly one place.
 | `docs/decisions/libel-guardrail.md` | Every prompt rule, and the three failure shapes they were written against |
 | `docs/decisions/scoring-model.md` | Why the blend was replaced, why subtraction would be equally wrong, the dead function |
 | `docs/decisions/verification-design.md` | The six claim categories, `Official Registration`, `finding` + source schema |
+| `docs/decisions/scan-channel-enumeration.md` | What the scan writes: repeatable `CONTACT_METHOD`, `CLAIMED_TYPE`, the separator contract with the planner |
 | `docs/decisions/channel-match-severity.md` | Channel Match facts, the free-email / government / lookalike / combination rules, the strong-channel floor |
 | `docs/decisions/security-boundaries.md` | Removed auth, rate-limit identity, CORS, body ceiling, citation binding |
 | `docs/decisions/parser-resilience.md` | `_SECTION_RE` ordering, attribute gating, deleted sections, the 404 param fallback |
@@ -230,3 +231,13 @@ Listed, **not resolved** — each needs a decision or a check against live code.
    backend-only for now, which is fine, but the day the panel explains *why* a Channel
    Match card is red, this is the field it should read. It must be shown as what the
    rule decided, never as a conclusion about the employer.
+7. **The identity question is open.** The results show whether an employer with this
+   name exists, not whether the person who posted this is that employer. A scam that
+   borrows a real employer's name and asks for nothing unusual is caught by neither
+   `channel_match.py` nor the independent-finding rule, because both compare the
+   posting's channels against the employer's own channels and find them equal. The
+   branch `feat/verification-comparison` solved it with a model-written
+   `name_comparison`; that is a model-owned verdict, which is the shape
+   `channel_match.py` exists to remove, so it was not ported. **Needs a decision**,
+   and if it is decided it must be decided code-side — a fact the model reports and
+   code prices. See `docs/decisions/scan-channel-enumeration.md`.
