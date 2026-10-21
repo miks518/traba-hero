@@ -26,6 +26,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.services.lm_client import _parse_custom
 from app.services.search import SearchOutcome, SearchResult
 
 
@@ -244,6 +245,94 @@ def _fake_ched_request() -> dict:
     }
 
 
+def _two_channel_payload() -> dict:
+    """The model's answer when the posting named two channels.
+
+    The model is told to report the facts, and it reports both channels it
+    was given. The status it would have written is not in here: the card is
+    the code's.
+    """
+    return {
+        "checks": [
+            {
+                "category": "Company Existence",
+                "status": "green",
+                "finding": "CHED Regional Office VI is a government office in Iloilo City.",
+                "source_title": "CHED Regional Office VI",
+                "source_url": "https://ched.gov.ph",
+            },
+            {
+                "category": "Official Registration",
+                "status": "green",
+                "finding": "The results show the office on the CHED official site.",
+                "source_title": "CHED Regional Office VI",
+                "source_url": "https://ched.gov.ph",
+            },
+        ],
+        "evidence": [
+            {
+                "title": "CHED Regional Office VI",
+                "url": "https://ched.gov.ph",
+                "snippet": "Official site of the Commission on Higher Education.",
+            }
+        ],
+        "report": "The results show the government office the posting names.",
+        "recommendation": "Confirm the application process with the office directly.",
+        "verdict_reason": "It asks you to apply through a free-mail address.",
+        "anomaly_assessments": [],
+        "channel_match": {
+            "printed_channels": [
+                "hrmo6@ched.gov.ph",
+                "recruitment.ched@outlook.com",
+            ],
+            "official_channels": ["ched.gov.ph"],
+            "government_claim": True,
+            "finding": (
+                "The posting gives hrmo6@ched.gov.ph and "
+                "recruitment.ched@outlook.com; the agency site is ched.gov.ph."
+            ),
+            "source_title": "CHED Regional Office VI",
+            "source_url": "https://ched.gov.ph",
+        },
+    }
+
+
+def _two_channel_request() -> dict:
+    """The scan's own output, carried through to the verify request.
+
+    The attributes are **parsed from a scan output**, not written by hand. A
+    scan that could only hold one channel would parse this to a single
+    channel, and the request would carry one — so the test fails on the
+    pre-port parser, which is the point: the capability being pinned is the
+    scan's, and the prompt assertion below is where it shows up.
+    """
+    raw = (
+        "VALID: true\n"
+        "ATTRIBUTES:\n"
+        "CONTACT_METHOD: email | hrmo6@ched.gov.ph\n"
+        "CONTACT_METHOD: email | recruitment.ched@outlook.com\n"
+        "CLAIMED_TYPE: government\n"
+        "REGISTERED_AS: CHED Regional Office VI\n"
+        "LOCATION: Iloilo City\n"
+        "END ATTRIBUTES\n"
+        "EMPLOYER NAME: Commission on Higher Education\n"
+    )
+    attributes = _parse_custom(raw)["attributes"]
+    return {
+        "company_name": "CHED Regional Office VI",
+        "job_summary": "Apply by emailing recruitment.ched@outlook.com.",
+        "attributes": attributes,
+        "anomalies": [
+            {
+                "flag": "Mandatory application fee",
+                "reasoning": "The poster says a P1,500 application fee is required.",
+                "severity": "high",
+                "code": "FEE_MANDATORY",
+            }
+        ],
+    }
+
+
 @pytest.mark.asyncio
 async def test_knollridges_does_not_become_do_not_proceed():
     data = await _verify(
@@ -326,6 +415,64 @@ async def test_fake_ched_stays_critical_and_the_chred_domain_is_red():
     # is pinned in
     # `entrypoints/sidepanel/components/report/verdictCopy.test.ts`.
     assert _headline_for(data["riskLevel"]) == "Do not proceed"
+
+
+@pytest.mark.asyncio
+async def test_a_posting_with_two_channels_tests_both():
+    """The CHED shape, offline: the employer's own address beside a free-mail one.
+
+    The flyer offered `hrmo6@ched.gov.ph` and `recruitment.ched@outlook.com`
+    side by side. With one slot, the model was handed one channel and the
+    other went untested — and a rule satisfied by the channel that looks
+    legitimate is satisfied by nothing.
+
+    Two things have to hold. The **prompt** must carry both channels, or the
+    model cannot report the second one. And the **code** must still read the
+    free-mail channel as a contradiction while the `.gov.ph` one is the
+    employer's own — a matching channel is not an amnesty for the one beside
+    it.
+    """
+    prompt_holder: dict = {}
+
+    def _capture(messages, **kwargs):
+        prompt_holder["prompt"] = "\n".join(m["content"] for m in messages)
+        return json.dumps(_two_channel_payload())
+
+    with (
+        patch(
+            "app.routers.scan.search",
+            return_value=SearchOutcome(
+                results=[
+                    SearchResult(
+                        "CHED Regional Office VI",
+                        "https://ched.gov.ph",
+                        "Official site of the Commission on Higher Education.",
+                        0.9,
+                    )
+                ],
+                ok=True,
+            ),
+        ),
+        patch("app.routers.scan.chat", side_effect=_capture),
+    ):
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post("/api/verify", json=_two_channel_request())
+
+    assert resp.status_code == 200
+    data = _result(resp)
+
+    # The prompt carried both channels. A one-slot request cannot produce
+    # this string, so this is the port's actual new capability.
+    prompt = prompt_holder["prompt"]
+    assert "hrmo6@ched.gov.ph" in prompt, prompt[-600:]
+    assert "recruitment.ched@outlook.com" in prompt, prompt[-600:]
+
+    # And the code still read the free-mail one as a contradiction, while
+    # the `.gov.ph` one is the employer's own channel.
+    channel = _items_by_label(data)["Channel Match"]
+    assert channel["status"] == "red", channel
+    assert channel["escalation"] == "government", channel
+    assert "recruitment.ched@outlook.com" in channel["explanation"]
 
 
 @pytest.mark.asyncio
