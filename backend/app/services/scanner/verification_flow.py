@@ -45,7 +45,7 @@ async def _search(query: str, scope) -> object:
     return await asyncio.to_thread(runtime.get_search(), query)
 
 
-async def _issue(queries: list) -> tuple[list, list, list, list]:
+async def _issue(queries: list, concurrent: bool = True) -> tuple[list, list, list, list]:
     """Run one round's queries and return what came back.
 
     Returns `(collected, failures, raw_dump, per_query)`:
@@ -60,19 +60,29 @@ async def _issue(queries: list) -> tuple[list, list, list, list]:
     zipping the two pairs a later query's results with an earlier query's name —
     which would attribute evidence to a search that did not retrieve it.
 
-    A single query runs on its own; several run **together**, because a follow-up
-    round only exists once its questions are known and there is no reason to make
-    a reader wait for the first of two questions before the second one starts.
-    The SSE `search` events are emitted by the caller before this is awaited,
-    which keeps the event order identical to a sequential loop.
+    **A planned round runs together, because a follow-up round only exists once
+    its questions are known and there is no reason to make a reader wait for the
+    first of two questions before the second one starts.** The SSE `search` events
+    are emitted by the caller before this is awaited, which keeps the event order
+    identical to a sequential loop.
+
+    `concurrent=False` runs them one at a time, and the `fixed` mode uses it.
+    That mode is the shipped default, and the promise it makes is that the flag
+    off changes nothing — so the request *pattern* has to be main's too, not only
+    the queries. Two requests that used to go out one after the other would
+    otherwise go out at once, which is a change to how the provider is used that
+    no test of the queries would notice.
     """
     if not queries:
         return [], [], [], []
-    outcomes = list(
-        await asyncio.gather(
-            *(_search(q, scope) for q, scope in queries)
+    if concurrent:
+        outcomes = list(
+            await asyncio.gather(
+                *(_search(q, scope) for q, scope in queries)
+            )
         )
-    )
+    else:
+        outcomes = [await _search(q, scope) for q, scope in queries]
 
     collected: list = []
     failures: list[tuple[str, str]] = []
@@ -590,13 +600,19 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         labels: dict | None = None
         adaptive = settings.resolve_search_mode() == "adaptive"
 
-        def _record(round_number: int, per_query: list, purpose_for) -> None:
+        def _record(round_numbers: list[int], per_query: list, purpose_for) -> None:
             """Note what each query of a round was for and what it returned.
 
             A round is recorded whether it succeeded or failed — a round that
             did not run is a fact the panel needs as much as one that did.
+
+            `round_numbers` is parallel to `per_query` rather than a single
+            number, because the `fixed` mode's model queries are numbered
+            individually — 2, 3 — exactly as the SSE events number them. One
+            number for the lot would make the record disagree with the event
+            stream the reader is watching.
             """
-            for query, outcome in per_query:
+            for round_number, (query, outcome) in zip(round_numbers, per_query):
                 for r in (outcome.results if outcome.ok else ()):
                     url = getattr(r, "url", "") or ""
                     if url and url not in query_of:
@@ -618,7 +634,8 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         collected.extend(first_collected)
         failures.extend(first_failures)
         raw_dump.extend(first_raw)
-        _record(1, first_per_query, lambda q: "what is published about the employer")
+        _record([1] * len(first_per_query), first_per_query,
+                lambda q: "what is published about the employer")
 
         if adaptive:
             # ── Resolve, then Round 2.
@@ -647,7 +664,8 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 collected.extend(follow_collected)
                 failures.extend(follow_failures)
                 raw_dump.extend(follow_raw)
-                _record(2, follow_per_query, lambda q: purposes.get(q, ""))
+                _record([2] * len(follow_per_query), follow_per_query,
+                        lambda q: purposes.get(q, ""))
 
             # Every result is labelled, including the ones about a different
             # body. A page that never mentions the organisation being verified
@@ -670,13 +688,17 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             for i, query in enumerate(model_queries, len(company_queries) + 1):
                 yield runtime.get_sse()({"type": "search", "query": query, "round": i})
             rest_collected, rest_failures, rest_raw, rest_per_query = await _issue(
-                _query_rows(model_queries)
+                _query_rows(model_queries), concurrent=False
             )
             collected.extend(rest_collected)
             failures.extend(rest_failures)
             raw_dump.extend(rest_raw)
             _record(
-                len(company_queries) + 1, rest_per_query,
+                list(range(
+                    len(company_queries) + 1,
+                    len(company_queries) + 1 + len(rest_per_query),
+                )),
+                rest_per_query,
                 lambda q: "a question the scan model proposed",
             )
 
@@ -899,17 +921,21 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "search_error": first_error,
             "search_count": len(merged),
             "queries_issued": len(queries),
-            # Which of those queries the scan model proposed, so the panel can
-            # say what was looked up. Reported separately from `queries_issued`
-            # because the two families answer different questions: one asks
-            # about the employer, the other about whether the posting's claims
-            # are the employer's own.
+            # What the **scan model proposed**, which is not the same as what was
+            # looked up. In `fixed` mode every proposal is issued, so the two
+            # coincide; in `adaptive` mode the planner chooses and a proposal
+            # it had no use for is never issued. `rounds` is the record of what
+            # was actually looked up, and it is the accurate one.
+            #
+            # Reported separately from `queries_issued` because the two answer
+            # different questions: one asks about the employer, the other about
+            # whether the posting's claims are the employer's own.
             #
             # Renamed from `scheme_queries`: nothing builds these from
-            # attributes any more, and the panel reads this out as *what was
-            # searched*. A field name describing a mechanism that no longer
-            # exists would be a small lie in the one place the user can audit
-            # the lookup.
+            # attributes any more, and the panel reads this out as *what the
+            # scan model asked for*. A field name describing a mechanism that no
+            # longer exists would be a small lie in the one place the user can
+            # audit the lookup.
             "model_queries": model_queries,
             # What each query was for, and what it returned. `queries_issued`
             # says how many lookups happened; this says which questions they

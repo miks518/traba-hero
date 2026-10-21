@@ -11,6 +11,7 @@ the AI provider.
 """
 
 import pytest
+import time
 from unittest.mock import patch
 from httpx import AsyncClient, ASGITransport
 
@@ -63,18 +64,35 @@ class Recorder:
     A function, not a list `side_effect`: the flow calls through
     `asyncio.to_thread`, where a list raises `StopIteration` into a Future on
     overrun — which hangs the suite instead of failing the test.
+
+    `events` records the **start and the end** of every call, which is what
+    distinguishes one-at-a-time from all-at-once: a concurrent round produces
+    `start(A), start(B), end(A), end(B)` and a sequential one produces
+    `start(A), end(A), start(B), end(B)`.
+
+    `delay` makes that distinction observable. Without it the thread pool may
+    finish the first call before the second starts, and a concurrent round
+    would look sequential by luck.
     """
 
-    def __init__(self, outcomes=None, default=None):
+    def __init__(self, outcomes=None, default=None, delay=0.0):
         self.calls: list[tuple] = []
+        self.events: list[tuple] = []
         self._outcomes = list(outcomes or [])
         self._default = default
+        self._delay = delay
 
     def __call__(self, query, max_results=None, include_domains=None):
         self.calls.append((query, include_domains))
-        if self._outcomes:
-            return self._outcomes.pop(0)
-        return self._default or SearchOutcome(results=[], ok=True)
+        self.events.append(("start", query))
+        try:
+            if self._delay:
+                time.sleep(self._delay)
+            if self._outcomes:
+                return self._outcomes.pop(0)
+            return self._default or SearchOutcome(results=[], ok=True)
+        finally:
+            self.events.append(("end", query))
 
 
 def _ok(*results):
@@ -200,6 +218,55 @@ class TestFixedModeIsUnchanged:
             assert kwargs == (), f"fixed mode sent a keyword it never sent before: {kwargs}"
             assert len(args) == 1, f"fixed mode sent {len(args)} positional args: {args}"
 
+    @pytest.mark.asyncio
+    async def test_the_requests_go_out_one_at_a_time(self, monkeypatch):
+        """**The flag off must not alter the request *pattern* either.**
+
+        `fixed` mode is the shipped default, and the promise it makes is that
+        the flag changes nothing. Two requests that used to go out one after
+        the other would otherwise go out at once — a different way of using the
+        provider, which no assertion about *which* queries were issued would
+        notice.
+
+        The planner's own round is concurrent, because a follow-up round only
+        exists once its questions are known. This mode has no such question,
+        so it keeps the sequential order it always had.
+        """
+        recorder = Recorder([_ok(*ROUND1), _ok(), _ok()], delay=0.05)
+        monkeypatch.setattr("app.config.settings.verify_search_mode", "fixed")
+        with patch("app.routers.scan.search", recorder):
+            await _post({**CHED_BODY, "search_queries": ["one thing", "another thing"]})
+
+        kinds = [kind for kind, _ in recorder.events]
+        # start, end, start, end — never start, start, end, end.
+        assert kinds == ["start", "end"] * len(recorder.calls), recorder.events
+
+    @pytest.mark.asyncio
+    async def test_the_rounds_agree_with_the_events_the_reader_sees(self, monkeypatch):
+        """The record and the stream must number the same queries the same way.
+
+        `rounds` is the audit record of what was looked up, and the SSE `search`
+        events are what the reader watches. A record that says 2, 2 against a
+        stream that says 2, 3 is two accounts of the same two queries.
+        """
+        recorder = Recorder([_ok(*ROUND1), _ok(), _ok()])
+        monkeypatch.setattr("app.config.settings.verify_search_mode", "fixed")
+        with patch("app.routers.scan.search", recorder):
+            resp = await _post({**CHED_BODY, "search_queries": ["one thing", "another thing"]})
+
+        import json
+
+        streamed = []
+        for line in resp.text.splitlines():
+            if not line.startswith("data: "):
+                continue
+            event = json.loads(line[len("data: "):])
+            if event.get("type") == "search":
+                streamed.append((event["query"], event["round"]))
+
+        recorded = [(r["query"], r["round"]) for r in _result_payload(resp)["rounds"]]
+        assert recorded == streamed, (recorded, streamed)
+
 
 # ── adaptive mode ──────────────────────────────────────────────────────────
 
@@ -309,13 +376,21 @@ class TestLabellingReachesTheModel:
             await _post(CHED_BODY)
 
         prompt = sent[0]
-        assert "These results describe the organisation: Higher Learning Commission" in prompt
-        assert "about that organisation: yes" in prompt
+        # The sentence says where the name came from. "These results describe
+        # the organisation: X" asserted a relation the code has not
+        # established - whether these results are about the employer is the
+        # very thing being asked - and the libel guardrail says an unknown is
+        # declared, never inferred.
+        assert "The organisation named by these results: Higher Learning Commission" in prompt
+        # And the per-result line says what was checked: whether the result's
+        # own words carry the name. "is about" would be a claim the code
+        # cannot support.
+        assert "mentions that organisation: yes" in prompt
         # WPU is about a different body entirely, and must say so rather than
         # being dropped or passed off as relevant.
         assert "https://wpu.edu.ph/h.pdf" in prompt
         wpu_block = prompt.split("https://wpu.edu.ph/h.pdf")[1][:400]
-        assert "about that organisation: no" in wpu_block, wpu_block
+        assert "mentions that organisation: no" in wpu_block, wpu_block
 
     @pytest.mark.asyncio
     async def test_fixed_mode_labels_nothing(self, monkeypatch):
@@ -332,8 +407,8 @@ class TestLabellingReachesTheModel:
             await _post({**CHED_BODY, "search_queries": ["one thing", "another thing"]})
 
         prompt = sent[0]
-        assert "about that organisation" not in prompt
-        assert "These results describe the organisation" not in prompt
+        assert "mentions that organisation" not in prompt
+        assert "The organisation named by these results" not in prompt
 
     def test_the_plain_formatter_is_byte_identical_without_labels(self):
         """The guard on the whole labelling change.
