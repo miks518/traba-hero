@@ -323,7 +323,7 @@ _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "cr
 # purpose, and leaving a silent gap would read as an oversight. The rule is in
 # both scan prompts instead.
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|CODE|QUOTE|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|LOCATION|CONTACT[_\s]*METHOD|MEETING[_\s]*SPOT|PAY|REGISTERED[_\s]*AS|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|CODE|QUOTE|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|LOCATION|CONTACT[_\s]*METHOD|CLAIMED[_\s]*TYPE|MEETING[_\s]*SPOT|PAY|REGISTERED[_\s]*AS|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 
@@ -353,7 +353,31 @@ MAX_SEARCH_QUERIES = 2
 # So these five are gated on `in_attributes` and nothing else is. `COMPANY NAME`
 # and `EMPLOYER NAME` are deliberately absent -- the employer path has to keep
 # parsing outside the block, for scans recorded before the rename.
-_ATTRIBUTE_KEYWORDS = ("COMPANY", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY", "REGISTERED_AS")
+_ATTRIBUTE_KEYWORDS = (
+    "COMPANY", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY",
+    "REGISTERED_AS", "CLAIMED_TYPE",
+)
+
+# The keys the scan writes more than once, one line each.
+#
+# `CONTACT_METHOD` is the only one: a posting may give several ways to apply,
+# and the interesting case is precisely when they disagree — the employer's own
+# address on one line and a free-mail address on another. With a plain
+# `attributes[key] = value` the second line silently replaces the first, so the
+# channel that matters disappears from the claims the verifier tests, and
+# `Channel Match` compares only the one that matched.
+#
+# Deliberately not every key. Accumulating all of them would merge two LOCATION
+# lines into one unparseable value, which is a worse failure than a last-one-wins
+# the prompt already discourages by telling the model to omit the line rather
+# than repeat it.
+_REPEATABLE_ATTRIBUTE_KEYS = frozenset({"CONTACT_METHOD"})
+
+# What a repeat joins with. A plain string has to survive as a plain string:
+# `VerifyRequest.attributes` is `dict[str, str]`, the extension sends
+# `Record<string, string>`, and the verify prompt quotes the value back as one
+# line under `- CONTACT_METHOD:`. A list would need changing in all three.
+_ATTRIBUTE_JOIN = "; "
 
 _HIGH_SEVERITY_KEYWORDS = {
     "upfront fee", "processing fee", "training fee", "registration fee",
@@ -601,7 +625,12 @@ def _parse_custom(raw: str) -> dict | None:
             # Only reachable inside the ATTRIBUTES block: the gate above turns
             # the same words into prose everywhere else.
             if rest and rest.lower() != "not stated":
-                attributes[kw] = rest
+                # A repeatable key accumulates; every other key is last-one-wins.
+                # See `_REPEATABLE_ATTRIBUTE_KEYS` for why the two differ.
+                if kw in _REPEATABLE_ATTRIBUTE_KEYS and kw in attributes:
+                    attributes[kw] = f"{attributes[kw]}{_ATTRIBUTE_JOIN}{rest}"
+                else:
+                    attributes[kw] = rest
         elif kw in ("COMPANY NAME", "EMPLOYER NAME"):
             # The employer name is what the verification step searches on, so the
             # model states it directly instead of leaving a downstream regex to

@@ -10,6 +10,8 @@ guard that `prompts.py`'s longer field rules still carried.
 import re
 from pathlib import Path
 
+from app.services.scanner.prompts import SCAN_FIELD_RULES, SCAN_FORMAT_BLOCK
+
 PROMPT = Path(__file__).resolve().parents[1] / "SYSTEM_PROMPT.md"
 FALLBACK_RULES = Path(__file__).resolve().parents[1] / "app/services/scanner/prompts.py"
 
@@ -36,6 +38,63 @@ def test_the_scan_prompt_has_no_byte_order_mark():
     invisible from the prompt's behaviour.
     """
     assert not PROMPT.read_bytes().startswith(b"\xef\xbb\xbf")
+
+
+def test_contact_method_is_a_typed_line_and_claimed_type_exists():
+    """`CONTACT_METHOD` is repeatable and typed, and `CLAIMED_TYPE` is captured.
+
+    **Why this shape.** A flyer offered the employer's real address and a
+    free-mail address side by side. The slot was singular, so one of them was
+    written and the other lost - and the lost one could not arrive by another
+    route, because a free email domain is forbidden from being an anomaly. The
+    channel that mattered had nowhere to live, so the one check that can detect
+    an impersonation never saw it.
+
+    One typed line per channel beats a singular slot holding a joined string:
+    the type is free signal, nothing has to be split on a separator, and a
+    repeat cannot silently overwrite. It also needed a parser change — a plain
+    `attributes[key] = value` keeps only the last line, which is the bug this
+    replaces. See `TestRepeatableAttributeKeys` in `test_anomaly_parsing.py`.
+
+    `CLAIMED_TYPE` is the other half of the same observation. "It says CHED" and
+    "it presents itself as a government office" are two different facts about
+    the same poster, and only the second one says what to compare the fee
+    against.
+
+    All three copies are asserted, because they are separate strings and they
+    have drifted before. `SYSTEM_PROMPT.md` is what ships; the two constants are
+    what a deployment missing the file falls back to.
+    """
+    # Behaviour, in the file and the field rules.
+    for source in (text, SCAN_FIELD_RULES):
+        lowered = source.lower()
+        assert "claimed_type" in lowered
+        assert "write a line for every channel" in lowered, lowered[:80]
+        assert "do not join them into one line" in lowered, lowered[:80]
+        # The old phrasing asserted the opposite, so its absence is half the
+        # test: a prompt carrying both "the channel it directs applicants to"
+        # and "every channel" says two things, and the model resolves the
+        # contradiction the way it happens to on the day.
+        assert "contact_method: <channel it directs applicants to" not in lowered
+
+    # The typed line itself, in the two format blocks.
+    for source in (text, SCAN_FORMAT_BLOCK):
+        lowered = source.lower()
+        assert "contact_method: <email | website | phone | messaging | form | address>" in lowered
+        assert "one line per channel" in lowered
+        assert "claimed_type: <government" in lowered
+
+
+def test_the_singular_wording_is_gone_from_all_three():
+    """The old phrasing asserted the opposite, so its absence is the real test.
+
+    A prompt carrying both "the channel it directs applicants to" and "every
+    channel" is a prompt that says two things, and a model resolves the
+    contradiction the way it happens to on the day.
+    """
+    for source in (text, SCAN_FORMAT_BLOCK, SCAN_FIELD_RULES):
+        lowered = source.lower()
+        assert "contact_method: <channel it directs applicants to" not in lowered
 
 
 def test_prompt_forbids_flagging_an_absence():
@@ -416,6 +475,12 @@ GUARDRAILS = (
     ("a quoted number is an element worth querying", "a number the posting quotes"),
     ("similar offers is reachable", "the only thing similar offers can be judged from"),
     ("two queries for one thing is one query", "write only one"),
+    # Added 2026-10-18. CONTACT_METHOD became repeatable and typed, and
+    # CLAIMED_TYPE was added, because a posting that presents itself as a
+    # government office is a different claim from one that names a company.
+    ("every channel gets a line", "write a line for every channel"),
+    ("a channel line carries its type", "email | website | phone | messaging | form | address"),
+    ("the claimed type is captured", "claimed_type"),
 )
 
 

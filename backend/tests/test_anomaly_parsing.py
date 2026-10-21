@@ -342,6 +342,69 @@ class TestPostingAttributes:
         assert second["query_ref"] == "Acme Maingate Terminal Philippines"
 
 
+class TestRepeatableAttributeKeys:
+    """A repeated attribute line must add to the value, not replace it.
+
+    `CONTACT_METHOD` is written once per channel, because a posting that gives
+    two ways to apply has to be able to say so — and one of them being a free
+    mail domain while the other is the employer's own is the whole observation.
+    A plain `attributes[key] = value` keeps only the last line, so the first
+    channel vanishes and the one check that can detect an impersonation is fed
+    a third of what the posting actually said.
+
+    Joins with `"; "` because the value is a plain string everywhere downstream:
+    `VerifyRequest.attributes`, the extension's `Record<string, string>`, and the
+    claims block the verify prompt quotes back. A scan recorded before this
+    change has one channel and is untouched — nothing to join.
+    """
+
+    def test_a_repeated_attribute_key_accumulates(self):
+        raw = (
+            "VALID: true\n"
+            "ATTRIBUTES:\n"
+            "CONTACT_METHOD: email | hrmo6@ched.gov.ph\n"
+            "CONTACT_METHOD: email | recruitment.ched@outlook.com\n"
+            "CONTACT_METHOD: form | bit.ly/ChedRegionForm\n"
+            "END ATTRIBUTES\n"
+            "EMPLOYER NAME: Commission on Higher Education\n"
+        )
+        value = _parse_custom(raw)["attributes"]["CONTACT_METHOD"]
+        assert "hrmo6@ched.gov.ph" in value
+        assert "recruitment.ched@outlook.com" in value
+        assert "bit.ly/ChedRegionForm" in value
+
+    def test_a_single_line_is_unchanged(self):
+        raw = (
+            "VALID: true\nATTRIBUTES:\n"
+            "CONTACT_METHOD: email | hr@harborlight.example\n"
+            "END ATTRIBUTES\nEMPLOYER NAME: Harbor Light Trading\n"
+        )
+        assert _parse_custom(raw)["attributes"]["CONTACT_METHOD"] == (
+            "email | hr@harborlight.example"
+        )
+
+    def test_other_keys_still_take_the_last_value(self):
+        """Only CONTACT_METHOD is repeatable.
+
+        Accumulating everything would silently merge two LOCATION lines into one
+        unparseable value, which is a worse failure than a last-one-wins the
+        prompt already discourages by saying to omit the line rather than
+        repeat it.
+        """
+        raw = (
+            "VALID: true\nATTRIBUTES:\nLOCATION: Cebu\nLOCATION: Manila\n"
+            "END ATTRIBUTES\nEMPLOYER NAME: Acme\n"
+        )
+        assert _parse_custom(raw)["attributes"]["LOCATION"] == "Manila"
+
+    def test_claimed_type_is_read(self):
+        raw = (
+            "VALID: true\nATTRIBUTES:\nCLAIMED_TYPE: government\n"
+            "END ATTRIBUTES\nEMPLOYER NAME: Commission on High Learning\n"
+        )
+        assert _parse_custom(raw)["attributes"]["CLAIMED_TYPE"] == "government"
+
+
 class TestProseIsNotAKeyword:
     """An attribute key only means an attribute inside the ATTRIBUTES block.
 
