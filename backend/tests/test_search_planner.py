@@ -12,6 +12,7 @@ would never fire on exactly the case it was written for.
 
 import pytest
 
+from app.services.lm_client import _ATTRIBUTE_JOIN, _parse_custom
 from app.services.scanner.search_planner import (
     MAX_FOLLOWUPS,
     Entity,
@@ -104,6 +105,113 @@ class TestSignals:
         signals = classify_signals("", {"CONTACT_METHOD": "email | hr@acme.example"})
         assert signals.printed_name == ""
         assert signals.can_search is False
+
+    def test_a_street_address_is_not_a_host(self):
+        """An address contains dots, and reading it as a host produced "room".
+
+        "Room 5, Mabini St., Iloilo City" is a place, not a domain, and the
+        planner would otherwise spend one of its three credits querying it.
+        The typed format exists so that nothing has to be guessed from a
+        separator, and the type is what says this is an address.
+        """
+        signals = classify_signals("Acme Trading", {
+            "CONTACT_METHOD": "address | Room 5, Mabini St., Iloilo City",
+        })
+        assert signals.channels[0]["domain"] == ""
+        assert signals.main_domain is None
+        assert signals.domains_disagree is False
+
+    def test_a_short_link_is_not_the_posters_own_domain(self):
+        """A URL shortener redirects; it never describes the employer.
+
+        Searching "bit.ly" finds the shortener's homepage, and the "the
+        channels disagree" signal becomes noise.
+        """
+        signals = classify_signals("Acme Trading", {
+            "CONTACT_METHOD": "form | bit.ly/ApplyAcme",
+        })
+        assert signals.channels[0]["domain"] == "bit.ly"
+        assert signals.channels[0]["class"] == "job_board"
+        assert signals.main_domain is None
+        assert signals.domains_disagree is False
+
+    def test_a_claimed_type_echoing_the_placeholder_list_is_still_read(self):
+        """The prompt's format line is a list of options, and a model that
+        copies it produces the whole list.
+
+        "government | private company | recruitment agency | individual |
+        unclear" is not the word "government", and reading it as anything else
+        silently loses the government claim - which is the claim the whole
+        fake-government case turns on.
+        """
+        signals = classify_signals("CHED Regional Office VI", {
+            "CLAIMED_TYPE": (
+                "government | private company | recruitment agency | individual | unclear"
+            ),
+        })
+        assert signals.claimed_government is True
+
+    def test_a_claimed_type_is_read_case_insensitively(self):
+        signals = classify_signals("CHED Regional Office VI", {
+            "CLAIMED_TYPE": "Government",
+        })
+        assert signals.claimed_government is True
+
+
+class TestTheSeparatorContract:
+    """The scan's writer and the planner's reader, tested against each other.
+
+    `lm_client._ATTRIBUTE_JOIN` joins repeated channels with `"; "` and
+    `classify_signals` splits on `";"`. The two are in different modules and
+    neither imports the other's constant, so nothing stops one from changing
+    alone — and the failure is silent: a posting with two channels is parsed
+    as one, the free-mail channel that the whole CHED case turns on
+    disappears, `Channel Match` never fires, and nothing errors.
+
+    Every other test in this file feeds `classify_signals` a hand-written
+    `"; "`-joined string, so the writer's end was never exercised. This one
+    starts from a scan output and lets the parser produce the value, which is
+    the only way the contract can be broken and observed.
+    """
+
+    def test_the_scan_writers_value_is_read_by_the_planner(self):
+        raw = (
+            "VALID: true\n"
+            "ATTRIBUTES:\n"
+            "CONTACT_METHOD: email | hrmo6@ched.gov.ph\n"
+            "CONTACT_METHOD: email | recruitment.ched@outlook.com\n"
+            "END ATTRIBUTES\n"
+            "EMPLOYER NAME: Commission on High Learning\n"
+        )
+        attributes = _parse_custom(raw)["attributes"]
+
+        signals = classify_signals(CHED_NAME, attributes)
+
+        # Both channels survive, and the free-mail one is still visible.
+        assert len(signals.channels) == 2, signals.channels
+        domains = {c["domain"] for c in signals.channels}
+        assert "ched.gov.ph" in domains
+        assert "outlook.com" in domains
+        # The employer's own domain is the one worth searching, and the
+        # free-mail one is not it.
+        assert signals.main_domain == "ched.gov.ph"
+
+    def test_the_two_ends_agree_on_the_separator(self):
+        """The constant and the split, asserted against each other.
+
+        A change to either without the other is the failure this class
+        exists for.
+        """
+        assert _ATTRIBUTE_JOIN.strip() == ";"
+        raw = (
+            "VALID: true\n"
+            "ATTRIBUTES:\n"
+            "CONTACT_METHOD: email | one@acme.example\n"
+            "CONTACT_METHOD: email | two@acme.example\n"
+            "END ATTRIBUTES\n"
+            "EMPLOYER NAME: Acme\n"
+        )
+        assert len(classify_signals("Acme", _parse_custom(raw)["attributes"]).channels) == 2
 
 
 # ── Resolve ────────────────────────────────────────────────────────────────

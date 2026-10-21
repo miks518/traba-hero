@@ -46,7 +46,19 @@ _AGGREGATOR_DOMAINS = frozenset({
     "jobstreet.com", "jobstreet.com.ph", "jobs.ph", "hire.com.ph",
     "ziprecruiter.com", "jobvite.com", "bamboohr.com", "workable.com",
     "news.google.com", "medium.com", "wikipedia.org", "youtube.com",
+    # URL shorteners. A shortener redirects to somewhere else, so its own page
+    # never describes the employer, and querying one spends a credit on the
+    # redirect service's homepage. A posting that applies through bit.ly is
+    # common, which is exactly why it must not read as the employer's domain.
+    "bit.ly", "tinyurl.com", "goo.gl", "t.co", "is.gd", "cutt.ly", "rebrand.ly",
+    "shorturl.at", "rb.gy", "ow.ly", "buff.ly", "lnkd.in",
 })
+
+# The channel types the scan prompt allows, of which these three carry no host
+# to imitate. The type is free signal - the typed format exists so that nothing
+# has to be split on a separator - and it is what says a street address is a
+# place rather than a domain.
+_HOSTLESS_CHANNEL_TYPES = frozenset({"phone", "messaging", "address"})
 
 # Where many Philippine employers hire, and what is therefore ordinary.
 _FREE_EMAIL_DOMAINS = frozenset({
@@ -193,16 +205,31 @@ def _host_of(value: str) -> str:
     """The domain behind a channel value, or "".
 
     Channels arrive as `"<type> | <value as printed>"`, and the value is an email
-    address, a URL, a short link or a phone number.
+    address, a URL, a short link, a phone number, a street address or a handle.
+
+    **The type decides.** A street address contains dots - "Room 5, Mabini St.,
+    Iloilo City" - and reading it as a host produced the domain "room", which is
+    not a domain, and which the planner would then spend one of its three
+    credits querying. A phone number and a messaging handle have no host either.
+    The typed format exists so that nothing has to be guessed from a separator,
+    and this is where the guessing was happening.
+
+    A value with **no** type falls back to the shape: an address, a handle and a
+    phone number all contain whitespace or no dot, and a host contains neither.
     """
     raw = (value or "").strip()
+    kind = ""
     if "|" in raw:
-        raw = raw.split("|", 1)[1].strip()
+        head, _, tail = raw.partition("|")
+        kind = head.strip().lower()
+        raw = tail.strip()
+    if kind in _HOSTLESS_CHANNEL_TYPES:
+        return ""
     if "@" in raw:
         raw = raw.rsplit("@", 1)[1]
     elif raw.startswith(("http://", "https://")):
         raw = urlsplit(raw).netloc
-    elif "." not in raw:
+    elif "." not in raw or any(ch.isspace() for ch in raw):
         return ""  # a phone number, a street address, a handle
     return entity_domain_of(raw)
 
@@ -266,10 +293,18 @@ def classify_signals(company_name: str, attributes: dict) -> Signals:
     location = str(attrs.get("LOCATION") or "").strip()
     registration = str(attrs.get("REGISTERED_AS") or "").strip()
 
+    # The prompt's format line for `CLAIMED_TYPE` is a list of options, and a
+    # model that copies it produces the whole list. "government | private
+    # company | ..." is not the word "government", and reading it as anything
+    # else loses the government claim silently - which is the claim the whole
+    # fake-government case turns on. The first option is the answer.
+    claimed_type = str(attrs.get("CLAIMED_TYPE") or "").strip().lower()
+    claimed_type = claimed_type.split("|", 1)[0].strip()
+
     return Signals(
         printed_name=name,
         can_search=bool(name),
-        claimed_government=str(attrs.get("CLAIMED_TYPE") or "").strip().lower() == "government",
+        claimed_government=claimed_type == "government",
         channels=channels,
         main_domain=main_domain,
         domains_disagree=domains_disagree,
