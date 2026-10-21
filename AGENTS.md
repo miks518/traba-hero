@@ -69,6 +69,7 @@ npm run zip              # package for distribution
 # Backend (from backend/)
 python -m app.main       # reads HOST and PORT from backend/.env; bare uvicorn does not
 python -m pytest tests/ -v
+python scripts/mutation_check.py   # breaks each search control, asserts a test catches it
 
 # Backend setup, first time only
 cd backend

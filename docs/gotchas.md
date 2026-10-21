@@ -30,6 +30,16 @@ plausible number, or an empty result rather than an error.
   right.
 - **Throwaway probe scripts under `ai_verified` were deleted after use** — the cases they
   covered belong in the suite, not in scratch files.
+- **A mutation that survives is usually a fixture-limited test, not a dead control.** Two
+  survived the first pass of `backend/scripts/mutation_check.py`: removing the 2-credit
+  ceiling changed nothing for the CHED fixture, because it produces exactly two planner
+  rows, so the cap is only load-bearing on an input with more rows than the ceiling
+  permits; and blanking `entity_name` was invisible, because the test asserted the
+  organisation's name against the *result title*, which contains it anyway. **The fix is
+  a property test over a matrix, or a fixture that fires more rows than the bound
+  permits** — not a stronger assertion on the same one case. Run the script after any
+  change to `search_planner.py`, `search.py`'s request body, or `verification_flow.py`'s
+  branch.
 
 ---
 

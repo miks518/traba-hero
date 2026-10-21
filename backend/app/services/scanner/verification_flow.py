@@ -20,12 +20,85 @@ from .channel_match import (
     with_official_only_if_retrieved,
 )
 from .dependencies import runtime
+from .search_planner import classify_signals, label_results, plan_followups, resolve_entity
 from .verdict import code_verdict
 from .verification_parser import VerificationParseError
 from .verification_prompt import clean_verdict_reason, expected_categories
 
 
 log = logging.getLogger("trabahero")
+
+
+async def _search(query: str, scope) -> object:
+    """One provider call, with the scope passed only when there is one.
+
+    `search(query, None)` and `search(query)` are equivalent today — the second
+    positional is `max_results` and `None` falls through to the setting — but
+    only the second is the call `fixed` mode has always made, and a collaborator
+    substituted by a test or a wrapper is entitled to see it unchanged. **The flag
+    off must not alter the call, not merely the queries.**
+    """
+    if scope:
+        return await asyncio.to_thread(
+            runtime.get_search(), query, include_domains=list(scope)
+        )
+    return await asyncio.to_thread(runtime.get_search(), query)
+
+
+async def _issue(queries: list) -> tuple[list, list, list, list]:
+    """Run one round's queries and return what came back.
+
+    Returns `(collected, failures, raw_dump, per_query)`:
+      * `collected` — one list of results per successful query, for `merge_results`
+      * `failures` — one `(query, error)` per failure
+      * `raw_dump` — the raw diagnostic bodies, TEMPORARY
+      * `per_query` — `(query, outcome)` in the order issued, **including
+        failures**
+
+    `per_query` exists so the caller never has to realign `collected` against
+    the query list. A query that fails contributes nothing to `collected`, so
+    zipping the two pairs a later query's results with an earlier query's name —
+    which would attribute evidence to a search that did not retrieve it.
+
+    A single query runs on its own; several run **together**, because a follow-up
+    round only exists once its questions are known and there is no reason to make
+    a reader wait for the first of two questions before the second one starts.
+    The SSE `search` events are emitted by the caller before this is awaited,
+    which keeps the event order identical to a sequential loop.
+    """
+    if not queries:
+        return [], [], [], []
+    outcomes = list(
+        await asyncio.gather(
+            *(_search(q, scope) for q, scope in queries)
+        )
+    )
+
+    collected: list = []
+    failures: list[tuple[str, str]] = []
+    raw_dump: list[dict] = []
+    per_query: list = []
+    for (query, _scope), outcome in zip(queries, outcomes):
+        per_query.append((query, outcome))
+        if outcome.ok:
+            collected.append(outcome.results)
+        else:
+            # One failure is not a total failure: another query may have worked,
+            # and discarding it would understate what was checked.
+            failures.append((query, outcome.error))
+            log.warning("[verify] Search failed for '%s': %s", query, outcome.error)
+        if outcome.raw_response:  # TEMPORARY DIAGNOSTIC
+            raw_dump.append({"query": query, "raw": outcome.raw_response})
+    return collected, failures, raw_dump, per_query
+
+
+def _query_rows(texts: list) -> list:
+    """Turn plain query strings into the `(text, scope)` pairs `_issue` takes.
+
+    Round 1 and the `fixed` mode's model queries are unscoped; only a planned
+    follow-up may carry a scope.
+    """
+    return [(t, None) for t in texts]
 
 
 def _bind_to_retrieved(items: list, evidence: list, allowed: frozenset[str]) -> tuple[list, list]:
@@ -482,10 +555,6 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         # the field sends none, and must produce no query rather than an
         # AttributeError halfway through the stream.
         model_queries = list(getattr(req, "search_queries", None) or [])[:MAX_SEARCH_QUERIES]
-        # Concatenated, not merged. The loop below was already written to handle
-        # a list where some queries succeed and some fail, and that is the shape
-        # three queries of mixed provenance produce.
-        queries = company_queries + model_queries
         collected: list = []
         # TEMPORARY DIAGNOSTIC. The provider's raw body per query, so the panel
         # can show what Tavily actually returned. Remove alongside
@@ -497,19 +566,111 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         # Philippines" to the user in place of "TAVILY_API_KEY is not
         # configured", which is both useless and alarming.
         failures: list[tuple[str, str]] = []
+        # Which query retrieved which URL, so each result can say so. Recorded in
+        # both modes; only the adaptive one reads it back, to label results.
+        query_of: dict = {}
+        # What each issued query was for, and what it returned. Replaces
+        # `model_queries` as the record of what was looked up: the adaptive
+        # planner's questions have purposes, and a bare list of strings cannot
+        # carry them.
+        rounds: list[dict] = []
+        entity_name = ""
+        labels: dict | None = None
+        adaptive = settings.resolve_search_mode() == "adaptive"
 
-        for i, query in enumerate(queries, 1):
-            yield runtime.get_sse()({"type": "search", "query": query, "round": i})
-            outcome = await asyncio.to_thread(runtime.get_search(), query)
-            if outcome.ok:
-                collected.append(outcome.results)
-            else:
-                # One failure is not a total failure: the other query may have
-                # worked, and discarding it would understate what was checked.
-                failures.append((query, outcome.error))
-                log.warning("[verify] Search failed for '%s': %s", query, outcome.error)
-            if outcome.raw_response:  # TEMPORARY DIAGNOSTIC
-                raw_dump.append({"query": query, "raw": outcome.raw_response})
+        def _record(round_number: int, per_query: list, purpose_for) -> None:
+            """Note what each query of a round was for and what it returned.
+
+            A round is recorded whether it succeeded or failed — a round that
+            did not run is a fact the panel needs as much as one that did.
+            """
+            for query, outcome in per_query:
+                for r in (outcome.results if outcome.ok else ()):
+                    url = getattr(r, "url", "") or ""
+                    if url and url not in query_of:
+                        query_of[url] = query
+                rounds.append({
+                    "round": round_number,
+                    "query": query,
+                    "purpose": purpose_for(query),
+                    "ok": outcome.ok,
+                    "result_count": len(outcome.results) if outcome.ok else 0,
+                })
+
+        # ── Round 1: the employer-name query. One credit, identical in both modes.
+        for query in company_queries:
+            yield runtime.get_sse()({"type": "search", "query": query, "round": 1})
+        first_collected, first_failures, first_raw, first_per_query = await _issue(
+            _query_rows(company_queries)
+        )
+        collected.extend(first_collected)
+        failures.extend(first_failures)
+        raw_dump.extend(first_raw)
+        _record(1, first_per_query, lambda q: "what is published about the employer")
+
+        if adaptive:
+            # ── Resolve, then Round 2.
+            #
+            # The planner reads only the scan's own fields and Round 1's
+            # results. It is not a second opinion on the employer: it decides
+            # which questions are worth a credit, and the verify prompt remains
+            # the only thing that makes a claim about anyone.
+            signals = classify_signals(company, getattr(req, "attributes", None) or {})
+            entity = resolve_entity(signals, [r for batch in first_collected for r in batch])
+            planned = plan_followups(
+                signals,
+                entity,
+                round1_ok=not first_failures,
+                model_queries=model_queries,
+            )
+            purposes = {q.text: q.purpose for q in planned}
+            for query in planned:
+                log.info("[verify] follow-up for '%s': %s", query.text, query.purpose)
+
+            if planned:
+                for query in planned:
+                    yield runtime.get_sse()({"type": "search", "query": query.text, "round": 2})
+                rows = [(q.text, list(q.include_domains) or None) for q in planned]
+                follow_collected, follow_failures, follow_raw, follow_per_query = await _issue(rows)
+                collected.extend(follow_collected)
+                failures.extend(follow_failures)
+                raw_dump.extend(follow_raw)
+                _record(2, follow_per_query, lambda q: purposes.get(q, ""))
+
+            # Every result is labelled, including the ones about a different
+            # body. A page that never mentions the organisation being verified
+            # is not evidence of absence about it — it is evidence about a
+            # different organisation, and the model can only tell those apart if
+            # it is told which is which. Nothing is dropped: dropping is how the
+            # entity heuristic goes wrong in the first place.
+            everything = [r for batch in collected for r in batch]
+            entity_name = entity.name
+            labels = {
+                url: (label.query, label.describes_entity)
+                for url, label in label_results(everything, entity, query_of).items()
+            }
+        else:
+            # The `fixed` path: whatever the scan model proposed, unscoped, with
+            # no round between them. Two queries of one kind rather than two
+            # rounds, because nothing here was chosen from a result — which is
+            # the whole difference between the modes.
+            for i, query in enumerate(model_queries, len(company_queries) + 1):
+                yield runtime.get_sse()({"type": "search", "query": query, "round": i})
+            rest_collected, rest_failures, rest_raw, rest_per_query = await _issue(
+                _query_rows(model_queries)
+            )
+            collected.extend(rest_collected)
+            failures.extend(rest_failures)
+            raw_dump.extend(rest_raw)
+            _record(
+                len(company_queries) + 1, rest_per_query,
+                lambda q: "a question the scan model proposed",
+            )
+
+        # Every query issued, counted from what was actually issued rather than
+        # from a list that may not have run.
+        queries_issued = len(rounds)
+        queries = [r["query"] for r in rounds]
 
         ok = bool(collected) or not failures
         partial = bool(failures) and bool(collected)
@@ -520,7 +681,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         elif partial:
             log.warning(
                 "[verify] %d of %d searches failed for '%s'; coverage is partial",
-                len(failures), len(queries), company,
+                len(failures), queries_issued, company,
             )
 
         # Dedupe on canonical URL: the employer's own site appears in both
@@ -531,7 +692,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             *collected, cap=settings.tavily_max_results * 2
         )
         search_context = runtime.get_format_results()(
-            merged, company, ok, first_error
+            merged, company, ok, first_error, entity_name, labels
         )
         yield runtime.get_sse()({"type": "progress", "percent": 45, "stage": "AI analyzing"})
 
@@ -737,6 +898,13 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # exists would be a small lie in the one place the user can audit
             # the lookup.
             "model_queries": model_queries,
+            # What each query was for, and what it returned. `queries_issued`
+            # says how many lookups happened; this says which questions they
+            # answered, which is the only way to tell a deliberate silence from
+            # a question nobody thought to ask. In the adaptive mode the
+            # follow-ups are chosen in code, so a reader auditing the panel sees
+            # the reason rather than a bare string.
+            "rounds": rounds,
             "queries_failed": len(failures),
             "debug_search_raw": raw_dump,  # TEMPORARY DIAGNOSTIC — remove with SearchOutcome.raw_response
             "no_company_name": False,

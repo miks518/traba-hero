@@ -317,13 +317,25 @@ _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "cr
 # swallows the longer one's value, so `QUERY_REF: Location` would truncate to
 # `QUERY` with `_REF: Location` as the query text.
 #
-# What is deliberately NOT here is a code-side ban on conclusion words. A query
-# carrying "scam" or "fraud" returns pages that look like corroboration of the
-# accusation it embedded, which is a real risk - but the filter was removed on
-# purpose, and leaving a silent gap would read as an oversight. The rule is in
-# both scan prompts instead.
+# The conclusion-word filter is not here and never was: this regex decides what
+# a line *is*, not whether its content is acceptable. It lives in
+# `scanner/search_planner.py:search_query_is_safe`, which runs on the query
+# before it is issued. The rule also still stands in both scan prompts, so the
+# control and the instruction agree.
+#
+# `JOB[_\s]*TITLE` joins the alternation for `JOB[_\s]*SUMMARY`'s reason — neither
+# is a prefix of the other, so order is free, and `TITLE` is listed first to match
+# the order the prompts emit them in. The `[_\s]` class matters: the prompts emit
+# `JOB_TITLE` with an underscore, and `\s` does not match an underscore, so
+# `JOB\s*TITLE` would parse as prose. `JOB\s*SUMMARY` had that shape and was
+# widened here for the same reason — a model writing `JOB_SUMMARY` had it dropped.
+#
+# It is here because the alternation is an explicit enumeration: a key in
+# `_ATTRIBUTE_KEYWORDS` and absent from this list parses as prose and is dropped
+# silently. `test_the_keyword_list_and_the_regex_agree` is what keeps the two
+# lists from drifting.
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|CODE|QUOTE|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|LOCATION|CONTACT[_\s]*METHOD|CLAIMED[_\s]*TYPE|MEETING[_\s]*SPOT|PAY|REGISTERED[_\s]*AS|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB\s*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|CODE|QUOTE|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|JOB[_\s]*TITLE|LOCATION|CONTACT[_\s]*METHOD|CLAIMED[_\s]*TYPE|MEETING[_\s]*SPOT|PAY|REGISTERED[_\s]*AS|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB[_\s]*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 
@@ -354,7 +366,7 @@ MAX_SEARCH_QUERIES = 2
 # and `EMPLOYER NAME` are deliberately absent -- the employer path has to keep
 # parsing outside the block, for scans recorded before the rename.
 _ATTRIBUTE_KEYWORDS = (
-    "COMPANY", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY",
+    "COMPANY", "JOB_TITLE", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY",
     "REGISTERED_AS", "CLAIMED_TYPE",
 )
 

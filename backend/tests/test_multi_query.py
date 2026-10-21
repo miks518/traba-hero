@@ -7,10 +7,15 @@ PESO listing and a job board post in one result set.
 
 Everything the pair was guarding against is still guarded, but by a different
 party. `scam` and `fraud` stay out of a query because a query carrying a
-conclusion returns pages that appear to corroborate it - and that rule now lives
-in the scan prompts alone, since the queries are model-authored and unfiltered
-in code. The tombstone below exists because "no filter" is a decision a future
-reader will otherwise mistake for an oversight.
+conclusion returns pages that appear to corroborate it.
+
+That rule used to live in the scan prompts alone, with the queries model-authored
+and unfiltered in code. It no longer does: `search_query_is_safe` in
+`search_planner.py` drops a query carrying a conclusion word before it is ever
+issued, so the prompt sentence is now a statement of policy rather than the only
+control. The tombstone below exists because "no filter" was a decision a future
+reader would otherwise mistake for an oversight — and the fix is that the filter
+is no longer absent.
 
 `build_scheme_queries` and its attribute table are deleted outright. The model
 proposes its own searches now, so anything that rebuilt them from attributes
@@ -187,6 +192,93 @@ class TestThePhilippinesIsNowCarriedByTheRequest:
 
         assert "philippines" not in body["query"].lower()
         assert body["country"] == "philippines"
+
+
+class TestTheDomainScopeIsAPreferenceNotAFilter:
+    """`include_domains` is sent, and only ever in `prefer` mode.
+
+    Tavily defaults `include_domains_mode` to `restrict`: results come *only*
+    from the listed domains. That is the exact behaviour the comment above this
+    class refused to accept, because it discards the JobStreet, Indeed PH and
+    PESO pages the country boost exists to surface. `prefer` boosts the listed
+    domain and still searches the rest of the web, which is the same kind of
+    lever as `country` — so both can be sent on one request, and neither
+    excludes anything.
+
+    Asserted on the request body because this spends a credit per call and the
+    mode is the only thing standing between a boost and a filter.
+    """
+
+    def _body_sent(self, monkeypatch, scope):
+        import app.services.search as mod
+        from tests.test_search import FakeResponse
+
+        captured = {}
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            captured.update(json or {})
+            return FakeResponse({"results": []})
+
+        monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        mod.search(build_queries("Tanika")[0], 5, scope)
+        return captured
+
+    def test_a_scope_is_sent_in_prefer_mode(self, monkeypatch):
+        body = self._body_sent(monkeypatch, ["ched.gov.ph"])
+
+        assert body["include_domains"] == ["ched.gov.ph"]
+        assert body["include_domains_mode"] == "prefer"
+
+    def test_no_scope_means_neither_key_is_sent(self, monkeypatch):
+        """Declaring an intent to boost nothing is a request for nothing."""
+        body = self._body_sent(monkeypatch, None)
+
+        assert "include_domains" not in body
+        assert "include_domains_mode" not in body
+
+    def test_a_scope_coexists_with_the_country_boost(self, monkeypatch):
+        """The whole reason `prefer` was chosen over `restrict`.
+
+        Two boosts on one request is fine. A boost and a filter is not.
+        """
+        body = self._body_sent(monkeypatch, ["ched.gov.ph"])
+
+        assert body["country"] == "philippines"
+        assert body["include_domains_mode"] == "prefer"
+
+    def test_a_scope_is_normalised_before_it_is_sent(self, monkeypatch):
+        """`www.` and a protocol are the same domain; two spellings would be two
+        entries and a half-applied boost."""
+        body = self._body_sent(monkeypatch, ["https://www.ched.gov.ph/"])
+
+        assert body["include_domains"] == ["ched.gov.ph"]
+
+    def test_a_subdomain_scope_is_reduced_to_the_registrable_domain(self, monkeypatch):
+        """`hr.ched.gov.ph` and `ched.gov.ph` are one employer, and scoping to the
+        former would exclude the latter."""
+        body = self._body_sent(monkeypatch, ["hr.ched.gov.ph"])
+
+        assert body["include_domains"] == ["ched.gov.ph"]
+
+    def test_a_wildcard_is_dropped_rather_than_sent(self, monkeypatch):
+        """The provider rejects wildcards with a 400, and a 400 here reads as a
+        failed lookup rather than a malformed scope."""
+        body = self._body_sent(monkeypatch, ["*.ched.gov.ph"])
+
+        assert "include_domains" not in body
+
+    def test_a_scope_with_a_path_is_dropped(self, monkeypatch):
+        body = self._body_sent(monkeypatch, ["ched.gov.ph/careers"])
+
+        assert "include_domains" not in body
+
+    def test_an_unusable_scope_does_not_fail_the_search(self, monkeypatch):
+        """A scope is an optimisation. Losing it costs recall, nothing else."""
+        body = self._body_sent(monkeypatch, ["not a domain"])
+
+        assert body["query"]
+        assert "include_domains" not in body
 
 
 class TestTheSchemeQueryBuilderIsDeleted:

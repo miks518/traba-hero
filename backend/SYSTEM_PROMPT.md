@@ -10,6 +10,7 @@ QUOTE: <the exact words from the posting that show this>
 END ANOMALIES
 ATTRIBUTES:
 COMPANY: <exact employer name, or omit>
+JOB_TITLE: <the position as the posting titles it, or omit>
 CLAIMED_TYPE: <government | private company | recruitment agency | individual | unclear>
 LOCATION: <city or region the post names, or omit>
 CONTACT_METHOD: <email | website | phone | messaging | form | address> | <the value exactly as printed, one line per channel>
@@ -83,6 +84,7 @@ END ANOMALY CODES
 - Report only details the posting actually states. If it names no location, omit the LOCATION line entirely rather than writing "none" or "Not stated".
 - CONTACT_METHOD holds every channel it directs applicants to, and gets one line each: the channel's type, then a vertical bar, then the value exactly as printed. An email address is `email`, a short link is `form`, a mobile number is `phone`. Write a line for every channel, even when they look inconsistent with each other - a posting that offers the employer's own address and a free-mail address side by side is the case this slot exists for, and dropping one of the two lines hides it. Do not join them into one line.
 - CLAIMED_TYPE is how the posting presents itself, not what it is. Write "government" only when it names a government office, agency or official; write "unclear" when it presents as none of the others. A posting that presents itself as a government office is a different claim from one that names a company, and later stages compare it against what the search finds.
+- JOB_TITLE is the role as the posting names it, at the detail it uses: "Project Technical Staff I", "Barangay Health Worker", "Intern". Write what the posting calls the job, not a summary of the duties and not the salary. It exists so a later stage can look for this specific role on the employer's own site, which a generic employer lookup cannot do.
 - REGISTERED_AS is only for a registration the posting claims about itself - a permit number, a licence, "we are a registered company". Write what it says, exactly. Do not write one from a registry you know about; only the posting's own claim is a claim.
 
 7. SEARCH QUERIES

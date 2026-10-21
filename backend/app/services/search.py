@@ -106,6 +106,52 @@ def _normalise_domain(raw: str) -> str:
     return f"{prefix}{host}"
 
 
+# Second-level suffixes whose registrable domain is three labels, not two.
+# Naively taking the last two of `ched.gov.ph` yields `gov.ph` — a domain that
+# belongs to nobody and, as a scope, boosts nothing. There is no public-suffix
+# list in this project's dependencies and a wrong registrable domain produces a
+# wrong scope silently, so the list is explicit and short rather than guessed at.
+_MULTI_LABEL_SUFFIXES = frozenset({
+    "gov.ph", "edu.ph", "com.ph", "net.ph", "org.ph",
+    "co.uk", "ac.uk", "org.uk", "gov.uk",
+    "com.au", "com.sg", "co.nz", "co.jp", "co.kr",
+})
+
+
+def registrable_domain(raw: str) -> str:
+    """The registrable part of a host, so a subdomain cannot become a scope.
+
+    `www.ched.gov.ph`, `hr.ched.gov.ph` and `ched.gov.ph` are one employer.
+    Scoping to any of them alone would exclude the other two, which for an
+    `include_domains` scope means boosting a page the caller never asked about
+    and silently widening the scope elsewhere.
+
+    Strips a scheme, a `www.` prefix, and anything after the host, so a pasted
+    URL and its bare domain produce the same scope. The scheme goes first:
+    cutting at the path before removing it would leave `https` as the host.
+    """
+    host = (raw or "").strip().lower()
+    for scheme in ("https://", "http://"):
+        if host.startswith(scheme):
+            host = host[len(scheme):]
+            break
+    if host.startswith("www."):
+        host = host[4:]
+    host = re.split(r"[/?#\s]", host, maxsplit=1)[0]
+    host = host.split(":", 1)[0]
+    parts = [p for p in host.split(".") if p]
+    if len(parts) < 2:
+        return host
+    if host in _MULTI_LABEL_SUFFIXES:
+        # `gov.ph` is a suffix, not a domain anyone owns. As a scope it would
+        # boost nothing and read as though something had been scoped, so the
+        # caller gets nothing back and decides what to do about it.
+        return ""
+    if ".".join(parts[-2:]) in _MULTI_LABEL_SUFFIXES:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
 def _parse_domains(raw: str) -> list[str]:
     """Split a configured domain list into the list Tavily expects.
 
@@ -258,8 +304,70 @@ def _normalise(payload) -> list[SearchResult]:
     return out
 
 
-def search(query: str, max_results: int | None = None) -> SearchOutcome:
-    """Run one search. Never raises; a failure is reported in the outcome."""
+# A scope is a preference, never a filter. Tavily's `include_domains_mode`
+# accepts `restrict` (the default: results come only from the listed domains) or
+# `prefer` (the listed domains are boosted and the rest of the web is still
+# searched). Only `prefer` is ever sent — see `search()`'s note on why.
+_MAX_SCOPED_DOMAINS = 5
+
+# What Tavily accepts as a domain: a plain host or a subdomain, optionally
+# with a scheme or a `www.` prefix. Wildcards, regular expressions, ports, and
+# anything carrying a path, query or fragment are rejected by the provider, and a
+# 400 would turn a scoping mistake into a failed lookup.
+_SCOPED_DOMAIN_RE = re.compile(r"^(?:https?://)?(?:www\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+
+
+def _scoped_domains(domains) -> list[str]:
+    """The list to send as `include_domains`, or an empty list to send nothing.
+
+    Validated against the raw value and only then reduced, so `ched.gov.ph/careers`
+    is **dropped** rather than widened to `ched.gov.ph`. Silently broadening a
+    scope is the wrong direction to fail: a caller who meant one page would get a
+    whole-domain boost and no indication of it. `_normalise_domain`, which cuts
+    at the path instead, is right for `exclude_domains` — there a path is noise
+    and the host is the intent — which is why the two are not the same function.
+
+    A trailing slash is stripped first, because `https://www.acme.ph/` is a
+    pasted URL and not a path.
+
+    Blank and malformed entries are dropped rather than reported: a scope is an
+    optimisation, and one bad entry must not cost the search that would otherwise
+    have run.
+    """
+    out: list[str] = []
+    for raw in domains or ():
+        candidate = str(raw or "").strip().lower().rstrip("/")
+        if not candidate or not _SCOPED_DOMAIN_RE.match(candidate):
+            log.warning("[search] Ignoring an unusable domain scope: %r", raw)
+            continue
+        host = registrable_domain(candidate)
+        if not host or host in out:
+            continue
+        out.append(host)
+        if len(out) >= _MAX_SCOPED_DOMAINS:
+            break
+    return out
+
+
+def search(
+    query: str,
+    max_results: int | None = None,
+    include_domains: list | None = None,
+) -> SearchOutcome:
+    """Run one search. Never raises; a failure is reported in the outcome.
+
+    `include_domains` **boosts** a domain; it does not restrict results to it.
+    Tavily's `include_domains_mode` defaults to `restrict`, which is the reason
+    this module's own comment above used to say the parameter must never be set:
+    a hard filter would discard the JobStreet, Indeed PH and PESO pages the
+    country boost exists to surface. `prefer` is a different lever of the same
+    kind as `country` — ranking preference, no exclusion — so the reason the
+    parameter was off does not apply to it.
+
+    Only the adaptive planner passes a scope, and only ever one domain that came
+    back from an earlier search. A domain from the posting's own text is never
+    scoped to: that would search precisely the thing under suspicion.
+    """
     limit = max_results if max_results is not None else settings.tavily_max_results
 
     if not settings.tavily_api_key.strip():
@@ -307,10 +415,13 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
     # unrelated product with a similar word. No query rewrite fixes missing
     # index coverage.
     #
-    # `include_domains` is deliberately NOT set. It restricts results to the
-    # listed domains, which would discard precisely the JobStreet, Indeed PH,
-    # and PESO pages this boost exists to surface. There is no "prefer" mode;
-    # the boost is the only tool that matches the intent.
+    # `include_domains` is not set globally. In Tavily's default `restrict` mode
+    # it confines results to the listed domains, which would discard precisely
+    # the JobStreet, Indeed PH, and PESO pages this boost exists to surface — so
+    # the *default* mode is still the wrong tool, and no configured
+    # `INCLUDE_DOMAINS` setting exists. A per-query scope may still be passed by
+    # the adaptive planner, and it is sent with `prefer` (below), which boosts
+    # without confining. Both boosts coexist; a filter and a boost do not.
     country = settings.tavily_country.strip()
     if country:
         body["country"] = country
@@ -329,6 +440,16 @@ def search(query: str, max_results: int | None = None) -> SearchOutcome:
     if excluded:
         log.info("[search] excluding %d configured domain(s)", len(excluded))
         body["exclude_domains"] = excluded
+
+    # `prefer` rather than the provider's default `restrict`, always. The mode
+    # is what makes scoping safe here: `restrict` would be a hard filter and the
+    # comment above explains why a hard filter is the wrong tool. `prefer`
+    # coexists with `country` because both are boosts.
+    scoped = _scoped_domains(include_domains)
+    if scoped:
+        log.info("[search] preferring %d domain scope(s) for '%s'", len(scoped), query)
+        body["include_domains"] = scoped
+        body["include_domains_mode"] = "prefer"
 
     try:
         response = httpx.post(

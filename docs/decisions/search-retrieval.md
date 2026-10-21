@@ -190,19 +190,55 @@ strongly — a London VC firm, or an unrelated product with a similar word.
 
 `search()` therefore sends `country="philippines"` and `search_depth="advanced"`.
 
-- **`country` is a boost.** `include_domains` is a **filter** and must stay unset,
-  since restricting the result set to named domains would discard exactly the job
-  boards and PESO pages the boost exists to surface. The job here is to fact-check a
-  company, and the sites that fact-check it are the ones a whitelist cannot name in
-  advance.
+- **`country` is a boost.** `include_domains` is a **filter** in its default mode and
+  must stay unset globally, since restricting the result set to named domains would
+  discard exactly the job boards and PESO pages the boost exists to surface. The job
+  here is to fact-check a company, and the sites that fact-check it are the ones a
+  whitelist cannot name in advance. **There is no configured `INCLUDE_DOMAINS`.**
 - Tavily does offer `include_domains_mode: "prefer"`, which searches the listed
-  domains *and* the rest of the web. **It is not used**, because it still requires
-  naming domains up front, and the boost exists precisely so a deployment need not
-  predict which sites will mention a small Philippine employer.
+  domains *and* the rest of the web. **It is not used globally**, for the reason above:
+  it still requires naming domains up front, and the country boost exists precisely so
+  a deployment need not predict which sites will mention a small Philippine employer.
+  See "A per-query scope is not a global whitelist" below for where it *is* used.
 - Advanced depth costs 2 credits against basic's 1, halving the 1,000/month free
   budget. **That is the deliberate trade for a niche lookup.**
 - **`include_answer` is never set.** A synthesised answer is retrieval's opinion, not
   evidence, and the prompt requires source URLs copied from the results.
+
+---
+
+## A per-query scope is not a global whitelist
+
+`search()` takes `include_domains` and **always sends it with
+`include_domains_mode: "prefer"`**. The mode is the whole point: `prefer` is a boost
+of the same kind as `country`, so both can sit on one request and neither excludes
+anything, whereas the default `restrict` is exactly the filter the section above
+refuses.
+
+Only the adaptive planner passes one, and only ever **a domain that a previous search
+returned.** The argument above — that naming domains requires predicting which sites
+mention a small employer — does not apply to a domain the search already found. The
+system learned it rather than being told it.
+
+Three rules make this narrow on purpose:
+
+- **Never a domain from the posting.** Scoping discovery to a domain the poster
+  supplied would restrict the search to the thing under suspicion, which is the one
+  search that can never report that it found nothing.
+- **One domain, validated.** `prefer` makes a scope cheap, not free of blast radius;
+  `_scoped_domains` caps the list and drops anything carrying a path, a wildcard, or a
+  port, all of which the provider rejects with a 400.
+- **Reduced to the registrable domain.** `hr.ched.gov.ph` and `ched.gov.ph` are one
+  employer, so scoping to either alone would misstate the employer being checked.
+
+`registrable_domain` is the single implementation, in `search.py`, and
+`search_planner.entity_domain_of` delegates to it. Two copies of "which labels belong
+to the domain" is how the planner came to reduce `gov.ph` differently from the request
+that carries it.
+
+**Neither the planner nor the scope is on by default.** `VERIFY_SEARCH_MODE=fixed`
+never constructs a scope. See
+`docs/superpowers/specs/2026-10-18-adaptive-verification-search.md`.
 
 ---
 
@@ -219,9 +255,12 @@ change.
   a verdict.**
 - A blank country is dropped from the request rather than sent as `""`.
 - **Credits are per *request*.** A verification issues the single employer query plus
-  at most two the scan model proposed, so `basic` costs 1–3 credits and `advanced`
-  2–6 — which is not what the knob's own name suggests, and is why `basic` remains the
-  default.
+  at most two follow-ups, so `basic` costs 1–3 credits and `advanced` 2–6 — which is
+  not what the knob's own name suggests, and is why `basic` remains the default. Where
+  the two follow-ups come from depends on `VERIFY_SEARCH_MODE`: in `fixed` they are the
+  scan model's proposals, in `adaptive` they are chosen by a planner from what Round 1
+  returned. **The ceiling is the same either way**; the typical cost is 1 in both,
+  because the model rarely proposes two.
 - **Credits are per request, not per result, so every other recall lever is free.**
   `max_results`, `chunks_per_source`, `country`, `exclude_domains` and
   `include_domains_mode` all change what comes back at the same 1-or-2 credit cost.

@@ -404,6 +404,56 @@ class TestRepeatableAttributeKeys:
         )
         assert _parse_custom(raw)["attributes"]["CLAIMED_TYPE"] == "government"
 
+    def test_job_title_is_read(self):
+        """The planner's row 2 is `"<role> <employer>"`, and it has no other source.
+
+        `JOB_TITLE` is not in the ATTRIBUTES block and never appears anywhere
+        else in the response, so a parser that drops the key does not fail — the
+        prompt simply asks `<employer> hiring`, which is the generic lookup
+        Round 1 already ran, and the row buys a credit for a question already
+        answered. Asserted here because that failure is invisible everywhere
+        else.
+        """
+        raw = (
+            "VALID: true\nATTRIBUTES:\nJOB_TITLE: Project Technical Staff I\n"
+            "END ATTRIBUTES\nEMPLOYER NAME: Commission on High Learning\n"
+        )
+        assert _parse_custom(raw)["attributes"]["JOB_TITLE"] == "Project Technical Staff I"
+
+    def test_job_title_survives_alongside_the_claimed_type(self):
+        """Two new keys in one block, since a partial edit to the keyword list
+        would leave one working and one silently absent."""
+        raw = (
+            "VALID: true\nATTRIBUTES:\nJOB_TITLE: Barangay Health Worker\n"
+            "CLAIMED_TYPE: government\n"
+            "END ATTRIBUTES\nEMPLOYER NAME: Commission on High Learning\n"
+        )
+        parsed = _parse_custom(raw)["attributes"]
+        assert parsed["JOB_TITLE"] == "Barangay Health Worker"
+        assert parsed["CLAIMED_TYPE"] == "government"
+
+    def test_the_keyword_list_and_the_regex_agree(self):
+        """Two enumerations of the same keys, which is one too many.
+
+        `_ATTRIBUTE_KEYWORDS` gates what counts as an attribute;
+        `_SECTION_RE`'s alternation decides what a line even *is*. Add a key to
+        the first and not the second and the line parses as prose and is
+        dropped — no error, no warning, and a prompt that asks for a field the
+        pipeline silently discards. `JOB_TITLE` was lost this way once, which is
+        why the agreement is asserted rather than assumed.
+        """
+        from app.services.lm_client import _ATTRIBUTE_KEYWORDS, _SECTION_RE
+
+        for key in _ATTRIBUTE_KEYWORDS:
+            probe = _SECTION_RE.match(f"{key}: a value")
+            assert probe is not None, f"{key} is a keyword the regex cannot match"
+            assert probe.group("kw").upper().replace(" ", "_") == key, (
+                f"{key} matches as {probe.group('kw')!r}"
+            )
+            assert probe.group("rest") == "a value", (
+                f"{key} swallows its own value: rest={probe.group('rest')!r}"
+            )
+
 
 class TestProseIsNotAKeyword:
     """An attribute key only means an attribute inside the ATTRIBUTES block.

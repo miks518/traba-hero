@@ -2,6 +2,12 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings
 import os
 
+# The two ways `/api/verify` chooses its queries. Kept here rather than in the
+# planner because `resolve_search_mode` is what reads it and that lives on
+# Settings; a second copy of the list would be a second thing to update.
+_VALID_SEARCH_MODES = frozenset({"fixed", "adaptive"})
+
+
 class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8010
@@ -56,6 +62,21 @@ class Settings(BaseSettings):
     # `advanced` is therefore twice the price it looks like, and the budget
     # arithmetic in .env.example assumes the default.
     tavily_search_depth: str = "basic"
+
+    # How `/api/verify` chooses its queries.
+    #
+    # `fixed` — today's behaviour exactly: the employer-name query plus up to two
+    # the scan model proposed, all fired before anything is known.
+    #
+    # `adaptive` — Round 0 classifies the scan's own fields, Round 1 spends the
+    # anchor query, then the planner chooses up to two follow-ups from what Round
+    # 1 returned. Same ceiling of 3 credits; typical cost 1.
+    #
+    # **Default is `fixed`, and it stays until the fixtures say otherwise.** The
+    # planner is built and tested; whether it gathers better evidence is a
+    # question for live runs, and nothing here has been shown to improve accuracy
+    # yet. See `docs/superpowers/specs/2026-10-18-adaptive-verification-search.md`.
+    verify_search_mode: str = "fixed"
     # Tavily's `country` boost, which prioritises results from that country.
     # Blank disables the boost and issues the plain query.
     tavily_country: str = "philippines"
@@ -123,6 +144,17 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    def resolve_search_mode(self) -> str:
+        """`fixed` or `adaptive`, with an unrecognised value degrading to `fixed`.
+
+        The same shape as `resolve_model`, and for the same reason: a typo in a
+        `.env` should cost the operator the new behaviour, not the endpoint.
+        Reading an unknown mode as `adaptive` would silently change how many
+        credits a verification spends and which questions it asks.
+        """
+        value = (self.verify_search_mode or "").strip().lower()
+        return value if value in _VALID_SEARCH_MODES else "fixed"
 
     def resolve_model(self, endpoint: str) -> str:
         """The model for one endpoint, falling back to the shared MODEL_NAME.

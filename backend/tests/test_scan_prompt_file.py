@@ -83,6 +83,7 @@ def test_contact_method_is_a_typed_line_and_claimed_type_exists():
         assert "contact_method: <email | website | phone | messaging | form | address>" in lowered
         assert "one line per channel" in lowered
         assert "claimed_type: <government" in lowered
+        assert "job_title: <the position as the posting titles it" in lowered
 
 
 def test_the_singular_wording_is_gone_from_all_three():
@@ -481,6 +482,12 @@ GUARDRAILS = (
     ("every channel gets a line", "write a line for every channel"),
     ("a channel line carries its type", "email | website | phone | messaging | form | address"),
     ("the claimed type is captured", "claimed_type"),
+    # Added 2026-10-18, for the adaptive search planner. Row 2 asks whether the
+    # posting's role is listed on the employer's own site, and "<role> <employer>"
+    # is the only form of that question. With no role, the row falls back to
+    # "<employer> hiring", which is the generic lookup Round 1 already ran.
+    ("the role is captured", "job_title"),
+    ("the role is captured for the employer's own site", "on the employer's own site"),
 )
 
 
