@@ -26,7 +26,7 @@ Detail lives in `docs/`. Each fact is stated in exactly one place.
 | `docs/architecture.md` | Component map, API endpoints, prompt loading, structured output, env vars, panel behaviour, filter categories, offline mode |
 | `docs/scoring.md` | Bands, the two scoring stages, AHP derivations, the anchor |
 | `docs/gotchas.md` | Traps that fail silently — shell, mutation testing, `happy-dom`, mock `side_effect`, `Settings()` leaks |
-| `docs/decisions/search-retrieval.md` | Queries, credits, country boost, exclude-domains, `search_partial`, untrusted result text |
+| `docs/decisions/search-retrieval.md` | Queries, credits, country boost, exclude-domains, `search_partial`, untrusted result text, the two `VERIFY_SEARCH_MODE` modes, the per-query scope |
 | `docs/decisions/libel-guardrail.md` | Every prompt rule, and the three failure shapes they were written against |
 | `docs/decisions/scoring-model.md` | Why the blend was replaced, why subtraction would be equally wrong, the dead function |
 | `docs/decisions/verification-design.md` | The six claim categories, `Official Registration`, `finding` + source schema |
@@ -242,3 +242,8 @@ Listed, **not resolved** — each needs a decision or a check against live code.
    `channel_match.py` exists to remove, so it was not ported. **Needs a decision**,
    and if it is decided it must be decided code-side — a fact the model reports and
    code prices. See `docs/decisions/scan-channel-enumeration.md`.
+8. **`rounds` reaches the wire and nothing reads it.** The verify result carries what
+   each query was for and what it returned, so a reader can tell a deliberate silence
+   from a question nobody thought to ask. The frontend does not declare it. It is
+   backend-only for now, and the day the panel explains what was looked up and why,
+   this is the field it should read.

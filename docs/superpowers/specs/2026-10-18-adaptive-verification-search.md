@@ -1,9 +1,17 @@
 # Adaptive verification search
 
 Date: 2026-10-18
-Status: design approved, not built
+Status: design approved, built 2026-10-21 — shipped OFF, behind `VERIFY_SEARCH_MODE=fixed`
 Source: `jobposts/2026-10-18-adaptive-verification-search.md` (proposal, untracked)
-Builds on: `docs/decisions/verification-findings.md`, `docs/decisions/search-retrieval.md`
+Builds on: `docs/decisions/scan-channel-enumeration.md`, `docs/decisions/search-retrieval.md`
+
+> The proposal built on `docs/decisions/verification-findings.md`, a record that was
+> never created. Its producer-side content is in
+> `docs/decisions/scan-channel-enumeration.md`; its consumer-side content is in
+> `docs/decisions/channel-match-severity.md`. The planner reads
+> `CONTACT_METHOD` and `CLAIMED_TYPE` from the scan, so the separator contract in
+> `scan-channel-enumeration.md` is the one that binds. See
+> `docs/superpowers/specs/2026-10-21-port-verification-comparison-design.md`.
 
 ## Amendments to the proposal
 
