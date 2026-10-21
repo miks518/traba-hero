@@ -15,8 +15,8 @@ Builds on: `docs/decisions/scan-channel-enumeration.md`, `docs/decisions/search-
 
 ## Amendments to the proposal
 
-Three changes, each forced by the live run recorded in `UNFINISHED-WORK.md`. The
-proposal's reasoning is kept; only these three are different.
+Four changes, each forced by the live run recorded in `UNFINISHED-WORK.md`. The
+proposal's reasoning is kept; only these four are different.
 
 ### 1. Row 1 fires on `names_differ` alone
 
@@ -135,8 +135,10 @@ comes back yellow because the results describe US accreditors.
 - Query planning is **code, not a model**, so it is deterministic and testable
   offline.
 - Every planned query has one stated purpose.
-- The "no conclusion words in a query" rule is enforced in code, not only in prompt
-  text.
+- The "no conclusion words in a query" rule is enforced in code **for the queries
+  this planner chooses**, in `adaptive` mode. The `fixed` mode's model-authored
+  proposals are issued as they arrive, and there the prompt sentence is the only
+  control — the pre-existing state.
 
 ## Non-goals
 
@@ -165,7 +167,7 @@ From the scan fields:
   `gov_ph`, or `other`
 - `domains_disagree` — more than one non-free domain, or a `gov_ph` domain beside
   a non-`gov_ph` one
-- `deadline_passed`, `has_registration_claim`, `has_location`
+- `has_registration_claim`, `has_location`
 - `job_title` — **new scan field**, see Dependencies
 
 ### Round 1 (1 credit)
@@ -192,18 +194,34 @@ anything.
 
 ### Round 2 — the decision table (0 to 2 credits, first matching rows in order)
 
+**This table is the code.** `search_planner._planner_rows` is what runs, and it
+has four rows; the proposal's table had seven, and three of them are not in the
+code. A spec that describes rows the planner does not have is a spec a reader
+will build against.
+
 | # | Trigger | Query | Purpose |
 |---|---|---|---|
-| 1 | `names_differ` | the poster's main non-free channel domain, verbatim | Does anything exist for the poster's own domain, and does it belong to the entity the results describe |
-| 2 | `names_differ` and `shares_identifier` and `entity.domain` known | `<job_title> <entity.name>` with `include_domains=[entity.domain]` | Is this job on the entity's own site, and with which contact details |
-| 3 | Round 1 `ok` with no results | `<printed name> <location>`, or `REGISTERED_AS` verbatim if present | Find a footprint another way |
-| 4 | Round 1 returned several unrelated entities | `<printed name> <location>` | Disambiguate |
-| 5 | `has_registration_claim`, not yet covered | `<registration verbatim> <printed name>` | Test the claim itself |
-| 6 | none of the above, and a slot is free, and `search_queries` were sent | each model query, verbatim | Questions the planner did not anticipate |
-| 7 | none of the above | none | Save credits |
+| 1 | `names_differ` and the posting has a main non-free channel domain | that domain, verbatim | Does anything exist for the poster's own domain, and does it belong to the entity the results describe |
+| 2 | `names_differ` and `shares_identifier` and the entity's domain is known | `<job_title or "hiring"> <entity.name>`, scoped to `entity.domain` | Is this role on the entity's own site |
+| 3 | the posting stated a location | `<printed name> <location>` | A footprint for the printed name, located |
+| 4 | the posting claimed a registration | `<the claim> <printed name>` | Test the registration the posting claims for itself |
+| 5 | none of the above, and a slot is free, and the scan proposed searches | each model query, verbatim | Questions the planner did not anticipate |
+| 6 | none of the above | none | Save credits |
 
 Rows run in order and stop at the cap. **Row 1 is the one the live run needs** and
 is deliberately first.
+
+Two of the proposal's rows are not here, and their absence is deliberate rather
+than an omission:
+
+- **"Round 1 returned several unrelated entities"** became row 3 instead. The
+  disambiguation query is the located one, and it is worth a credit whenever the
+  posting stated a location — not only when the results looked scattered. A
+  trigger that reads the results would make the planner's own output decide what
+  to ask next, and the results are exactly what the planner is meant to distrust.
+- **"Round 1 `ok` with no results"** is not a trigger at all. A failed Round 1
+  plans nothing (see below), and a successful one that returned nothing is the
+  case where a located footprint is most worth a credit, not a separate one.
 
 ### Merge and labelling
 
@@ -241,7 +259,10 @@ never spent on a duplicate of the anchor query when the planner had better uses.
   Credits are never spent against a provider that just failed.
 - A Round 2 failure reports `search_partial` with pair-style errors.
 - A `rounds` list goes on the response: purpose, query text, `ok`, result count.
-  This replaces `model_queries`, which is currently emitted and read by nobody.
+  This is the record of what was looked up. It does **not** replace
+  `model_queries`, which is still emitted: that field is what the *scan model*
+  proposed, and in `adaptive` mode a proposal the planner had no use for is
+  never issued, so the two are not the same list.
 
 ## Safety
 
@@ -269,11 +290,13 @@ never spent on a duplicate of the anchor query when the planner had better uses.
 
 ## Dependencies
 
-- The scan fields in `SYSTEM_PROMPT.proposed.md`: `CLAIMED_TYPE` (landed),
-  repeated typed `CONTACT_METHOD` (landed), `LOCATION` (exists), `REGISTERED_AS`
-  (exists).
-- **`JOB_TITLE` — does not exist yet.** Row 2 needs the position as printed. Without
-  it the row falls back to `<entity.name> hiring` and its purpose is weaker.
+- The scan fields: `CLAIMED_TYPE` (landed), repeated typed `CONTACT_METHOD`
+  (landed), `LOCATION` (exists), `REGISTERED_AS` (exists). They are written by
+  `backend/SYSTEM_PROMPT.md` and `prompts.py`, and their contract is in
+  `docs/decisions/scan-channel-enumeration.md`.
+- **`JOB_TITLE` - landed with the planner.** Row 2 needs the position as printed,
+  so the scan now writes it. Without it the row falls back to
+  `<entity.name> hiring` and its purpose is weaker.
 
 ## Tests
 
@@ -344,5 +367,4 @@ renders it, so the "what was looked up" surface is still the one the panel shows
 Wiring it up is frontend work and its wording is the developer's to write.
 
 **`VERIFY_SEARCH_MODE` ships as `fixed`.** Nothing here has been shown to improve a
-verdict. `docs/architecture.md` and `backend/scripts/ched_verify_probe.json` have not
-been run against this design.
+verdict. No live run has been made against this design.

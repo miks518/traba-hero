@@ -95,11 +95,38 @@ wrong domain. The type prefix is what makes the `|` unambiguous for well-formed
 output; a model that writes a bare value containing one of those characters produces
 something the planner reads as two channels.
 
-## What `CLAIMED_TYPE` does not do
+## What `CLAIMED_TYPE` does, and does not, do
 
-**It opens no category.** `expected_categories` is unchanged. `CLAIMED_TYPE` reaches
-the planner as a signal about the scan's own fields; it does not cause
-`Official Registration` or any other check to be asked for.
+**It opens no category.** `expected_categories` is unchanged. `CLAIMED_TYPE` does
+not cause `Official Registration` or any other check to be asked for.
+
+**It reaches two readers, and the second one matters.**
+
+1. **The search planner**, as a signal about the scan's own fields. It decides
+   which follow-up questions are worth a credit. It sets no status.
+2. **The verify model**, because the claims block quotes *every* attribute, and
+   `CLAIMED_TYPE: government` appears in it verbatim. The model is then asked
+   for `government_claim` — "true only when the posting presents the employer
+   itself as a government agency" — and `channel_match.py`'s government rule
+   escalates a government claim with a non-`.gov.ph` channel to **red**.
+
+So the field is a prompt-level input to a red Channel Match card, reached
+through the model rather than through the planner. That is a legitimate
+design — it is the posting's own claim about itself, which is exactly the kind
+of fact the guardrail allows — but it is a stronger effect than "a signal for
+the planner", and the difference between the two paths is worth being explicit
+about:
+
+- The planner's use of it decides **which questions to ask**. It cannot make a
+  card red.
+- The model's use of it decides **what the facts say**. The card is still
+  the code's, and the government rule still needs the official side to be a
+  retrieved result — an unbacked government claim is demoted to yellow by
+  `_bind_to_retrieved`, exactly like every other red.
+
+The value is read leniently, because the prompt's format line is a list of
+options and a model that copies it produces the whole list: the first option
+is the answer, so "government | private company | …" is read as "government".
 
 ## The consumer side, and where the rules live
 

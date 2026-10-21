@@ -467,6 +467,11 @@ async def test_a_posting_with_two_channels_tests_both():
     assert "hrmo6@ched.gov.ph" in prompt, prompt[-600:]
     assert "recruitment.ched@outlook.com" in prompt, prompt[-600:]
 
+    # And the posting's own claim that it is a government office reached the
+    # model, so `government_claim` is answerable from the posting's words
+    # rather than from the model's own reading. It opens no category.
+    assert "CLAIMED_TYPE" in prompt, prompt[-600:]
+
     # And the code still read the free-mail one as a contradiction, while
     # the `.gov.ph` one is the employer's own channel.
     channel = _items_by_label(data)["Channel Match"]

@@ -58,13 +58,21 @@ owns the query tests.
 a query carrying one returns pages chosen for containing that word, which then read as
 corroboration of an accusation the query already made up.
 
-**Both scan prompts state the rule and no code enforces it.** This is a deliberate
-decision, not an oversight: `_QUERY_PLACEHOLDERS` survives because a model answering
+**In the shipped default, both scan prompts state the rule and no code enforces it.**
+This is a deliberate decision, not an oversight: `_QUERY_PLACEHOLDERS` survives because a model answering
 `QUERY: none` is answering the *format* rather than proposing a search, which is a
 parsing question rather than a judgment about query content.
 
 **The exposure is a model reading a job posting and writing `Tanika scam`** — the
 prompt is the only thing standing between that and the provider.
+
+**The `adaptive` mode adds a code control, and only there.**
+`search_planner.search_query_is_safe` drops a query carrying a conclusion word
+before the planner issues it. That check is on the queries the *planner* chose.
+In `fixed` mode the scan model's own proposals are issued as they arrive, and the
+prompt sentence is still the only control there — the pre-existing state. The
+`adaptive` mode ships off, so the control that exists is not the one the
+default runs on.
 
 ---
 
@@ -204,6 +212,38 @@ strongly — a London VC firm, or an unrelated product with a similar word.
   budget. **That is the deliberate trade for a niche lookup.**
 - **`include_answer` is never set.** A synthesised answer is retrieval's opinion, not
   evidence, and the prompt requires source URLs copied from the results.
+
+---
+
+## The two ways a verification chooses its queries
+
+`VERIFY_SEARCH_MODE` picks how `/api/verify` spends its credits.
+
+| | `fixed` | `adaptive` |
+|---|---|---|
+| When the questions are chosen | before anything is known | after Round 1's results are in |
+| Questions | the employer query, plus up to two the scan model proposed | the employer query, plus up to two the planner chose from Round 1 |
+| Credit ceiling | 3 | 3 |
+| Typical cost | 1–3 | 1–2 |
+| The requests go out | one at a time, as they always did | Round 1 alone, then the follow-up round together |
+| A scoped follow-up | never | one domain, from Round 1's results, in `prefer` mode |
+| The conclusion-word filter | **not applied** — the prompt sentence is the control | applied by `search_query_is_safe` |
+
+**`fixed` is the shipped default and stays there.** Nothing has been shown to
+improve a verdict, and the fixtures that would decide it have not been run. The
+design is in `docs/superpowers/specs/2026-10-18-adaptive-verification-search.md`.
+
+**`fixed` is unchanged in every respect a reader can observe:** the same queries,
+the same `search(query)` call with one argument, the same one-at-a-time request
+pattern, and a `format_results` that is byte-identical when its two new optional
+parameters are omitted. The flag changes what is *asked*, never how it is asked
+or what comes back.
+
+`rounds` is the record of what was actually looked up — the query, its purpose,
+whether it succeeded, and how many results it returned. `model_queries` is
+different: it is what the **scan model proposed**, which in `adaptive` mode is
+not the same list, because a proposal the planner had no use for is never
+issued.
 
 ---
 

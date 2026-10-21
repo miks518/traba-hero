@@ -10,12 +10,16 @@ party. `scam` and `fraud` stay out of a query because a query carrying a
 conclusion returns pages that appear to corroborate it.
 
 That rule used to live in the scan prompts alone, with the queries model-authored
-and unfiltered in code. It no longer does: `search_query_is_safe` in
-`search_planner.py` drops a query carrying a conclusion word before it is ever
-issued, so the prompt sentence is now a statement of policy rather than the only
-control. The tombstone below exists because "no filter" was a decision a future
-reader would otherwise mistake for an oversight — and the fix is that the filter
-is no longer absent.
+and unfiltered in code. `search_query_is_safe` in `search_planner.py` now drops a
+query carrying a conclusion word before it is ever issued — **in the adaptive mode,
+where the planner chooses the query.** In `fixed` mode, the shipped default, the
+scan model's proposals are issued as they arrive and the prompt sentence is still
+the only control. That is the pre-existing state, and calling it a code control
+would be a guarantee the default does not give.
+
+The tombstone below exists because "no filter" was a decision a future reader would
+otherwise mistake for an oversight. The filter is no longer absent, but it is not
+universal, and the tombstone says which is which.
 
 `build_scheme_queries` and its attribute table are deleted outright. The model
 proposes its own searches now, so anything that rebuilt them from attributes

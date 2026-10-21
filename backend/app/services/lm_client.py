@@ -318,10 +318,17 @@ _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "cr
 # `QUERY` with `_REF: Location` as the query text.
 #
 # The conclusion-word filter is not here and never was: this regex decides what
-# a line *is*, not whether its content is acceptable. It lives in
-# `scanner/search_planner.py:search_query_is_safe`, which runs on the query
-# before it is issued. The rule also still stands in both scan prompts, so the
-# control and the instruction agree.
+# a line *is*, not whether its content is acceptable.
+#
+# It lives in `scanner/search_planner.py:search_query_is_safe`, and it runs
+# **in the adaptive mode only** — that is the mode whose follow-ups the planner
+# chooses, and the check is on the query the planner built. In `fixed` mode the
+# scan model's own proposals are issued as they arrive, and **the prompt
+# sentence is the only control there**. That is the pre-existing state, not
+# something the planner changed, and saying otherwise would read as a guarantee
+# the shipped default does not give. The rule still stands in both scan
+# prompts, so in `fixed` mode the instruction and the prompt agree; in
+# `adaptive` mode the control and the instruction agree as well.
 #
 # `JOB[_\s]*TITLE` joins the alternation for `JOB[_\s]*SUMMARY`'s reason — neither
 # is a prefix of the other, so order is free, and `TITLE` is listed first to match
