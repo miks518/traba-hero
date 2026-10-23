@@ -34,6 +34,9 @@ def _anomalies(flags: list) -> list[Anomaly]:
             # would otherwise put an unchecked value on it.
             code=normalise_code(f.get("code")),
             quote=clean_quote(f.get("quote")),
+            # The posting's own words for why it asks for a fee, screened the
+            # same way as the quote: it is shown as something the posting said.
+            fee_reason=clean_quote(f.get("fee_reason")),
         ))
     return out
 

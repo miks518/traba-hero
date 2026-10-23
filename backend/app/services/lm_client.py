@@ -342,7 +342,7 @@ _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "cr
 # silently. `test_the_keyword_list_and_the_regex_agree` is what keeps the two
 # lists from drifting.
 _SECTION_RE = re.compile(
-    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|CODE|QUOTE|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|JOB[_\s]*TITLE|LOCATION|CONTACT[_\s]*METHOD|CLAIMED[_\s]*TYPE|MEETING[_\s]*SPOT|PAY|REGISTERED[_\s]*AS|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB[_\s]*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
+    r"^\s*(?P<kw>VALID|ANOMALY|ANOMALIES|RED\s*FLAG|CODE|QUOTE|FEE_REASON|FEE[_\s]*RECIPIENT|FEE[_\s]*TIMING|MEETING[_\s]*PLACE[_\s]*KIND|ATTRIBUTES|END\s*ATTRIBUTES|COMPANY\s*NAME|COMPANY|JOB[_\s]*TITLE|LOCATION|CONTACT[_\s]*METHOD|CLAIMED[_\s]*TYPE|MEETING[_\s]*SPOT|PAY|REGISTERED[_\s]*AS|QUERY_REF|QUERY|SEARCH\s*QUERIES|END\s*SEARCH\s*QUERIES|EMPLOYER\s*NAME|POSTING\s*ANALYSIS|JOB[_\s]*SUMMARY|END\s*(?:FLAGS|ANOMALIES|JOB\s*SUMMARY|POSTING\s*ANALYSIS))\s*:?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
 
@@ -374,7 +374,8 @@ MAX_SEARCH_QUERIES = 2
 # parsing outside the block, for scans recorded before the rename.
 _ATTRIBUTE_KEYWORDS = (
     "COMPANY", "JOB_TITLE", "LOCATION", "CONTACT_METHOD", "MEETING_SPOT", "PAY",
-    "REGISTERED_AS", "CLAIMED_TYPE",
+    "REGISTERED_AS", "CLAIMED_TYPE", "FEE_RECIPIENT", "FEE_TIMING",
+    "MEETING_PLACE_KIND",
 )
 
 # The keys the scan writes more than once, one line each.
@@ -526,7 +527,7 @@ def _parse_custom(raw: str) -> dict | None:
             buf.append(line.rstrip())
             continue
 
-        if kw in ("CODE", "QUOTE") and not in_anomalies and section:
+        if kw in ("CODE", "QUOTE", "FEE_REASON") and not in_anomalies and section:
             # `CODE:` and `QUOTE:` are ordinary English words. "Enter CODE: 4471
             # at the gate" inside a job summary matches this regex, and a matched
             # keyword closes the section first - so reading it as a key silently
@@ -547,7 +548,7 @@ def _parse_custom(raw: str) -> dict | None:
         # matters, because a dedicated `continue` for it would also skip the
         # handler chain below and change what `matched_any` ends up as. That is
         # pre-existing behaviour and changing it is a separate question.
-        if kw not in ("ANOMALY", "ANOMALIES", "RED FLAG", "CODE", "QUOTE", "QUERY_REF"):
+        if kw not in ("ANOMALY", "ANOMALIES", "RED FLAG", "CODE", "QUOTE", "FEE_REASON", "QUERY_REF"):
             in_anomalies = False
 
         close_section()
@@ -615,6 +616,7 @@ def _parse_custom(raw: str) -> dict | None:
                 "query_ref": "",
                 "code": "",
                 "quote": "",
+                "fee_reason": "",
             }
             flags.append(last_anomaly)
             in_anomalies = True
@@ -629,6 +631,12 @@ def _parse_custom(raw: str) -> dict | None:
             # screened in `_anomalies`, which is the last gate before the wire.
             if last_anomaly is not None:
                 last_anomaly["quote"] = rest.strip()
+        elif kw == "FEE_REASON":
+            # The reason the posting gives for a fee. A fact the classifier
+            # reads, never a judgement: "medical clearance" is what the posting
+            # says, not whether the fee is justified.
+            if last_anomaly is not None:
+                last_anomaly["fee_reason"] = rest.strip()
         elif kw == "QUERY_REF":
             # Which search this finding relates to. Optional: an anomaly judged
             # not worth a query has none, and therefore no corroboration path —

@@ -7,6 +7,7 @@ VALID: <true or false>
 ANOMALY: <label> | <reasoning> | <severity>
 CODE: <one code from the ANOMALY CODES list>
 QUOTE: <the exact words from the posting that show this>
+FEE_REASON: <the reason the posting gives for a fee, or omit>
 END ANOMALIES
 ATTRIBUTES:
 COMPANY: <exact employer name, or omit>
@@ -17,6 +18,9 @@ CONTACT_METHOD: <email | website | phone | messaging | form | address> | <the va
 MEETING_SPOT: <named place, or omit>
 PAY: <amount and period as stated, or omit>
 REGISTERED_AS: <a registration, permit or licence number the posting itself claims, or omit>
+FEE_RECIPIENT: <employer | agency | third party | individual account | omit>
+FEE_TIMING: <before hiring | at hiring | after a contract | omit>
+MEETING_PLACE_KIND: <employer premises | elsewhere | omit>
 END ATTRIBUTES
 SEARCH QUERIES:
 QUERY: <a search that would check something this posting claims, or omit>

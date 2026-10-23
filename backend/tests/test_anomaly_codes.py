@@ -469,3 +469,73 @@ def test_the_prompt_says_a_free_email_is_not_a_third_party():
 
     assert "free email" in prompt
     assert "not a third party" in prompt
+
+
+# --- the fee facts --------------------------------------------------------
+
+
+def test_a_fee_reason_line_attaches_to_the_anomaly_above_it():
+    """DOLE DO 141-14 s35 forbids an agency charging a placement fee for local
+    work, and DMW s56 allows exactly one overseas fee, after a signed contract.
+    The rules attach to the shape of the request, so the reason the posting
+    gives for a fee is a fact the classifier needs, not prose for the reader.
+    """
+    result = _parse(
+        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee | high",
+        "CODE: FEE_MANDATORY",
+        "FEE_REASON: medical clearance",
+        "END ANOMALIES",
+    )
+
+    assert result["anomalies"][0]["fee_reason"] == "medical clearance"
+
+
+def test_a_fee_reason_reaches_the_wire():
+    anomaly = _wire(
+        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee | high",
+        "CODE: FEE_MANDATORY",
+        "FEE_REASON: medical clearance",
+        "END ANOMALIES",
+    )[0]
+
+    assert anomaly.fee_reason == "medical clearance"
+
+
+def test_a_fee_reason_line_outside_the_anomaly_block_does_not_attach():
+    """`FEE_REASON` is two ordinary English words, like CODE and QUOTE. Ungated,
+    a job summary containing one would be read as a reason for the previous
+    finding - and the summary itself would be truncated at that line, which is
+    the documented failure mode for the ATTRIBUTES keys.
+    """
+    result = _parse(
+        "ANOMALY: Asks for a fee | A fee | high",
+        "CODE: FEE_MANDATORY",
+        "END ANOMALIES",
+        "JOB SUMMARY:",
+        "FEE_REASON: ordinary text in a summary",
+        "END JOB SUMMARY",
+    )
+
+    assert "fee_reason" in result["anomalies"][0]
+    assert result["anomalies"][0]["fee_reason"] == ""
+    assert "FEE_REASON: ordinary text in a summary" in result["job_summary"]
+
+
+def test_the_fee_facts_parse_as_attributes():
+    """The recipient and the timing are posting-level facts: who the money goes
+    to, and when it is asked for. A fee to the employer for a uniform is
+    ordinary; a fee to an agency before a contract is prohibited; a fee to a
+    personal account is the pattern POEA Advisory 62 names. None of that can be
+    read from the fee's existence alone.
+    """
+    result = _parse(
+        "ATTRIBUTES:",
+        "FEE_RECIPIENT: agency",
+        "FEE_TIMING: before hiring",
+        "MEETING_PLACE_KIND: elsewhere",
+        "END ATTRIBUTES",
+    )
+
+    assert result["attributes"]["FEE_RECIPIENT"] == "agency"
+    assert result["attributes"]["FEE_TIMING"] == "before hiring"
+    assert result["attributes"]["MEETING_PLACE_KIND"] == "elsewhere"
