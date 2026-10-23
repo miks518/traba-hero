@@ -211,6 +211,8 @@ export interface VerificationResult {
   verdictReason?: string;
   riskScore?: number;
   riskLevel?: ScanRiskLevel;
+  /** The posting's request class, carried from the scan unchanged. */
+  requestClass?: string;
   noCompanyName?: boolean;
   /**
    * Whether the web search succeeded. False means the categories are unknown,
@@ -252,6 +254,11 @@ export type ScanRiskLevel = 'low' | 'moderate' | 'high' | 'critical';
 export interface ScanResult {
   riskLevel: ScanRiskLevel | null;
   riskLabel: string;
+  /**
+   * What the posting asks for, from the scan. Absent means the reading predates
+   * the field; it is never defaulted to `ordinary`.
+   */
+  requestClass?: string;
   /**
    * True when a score was actually calculated. The posting's own indicators
    * always produce one, so this is only false for jobs restored from history
@@ -385,6 +392,13 @@ export interface ApiScanResponse {
   company_name?: string | null;
   risk_score?: number;
   risk_level?: ScanRiskLevel;
+  /**
+   * What the posting asks for: `ordinary`, `unclassified` or `prohibited`.
+   * Decided by the backend from the findings and the posting's own attributes.
+   * `''` or absent means the scan reported none — a reading recorded before
+   * the field existed — and is never read as `ordinary`.
+   */
+  request_class?: string;
   sec_registration?: { company_name: string; sec_no: string; status: string; date_approved: string }[];
   /**
    * The wire spells the breakdown in snake_case; `consumeSseStream` translates

@@ -644,6 +644,7 @@ export async function verifyJobStream(
             recommendation: string;
             riskScore?: number;
             riskLevel?: string;
+            request_class?: string;
             /** The wire's own breakdown. Typed opaque — `toScoreBreakdown` owns it. */
             scoreBreakdown?: unknown;
             no_company_name?: boolean;
@@ -688,6 +689,7 @@ export async function verifyJobStream(
               verdictReason: data.verdictReason ?? data.verdict_reason ?? '',
               riskScore: data.riskScore,
               riskLevel: data.riskLevel as 'low' | 'moderate' | 'high' | 'critical' | undefined,
+              requestClass: data.request_class,
               scoreBreakdown: toScoreBreakdown(data.scoreBreakdown),
               searchOk: data.search_ok,
               searchError: data.search_error,

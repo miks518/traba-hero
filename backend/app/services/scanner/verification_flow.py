@@ -20,6 +20,7 @@ from .channel_match import (
     with_official_only_if_retrieved,
 )
 from .dependencies import runtime
+from .request_class import classify_request, facts_from_scan
 from .search_planner import classify_signals, label_results, plan_followups, resolve_entity
 from .verdict import code_verdict
 from .verification_parser import VerificationParseError
@@ -483,6 +484,12 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
     try:
         yield runtime.get_sse()({"type": "progress", "percent": 5, "stage": "Preparing verification"})
 
+        # Computed once, from the findings the scan reported. The verify stage
+        # does not re-read the posting, so it must not recompute the class from
+        # anything else: the scan's anomalies and the posting's own attributes
+        # are the whole input.
+        request_class = classify_request(facts_from_scan(req.anomalies, req.attributes))
+
         company = (req.company_name or "").strip()
         if not runtime.get_company_name_is_valid()(company):
             log.warning("[verify] No valid company name provided ('%s') — stopping verification endpoint early.", company)
@@ -520,6 +527,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 "riskScore": None,
                 "riskLevel": None,
                 "scoreBreakdown": breakdown,
+                "request_class": request_class,
                 "search_ok": False,
                 "search_error": "No employer name was given, so nothing was searched.",
                 # Always present, never conditional. A client reading
@@ -899,6 +907,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "recommendation": recommendation,
             "riskScore": risk_score,
             "riskLevel": risk_level,
+            "request_class": request_class,
             "verdictReason": verdict_reason,
             # Always present, possibly empty. See the no-company event above for
             # why absence and an empty list are different states to the client.

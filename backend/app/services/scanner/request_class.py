@@ -159,3 +159,38 @@ def classify_request(facts: Sequence[RequestFact], *, claimed_type: str = "") ->
         if _CLASS_RANK[candidate] > _CLASS_RANK[worst]:
             worst = candidate
     return worst
+
+
+def _field(item: object, name: str) -> str:
+    """A field off an `Anomaly` or off a plain dict.
+
+    Both shapes reach this module: the scan builds `Anomaly` models, and a
+    recorded scan replayed from JSON is a dict.
+    """
+    if isinstance(item, dict):
+        return str(item.get(name) or "")
+    return str(getattr(item, name, "") or "")
+
+
+def facts_from_scan(
+    anomalies: Sequence[object],
+    attributes: dict | None = None,
+) -> list[RequestFact]:
+    """Turn a scan's findings into the facts the classifier reads.
+
+    The fee's recipient and timing are posting-level attributes: a posting
+    states one recipient for its fees, and reading them off each anomaly would
+    let two fees in one posting disagree about who is paid.
+    """
+    attrs = attributes or {}
+    recipient = str(attrs.get("FEE_RECIPIENT") or "")
+    timing = str(attrs.get("FEE_TIMING") or "")
+    return [
+        RequestFact(
+            code=_field(item, "code"),
+            quote=_field(item, "quote"),
+            fee_recipient=recipient,
+            fee_timing=timing,
+        )
+        for item in (anomalies or [])
+    ]

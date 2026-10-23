@@ -90,6 +90,9 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
   return {
     riskLevel: level,
     riskLabel: riskLevelLabel(level),
+    // Copied through, never defaulted: `''` means the scan reported no class,
+    // which is a missing input rather than an ordinary posting.
+    requestClass: data.request_class || undefined,
     riskScored: level !== null || score !== null,
     riskScore: score,
     unverifiedEmployer: isUnverifiedEmployer({

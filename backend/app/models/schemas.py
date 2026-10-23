@@ -234,6 +234,11 @@ class ScanResponse(BaseModel):
     risk_score: int | None = None
     risk_level: str | None = None
     score_breakdown: dict = {}
+    # What the posting asks for, decided by `request_class.classify_request`
+    # from the findings and the posting's own attributes. "" means the scan did
+    # not report one — a response recorded before the field existed — and is
+    # never read as `ordinary`.
+    request_class: str = ""
 
 
 class ScanTextRequest(BaseModel):

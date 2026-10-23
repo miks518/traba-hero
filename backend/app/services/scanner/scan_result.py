@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.models.schemas import Anomaly, ScanResponse
 from app.services.anomaly_codes import clean_quote, normalise_code
+from app.services.scanner.request_class import classify_request, facts_from_scan
 from app.services.search import is_valid_company_name
 # `risk_calculator` was retired 2026-10-17 and is deliberately not imported
 # here. Leaving the import in with a `noqa` would be the half-wired state this
@@ -102,6 +103,7 @@ def _build_scan_response(
     flags = anomalies_factory(
         result.get("anomalies", result.get("red_flags", []))
     )
+    attributes = result.get("attributes", {})
     # No level here. The scan has read a document and nothing else: it has seen
     # no employer lookup, no retrieved page, nothing that could tell a reader
     # whether the posting's author is who they say they are. The level arrives
@@ -114,7 +116,7 @@ def _build_scan_response(
     return ScanResponse(
         valid=result.get("valid", False),
         anomalies=flags,
-        attributes=result.get("attributes", {}),
+        attributes=attributes,
         search_queries=list(result.get("search_queries") or []),
         job_summary=result.get("job_summary", ""),
         posting_analysis=result.get("posting_analysis", ""),
@@ -123,6 +125,11 @@ def _build_scan_response(
         risk_score=None,
         risk_level=None,
         score_breakdown={},
+        # What the posting asks for, decided here rather than by the model. The
+        # scan is the stage that reads the posting, so it is the stage that has
+        # the findings; the verify stage carries this value instead of
+        # recomputing it from a list it only received second-hand.
+        request_class=classify_request(facts_from_scan(flags, attributes)),
     )
 
 

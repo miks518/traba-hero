@@ -154,3 +154,46 @@ def test_an_unknown_code_is_not_silently_ordinary():
     ordinary would let a real request disappear because the model mistyped.
     """
     assert classify_request([RequestFact(code="FEE_MANDATROY")]) == "unclassified"
+
+
+# --- the scan builds the facts --------------------------------------------
+
+
+def test_the_scan_facts_pair_each_finding_with_the_postings_fee_facts():
+    """The recipient and timing are posting-level attributes, so they are
+    attached to every finding rather than read from the anomaly. A posting that
+    names one recipient has named it for its fees.
+    """
+    from app.services.scanner.request_class import facts_from_scan
+
+    facts = facts_from_scan(
+        [{"code": "FEE_MANDATORY"}, {"code": "APPLICATION_DOCUMENTS"}],
+        {"FEE_RECIPIENT": "agency", "FEE_TIMING": "before hiring"},
+    )
+
+    assert facts[0].code == "FEE_MANDATORY"
+    assert facts[0].fee_recipient == "agency"
+    assert facts[0].fee_timing == "before hiring"
+    assert facts[1].code == "APPLICATION_DOCUMENTS"
+
+
+def test_a_scan_carries_its_request_class():
+    """The scan reads the posting, so it is the stage that knows what the
+    posting asks for. The verify stage carries the same value rather than
+    recomputing it from a different list.
+    """
+    from app.services.scanner.scan_result import _scan_response
+
+    response = _scan_response(
+        {
+            "valid": True,
+            "anomalies": [
+                {"flag": "Asks for a fee", "reasoning": "A fee", "severity": "high",
+                 "code": "FEE_MANDATORY"},
+            ],
+            "attributes": {"COMPANY": "Acme"},
+        },
+        "Acme",
+    )
+
+    assert response.request_class == "unclassified"
