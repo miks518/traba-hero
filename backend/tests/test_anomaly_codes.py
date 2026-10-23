@@ -429,3 +429,43 @@ def test_the_format_block_names_the_two_new_lines():
 
     assert "CODE:" in SCAN_FORMAT_BLOCK
     assert "QUOTE:" in SCAN_FORMAT_BLOCK
+
+
+# --- the document split ---------------------------------------------------
+
+
+def test_the_document_codes_are_split():
+    """The ordinary applicant packet is not the same finding as account
+    credentials. One is what every Philippine employer's pre-employment packet
+    asks for; the other has no lawful reading and is how an applicant becomes a
+    mule account.
+    """
+    assert "APPLICATION_DOCUMENTS" in ANOMALY_CODES
+    assert "ACCOUNT_CREDENTIALS" in ANOMALY_CODES
+    assert "CREDENTIALS_BEFORE_INTERVIEW" not in ANOMALY_CODES
+
+
+def test_the_prompt_separates_the_applicant_packet_from_account_credentials():
+    """The two codes have to be stated as different things, or the model picks
+    whichever word it likes for a 2x2 photo and the split changes nothing.
+
+    The corpus measured the conflation: the two legitimate postings that asked
+    for the most documents were the two the panel called "Proceed with
+    caution" (37 points, both of them).
+    """
+    prompt = load_system_prompt().lower()
+
+    assert "application_documents" in prompt
+    assert "account_credentials" in prompt
+    assert "credentials_before_interview" not in prompt
+
+
+def test_the_prompt_says_a_free_email_is_not_a_third_party():
+    """The corpus measured the model using `DOCUMENTS_VIA_THIRD_PARTY` for a
+    Gmail address. A free-provider address is the absence of a domain, not a
+    third party, and the code must not be reachable for one.
+    """
+    prompt = load_system_prompt().lower()
+
+    assert "free email" in prompt
+    assert "not a third party" in prompt

@@ -67,8 +67,9 @@ FEE_CONDITIONAL: a fee refunded on some later event, such as completing a semina
 PURCHASE_REQUIRED: equipment, a uniform, materials or a kit that must be bought before work begins
 DEPOSIT_REQUIRED: a deposit or security bond to hold a role
 PAYMENT_FORWARDING: the applicant is asked to receive, pass on, withdraw or bank money on someone else's behalf
-CREDENTIALS_BEFORE_INTERVIEW: identification, bank details or passwords requested before any interview or offer
-DOCUMENTS_VIA_THIRD_PARTY: identity or personal documents sent through a domain, address or account that is not the employer's own
+APPLICATION_DOCUMENTS: the ordinary applicant packet - resume, 2x2 photo, transcript, certificates, NBI clearance, medical results - requested as part of applying. This is ordinary hiring practice, not an exposure
+ACCOUNT_CREDENTIALS: a bank account, e-wallet number, one-time password, password, or account access requested before hiring
+DOCUMENTS_VIA_THIRD_PARTY: identity or personal documents sent through a domain, address or account that is not the employer's own. A free email address is not a third party for this code: it is the absence of a domain, and asking for documents at a Gmail address is not this finding
 IMPERSONATES_AUTHORITY: presents itself as a government agency, the armed forces, or a named company, through a channel or domain it does not control
 TASK_FOR_EARNING: discrete tasks, orders or referrals completed for payment, rather than a role with duties
 OTHER: anything real that the entries above do not cover

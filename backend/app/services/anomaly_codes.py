@@ -24,7 +24,18 @@ ANOMALY_CODES = (
     "DEPOSIT_REQUIRED",
     "PAYMENT_FORWARDING",
     # --- Family I: the reader loses documents or accounts ---------------
-    "CREDENTIALS_BEFORE_INTERVIEW",
+    # The ordinary applicant packet is NOT an exposure. A resume, a 2x2 photo,
+    # a transcript, a certificate, an NBI clearance and medical results are
+    # what an employer's pre-employment packet asks for, and they are handed
+    # over as a matter of course. `APPLICATION_DOCUMENTS` exists so a finding
+    # can name what is being asked for without claiming the reader loses
+    # anything by providing it.
+    "APPLICATION_DOCUMENTS",
+    # The exposure: a bank account, an e-wallet number, a one-time password, a
+    # password, or account access requested before hiring. No employer needs
+    # any of these to consider an application, and a bank account handed over
+    # this way is the mechanism by which an applicant becomes a mule account.
+    "ACCOUNT_CREDENTIALS",
     "DOCUMENTS_VIA_THIRD_PARTY",
     "IMPERSONATES_AUTHORITY",
     # --- Family C: labour sold as the product ---------------------------

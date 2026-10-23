@@ -188,6 +188,9 @@ class Anomaly(BaseModel):
     # degrades the card to its explanation; a fabricated one is the failure this
     # field exists to prevent, so it is never rendered.
     quote: str = ""
+    # The reason the posting gives for a fee, verbatim. A fact, never a
+    # judgement: "medical clearance" is what the posting says.
+    fee_reason: str = ""
 
 
 class ScanResponse(BaseModel):
