@@ -30,6 +30,7 @@ MODULE_NAMES = (
     "verification_parser",
     "risk_calculator",
     "verification_flow",
+    "request_class",
 )
 
 PACKAGE_EXPORTS = (
@@ -40,6 +41,9 @@ PACKAGE_EXPORTS = (
     "RESUME_INSTRUCTION",
     "MATCH_INSTRUCTION",
     "VERIFY_SYSTEM_PROMPT",
+    "REQUEST_CLASSES",
+    "RequestFact",
+    "classify_request",
     "load_system_prompt",
     "load_resume_prompt",
     "load_match_prompt",

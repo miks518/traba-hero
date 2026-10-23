@@ -16,6 +16,7 @@ from .prompts import (
     load_system_prompt,
 )
 from .resume_flow import _extract_resume_text, _resume_event_stream
+from .request_class import REQUEST_CLASSES, RequestFact, classify_request
 from .risk_calculator import (
     _refutation_score_from_verify,
 )
@@ -37,6 +38,9 @@ __all__ = [
     "VERIFY_SYSTEM_PROMPT",
     "ANALYZE_OFFER_SYSTEM_PROMPT",
     "VerificationItem",
+    "REQUEST_CLASSES",
+    "RequestFact",
+    "classify_request",
     "load_system_prompt",
     "load_resume_prompt",
     "load_match_prompt",
