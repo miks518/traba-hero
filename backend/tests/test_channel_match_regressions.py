@@ -26,7 +26,10 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.models.schemas import Anomaly
 from app.services.lm_client import _parse_custom
+from app.services.scanner.verdict import code_verdict
+from app.services.scanner.verification_flow import _bind_to_retrieved, _read_channel_item
 from app.services.search import SearchOutcome, SearchResult
 
 
@@ -603,12 +606,18 @@ async def test_a_stale_fee_does_not_escalate_a_free_email():
 
 
 @pytest.mark.asyncio
-async def test_an_unretrieved_official_channel_cannot_keep_a_red_card():
+async def test_a_dropped_citation_cannot_put_the_official_domain_on_a_red_card():
     """The official side is a claim about the employer, and it needs a result.
 
     A model can copy `ched.gov.ph` from the posting itself and cite a URL the
-    search never returned. The citation is dropped, the official side is dropped,
-    and the government claim becomes a yellow card rather than a red one.
+    search never returned. The citation is dropped and the official side with it,
+    so the card may not name that domain.
+
+    The card is still red, and not because of the citation: the posting claimed
+    to be a government office and supplied a contact outside `.gov.ph`, which is
+    the government branch - the one red that needs no retrieved source, because
+    the posting is the source. That is what the corpus's Fake CHED run could not
+    get: the employer lookup never returned the agency's own site.
     """
     payload = _fake_ched_payload()
     payload["channel_match"] = {
@@ -646,9 +655,61 @@ async def test_an_unretrieved_official_channel_cannot_keep_a_red_card():
 
     channel = _items_by_label(data)["Channel Match"]
 
-    assert channel["status"] == "yellow"
+    assert channel["status"] == "red"
+    assert channel["escalation"] == "government"
     assert channel["source_url"] == ""
-    # The explanation may still say the posting claims to be a government office;
-    # it must not assert the unretrieved official domain.
+    # The explanation may say the posting claims to be a government office; it
+    # must not assert the unretrieved official domain.
     assert "ched.gov.ph" not in channel["explanation"]
-    assert data["riskLevel"] == "low"
+    # The strong-channel floor is 51, the bottom of the high band.
+    assert data["riskLevel"] == "high"
+
+
+# --- the government branch is a claim the posting makes about itself --------
+
+
+_FAKE_CHED_ALLOWED = frozenset({"https://www.facebook.com/chedregion6"})
+
+
+def _fake_ched_channel_item():
+    """The Fake CHED facts, read with only a Facebook page retrieved.
+
+    That is what the live pipeline can actually find. The scan took the
+    forgery's spelling of the agency at face value, so the employer lookup
+    searched for an office that does not exist and never returned
+    `ched.gov.ph`. The existing fixture mocks the search to return it by hand -
+    the one piece of evidence the real run cannot have.
+    """
+    return _read_channel_item(_fake_ched_payload(), _FAKE_CHED_ALLOWED)
+
+
+def test_the_government_red_survives_the_citation_binding():
+    """The posting made the claim and supplied the domain, so there is nothing
+    for a retrieved source to bind it to. The citation rule is right for a claim
+    about an employer's identity and wrong for this one.
+    """
+    bound, _ = _bind_to_retrieved(
+        [_fake_ched_channel_item()], [], _FAKE_CHED_ALLOWED
+    )
+
+    assert bound[0].status == "red"
+    assert bound[0].escalation == "government"
+
+
+def test_the_government_red_still_reaches_critical_through_the_binding():
+    """The corpus found the flagship case failing in the product while passing
+    in the test. The demotion to yellow dropped the strong-channel floor, so the
+    verification stage refuted nothing and the critical came entirely from the
+    two fees - while the card said "That is outside the .gov.ph domain" and was
+    worth zero.
+    """
+    bound, _ = _bind_to_retrieved(
+        [_fake_ched_channel_item()], [], _FAKE_CHED_ALLOWED
+    )
+    anomalies = [Anomaly(**flag) for flag in _fake_ched_request()["anomalies"]]
+
+    _score, level, breakdown = code_verdict(anomalies, bound)
+
+    assert level == "critical"
+    assert breakdown["channel_escalation"] == "government"
+    assert breakdown["verification_score"] is not None

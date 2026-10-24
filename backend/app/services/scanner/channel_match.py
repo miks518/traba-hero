@@ -69,6 +69,14 @@ FREE_EMAIL_DOMAINS = frozenset({
 # `notgov.ph` is not a government domain, and neither is `gov.ph.example.com`.
 _GOVERNMENT_SUFFIX = ".gov.ph"
 
+# The escalations that are a claim the posting makes about itself, and therefore
+# need no retrieved source. A government office using a domain outside `.gov.ph`
+# is visible in the posting alone: the posting claimed to be the office, and the
+# posting supplied the domain. Everything else - a lookalike of the official
+# domain, an unconfirmed channel, a free email - compares the posting against
+# something retrieved, so it cannot stand without that source.
+SOURCE_INDEPENDENT_ESCALATIONS = frozenset({"government"})
+
 # The second-level suffixes the Philippines uses. Enough to find the brand label
 # in `company.com.ph`; a full public-suffix list is unnecessary because every
 # domain this check compares is one the verification model reported for a

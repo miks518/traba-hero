@@ -13,6 +13,7 @@ from app.services.lm_client import MAX_SEARCH_QUERIES
 from app.services.search import _canonical_url
 
 from .channel_match import (
+    SOURCE_INDEPENDENT_ESCALATIONS,
     apply_channel_rules,
     assess_channel_match,
     has_channel_content,
@@ -135,6 +136,14 @@ def _bind_to_retrieved(items: list, evidence: list, allowed: frozenset[str]) -> 
     handles the common case for free: a failed or empty search produces an empty
     `allowed` set, and then nothing is refuted by anything.
 
+    The demotion has one exception. `SOURCE_INDEPENDENT_ESCALATIONS` names the
+    reds that are a claim the posting makes about itself, and the government
+    branch is the only one: the posting said it was the office and supplied the
+    domain, so there is no retrieved source it could be bound to. Demoting it was
+    the corpus's flagship failure - the Fake CHED card said "That is outside the
+    .gov.ph domain" and was worth nothing, because the employer lookup searched
+    for the forgery's misspelling and never returned `ched.gov.ph`.
+
     `source_title` is cleared with the URL, because it names the page the reader
     was just sent to.
     """
@@ -149,7 +158,11 @@ def _bind_to_retrieved(items: list, evidence: list, allowed: frozenset[str]) -> 
             )
             url = ""
             item.source_title = ""
-        if not url and item.status == "red":
+        if (
+            not url
+            and item.status == "red"
+            and item.escalation not in SOURCE_INDEPENDENT_ESCALATIONS
+        ):
             item.status = "yellow"
         item.source_url = url
         bound.append(item)
