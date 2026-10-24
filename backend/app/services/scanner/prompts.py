@@ -84,6 +84,7 @@ SCAN_FIELD_RULES = """Field rules:
     - IMPERSONATES_AUTHORITY: presents itself as a government agency, the armed forces, or a named company, through a channel or domain it does not control
     - TASK_FOR_EARNING: discrete tasks, orders or referrals completed for payment, rather than a role with duties
     - OTHER: anything real that the entries above do not cover. Your label already carries the description, so OTHER plus a clear label is a complete finding.
+  * OTHER is only for a finding whose shape is not in the list. It is not for a benefit, an event, a hiring condition, a preference, or anything else a reader would not act on differently - report nothing instead.
   * A code must name a demand the posting makes. Do not choose a code for a detail the posting merely has.
   * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high. An "anomaly" is a description, so the label must not name a conclusion â€” write "Asks applicants to pay a processing fee", never "Scam fee request".
   * Severity means:

@@ -714,3 +714,48 @@ class TestTheDocumentedSensitivityIsReal:
         grants or manufactures it.
         """
         assert self._levels(25)["clean"] == "low"
+
+
+class TestOtherIsNotACharge:
+    def test_an_other_finding_contributes_the_low_weight_whatever_its_severity(self):
+        flags = [
+            Anomaly(
+                flag="Offers grocery bags to walk-ins",
+                reasoning="The posting mentions a freebie.",
+                severity="mid",
+                code="OTHER",
+            )
+        ]
+
+        score, _level, _breakdown = _posting_risk_from_flags(flags)
+
+        assert score == 4
+
+    def test_an_other_finding_does_not_carry_a_high_severity_either(self):
+        flags = [
+            Anomaly(
+                flag="Hiring event on Saturday",
+                reasoning="The posting names an in-person event.",
+                severity="high",
+                code="OTHER",
+            )
+        ]
+
+        score, _level, _breakdown = _posting_risk_from_flags(flags)
+
+        assert score == 4
+
+    def test_a_named_code_still_carries_the_severity_the_model_gave_it(self):
+        flags = [
+            Anomaly(
+                flag="Asks for a processing fee",
+                reasoning="The posting asks for money.",
+                severity="mid",
+                code="FEE_MANDATORY",
+            )
+        ]
+
+        score, _level, _breakdown = _posting_risk_from_flags(flags)
+
+        assert score == 12
+

@@ -153,15 +153,29 @@ def _posting_risk_from_flags(flags: list) -> tuple[int, str, dict]:
     but the posting itself, so an offer with no employer name, or one that cannot
     be looked up online, still gets a number. Nothing here is inferred — the
     weights only count indicators that were actually reported.
+
+    A finding whose code is `OTHER` counts as `low` whatever severity the model
+    gave it. `OTHER` is the escape valve for a finding whose shape the taxonomy
+    does not name, and the charge is defined by the shape; an unnameable finding
+    cannot also be a charge. The corpus measured the cost of letting it be one:
+    four legitimate postings carried a mid-severity `OTHER` — grocery bags for
+    walk-ins, an in-person hiring event, two gender preferences — at 12 points
+    each, any of which would have reached moderate with a free email beside it.
     """
     counts = {"high": 0, "mid": 0, "low": 0}
     for flag in flags or []:
         severity = getattr(flag, "severity", None)
-        if not severity and isinstance(flag, dict):
-            severity = flag.get("severity")
+        code = getattr(flag, "code", None)
+        if isinstance(flag, dict):
+            if not severity:
+                severity = flag.get("severity")
+            if code is None:
+                code = flag.get("code")
         severity = str(severity or "mid").strip().lower()
         if severity not in counts:
             severity = "mid"
+        if str(code or "").strip().upper() == "OTHER":
+            severity = "low"
         counts[severity] += 1
 
     score = min(

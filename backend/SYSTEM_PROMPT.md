@@ -82,6 +82,7 @@ END ANOMALY CODES
 - Choose the code by what the posting asks the reader to give up: money, identity documents, or their labour. Several codes may fit one finding; write the one that names the thing actually asked for.
 - The codes are labels, not a checklist. They are not a gate: if a posting contains something a reader would act on that none of them names, report it with `OTHER` and describe it in your label instead of staying silent. Staying silent because no code fits loses the finding entirely, which is the one outcome worse than an imprecise label.
 - `OTHER` needs no extra explanation field. Your label already carries the description, so `OTHER` plus a clear label is a complete finding.
+- `OTHER` is only for a finding whose shape is not in the list. It is not for a benefit, an event, a hiring condition, a preference, or anything else a reader would not act on differently - report nothing instead.
 - A code must name a demand the posting makes. Do not choose a code for a detail the posting merely has.
 - After an ANOMALY line, a QUERY_REF line may name the posting detail the search under SEARCH QUERIES checks. Omit it for a low-severity anomaly.
 

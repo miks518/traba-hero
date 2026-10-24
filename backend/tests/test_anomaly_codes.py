@@ -471,6 +471,20 @@ def test_the_prompt_says_a_free_email_is_not_a_third_party():
     assert "not a third party" in prompt
 
 
+def test_the_prompt_says_other_is_not_for_a_benefit_or_a_preference():
+    """The corpus measured four legitimate postings carrying a mid-severity
+    `OTHER`: grocery bags for walk-ins, an in-person hiring event, and two
+    gender preferences. `OTHER` is the escape valve for a finding whose shape
+    the list does not name, and it is not for a thing a reader would not act on
+    differently.
+    """
+    prompt = load_system_prompt().lower()
+
+    assert "benefit" in prompt
+    assert "hiring condition" in prompt
+    assert "preference" in prompt
+
+
 # --- the fee facts --------------------------------------------------------
 
 
