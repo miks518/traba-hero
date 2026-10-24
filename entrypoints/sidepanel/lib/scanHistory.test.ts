@@ -168,14 +168,43 @@ describe('migrateScannedJobs renames the findings field', () => {
     expect(next[0].scanResult.anomalies[0].severity).toBe('high');
   });
 
-  it('leaves a measured verdict alone', () => {
-    // The verdict was measured. What the findings are called does not change
-    // that, and clearing it would discard real evidence the reader cannot
-    // re-obtain without rescanning.
+  it('maps a stored level onto the nearest verdict word', () => {
+    // `moderate` becomes `caution`: the old level was a score band, the new word
+    // is a warning, and the two nearest are those.
     const next = migrateScannedJobs(legacy());
 
-    expect(next[0].scanResult.verdict).toBe('note');
-    expect(next[0].scanResult.verdictLabel).toBe('Note');
+    expect(next[0].scanResult.verdict).toBe('caution');
+    expect(next[0].scanResult.verdictLabel).toBe('Caution');
+  });
+
+  it('marks the mapping as a legacy reading, not a verdict this system reached', () => {
+    // The whole difference between a migration and a silent re-labelling. A
+    // stored record has no request class and no establishment, so the grid
+    // cannot run on it; the word is a label and the flag says so.
+    const next = migrateScannedJobs(legacy());
+
+    expect(next[0].scanResult.verdictRecordedUnder).toBe('previous-procedure');
+    // And neither grid input is invented to fill the gap.
+    expect(next[0].scanResult.requestClass).toBeUndefined();
+  });
+
+  it('maps a stored high to stop rather than softening it', () => {
+    // An old `high` was a posting its scanner thought dangerous. Downgrading it
+    // on the way through a schema change would quietly tell a reader a posting
+    // had improved.
+    const next = migrateScannedJobs(legacy({ riskLevel: 'high', riskLabel: 'High Risk' }));
+
+    expect(next[0].scanResult.verdict).toBe('stop');
+    expect(next[0].scanResult.verdictRecordedUnder).toBe('previous-procedure');
+  });
+
+  it('leaves a record that already carries a verdict untouched', () => {
+    const next = migrateScannedJobs(
+      legacy({ verdict: 'clear', verdictLabel: 'Proceed', verdicted: true, requestClass: 'ordinary' }),
+    );
+
+    expect(next[0].scanResult.verdict).toBe('clear');
+    expect(next[0].scanResult.verdictRecordedUnder).toBeUndefined();
   });
 
   it('drops the old key rather than keeping both', () => {

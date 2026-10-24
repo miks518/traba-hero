@@ -55,7 +55,14 @@ export type IconName =
   | 'question_mark'
   | 'cloud_off';
 
-export type JobFilterCategory = 'all' | 'verified' | 'suspicious' | 'risky' | 'low' | 'moderate' | 'high' | 'critical';
+/**
+ * The history list's filter chips.
+ *
+ * The four verdict words themselves, so a chip and the badge on the row it keeps
+ * cannot disagree. It used to be `verified`/`suspicious`/`risky`, which was a
+ * second vocabulary for the same rows and a second place for it to drift.
+ */
+export type JobFilterCategory = 'all' | Verdict;
 
 export interface NavTab {
   id: ViewId;
@@ -268,6 +275,15 @@ export interface ScanResult {
   verdict: Verdict | null;
   /** Human-readable label for the verdict (e.g., "Proceed", "Do not proceed"). */
   verdictLabel: string;
+  /**
+   * Set on a stored reading that was migrated from the retired level
+   * vocabulary, and absent on anything this system decided.
+   *
+   * A stored scan carries a level and no request class and no establishment, so
+   * its verdict word is a label, not a decision the grid reached. The panel must
+   * say which it is showing; the flag is how it knows.
+   */
+  verdictRecordedUnder?: 'previous-procedure';
   /**
    * What the posting asks for, from the scan. Absent means the reading predates
    * the field; it is never defaulted to `ordinary`.

@@ -74,9 +74,21 @@ export function updateScannedJob(
  *
  * **The field rename.** `redFlags` became `anomalies`. Without this, every
  * stored scan would render as a clean posting: the findings are still in
- * storage under the old key, and nothing would read them. The score is left
- * alone — a stored score was measured and stays measured, whatever the
- * findings are called now.
+ * storage under the old key, and nothing would read them.
+ *
+ * **The vocabulary, and why the result is marked.** A stored scan carries a
+ * level — `low`/`moderate`/`high`/`critical` — and no request class and no
+ * establishment, so the new verdict cannot be *computed* from it: the two inputs
+ * the grid reads are simply not in the record. It is mapped to the nearest
+ * reader-facing word instead, and the entry is stamped
+ * `verdictRecordedUnder: 'previous-procedure'` so nothing presents a legacy
+ * level as a verdict this system reached. That stamp is the difference between
+ * a migration and a silent re-labelling.
+ *
+ * The mapped word is deliberately the harsher of the two neighbours: a stored
+ * `high` becomes `stop`, not `caution`. An old `high` was a posting its scanner
+ * thought dangerous, and downgrading it on the way through a schema change would
+ * quietly tell a reader a posting had improved.
  */
 export function migrateScannedJobs(stored: unknown): ScannedJob[] {
   if (!Array.isArray(stored)) return [];
@@ -99,19 +111,22 @@ export function migrateScannedJobs(stored: unknown): ScannedJob[] {
       ? { ...(rest as unknown as ScanResult), anomalies: legacyFlags as Anomaly[] }
       : (rest as unknown as ScanResult);
 
-    // Migrate legacy riskLevel/riskLabel to the new verdict vocabulary.
+    // Map a legacy level onto the nearest verdict word, and mark it as legacy.
+    // The two inputs the grid reads are not in a stored record, so this is a
+    // label and never a computed verdict.
     if (legacyRiskLevel !== undefined && renamed.verdict === undefined) {
-      const mapping: Record<string, { verdict: string; label: string }> = {
+      const mapping: Record<string, { verdict: Verdict; label: string }> = {
         critical: { verdict: 'stop', label: 'Do not proceed' },
-        high: { verdict: 'caution', label: 'Caution' },
-        moderate: { verdict: 'note', label: 'Note' },
+        high: { verdict: 'stop', label: 'Do not proceed' },
+        moderate: { verdict: 'caution', label: 'Caution' },
         low: { verdict: 'clear', label: 'Proceed' },
       };
       const mapped = mapping[legacyRiskLevel as string];
       if (mapped) {
-        renamed.verdict = mapped.verdict as Verdict;
+        renamed.verdict = mapped.verdict;
         renamed.verdictLabel = mapped.label;
         renamed.verdicted = true;
+        renamed.verdictRecordedUnder = 'previous-procedure';
       }
     }
 

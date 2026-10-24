@@ -13,8 +13,7 @@
 // assume the dangerous jobs were already handled. The test therefore asserts the
 // message for every verdict, not just that the critical case changed.
 
-import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 import { ResumeMatchView } from './ResumeMatchView';
 import type { ScannedJob } from '../types';
@@ -100,13 +99,18 @@ describe('the per-job matching status is correct for every verdict', () => {
     expect(text).not.toMatch(/Included in resume matching/i);
   });
 
-  it('says a note job is excluded', async () => {
+  it('says a note job is included, because the employer was confirmed', async () => {
+    // `note` is a prohibited request at an employer the record confirmed, so the
+    // reader can go and see the fee on the employer's own site. That is a
+    // posting the matcher may use; `caution` and `stop` are not.
     const { container } = renderWith('note');
     await act(async () => {
       expandFirstRow();
     });
 
-    expect(container.textContent ?? '').toMatch(/Excluded from resume matching/i);
+    const text = container.textContent ?? '';
+    expect(text).toMatch(/Included in resume matching/i);
+    expect(text).not.toMatch(/Excluded from resume matching/i);
   });
 
   it('says an unassessed job is excluded pending verification', async () => {
@@ -116,6 +120,23 @@ describe('the per-job matching status is correct for every verdict', () => {
     });
 
     expect(container.textContent ?? '').toMatch(/Not yet assessed/i);
+  });
+
+  it('says out loud when a verdict word came from the previous procedure', async () => {
+    // A stored reading has no request class and no establishment, so its verdict
+    // was mapped from the retired level. Showing that word without saying where
+    // it came from would present a legacy label as a decision this system made.
+    const legacy = job('caution');
+    legacy.scanResult.verdictRecordedUnder = 'previous-procedure';
+
+    const { container } = renderWith('caution', [legacy]);
+    await act(async () => {
+      expandFirstRow();
+    });
+
+    const text = container.textContent ?? '';
+    expect(text).toMatch(/carried over from the previous procedure/i);
+    expect(text).not.toMatch(/Included in resume matching/i);
   });
 
   it('only a clear job is reported as included', async () => {
@@ -152,7 +173,7 @@ describe('verdict badges are distinguishable', () => {
   });
 });
 
-describe('the matching input is clear jobs only', () => {
+describe('the matching input is the matchable verdicts', () => {
   it('never feeds a stop or caution job to the matcher', async () => {
     const matchResumeStream = vi.fn();
     vi.doMock('../lib/api', () => ({
@@ -172,8 +193,10 @@ describe('the matching input is clear jobs only', () => {
       } as never)
     );
 
-    // The count on the match button is the set that will be matched.
+    // The count on the match button is the set that will be matched, and it is
+    // the two the reader can act on.
     await act(async () => {});
-    expect(container.textContent).toMatch(/\(1 Proceed\)/);
+    expect(container.textContent).toMatch(/\(2\)/);
+    expect(container.textContent).not.toMatch(/\(4\)/);
   });
 });
