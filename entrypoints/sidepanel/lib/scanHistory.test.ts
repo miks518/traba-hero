@@ -50,10 +50,10 @@ describe('scan history length', () => {
 
 function result(over: Partial<ScanResult> = {}): ScanResult {
   return {
-    riskLevel: 'low',
-    riskLabel: 'Low Risk',
-    riskScored: true,
-    riskScore: 0,
+    verdict: 'clear',
+    verdictLabel: 'Proceed',
+    verdicted: true,
+    verdictBreakdown: undefined,
     scanningTarget: 'Scanned Element',
     anomalies: [],
     flagsCritical: false,
@@ -74,41 +74,41 @@ function job(id: string, over: Partial<ScanResult> = {}): ScannedJob {
 }
 
 describe('updateScannedJob', () => {
-  it('replaces the score once verification finishes', () => {
+  it('replaces the verdict once verification finishes', () => {
     // The bug: the history entry is written at scan time with the posting-stage
-    // score, then verification blends in an employer score and the panel moves
-    // to 12 while history stays at 0.
-    const stored = [job('a', { riskScore: 0, riskLevel: 'low' })];
+    // verdict, then verification blends in an employer score and the panel moves
+    // to 'note' while history stays at null.
+    const stored = [job('a', { verdict: null })];
 
-    const next = updateScannedJob(stored, 'a', result({ riskScore: 12, riskLevel: 'low' }));
+    const next = updateScannedJob(stored, 'a', result({ verdict: 'note' }));
 
-    expect(next[0].scanResult.riskScore).toBe(12);
+    expect(next[0].scanResult.verdict).toBe('note');
   });
 
   it('does not append a second entry for the same job', () => {
     const stored = [job('a')];
-    const next = updateScannedJob(stored, 'a', result({ riskScore: 12 }));
+    const next = updateScannedJob(stored, 'a', result({ verdict: 'note' }));
     expect(next).toHaveLength(1);
   });
 
   it('leaves other jobs untouched', () => {
-    const stored = [job('a'), job('b', { riskScore: 40 })];
-    const next = updateScannedJob(stored, 'a', result({ riskScore: 12 }));
-    expect(next[1].scanResult.riskScore).toBe(40);
+    const stored = [job('a'), job('b', { verdict: 'caution' })];
+    const next = updateScannedJob(stored, 'a', result({ verdict: 'note' }));
+    expect(next[1].scanResult.verdict).toBe('caution');
   });
 
   it('is a no-op when the id is unknown', () => {
     const stored = [job('a')];
-    const next = updateScannedJob(stored, 'missing', result({ riskScore: 12 }));
+    const next = updateScannedJob(stored, 'missing', result({ verdict: 'note' }));
     expect(next).toEqual(stored);
   });
 
-  it('carries the verification result and score breakdown through', () => {
+  it('carries the verification result and verdict breakdown through', () => {
     // The employer stage also produces evidence the reader can open. Updating
     // only the number would leave history claiming a score it cannot explain.
     const stored = [job('a')];
     const verified = result({
-      riskScore: 12,
+      verdict: 'note',
       verificationResult: {
         items: [{ label: 'Official Registration', status: 'green', explanation: 'CS201500123' }],
         report: 'r',
@@ -126,7 +126,7 @@ describe('updateScannedJob', () => {
     // entry left there forever would show a spinner that never resolves.
     const stored = [job('a', { verificationLoading: true })];
 
-    const next = updateScannedJob(stored, 'a', result({ riskScore: 0, verificationLoading: false, verificationError: true }));
+    const next = updateScannedJob(stored, 'a', result({ verdict: 'note', verificationLoading: false, verificationError: true }));
 
     expect(next[0].scanResult.verificationLoading).toBe(false);
     expect(next[0].scanResult.verificationError).toBe(true);
@@ -168,14 +168,14 @@ describe('migrateScannedJobs renames the findings field', () => {
     expect(next[0].scanResult.anomalies[0].severity).toBe('high');
   });
 
-  it('leaves a measured score alone', () => {
-    // The score was measured. What the findings are called does not change
+  it('leaves a measured verdict alone', () => {
+    // The verdict was measured. What the findings are called does not change
     // that, and clearing it would discard real evidence the reader cannot
     // re-obtain without rescanning.
     const next = migrateScannedJobs(legacy());
 
-    expect(next[0].scanResult.riskScore).toBe(52);
-    expect(next[0].scanResult.riskLevel).toBe('moderate');
+    expect(next[0].scanResult.verdict).toBe('note');
+    expect(next[0].scanResult.verdictLabel).toBe('Note');
   });
 
   it('drops the old key rather than keeping both', () => {
@@ -191,11 +191,11 @@ describe('migrateScannedJobs renames the findings field', () => {
     expect(next[0].scanResult.anomalies).toBeUndefined();
   });
 
-  it('still clears a synthesised score it finds on the way past', () => {
+  it('still clears a synthesised verdict it finds on the way past', () => {
     // The original purpose of this function is unchanged by the rename.
-    const next = migrateScannedJobs(legacy({ riskScored: false, riskScore: 80 }));
+    const next = migrateScannedJobs(legacy({ verdicted: false, verdict: 'stop' }));
 
-    expect(next[0].scanResult.riskScore).toBeNull();
-    expect(next[0].scanResult.riskLabel).toBe('Not Scored');
+    expect(next[0].scanResult.verdict).toBeNull();
+    expect(next[0].scanResult.verdictLabel).toBe('Not Assessed');
   });
 });

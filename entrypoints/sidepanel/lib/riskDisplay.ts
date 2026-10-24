@@ -67,37 +67,37 @@ export function isUnverifiedEmployer({
   return !companyName || companyName.trim().length === 0;
 }
 
-/** The levels that put the evidence above the prose. */
-export const ELEVATED_LEVELS = ['high', 'critical'] as const;
+/** The verdicts that put the evidence above the prose. */
+export const ELEVATED_VERDICTS = ['stop', 'caution'] as const;
 
 /** Just the fields a decision about layout depends on. */
 export interface ElevationInput {
-  riskLevel: 'low' | 'moderate' | 'high' | 'critical' | null;
+  verdict: 'clear' | 'note' | 'caution' | 'stop' | null;
   verificationLoading?: boolean;
   offerAnalysisLoading?: boolean;
 }
 
 /**
- * True when a settled high or critical score should lead with the evidence.
+ * True when a settled stop or caution verdict should lead with the evidence.
  *
- * Waiting for the level to settle is the point of the `loading` checks. The
- * scan returns a posting-stage score, then external verification blends an
- * employer score into it, so a posting can read "high" and settle at
- * "moderate". Reordering on the intermediate value would move the reader's
+ * Waiting for the verdict to settle is the point of the `loading` checks. The
+ * scan returns a posting-stage verdict, then external verification blends an
+ * employer score into it, so a posting can read "caution" and settle at
+ * "note". Reordering on the intermediate value would move the reader's
  * evidence out from under them and then put it back.
  *
- * A failed verification still promotes, because the posting stage's score is
+ * A failed verification still promotes, because the posting stage's verdict is
  * real and the evidence is already known — what is missing is the employer
- * lookup, not the anomalies. An unverified level never promotes: "Unverified"
+ * lookup, not the anomalies. An unverdicted result never promotes: "Unverified"
  * is an absent measurement, not a high one.
  */
 export function shouldElevateEvidence({
-  riskLevel,
+  verdict,
   verificationLoading,
   offerAnalysisLoading,
 }: ElevationInput): boolean {
   if (verificationLoading || offerAnalysisLoading) return false;
-  return riskLevel === 'high' || riskLevel === 'critical';
+  return verdict === 'stop' || verdict === 'caution';
 }
 
 /**

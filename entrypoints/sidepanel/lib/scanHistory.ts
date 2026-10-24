@@ -1,4 +1,4 @@
-import type { Anomaly, ScanResult, ScannedJob } from '../types';
+import type { Anomaly, ScanResult, ScannedJob, Verdict } from '../types';
 
 /**
  * How many scans are kept.
@@ -88,7 +88,7 @@ export function migrateScannedJobs(stored: unknown): ScannedJob[] {
     // `redFlags` is not on the type any more, so it is reached through `unknown`.
     // Checked for shape rather than cast straight to Anomaly[]: a stored entry
     // could hold anything, and a malformed list must not become a render crash.
-    const { redFlags: legacyFlags, ...rest } = scanResult as unknown as Record<
+    const { redFlags: legacyFlags, riskLevel: legacyRiskLevel, riskLabel: legacyRiskLabel, ...rest } = scanResult as unknown as Record<
       string,
       unknown
     >;
@@ -99,16 +99,31 @@ export function migrateScannedJobs(stored: unknown): ScannedJob[] {
       ? { ...(rest as unknown as ScanResult), anomalies: legacyFlags as Anomaly[] }
       : (rest as unknown as ScanResult);
 
-    if (renamed.riskScored === true) return { ...job, scanResult: renamed };
+    // Migrate legacy riskLevel/riskLabel to the new verdict vocabulary.
+    if (legacyRiskLevel !== undefined && renamed.verdict === undefined) {
+      const mapping: Record<string, { verdict: string; label: string }> = {
+        critical: { verdict: 'stop', label: 'Do not proceed' },
+        high: { verdict: 'caution', label: 'Caution' },
+        moderate: { verdict: 'note', label: 'Note' },
+        low: { verdict: 'clear', label: 'Proceed' },
+      };
+      const mapped = mapping[legacyRiskLevel as string];
+      if (mapped) {
+        renamed.verdict = mapped.verdict as Verdict;
+        renamed.verdictLabel = mapped.label;
+        renamed.verdicted = true;
+      }
+    }
+
+    if (renamed.verdicted === true) return { ...job, scanResult: renamed };
 
     return {
       ...job,
       scanResult: {
         ...renamed,
-        riskScored: false,
-        riskScore: null,
-        riskLevel: null,
-        riskLabel: 'Not Scored',
+        verdicted: false,
+        verdict: null,
+        verdictLabel: 'Not Assessed',
       },
     };
   });

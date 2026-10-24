@@ -111,10 +111,8 @@ async function consumeSseStream(
         });
       } else if (event.type === 'result') {
         const data = event.data as ApiScanResponse;
-        // Translated here so nothing downstream reads a wire key. The view
-        // builds a ScanResult straight from this object, and the backend's
-        // `verification_score` in particular is no longer what its name says.
-        return { ...data, score_breakdown: toScoreBreakdown(data.score_breakdown) };
+        // The wire now carries the verdict vocabulary directly.
+        return { ...data };
       } else if (event.type === 'error') {
         throw new Error(String(event.error ?? 'Scan failed'));
       }
@@ -531,7 +529,7 @@ export interface VerifyContext {
 }
 
 export interface VerifyStreamResult {
-  result?: VerificationResult & { riskScore?: number; riskLevel?: string; scoreBreakdown?: RiskScoreBreakdown };
+  result?: VerificationResult & { verdict?: string; verdictBreakdown?: Record<string, unknown>; verdictText?: string };
   timedOut?: boolean;
 }
 
@@ -643,7 +641,6 @@ export async function verifyJobStream(
             recommendation: string;
             verdict?: string;
             verdictBreakdown?: Record<string, unknown>;
-            verdictReason?: string;
             verdictText?: string;
             requestClass?: string;
             request_class?: string;
@@ -656,6 +653,13 @@ export async function verifyJobStream(
             queries_failed?: number;
             model_queries?: string[];
             debug_search_raw?: Array<{ query: string; raw: string }>;
+            anomaly_assessments?: Array<{
+              index: number;
+              status: string;
+              finding: string;
+              source_title?: string;
+              source_url?: string;
+            }>;
             /**
              * camelCase here while its neighbours stay snake_case, because
              * `verification_flow.py` puts it in its response dict that way and the
@@ -663,7 +667,6 @@ export async function verifyJobStream(
              * client does not depend on which one the backend happened to keep.
              */
             verdictReason?: string;
-            verdict_reason?: string;
           };
           return {
             result: {
@@ -674,8 +677,8 @@ export async function verifyJobStream(
               // Empty string rather than dropped: the backend already screens
               // what may appear here, and an absent value is what the panel reads
               // as "no reason to show".
-              verdictReason: data.verdictReason ?? data.verdict_reason ?? '',
-              verdict: data.verdict,
+              verdictReason: data.verdictReason ?? '',
+              verdict: data.verdict as 'clear' | 'note' | 'caution' | 'stop' | undefined,
               verdictBreakdown: data.verdictBreakdown,
               verdictText: data.verdictText,
               requestClass: data.requestClass ?? data.request_class,

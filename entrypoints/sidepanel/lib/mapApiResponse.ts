@@ -89,6 +89,7 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
     verdicted: verdict !== null,
     verdictBreakdown: data.verdict_breakdown || undefined,
     verdictText: data.verdict_text || undefined,
+    riskDescription: '',
     unverifiedEmployer: isUnverifiedEmployer({
       isJobPosting,
       companyName: data.company_name || null,
@@ -102,7 +103,6 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
     secRegistration: data.sec_registration || [],
     jobSummary: data.job_summary || undefined,
     postingAnalysis: data.posting_analysis || undefined,
-    verdictBreakdown: data.verdict_breakdown || undefined,
     // Copied through, never defaulted. An empty object here would render as "the
     // posting claimed nothing", which is a claim about the posting; what is true
     // when the scan reports none is that we have nothing to show.

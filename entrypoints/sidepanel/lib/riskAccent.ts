@@ -1,4 +1,4 @@
-import type { ScanRiskLevel } from '../types';
+import type { Verdict } from '../types';
 
 /**
  * Risk colour for chrome, not for prose.
@@ -39,22 +39,22 @@ const ELEVATED: Accent = {
   button: 'tactile-btn-error',
 };
 
-const MODERATE: Accent = {
+const CAUTION: Accent = {
   text: 'text-tertiary',
   surface: 'bg-tertiary-container/10',
   border: 'border-tertiary/40',
   button: '',
 };
 
-/** The levels whose evidence is promoted to the top. */
-export const ELEVATED_LEVELS = ['high', 'critical'] as const;
+/** The verdicts that get elevated treatment. */
+export const ELEVATED_VERDICTS = ['stop', 'caution'] as const;
 
-export function isElevated(level: ScanRiskLevel | null | undefined): boolean {
-  return level === 'high' || level === 'critical';
+export function isElevated(verdict: Verdict | null | undefined): boolean {
+  return verdict === 'stop' || verdict === 'caution';
 }
 
-export function riskAccent(level: ScanRiskLevel | null | undefined): Accent {
-  if (isElevated(level)) return ELEVATED;
-  if (level === 'moderate') return MODERATE;
+export function riskAccent(verdict: Verdict | null | undefined): Accent {
+  if (isElevated(verdict)) return ELEVATED;
+  if (verdict === 'note') return CAUTION;
   return NONE;
 }

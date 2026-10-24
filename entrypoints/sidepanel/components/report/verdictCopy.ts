@@ -1,14 +1,14 @@
 /**
  * Every word the verdict block and the action block say.
  *
- * **All of it is authored here, in code, and looked up by level.** Nothing in
+ * **All of it is authored here, in code, and looked up by verdict.** Nothing in
  * this file may ever be written by a model. That is the whole point of the file
  * existing, and it is not a stylistic preference:
  *
  * 1. **It cannot drift between runs.** A generated phrase is a fresh variance
  *    source on every scan, and verdict stability is a thing this project
  *    measures. An authored table makes phrase stability trivially constant, so
- *    the measurement that remains is level stability — a better thing to measure,
+ *    the measurement that remains is verdict stability — a better thing to measure,
  *    since a phrase is not comparable across two postings in any case.
  * 2. **It keeps the libel guardrail in code.** These are instructions read by
  *    someone deciding about their own money and documents. Four reviewed strings
@@ -20,16 +20,15 @@
  * §3.
  */
 
-import type { ScanRiskLevel } from '../../types';
+import type { Verdict } from '../../types';
 
 /**
- * Three tones for four levels.
+ * Four tones for four verdicts.
  *
- * `low` and `moderate` are both "proceed, with something to check", so they share
- * the caution fill and are told apart by the headline rather than by the colour.
- * Designing eight distinct phrases across four levels would make the panel look
- * more precise than the evidence is — four levels is a coarse label, and the
- * panel should not pretend to more.
+ * `stop` gets the critical tone (red). `caution` gets the caution tone (amber).
+ * `note` gets the verified tone (green) because the employer is confirmed/supported.
+ * `clear` gets the verified tone (green) because the request is ordinary.
+ * `unknown` gets the unknown tone (grey) for missing employer / in-flight.
  */
 export type VerdictTone = 'critical' | 'caution' | 'verified' | 'unknown';
 
@@ -40,47 +39,45 @@ export interface VerdictCopy {
 }
 
 /**
- * The phrase table. Four levels, four reviewed strings.
+ * The phrase table. Four verdicts, four reviewed strings.
  *
  * Written as imperatives addressed to the reader, because the design settles
  * this: *the verdict is a short instruction plus a one-line reason, not a number
- * or a level word*. "Low Risk" tells a reader where they landed; "Proceed, with
- * a quick check" tells them what to do.
+ * or a level word*. "Proceed" tells a reader what to do; "Low Risk" tells them
+ * where they landed — and the latter overclaims when the posting was unchecked.
+ *
+ * "Do not proceed" is the ace card: it is the headline for `stop` only, and
+ * `stop` requires a contradiction. Every other verdict states what was found
+ * and what the record showed.
  */
-const VERDICT_TABLE: Record<ScanRiskLevel, VerdictCopy> = {
-  critical: {
+const VERDICT_TABLE: Record<Verdict, VerdictCopy> = {
+  stop: {
     headline: 'Do not proceed',
     tone: 'critical',
   },
-  high: {
-    headline: 'Do not proceed without checking first',
-    tone: 'critical',
-  },
-  moderate: {
-    headline: 'Proceed with caution',
+  caution: {
+    headline: 'Caution — settle the fee recipient and reason first',
     tone: 'caution',
   },
-  low: {
-    headline: 'Proceed, with a quick check',
-    // Deliberately caution, not verified. A low result means we found little,
-    // which is not the same as having confirmed the posting is safe — and a
-    // green banner on a scan that checked one page of a link would overclaim
-    // exactly as badly as a red one overclaims the other way. The distinction is
-    // carried by the headline's "with a quick check", which is not optional
-    // phrasing.
-    tone: 'caution',
+  note: {
+    headline: 'Note — check the employer\'s own site for the stated fee',
+    tone: 'verified',
+  },
+  clear: {
+    headline: 'Proceed',
+    tone: 'verified',
   },
 };
 
 /**
- * The one state with no level behind it.
+ * The one state with no verdict behind it.
  *
  * Reached when the posting named no employer, so the employer check could not
  * run. **Not** rendered as a clean result: the posting stage scores zero when a
  * posting raises no indicators, and showing that as reassurance would claim the
  * post was cleared when it was unchecked. This is the panel's answer to the same
  * question `CompanyNameNeeded` answers in prose — that state still exists as its
- * own component, and the banner here only declines to assert a level.
+ * own component, and the banner here only declines to assert a verdict.
  */
 export const NO_VERDICT: VerdictCopy = {
   headline: 'No verdict on this one',
@@ -91,9 +88,9 @@ export const NO_VERDICT: VerdictCopy = {
  * What the banner says while the employer lookup is still running.
  *
  * The tone is `unknown` rather than the posting stage's own level, on purpose.
- * The scan returns a level from the posting alone, but the settled level can move
- * once verification blends in — a posting can read `high` and settle at
- * `moderate`. Showing the intermediate value as though it were the verdict is the
+ * The scan returns a verdict from the posting alone, but the settled verdict can
+ * move once verification blends in — a posting can read `caution` and settle at
+ * `note`. Showing the intermediate value as though it were the verdict is the
  * same overclaim as showing the retired score, in a new place: the reader is told
  * where to stop before anything has checked who is asking.
  *
@@ -106,20 +103,18 @@ export const VERIFYING: VerdictCopy = {
   tone: 'unknown',
 };
 
-export function verdictFor(level: ScanRiskLevel | null | undefined): VerdictCopy {
-  if (!level) return NO_VERDICT;
-  return VERDICT_TABLE[level];
+export function verdictFor(verdict: Verdict | null | undefined): VerdictCopy {
+  if (!verdict) return NO_VERDICT;
+  return VERDICT_TABLE[verdict];
 }
 
 /**
  * The two instruction lines in the action block.
  *
  * Authored per verdict family, and keyed to the family rather than the exact
- * level on purpose: a `critical` and a `high` posting need the reader to stop,
- * and the difference between them is what the anomalies below say, not what the
- * reader should do next. Telling a `high` reader to "proceed with caution" while
- * a `critical` reader is told to stop would make the panel's instruction less
- * precise, not more, because the two levels are one decision.
+ * verdict on purpose: `stop` needs the reader to stop; `caution` needs the
+ * reader to settle the fee; `note` needs the reader to check the employer's site;
+ * `clear` needs the reader to proceed.
  *
  * The second line is the one that keeps this from being a lecture. It tells the
  * reader what to do *next*, which is a thing they can act on today.
@@ -152,25 +147,46 @@ export interface ActionLines {
   bullet: string;
 }
 
-const ACTION_TABLE: Record<'stop' | 'proceed', ActionLines> = {
+const ACTION_TABLE: Record<Verdict | 'unknown', ActionLines> = {
   stop: {
-    lead: 'Stop the application.',
-    rest: 'Do not send money, and do not send identity documents, even if the request says the fee is refundable.',
-    secondLead: 'Do not reply',
-    secondRest: 'to the recruiter until you have checked the company yourself.',
+    lead: 'Do not send money or documents.',
+    rest: 'Even if the request says the fee is refundable, do not send money or identity documents. Stop the application and do not reply to the recruiter until you have checked the company yourself.',
+    secondLead: 'Check the company yourself',
+    secondRest: 'through an official channel before you apply for anything.',
     bullet: 'bg-verdict-critical',
   },
-  proceed: {
-    lead: 'Keep the conversation on the company’s own domain.',
-    rest: 'If they switch to a personal email or a messaging app, that is worth asking about before you send anything.',
-    secondLead: 'Check the role yourself',
-    secondRest: 'on the company’s careers page before you apply for anything.',
+  caution: {
+    lead: 'Ask who receives the fee and why.',
+    rest: 'A fee to a personal account or an agency before a contract is the pattern the rules prohibit.',
+    secondLead: 'Confirm the employer\'s identity',
+    secondRest: 'through an official channel before you send anything.',
     bullet: 'bg-verdict-caution-container',
+  },
+  note: {
+    lead: 'Check the employer\'s official site for the stated fee.',
+    rest: 'The employer is confirmed and the fee is stated on their site.',
+    secondLead: 'Proceed with the application',
+    secondRest: 'through the company\'s own domain.',
+    bullet: 'bg-verdict-verified',
+  },
+  clear: {
+    lead: 'Proceed with the application.',
+    rest: 'The posting asks for nothing the rules prohibit.',
+    secondLead: 'Keep the conversation on the company\'s own domain.',
+    secondRest: 'If they switch to a personal email or a messaging app, that is worth asking about before you send anything.',
+    bullet: 'bg-verdict-verified',
+  },
+  unknown: {
+    lead: 'No verdict on this one.',
+    rest: 'The employer was not looked up, so nothing was assessed.',
+    secondLead: 'Check the company name',
+    secondRest: 'and scan again when you have one.',
+    bullet: 'bg-verdict-unknown',
   },
 };
 
 /**
- * The bullet colour when there is no level to follow.
+ * The bullet colour when there is no verdict to follow.
  *
  * Neutral, deliberately. `ActionBlock` is asked for a bullet even when the
  * verdict is "no verdict on this one", and an amber bullet there would attach an
@@ -179,9 +195,9 @@ const ACTION_TABLE: Record<'stop' | 'proceed', ActionLines> = {
  */
 export const NO_VERDICT_BULLET = 'bg-verdict-unknown';
 
-export function actionsFor(level: ScanRiskLevel | null | undefined): ActionLines {
-  if (level === 'high' || level === 'critical') return ACTION_TABLE.stop;
-  return ACTION_TABLE.proceed;
+export function actionsFor(verdict: Verdict | null | undefined): ActionLines {
+  if (!verdict) return ACTION_TABLE.unknown;
+  return ACTION_TABLE[verdict];
 }
 
 /**

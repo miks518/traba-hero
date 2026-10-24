@@ -107,14 +107,14 @@ export function ReportPanel({
   // reasons unrelated to order.
   const flip = useFlipReorder(elevate);
 
-  const level = result.riskLevel;
+  const verdict = result.verdict;
 
   // The banner's tone, resolved once here and handed to both the banner and the
   // disclosure below it. `VerdictBlock` looks this up for itself from the same
   // two inputs, so there is one rule rather than two — but it is a lookup from
   // the authored table, not a second definition of which level means what, and
   // the two components have to agree or the panel reads as two objects.
-  const tone = (verifying ? VERIFYING : verdictFor(level)).tone;
+  const tone = (verifying ? VERIFYING : verdictFor(verdict)).tone;
 
   // `VALID: false` is a state of its own, not an empty report. The scan found no
   // offer of work to assess, so there is no verdict, no findings and no checks
@@ -131,9 +131,9 @@ export function ReportPanel({
     <article className="flex flex-col gap-stack-md" data-role="report-panel">
       <JobMeta timestamp={timestamp} title={title} employer={result.companyName} />
 
-      <VerdictBlock level={level} verifying={verifying} reason={verdictReason} />
+      <VerdictBlock verdict={verdict} verifying={verifying} reason={verdictReason} />
 
-      <ActionBlock level={level} />
+      <ActionBlock verdict={verdict} />
 
       {/*
         Two sibling groups, both always mounted, one visible at a time by `order`.

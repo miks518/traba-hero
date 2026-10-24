@@ -1,11 +1,11 @@
 import React from 'react';
 import { Icon, type IconName } from '../common';
 import { verdictFor, NO_VERDICT, VERIFYING, type VerdictTone } from './verdictCopy';
-import type { ScanRiskLevel } from '../../types';
+import type { Verdict } from '../../types';
 
 export interface VerdictBlockProps {
   /**
-   * The settled level, or null when there is none to report.
+   * The settled verdict, or null when there is none to report.
    *
    * Null covers two different situations and the banner answers them the same
    * way on purpose. One is a posting that named no employer, so nothing about the
@@ -14,8 +14,8 @@ export interface VerdictBlockProps {
    * employer, and a banner that picked between them would be asserting a
    * distinction the evidence does not support.
    */
-  level: ScanRiskLevel | null;
-  /** The employer lookup is still running. Suppresses the level entirely. */
+  verdict: Verdict | null;
+  /** The employer lookup is still running. Suppresses the verdict entirely. */
   verifying?: boolean;
   /**
    * The one-line reason.
@@ -63,8 +63,8 @@ const TONE_ICON: Record<VerdictTone, IconName> = {
  * reason — so the reader is told what to do, and the panel never has to defend a
  * figure it cannot reproduce.
  */
-export function VerdictBlock({ level, verifying, reason }: VerdictBlockProps) {
-  const copy = verifying ? VERIFYING : level ? verdictFor(level) : NO_VERDICT;
+export function VerdictBlock({ verdict, verifying, reason }: VerdictBlockProps) {
+  const copy = verifying ? VERIFYING : verdict ? verdictFor(verdict) : NO_VERDICT;
   const toneClass = TONE_CLASS[copy.tone];
 
   return (

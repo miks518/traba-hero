@@ -8,7 +8,7 @@ import {
   type VerifyContext,
 } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
-import { mapApiResponse, riskLevelLabel } from '../lib/mapApiResponse';
+import { mapApiResponse, verdictLabel } from '../lib/mapApiResponse';
 import { shouldElevateEvidence, type VerificationRun } from '../lib/riskDisplay';
 import type { Anomaly, AnomalyAssessment, ScanResult, ScannedJob } from '../types';
 
@@ -308,7 +308,7 @@ export function useScanSession({
 
         if (verifyResult.result) {
           const result = verifyResult.result;
-          // Level and score are adopted independently, and deliberately. Gating
+          // Verdict and score are adopted independently, and deliberately. Gating
           // both on the score meant a response carrying a level but no score had
           // its level silently discarded and fell back to whatever was on screen —
           // and the colour, the headline and the elevation test all key off the
@@ -318,8 +318,7 @@ export function useScanSession({
           // has neither would keep a stale level on screen after a verification
           // that failed. A missing value means missing.
           const prev = scanResultRef.current;
-          const nextLevel = result.riskLevel ?? null;
-          const nextScore = typeof result.riskScore === 'number' ? result.riskScore : null;
+          const nextVerdict = result.verdict ?? null;
           const assessmentRun = result.anomalyAssessmentRun === true;
           const mergedAnomalies = mergeAnomalyAssessments(
             prev?.anomalies ?? [],
@@ -337,10 +336,10 @@ export function useScanSession({
               // scan's severity, and the card derives the chip from this.
               anomalies: mergedAnomalies,
               anomalyAssessmentRun: assessmentRun,
-              riskScored: nextLevel !== null || nextScore !== null,
-              riskScore: nextScore ?? prev?.riskScore ?? null,
-              riskLevel: nextLevel as ScanResult['riskLevel'],
-              riskLabel: riskLevelLabel(nextLevel),
+              verdicted: nextVerdict !== null,
+              verdict: nextVerdict,
+              verdictLabel: verdictLabel(nextVerdict),
+              verdictBreakdown: result.verdictBreakdown,
             },
             jobId,
           );
@@ -615,12 +614,12 @@ export function useScanSession({
   })();
 
   /**
-   * A settled high or critical level drops the neutral context below the
+   * A settled stop or caution verdict drops the neutral context below the
    * findings. Derived from the same decision the panel's colour comes from, so
    * the emphasis and the tone can never disagree about whether this is dangerous.
    */
   const elevate = shouldElevateEvidence({
-    riskLevel: scanResult?.riskLevel ?? null,
+    verdict: scanResult?.verdict ?? null,
     verificationLoading: scanResult?.verificationLoading,
     offerAnalysisLoading: scanResult?.offerAnalysisLoading,
   });
