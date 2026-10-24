@@ -15,16 +15,18 @@ normaliser that would make the comparison trivial already exists:
 `search.py:_canonical_url`, written and tested for the dedupe at `search.py:211`
 and used for nothing else.
 
-**B — the score is unbound, and this is the larger half.** `risk_calculator`
-never reads `source_url`; it scores any `red` item by its category weight. A `red`
-citing nothing scores the same 25 points as a `red` citing a retrieved page. The
-project's own rule is that a `red` requires "a provided search result that
-actually contradicts a claim the posting made", and nothing in code required it.
+**B — the score was unbound, and this was the larger half.** The old
+`risk_calculator` never read `source_url`; it scored any `red` item by its
+category weight. A `red` citing nothing scored the same 25 points as a `red`
+citing a retrieved page. The project's own rule is that a `red` requires "a
+provided search result that actually contradicts a claim the posting made", and
+nothing in code required it.
 
 B is fixed by demoting an unbacked `red` to `yellow`, because `yellow` already
-carries zero weight in `risk_calculator` — so the calculator needs no change and
-the existing semantics are the ones being enforced. An unbacked `red` is exactly
-what the codebase calls a claim nobody could confirm, and that is `yellow`.
+carried zero weight in the old calculator — so the calculator needed no change
+and the existing semantics are the ones being enforced. An unbacked `red` is
+exactly what the codebase calls a claim nobody could confirm, and that is
+`yellow`.
 
 These call `_read_verify_output` directly. It is a pure function over a string, so
 no provider, no key, and no network is involved.
@@ -33,7 +35,6 @@ no provider, no key, and no network is involved.
 import pytest
 
 from app.models.schemas import VerificationItem
-from app.services.scanner.risk_calculator import _refutation_score_from_verify
 from app.services.scanner.verification_flow import _read_verify_output
 
 RETRIEVED = "https://employer.example/about"
@@ -93,7 +94,7 @@ def test_canonical_forms_still_match():
     assert items[0].source_url == "http://www.employer.example/about/"
 
 
-# ── B: the score is bound to the citation ─────────────────────────────────────
+# ── B: the red is bound to the citation ───────────────────────────────────────
 
 
 def test_an_unbacked_red_is_demoted_to_yellow():
@@ -130,27 +131,6 @@ def test_when_nothing_was_retrieved_no_claim_is_refuted():
     items, evidence = _read(RETRIEVED, status="red", allowed=())
     assert items[0].status == "yellow"
     assert evidence == []
-
-
-# ── the score, end to end ────────────────────────────────────────────────────
-
-
-def test_a_demoted_item_adds_nothing_to_the_score():
-    """The point of the demotion. `yellow` is already zero-weight, so this is
-    the assertion that ties the parse fix to the number the reader acts on."""
-    backed = [VerificationItem(label="Channel Match", status="red", explanation="x",
-                               source_url=RETRIEVED)]
-    unbacked = [VerificationItem(label="Channel Match", status="red", explanation="x",
-                                 source_url="https://attacker.example/x")]
-
-    assert _refutation_score_from_verify(backed) > 0
-    assert _refutation_score_from_verify(unbacked) > 0, (
-        "precondition: before binding, an uncited red already scores"
-    )
-
-    bound = [VerificationItem(label="Channel Match", status="yellow", explanation="x",
-                              source_url="")]
-    assert _refutation_score_from_verify(bound) is None
 
 
 # ── the labeled-text fallback is bound too ───────────────────────────────────

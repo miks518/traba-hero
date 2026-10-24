@@ -17,9 +17,6 @@ from .prompts import (
 )
 from .resume_flow import _extract_resume_text, _resume_event_stream
 from .request_class import REQUEST_CLASSES, RequestFact, classify_request
-from .risk_calculator import (
-    _refutation_score_from_verify,
-)
 from .scan_flow import _scan_event_stream
 from .scan_result import _VALID_LINE_RE, _anomalies, _language_instruction, _scan_response, _today_instruction
 from .sse import _sse
@@ -54,7 +51,6 @@ __all__ = [
     "_extract_resume_text",
     "_resume_event_stream",
     "_match_event_stream",
-    "_refutation_score_from_verify",
     "_build_verify_prompt",
     "_parse_verification_result",
     "_parse_verify_section",

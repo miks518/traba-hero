@@ -28,7 +28,6 @@ MODULE_NAMES = (
     "match_flow",
     "verification_prompt",
     "verification_parser",
-    "risk_calculator",
     "verification_flow",
     "request_class",
 )
@@ -204,20 +203,30 @@ def test_the_package_no_longer_exports_the_retired_calculator_surface():
     AGENTS.md already records for it, and the reason the export has now gone.
     Inverting the assertion is better than deleting the test: a reader who finds
     the missing name in `PACKAGE_EXPORTS` gets an explanation instead of a diff.
+
+    The module `risk_calculator.py` is now deleted entirely. The arithmetic it
+    held (`_posting_risk_from_flags`, `_combine_scores`, `_level_for`,
+    `_refutation_score_from_verify`) moved to `verdict.py` and `establishment.py`,
+    and the AHP derivation (`POSTING_SEVERITY_WEIGHTS`, `REFUTATION_WEIGHTS`,
+    `derive_refutation_weights.py`) is gone. The verdict is a decision procedure
+    over two axes, not a sum of weights.
     """
     scanner = importlib.import_module("app.services.scanner")
     for name in (
         "_posting_risk_from_flags",
         "_combine_scores",
+        "_level_for",
+        "_refutation_score_from_verify",
     ):
         assert name not in scanner.__all__, f"{name} was retired and must not be re-exported"
         assert not hasattr(scanner, name), (
             f"{name} is retired; leaving it reachable is the half-wired state"
         )
 
-    # `_refutation_score_from_verify` stays: the breakdown still records how much
-    # refuted evidence was seen, which is reporting rather than scoring.
-    assert hasattr(scanner, "_refutation_score_from_verify")
+    # The module itself is deleted.
+    assert importlib.util.find_spec("app.services.scanner.risk_calculator") is None, (
+        "risk_calculator.py was deleted; the verdict replaced it"
+    )
 
 
 def test_scanner_sse_encoder_preserves_wire_format():

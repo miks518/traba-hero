@@ -708,41 +708,17 @@ class TestVerifyOutputReading:
 
 
 class TestRegistrationCategoryWeighting:
-    """Renaming the category must not silently change the score.
+    """The old scoring system (`risk_calculator`) is deleted. The verdict is a
+    decision procedure over two axes, not a sum of weights.
 
-    `risk_calculator` keys its weight table on the literal label. A label it
-    does not know falls back to the default weight of 10, so a stale "SEC
-    Registration" would quietly score 10 instead of 25.
-
-    These probe a **red** item rather than a yellow one. They used to use yellow,
-    which contributed half its weight and so exposed the difference â€” but yellow
-    no longer carries any weight, because added to a posting it would penalise a
-    check that found nothing. Probing it that way would have made both tests pass
-    for the wrong reason and stopped them guarding the rename at all.
+    These tests now verify that the old scoring functions are gone, and that the
+    category labels used by the prompt and parser are consistent.
     """
 
-    def test_official_registration_keeps_the_registration_weight(self):
-        from app.models.schemas import VerificationItem
-        from app.services.scanner.risk_calculator import _calculate_risk_score_from_verify
+    def test_the_old_risk_calculator_is_deleted(self):
+        import importlib.util
 
-        # A green item is needed because an all-yellow list short-circuits to
-        # (None, None) by design - absence of evidence produces no score.
-        items = [
-            VerificationItem(label="Company Existence", status="green", explanation=""),
-            VerificationItem(label="Official Registration", status="red", explanation=""),
-        ]
-        # 25 out of a total weight of 100. The default of 10 would give 10.
-        assert _calculate_risk_score_from_verify(items) == (25, "low")
-
-    def test_legacy_sec_label_still_scores_as_registration(self):
-        from app.models.schemas import VerificationItem
-        from app.services.scanner.risk_calculator import _calculate_risk_score_from_verify
-
-        legacy = [
-            VerificationItem(label="Company Existence", status="green", explanation=""),
-            VerificationItem(label="SEC Registration", status="red", explanation=""),
-        ]
-        assert _calculate_risk_score_from_verify(legacy) == (25, "low")
+        assert importlib.util.find_spec("app.services.scanner.risk_calculator") is None
 
     def test_expected_categories_use_the_new_label(self):
         from app.services.scanner.verification_prompt import VERIFY_CLAIM_CATEGORIES
@@ -956,17 +932,12 @@ class TestSearchOutcomeReachesTheClient:
                 })
 
         assert resp.status_code == 200
-        assert '"verification_score": null' in resp.text
-        # The contract changed here and deliberately. This used to assert
-        # `"final_score": 40` - a failed search left the posting-stage ladder's
-        # number standing, which meant a lookup that never ran still produced a
-        # reassuring figure from the one stage that never saw any evidence. The
-        # ladder is retired and the level is the model's, so a response with no
-        # level in it yields no level: null, which the panel renders as
-        # Unverified and resume matching excludes. "We could not look" and "we
-        # looked and it was fine" must not print the same thing.
+        # The wire now sends scoreBreakdown with the new verdict breakdown.
+        # The top-level riskLevel and riskScore are null.
         assert '"riskLevel": null' in resp.text
         assert '"riskScore": null' in resp.text
+        assert '"scoreBreakdown":' in resp.text
+        assert '"verdict": null' in resp.text
         assert "final_score" not in resp.text
 
 
@@ -1397,7 +1368,8 @@ async def test_verify_failsafe_when_a_readable_response_carries_no_checks():
         # "we could not read the answer" must not also carry a calm number.
         assert '"riskLevel": null' in body
         assert '"riskScore": null' in body
-        assert '"verification_score": null' in body
+        assert '"scoreBreakdown":' in body
+        assert '"verdict": null' in body
 
 
 # ── Scheme-query helpers ─────────────────────────────────────────────────────

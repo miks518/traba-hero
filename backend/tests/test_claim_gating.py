@@ -157,40 +157,23 @@ class TestThePromptAsksForTheGatedSet:
 
 
 class TestScoringUnchangedByGating:
-    """Gating must not quietly become scoring. These lock both."""
+    """Gating must not quietly become scoring. These lock both.
 
-    def test_a_category_that_did_not_appear_scores_nothing(self):
-        from app.services.scanner.risk_calculator import _refutation_score_from_verify
+    The old scoring system (`risk_calculator`) is deleted. The verdict is a decision
+    procedure over two axes, not a sum of weights. The tests below verified the
+    old refutation scoring behavior and are kept as documentation of what was
+    removed. They are now tombstones asserting the old functions are gone.
+    """
 
-        assert _refutation_score_from_verify([]) is None
-        assert (
-            _refutation_score_from_verify(
-                [VerificationItem(label="Company Existence", status="green", explanation="")]
-            )
-            is None
-        )
+    def test_the_old_refutation_scorer_is_gone(self):
+        import importlib.util
 
-    def test_a_refuted_registration_still_scores_when_it_appears(self):
-        from app.services.scanner.risk_calculator import (
-            REFUTATION_WEIGHTS,
-            _refutation_score_from_verify,
-        )
+        assert importlib.util.find_spec("app.services.scanner.risk_calculator") is None
 
-        score = _refutation_score_from_verify(
-            [VerificationItem(label="Official Registration", status="red", explanation="")]
-        )
-        assert score == REFUTATION_WEIGHTS["Official Registration"]
-
-    def test_the_legacy_label_still_resolves(self):
-        from app.services.scanner.risk_calculator import (
-            REFUTATION_WEIGHTS,
-            _refutation_score_from_verify,
-        )
-
-        score = _refutation_score_from_verify(
-            [VerificationItem(label="SEC Registration", status="red", explanation="")]
-        )
-        assert score == REFUTATION_WEIGHTS["Official Registration"]
+    def test_the_old_ahp_weights_are_gone(self):
+        from pathlib import Path
+        script = Path(__file__).resolve().parents[1] / "scripts" / "derive_refutation_weights.py"
+        assert not script.exists(), "scripts/derive_refutation_weights.py was deleted with the scoring model"
 
 
 @pytest.mark.parametrize(

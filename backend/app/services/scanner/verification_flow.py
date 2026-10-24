@@ -534,8 +534,12 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # employer is exactly where the posting text is all there is. It now
             # carries no level, and the panel says the lookup did not happen
             # rather than reporting a number derived from the absence of one.
-            breakdown = {"sources": [], "verification_score": None, "risk_level": None,
-                         "level_source": None}
+            # No verdict from this branch. The grid would read `unknown` and call
+            # an ordinary request `clear`, and "clear" is the wrong word for a
+            # posting where nobody was looked up at all. That distinction — a
+            # missing employer is a missing input, not a clean record — is Task
+            # 12's, and until it lands the panel says the lookup did not happen.
+            breakdown = {"verdict": None, "level_source": None}
             yield runtime.get_sse()({"type": "result", "data": {
                 "items": [item.model_dump() for item in items],
                 "report": report,
@@ -858,45 +862,42 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # empty result as zero.
             failsafe = True
 
-        # The level is code-owned. The model used to emit `risk_level` and
-        # `risk_score`; those are still read for the log by `_read_verify_output`
-        # so an old provider response is diagnosable, but they are not inputs
-        # here. `code_verdict` combines the posting's own findings with the
-        # refutation sum, and gives a strong Channel Match contradiction a floor
-        # that one weak finding cannot reach.
+        # The verdict is code-owned and it has no number. The model's own
+        # `risk_level` and `risk_score` were already not inputs; they are still
+        # read by `_read_verify_output` so an old provider response is
+        # diagnosable in the log.
         if not ok or failsafe:
+            # Two different reasons not to decide, and both mean "we did not
+            # assess": the search did not complete, or the response was readable
+            # but carried nothing usable. Neither is `clear`, and neither is
+            # `stop`.
             risk_level = None
             risk_score = None
             breakdown: dict = {
-                "sources": ["verification"],
-                "verification_score": None,
-                "risk_level": None,
+                "verdict": None,
                 "level_source": None,
             }
         else:
-            risk_score, risk_level, breakdown = code_verdict(
-                req.anomalies, items, anomaly_assessments
+            risk_level, breakdown = code_verdict(
+                active_anomalies,
+                items,
+                anomaly_assessments,
+                request_class=request_class,
             )
-            breakdown["risk_level"] = risk_level
+            # There is no number any more. The key stays on the wire until the
+            # next task removes it, and `None` says "not scored" rather than 0.
+            risk_score = None
 
-        # The wire key stays `verification_score`; the value no longer matches
-        # the name. It holds a refutation score -- a 0-50 sum over refuted
-        # claims -- where it used to hold a 0-100 share of the final score, and
-        # the common case is `None` (nothing was refuted) against a key that says
-        # "verification". The client translates it to `refutationScore` at the
-        # api boundary. Changing the wire key needs a migration for stored scan
-        # history, which is why it is not done here.
-        refutation_score = breakdown.get("verification_score")
         if model_risk_level is not None or model_risk_score is not None:
             log.info(
-                "[verify] Ignored model risk fields for the verdict: level=%s score=%s; code level=%s score=%s",
+                "[verify] Ignored model risk fields for the verdict: level=%s score=%s; code verdict=%s rule=%s",
                 model_risk_level,
                 model_risk_score,
                 risk_level,
-                risk_score,
+                breakdown.get("rule"),
             )
 
-        log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, refutation_score=%s, risk_level=%s", len(items), len(report), len(recommendation), refutation_score, risk_level)
+        log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, rule=%s, verdict=%s", len(items), len(report), len(recommendation), breakdown.get("rule"), risk_level)
         if items:
             log.info("[verify] Items: %s", items)
         if report:
