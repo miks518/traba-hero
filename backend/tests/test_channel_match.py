@@ -274,27 +274,31 @@ class TestLookalikes:
 
 
 class TestTheCombinationRule:
-    def test_free_email_plus_a_high_finding_is_red(self):
-        result = assess_channel_match(
-            KNOLLRIDGES, independent_findings=("Asks for a fee",)
-        )
+    def test_the_parser_does_not_combine_at_all(self):
+        """`assess_channel_match` used to take the scan's finding labels, and a
+        free email plus any high or mid finding became a red card. That is the
+        rule the corpus measured: 25 points for the free email, 12 for the
+        applicant packet, and two legitimate postings called "Proceed with
+        caution" (37 both times).
 
-        assert result.status == "red"
-        assert result.escalation == "free_email_with_findings"
-        assert result.strong is False
-        assert "separate finding" in result.explanation
+        The combination now lives in `apply_channel_rules`, which is the stage
+        that holds the request class, and it needs a prohibited request to fire.
+        Leaving the parameter here would have kept a second route to the same
+        red, asserted by tests and used by no caller.
+        """
+        import inspect
 
-    def test_a_different_channel_plus_a_high_finding_is_red(self):
-        result = assess_channel_match(
-            ChannelFacts(
-                printed_channels=("recruiter.example/apply",),
-                official_channels=("knollridges.com.ph",),
-            ),
-            independent_findings=("Invites applicants to a chat-only interview",),
-        )
+        parameters = inspect.signature(assess_channel_match).parameters
+        assert "independent_findings" not in parameters
 
-        assert result.status == "red"
-        assert result.escalation == "unconfirmed_with_findings"
+    def test_a_free_email_at_the_parser_stage_is_always_yellow(self):
+        """No findings reach this stage at all now, so the parser has no way to
+        escalate. A free email is ordinary in Philippine hiring and the prompt
+        says so.
+        """
+        result = assess_channel_match(KNOLLRIDGES)
+
+        assert (result.status, result.escalation) == ("yellow", "free_email")
 
     def test_a_different_channel_alone_is_yellow(self):
         result = assess_channel_match(
@@ -317,8 +321,7 @@ class TestTheCombinationRule:
             ChannelFacts(
                 printed_channels=("0917 123 4567",),
                 official_channels=("+63 2 8123 4567",),
-            ),
-            independent_findings=("Asks for a fee",),
+            )
         )
 
         assert result.status == "yellow"
@@ -359,7 +362,7 @@ class TestTheCardRules:
             source_url="https://example.com/old",
         )
 
-        applied = apply_channel_rules([item], [], {"Channel Match"})
+        applied = apply_channel_rules([item], "", {"Channel Match"})
 
         assert applied[0].status == "yellow"
         assert applied[0].escalation == "no_data"
@@ -378,43 +381,15 @@ class TestTheCardRules:
             explanation="y",
         )
 
-        applied = apply_channel_rules([other, item], [], {"Company Existence"})
+        applied = apply_channel_rules([other, item], "", {"Company Existence"})
 
         assert [i.label for i in applied] == ["Company Existence"]
 
-    def test_a_yellow_free_email_is_upgraded_by_a_fee_in_the_request(self):
-        item = VerificationItem(
-            label="Channel Match",
-            status="yellow",
-            explanation="A free email is ordinary.",
-            escalation="free_email",
-        )
-
-        applied = apply_channel_rules(
-            [item], [_anomaly(code="FEE_MANDATORY", severity="high")], {"Channel Match"}
-        )
-
-        assert applied[0].status == "red"
-        assert applied[0].escalation == "free_email_with_findings"
-        assert "Asks for a fee" in applied[0].explanation
-
-    def test_a_low_generic_finding_does_not_upgrade_a_free_email(self):
-        item = VerificationItem(
-            label="Channel Match",
-            status="yellow",
-            explanation="A free email is ordinary.",
-            escalation="free_email",
-        )
-
-        applied = apply_channel_rules(
-            [item], [_anomaly(severity="low", code="OTHER")], {"Channel Match"}
-        )
-
-        assert applied[0].status == "yellow"
-
-    def test_an_escalating_code_upgrades_even_at_low_severity(self):
-        """The code names a concrete loss; the model's severity is not the only
-        gate. A low-severity `FEE_MANDATORY` is still a fee.
+    def test_a_free_email_with_an_ordinary_request_stays_yellow(self):
+        """A Gmail address is ordinary in Philippine hiring, and the scan prompt
+        says so. The corpus measured the cost of the old rule: 25 points for the
+        free email plus 12 for the applicant packet put two legitimate postings
+        on "Proceed with caution" (37 both times).
         """
         item = VerificationItem(
             label="Channel Match",
@@ -423,11 +398,43 @@ class TestTheCardRules:
             escalation="free_email",
         )
 
-        applied = apply_channel_rules(
-            [item], [_anomaly(severity="low", code="FEE_MANDATORY")], {"Channel Match"}
+        applied = apply_channel_rules([item], "ordinary", {"Channel Match"})
+
+        assert applied[0].status == "yellow"
+        assert applied[0].escalation == "free_email"
+
+    def test_a_free_email_with_a_prohibited_request_becomes_red(self):
+        """The combination that means something: a channel the employer does not
+        control, plus a request the rules prohibit. Rare by construction, so the
+        red it produces is worth looking at.
+        """
+        item = VerificationItem(
+            label="Channel Match",
+            status="yellow",
+            explanation="A free email is ordinary.",
+            escalation="free_email",
         )
 
+        applied = apply_channel_rules([item], "prohibited", {"Channel Match"})
+
         assert applied[0].status == "red"
+        assert applied[0].escalation == "free_email_with_findings"
+        assert "prohibit" in applied[0].explanation.lower()
+
+    def test_an_unclassified_request_does_not_upgrade_a_free_email(self):
+        """A question is not a charge. A fee with no stated recipient leaves the
+        class unclassified, and the card stays a note."""
+        item = VerificationItem(
+            label="Channel Match",
+            status="yellow",
+            explanation="A free email is ordinary.",
+            escalation="free_email",
+        )
+
+        applied = apply_channel_rules([item], "unclassified", {"Channel Match"})
+
+        assert applied[0].status == "yellow"
+        assert applied[0].escalation == "free_email"
 
     def test_a_missing_card_is_added_only_when_there_is_another_usable_check(self):
         other = VerificationItem(
@@ -436,7 +443,7 @@ class TestTheCardRules:
             explanation="y",
         )
 
-        applied = apply_channel_rules([other], [], {"Channel Match", "Company Existence"})
+        applied = apply_channel_rules([other], "", {"Channel Match", "Company Existence"})
 
         assert [i.label for i in applied] == ["Company Existence", "Channel Match"]
         assert applied[1].escalation == "no_data"
@@ -445,7 +452,21 @@ class TestTheCardRules:
         """The empty response must reach the flow's failsafe, not look like a
         usable yellow check.
         """
-        assert apply_channel_rules([], [], {"Channel Match"}) == []
+        assert apply_channel_rules([], "", {"Channel Match"}) == []
+
+
+def test_the_independent_finding_reader_is_gone():
+    """`_first_independent_finding` escalated on any high or mid finding, which
+    is how a free email plus the ordinary applicant packet became a red card
+    worth 25 points. The request class is now the only gate, and it is decided
+    by `request_class.classify_request` from the facts on the posting.
+
+    `ESCALATING_CODES` existed only to feed that reader, so it goes with it.
+    """
+    import app.services.scanner.channel_match as channel_match
+
+    assert not hasattr(channel_match, "_first_independent_finding")
+    assert not hasattr(channel_match, "ESCALATING_CODES")
 
 
 class TestOfficialChannelsNeedARetrievedSource:

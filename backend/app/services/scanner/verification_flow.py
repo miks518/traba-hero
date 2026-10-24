@@ -484,10 +484,13 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
     try:
         yield runtime.get_sse()({"type": "progress", "percent": 5, "stage": "Preparing verification"})
 
-        # Computed once, from the findings the scan reported. The verify stage
-        # does not re-read the posting, so it must not recompute the class from
-        # anything else: the scan's anomalies and the posting's own attributes
-        # are the whole input.
+        # The class the no-employer branch reports. With an employer it is
+        # recomputed after the stale filter, because a finding a retrieved
+        # source explained away must not be the finding that makes a free email
+        # a pattern. Both computations read the same two inputs: the scan's
+        # findings and the posting's own attributes. The verify stage does not
+        # re-read the posting, so it must not compute the class from anything
+        # else.
         request_class = classify_request(facts_from_scan(req.anomalies, req.attributes))
 
         company = (req.company_name or "").strip()
@@ -792,12 +795,20 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             for index, anomaly in enumerate(req.anomalies, 1)
             if index not in stale_indices
         ]
+        # The class the panel shows and the class the channel rule reads must be
+        # the same one, and both must be the one that survives the stale filter:
+        # a finding a retrieved source explained away must not be the finding
+        # that makes a free email a pattern. Recomputed with the same helper the
+        # scan used, from the findings that still stand.
+        request_class = classify_request(
+            facts_from_scan(active_anomalies, req.attributes)
+        )
         # Channel Match is the one category the model does not assign. The
-        # facts object supplies it, and this step is where the request's other
-        # findings can turn a free email plus a fee (or a chat-only interview)
-        # into a pattern. It also removes the category when the posting made no
-        # channel claim, and refuses an old response's model-assigned status.
-        items = apply_channel_rules(items, active_anomalies, expected)
+        # facts object supplies it, and this step is where a prohibited request
+        # can turn a free email into a pattern. It also removes the category
+        # when the posting made no channel claim, and refuses an old response's
+        # model-assigned status.
+        items = apply_channel_rules(items, request_class, expected)
         missing = runtime.get_missing_categories()(items, expected)
         if missing:
             log.warning(

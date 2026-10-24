@@ -487,6 +487,11 @@ async def test_a_fee_plus_a_free_email_is_high_but_not_do_not_proceed():
     One high fee (40) plus the refuted Channel Match (25) is 65: "Do not proceed
     without checking first", not "Do not proceed". That distinction is the reason
     the strong-channel floor exists separately and needs 76 for critical.
+
+    The combination needs a *prohibited* request now, not merely a fee. A fee
+    whose recipient the posting does not state is a question rather than a
+    charge, so the fixture states one: money to a person is the pattern POEA
+    Advisory 62 names.
     """
     payload = _knollridges_payload()
     payload["channel_match"]["official_channels"] = []
@@ -509,6 +514,7 @@ async def test_a_fee_plus_a_free_email_is_high_but_not_do_not_proceed():
             "job_summary": "Send your resume to yvonne.knollridges@gmail.com.",
             "attributes": {
                 "CONTACT_METHOD": "Email yvonne.knollridges@gmail.com",
+                "FEE_RECIPIENT": "individual account",
             },
             "anomalies": [
                 {

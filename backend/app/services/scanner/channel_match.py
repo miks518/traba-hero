@@ -65,22 +65,6 @@ FREE_EMAIL_DOMAINS = frozenset({
     "yandex.com",
 })
 
-# Anomaly codes that make a non-matching channel part of a pattern. The code set
-# is the scan's, and every one of these names something the reader gives up:
-# money, documents, an account, or labour. `OTHER` is deliberately absent - the
-# escape valve says a finding exists, not that it is one of these.
-ESCALATING_CODES = frozenset({
-    "FEE_MANDATORY",
-    "FEE_CONDITIONAL",
-    "PURCHASE_REQUIRED",
-    "DEPOSIT_REQUIRED",
-    "PAYMENT_FORWARDING",
-    "ACCOUNT_CREDENTIALS",
-    "DOCUMENTS_VIA_THIRD_PARTY",
-    "IMPERSONATES_AUTHORITY",
-    "TASK_FOR_EARNING",
-})
-
 # A government office's own domain ends here. The leading dot matters:
 # `notgov.ph` is not a government domain, and neither is `gov.ph.example.com`.
 _GOVERNMENT_SUFFIX = ".gov.ph"
@@ -169,17 +153,13 @@ def has_channel_content(facts: ChannelFacts | None) -> bool:
     )
 
 
-def assess_channel_match(
-    facts: ChannelFacts,
-    *,
-    independent_findings: tuple[str, ...] = (),
-) -> ChannelAssessment:
-    """Assign the Channel Match status from the facts.
+def assess_channel_match(facts: ChannelFacts) -> ChannelAssessment:
+    """Assign the Channel Match status from the facts alone.
 
-    `independent_findings` are the scan's own finding labels, already filtered to
-    the ones that can turn an unconfirmed channel into a pattern. They are empty
-    on the first pass (the parser does not have the request), and the flow calls
-    `apply_channel_rules` with the request's findings to finish the combination.
+    Nothing about what the posting asks for is read here. The combination rule
+    — a channel the employer does not control, plus a request the rules
+    prohibit — needs the request class, which the flow holds and this stage
+    does not. `apply_channel_rules` finishes the decision for that reason.
     """
     printed = facts.printed_channels
     official = facts.official_channels
@@ -228,14 +208,6 @@ def assess_channel_match(
         if (domain := _domain_from_channel(channel)) and _is_free_email(domain)
     )
     if free:
-        if independent_findings:
-            return ChannelAssessment(
-                status="red",
-                explanation=_combination_explanation(
-                    facts, free[0], official_domains, independent_findings
-                ),
-                escalation="free_email_with_findings",
-            )
         return ChannelAssessment(
             status="yellow",
             explanation=_free_email_explanation(facts, free[0], official_domains),
@@ -254,14 +226,6 @@ def assess_channel_match(
             and not any(_matches_domain(domain, o) for o in official_domains if o)
         )
         if unmatched:
-            if independent_findings:
-                return ChannelAssessment(
-                    status="red",
-                    explanation=_combination_explanation(
-                        facts, unmatched[0], official_domains, independent_findings
-                    ),
-                    escalation="unconfirmed_with_findings",
-                )
             return ChannelAssessment(
                 status="yellow",
                 explanation=_unconfirmed_explanation(
@@ -300,17 +264,24 @@ def assess_channel_match(
 
 def apply_channel_rules(
     items: list[VerificationItem],
-    anomalies: list,
+    request_class: str,
     expected: set[str],
 ) -> list[VerificationItem]:
-    """Finish the Channel Match decision with the request's other findings.
+    """Finish the Channel Match decision with what the posting asked for.
 
-    The parser can only see the model's channel facts. This step is where the
-    posting's own findings are available, so it is where a free email plus a fee
-    becomes a pattern. It also removes a Channel Match card the posting made no
-    claim for, and refuses to let an old response's model-assigned status stand:
-    a Channel Match item with no `escalation` came from before the facts split,
-    and its status is the model's, not the code's.
+    The parser can only see the model's channel facts; the request class is
+    decided by `request_class.classify_request` from the posting's findings and
+    attributes. This step is where the two meet, so it is where a channel the
+    employer does not control becomes part of a pattern — and only when the
+    request is one the rules prohibit. A free email plus the ordinary applicant
+    packet is what Philippine hiring looks like; the corpus measured the old
+    rule pushing two legitimate postings to "Proceed with caution" (25 + 12 =
+    37 both times).
+
+    It also removes a Channel Match card the posting made no claim for, and
+    refuses to let an old response's model-assigned status stand: a Channel
+    Match item with no `escalation` came from before the facts split, and its
+    status is the model's, not the code's.
     """
     channel = next((item for item in items if item.label == "Channel Match"), None)
 
@@ -343,13 +314,12 @@ def apply_channel_rules(
         return items
 
     if channel.escalation in ("free_email", "unconfirmed"):
-        finding = _first_independent_finding(anomalies)
-        if finding:
+        if request_class == "prohibited":
             channel.status = "red"
             channel.escalation = f"{channel.escalation}_with_findings"
             channel.explanation = (
-                f"{channel.explanation} The scan also reported a separate finding: "
-                f"{_quote(finding)}."
+                f"{channel.explanation} The posting also asks for something the "
+                "rules prohibit."
             )
 
     return items
@@ -534,16 +504,6 @@ def _first_lookalike(
     return None
 
 
-def _first_independent_finding(anomalies: list) -> str:
-    for anomaly in anomalies or []:
-        code = str(getattr(anomaly, "code", "") or "").strip().upper()
-        severity = str(getattr(anomaly, "severity", "") or "").strip().lower()
-        if code in ESCALATING_CODES or severity in {"high", "mid"}:
-            flag = str(getattr(anomaly, "flag", "") or "").strip()
-            return flag or code or "another finding"
-    return ""
-
-
 def _clean_finding(facts: ChannelFacts) -> str:
     text = facts.finding.strip()
     if not text:
@@ -615,21 +575,6 @@ def _government_explanation(
             f"use ({official})."
         )
     return f"{first} That is outside the .gov.ph domain."
-
-
-def _combination_explanation(
-    facts: ChannelFacts,
-    channel: str,
-    official_domains: tuple[str, ...],
-    findings: tuple[str, ...],
-) -> str:
-    finding = findings[0] if findings else "another finding"
-    official = _join(official_domains)
-    result = f"The posting gives {_quote(channel)} as a contact"
-    if official:
-        result += f", while the company's own results use {official}"
-    result += f". The scan also reported a separate finding: {_quote(finding)}."
-    return result
 
 
 def _unconfirmed_explanation(
