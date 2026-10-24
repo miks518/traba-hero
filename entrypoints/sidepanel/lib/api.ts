@@ -549,10 +549,10 @@ export interface WireAnomalyAssessment {
  * check ran and produced no verdict. Those two produce different amber notes, so
  * the distinction is preserved rather than defaulted away.
  *
- * A status outside the closed set degrades to `yellow`. The backend already
- * drops one, but a client that trusted the string would pass an unknown value to
+ * A status outside the closed set degrades to `unknown`. The backend already
+ * maps one, but a client that trusted the string would pass an unknown value to
  * the card's lookup and render no strip at all — a silent gap where a finding
- * should be.
+ * should be. `unknown` is the honest square: we could not settle it.
  */
 export function mapAnomalyAssessments(
   raw: WireAnomalyAssessment[] | undefined,
@@ -566,9 +566,9 @@ export function mapAnomalyAssessments(
     .map((assessment): AnomalyAssessment => ({
       index: Number.isInteger(assessment.index) ? assessment.index : undefined,
       status:
-        assessment.status === 'stale' || assessment.status === 'red'
+        assessment.status === 'stale' || assessment.status === 'contradicted'
           ? assessment.status
-          : 'yellow',
+          : 'unknown',
       finding: assessment.finding ?? '',
       sourceTitle: assessment.source_title || undefined,
       sourceUrl: assessment.source_url || undefined,

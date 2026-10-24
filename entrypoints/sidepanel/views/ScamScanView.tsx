@@ -307,7 +307,7 @@ export function ScamScanView({
           its own. A button still red after the result was gone would describe the
           *next* scan rather than the one on screen.
         */
-        accent={session.elevate ? riskAccent(scanResult?.riskLevel) : undefined}
+        accent={session.elevate ? riskAccent(scanResult?.verdict) : undefined}
       />
 
       {screenshots.length > 0 && !hasScanned && (

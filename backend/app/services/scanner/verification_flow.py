@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import logging
 from collections.abc import AsyncIterator
 
@@ -34,8 +34,8 @@ log = logging.getLogger("trabahero")
 async def _search(query: str, scope) -> object:
     """One provider call, with the scope passed only when there is one.
 
-    `search(query, None)` and `search(query)` are equivalent today — the second
-    positional is `max_results` and `None` falls through to the setting — but
+    `search(query, None)` and `search(query)` are equivalent today â€” the second
+    positional is `max_results` and `None` falls through to the setting â€” but
     only the second is the call `fixed` mode has always made, and a collaborator
     substituted by a test or a wrapper is entitled to see it unchanged. **The flag
     off must not alter the call, not merely the queries.**
@@ -51,15 +51,15 @@ async def _issue(queries: list, concurrent: bool = True) -> tuple[list, list, li
     """Run one round's queries and return what came back.
 
     Returns `(collected, failures, raw_dump, per_query)`:
-      * `collected` — one list of results per successful query, for `merge_results`
-      * `failures` — one `(query, error)` per failure
-      * `raw_dump` — the raw diagnostic bodies, TEMPORARY
-      * `per_query` — `(query, outcome)` in the order issued, **including
+      * `collected` â€” one list of results per successful query, for `merge_results`
+      * `failures` â€” one `(query, error)` per failure
+      * `raw_dump` â€” the raw diagnostic bodies, TEMPORARY
+      * `per_query` â€” `(query, outcome)` in the order issued, **including
         failures**
 
     `per_query` exists so the caller never has to realign `collected` against
     the query list. A query that fails contributes nothing to `collected`, so
-    zipping the two pairs a later query's results with an earlier query's name —
+    zipping the two pairs a later query's results with an earlier query's name â€”
     which would attribute evidence to a search that did not retrieve it.
 
     **A planned round runs together, because a follow-up round only exists once
@@ -70,7 +70,7 @@ async def _issue(queries: list, concurrent: bool = True) -> tuple[list, list, li
 
     `concurrent=False` runs them one at a time, and the `fixed` mode uses it.
     That mode is the shipped default, and the promise it makes is that the flag
-    off changes nothing — so the request *pattern* has to be main's too, not only
+    off changes nothing â€” so the request *pattern* has to be main's too, not only
     the queries. Two requests that used to go out one after the other would
     otherwise go out at once, which is a change to how the provider is used that
     no test of the queries would notice.
@@ -120,13 +120,13 @@ def _bind_to_retrieved(items: list, evidence: list, allowed: frozenset[str]) -> 
     `VERIFY_PROMPT.md` asks for a `source_url` "copied exactly from the results"
     and calls a constructed one a fabricated citation, but a prompt sentence is
     not a control: both the structured path and the labeled-text fallback copied
-    whatever the model wrote, and `search.py:_canonical_url` — the normaliser a
-    membership test needs — existed only for the dedupe.
+    whatever the model wrote, and `search.py:_canonical_url` â€” the normaliser a
+    membership test needs â€” existed only for the dedupe.
 
     `allowed` is the set of URLs that were actually retrieved, in any spelling.
     It is canonicalised here rather than at the call site, because a caller that
     forgets and passes pre-canonicalised values would silently drop every
-    legitimate citation — a fail-closed failure that looks like the model
+    legitimate citation â€” a fail-closed failure that looks like the model
     inventing sources.
 
     A `red` is demoted to `yellow` rather than dropped, because `yellow` already
@@ -160,10 +160,10 @@ def _bind_to_retrieved(items: list, evidence: list, allowed: frozenset[str]) -> 
             item.source_title = ""
         if (
             not url
-            and item.status == "red"
+            and item.status == "contradicted"
             and item.escalation not in SOURCE_INDEPENDENT_ESCALATIONS
         ):
-            item.status = "yellow"
+            item.status = "unknown"
         item.source_url = url
         bound.append(item)
 
@@ -183,8 +183,8 @@ def _read_risk_level(raw) -> str | None:
     nothing was assessed, and the panel already has a rendering for it; a
     misspelt level reaching the wire as truth would put a colour on a posting
     that no stage ever judged. The schema's enum makes this unreachable on the
-    structured path, but the no-schema path has no enum — only this prompt's
-    wording — so the check has to exist.
+    structured path, but the no-schema path has no enum â€” only this prompt's
+    wording â€” so the check has to exist.
     """
     level = str(raw or "").strip().lower()
     if level in RISK_LEVELS:
@@ -216,6 +216,9 @@ def _read_risk_score(raw) -> int | None:
     return value
 
 
+# The statuses the verification model may write for an anomaly. This is the
+# model's input vocabulary, not the wire's: `_read_anomaly_assessments` maps
+# every one of these onto the four establishment states.
 _ANOMALY_STATUSES = ("stale", "yellow", "red")
 
 
@@ -354,13 +357,18 @@ def _read_anomaly_assessments(
             )
             source_url = ""
             source_title = ""
-        if status in ("stale", "red") and not source_url:
-            log.info(
-                "[verify] Demoting an unbacked %s anomaly assessment to yellow (index %d)",
-                status,
-                index,
-            )
-            status = "yellow"
+        # One status vocabulary: the model's `red`/`yellow`/`stale` become the
+        # states the panel reads for every other check. `red` is `contradicted`,
+        # `yellow` is `unknown`, and `stale` keeps its name because retiring a
+        # finding is its own fact. A finding with no source cannot contradict or
+        # retire anything, so it lands on `unknown`.
+        if status == "red":
+            status = "contradicted" if source_url else "unknown"
+        elif status == "yellow":
+            status = "unknown"
+        elif status == "stale" and not source_url:
+            status = "unknown"
+        if status == "unknown":
             source_title = ""
 
         seen.add(index)
@@ -392,18 +400,18 @@ def _read_verify_output(
     `anomaly_count` is the number of findings the request sent, which is what
     the assessments' 1-based indices refer to. It defaults to zero, so a caller
     with no request to hand drops every assessment rather than attaching one to
-    a finding it cannot name — the fail-closed answer, matching `allowed_urls`.
+    a finding it cannot name â€” the fail-closed answer, matching `allowed_urls`.
 
     `allowed_urls` holds the canonical form of every URL the search provider
     actually returned. Anything outside it is dropped, and a `red` left without a
-    citation is demoted to `yellow` — see `_bind_to_retrieved`. It defaults to
+    citation is demoted to `yellow` â€” see `_bind_to_retrieved`. It defaults to
     empty, which drops every citation: that is the fail-closed answer for a
     caller holding no result set to check against, and nothing should reach the
     wire unbound by accident.
 
     Raises `VerificationParseError` when the fallback cannot read the response
     either. A request that succeeds and a response nobody can read is a failure,
-    and returning an empty item list here would hide it — the panel would render
+    and returning an empty item list here would hide it â€” the panel would render
     its empty-result notice as though the model had reported nothing.
     """
     payload = runtime.get_parse_json()(text)
@@ -414,12 +422,24 @@ def _read_verify_output(
                 continue
             category = str(check.get("category") or "").strip()
             status = str(check.get("status") or "").strip().lower()
-            if not category or status not in ("green", "yellow", "red"):
+            # The model emits the old vocabulary; the new establishment states
+            # are code-owned. A recorded response that already carries a new
+            # state passes through unchanged.
+            status_map = {
+                "green": "confirmed",
+                "yellow": "unknown",
+                "red": "contradicted",
+                "confirmed": "confirmed",
+                "supported": "supported",
+                "unknown": "unknown",
+                "contradicted": "contradicted",
+            }
+            if not category or status not in status_map:
                 log.warning("[verify] Ignoring malformed check entry: %r", check)
                 continue
             items.append(VerificationItem(
                 label=category,
-                status=status,
+                status=status_map[status],
                 explanation=str(check.get("finding") or check.get("detail") or "").strip(),
                 source_title=str(check.get("source_title") or "").strip(),
                 source_url=str(check.get("source_url") or "").strip(),
@@ -486,7 +506,7 @@ def _read_verify_output(
     # The labeled-text format has no anomaly assessment section either, so the
     # list is empty. The key still reaches the wire, which is how the client
     # tells "this backend ran the check and could not carry a verdict" from
-    # "this reading predates the check" — both render amber, with different
+    # "this reading predates the check" â€” both render amber, with different
     # notes, and neither invents a stale finding.
     return bound_items, report, recommendation, False, [], None, None, "", []
 
@@ -508,7 +528,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
 
         company = (req.company_name or "").strip()
         if not runtime.get_company_name_is_valid()(company):
-            log.warning("[verify] No valid company name provided ('%s') — stopping verification endpoint early.", company)
+            log.warning("[verify] No valid company name provided ('%s') â€” stopping verification endpoint early.", company)
             yield runtime.get_sse()({"type": "progress", "percent": 100, "stage": "Cannot verify company name"})
             # No company name means there is nothing to search for, so there are
             # no verification results and therefore no risk score. The finding
@@ -518,7 +538,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             items = [
                 VerificationItem(
                     label="Company Existence",
-                    status="yellow",
+                    status="unknown",
                     explanation=explanation,
                 )
             ]
@@ -536,8 +556,8 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # rather than reporting a number derived from the absence of one.
             # No verdict from this branch. The grid would read `unknown` and call
             # an ordinary request `clear`, and "clear" is the wrong word for a
-            # posting where nobody was looked up at all. That distinction — a
-            # missing employer is a missing input, not a clean record — is Task
+            # posting where nobody was looked up at all. That distinction â€” a
+            # missing employer is a missing input, not a clean record â€” is Task
             # 12's, and until it lands the panel says the lookup did not happen.
             breakdown = {"verdict": None, "level_source": None}
             yield runtime.get_sse()({"type": "result", "data": {
@@ -553,7 +573,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 "search_error": "No employer name was given, so nothing was searched.",
                 # Always present, never conditional. A client reading
                 # `scheme_queries.length` would otherwise throw on exactly the
-                # response that most obviously searched nothing — and there is no
+                # response that most obviously searched nothing â€” and there is no
                 # query to report, because a stated detail with no employer
                 # attached is a place, not an impersonation.
                 "scheme_queries": [],
@@ -579,7 +599,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         # decides what a result is.
         #
         # The anchor query finds what is published about the employer. It used
-        # to be two queries, because one could not serve every category —
+        # to be two queries, because one could not serve every category â€”
         # `"<company> Philippines"` ranks the employer's own site first, and
         # those pages do not state registration numbers. `build_queries` now
         # returns one: `"<company> company or employer"`, which surfaces the
@@ -632,12 +652,12 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         def _record(round_numbers: list[int], per_query: list, purpose_for) -> None:
             """Note what each query of a round was for and what it returned.
 
-            A round is recorded whether it succeeded or failed — a round that
+            A round is recorded whether it succeeded or failed â€” a round that
             did not run is a fact the panel needs as much as one that did.
 
             `round_numbers` is parallel to `per_query` rather than a single
             number, because the `fixed` mode's model queries are numbered
-            individually — 2, 3 — exactly as the SSE events number them. One
+            individually â€” 2, 3 â€” exactly as the SSE events number them. One
             number for the lot would make the record disagree with the event
             stream the reader is watching.
             """
@@ -654,7 +674,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                     "result_count": len(outcome.results) if outcome.ok else 0,
                 })
 
-        # ── Round 1: the employer-name query. One credit, identical in both modes.
+        # â”€â”€ Round 1: the employer-name query. One credit, identical in both modes.
         for query in company_queries:
             yield runtime.get_sse()({"type": "search", "query": query, "round": 1})
         first_collected, first_failures, first_raw, first_per_query = await _issue(
@@ -667,7 +687,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 lambda q: "what is published about the employer")
 
         if adaptive:
-            # ── Resolve, then Round 2.
+            # â”€â”€ Resolve, then Round 2.
             #
             # The planner reads only the scan's own fields and Round 1's
             # results. It is not a second opinion on the employer: it decides
@@ -698,7 +718,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
 
             # Every result is labelled, including the ones about a different
             # body. A page that never mentions the organisation being verified
-            # is not evidence of absence about it — it is evidence about a
+            # is not evidence of absence about it â€” it is evidence about a
             # different organisation, and the model can only tell those apart if
             # it is told which is which. Nothing is dropped: dropping is how the
             # entity heuristic goes wrong in the first place.
@@ -711,7 +731,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         else:
             # The `fixed` path: whatever the scan model proposed, unscoped, with
             # no round between them. Up to two queries of one kind rather than
-            # a second round, because nothing here was chosen from a result —
+            # a second round, because nothing here was chosen from a result â€”
             # which is the whole difference between the modes. The ceiling is
             # the anchor plus these, so three credits at `basic` depth.
             for i, query in enumerate(model_queries, len(company_queries) + 1):
@@ -777,7 +797,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         yield runtime.get_sse()({"type": "progress", "percent": 85, "stage": "Analyzing results"})
 
         # The retrieved set, which `_bind_to_retrieved` needs and which was
-        # otherwise never consulted again until `search_count` — that gap is
+        # otherwise never consulted again until `search_count` â€” that gap is
         # what left the citation unbound.
         retrieved_urls = frozenset(
             r.url for r in merged if getattr(r, "url", "")
@@ -795,8 +815,8 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         # raw response clearly listed three, with nothing in the log to connect
         # the two. Name what is missing so the next occurrence is diagnosable.
         #
-        # The expectation is the *gated* set — what the posting's own claims made
-        # testable — not all six categories. Comparing against six would warn on
+        # The expectation is the *gated* set â€” what the posting's own claims made
+        # testable â€” not all six categories. Comparing against six would warn on
         # every scan that states no location, and a warning that fires on almost
         # every request is a warning nobody reads.
         expected = expected_categories(req)
@@ -848,7 +868,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             items = [
                 VerificationItem(
                     label="Company Existence",
-                    status="yellow",
+                    status="unknown",
                     explanation=f"No structured findings could be read from the search results for '{company}'.",
                 )
             ]
@@ -1016,7 +1036,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # the reason rather than a bare string.
             "rounds": rounds,
             "queries_failed": len(failures),
-            "debug_search_raw": raw_dump,  # TEMPORARY DIAGNOSTIC — remove with SearchOutcome.raw_response
+            "debug_search_raw": raw_dump,  # TEMPORARY DIAGNOSTIC â€” remove with SearchOutcome.raw_response
             "no_company_name": False,
         }})
     except Exception as e:  # noqa: BLE001

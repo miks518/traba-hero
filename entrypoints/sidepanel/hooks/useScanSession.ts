@@ -88,7 +88,7 @@ export function mergeAnomalyAssessments(
         assessment: selectedSet.has(index)
           ? undefined
           : {
-              status: 'yellow',
+              status: 'unknown',
               finding: 'Not checked — there were more findings than one search can check. Shown so you notice it.',
             },
       };
@@ -610,7 +610,9 @@ export function useScanSession({
     if (scanResult?.verificationError) return 'failed';
     if (!result) return 'never';
     if (result.searchOk === false) return 'failed';
-    return result.items.some((item) => item.status === 'red') ? 'refuted' : 'confirmed';
+    return result.items.some((item) => item.status === 'contradicted')
+      ? 'refuted'
+      : 'confirmed';
   })();
 
   /**

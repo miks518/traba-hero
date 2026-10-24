@@ -36,7 +36,7 @@ def _calls_in(path: Path) -> set[str]:
     }
 
 
-def _channel(status: str = "red", escalation: str = "government") -> VerificationItem:
+def _channel(status: str = "confirmed", escalation: str = "match") -> VerificationItem:
     return VerificationItem(
         label="Channel Match",
         status=status,
@@ -158,7 +158,7 @@ class TestTheBreakdownCarriesNoNumber:
         assert breakdown["rule"] == "prohibited_at_unestablished_employer"
 
     def test_the_breakdown_records_the_evidence_it_read(self):
-        item = _channel()
+        item = _channel(status="contradicted", escalation="government")
         _verdict, breakdown = code_verdict(
             [],
             [item],
@@ -167,20 +167,20 @@ class TestTheBreakdownCarriesNoNumber:
         )
 
         assert breakdown["record"][0]["label"] == "Channel Match"
-        assert breakdown["record"][0]["status"] == "red"
+        assert breakdown["record"][0]["status"] == "contradicted"
         assert breakdown["record"][0]["escalation"] == "government"
 
 
 class TestTheProvisionalEstablishment:
     """Part 4 decides establishment properly. Until then the record supplies it
-    from the channel facts, and a red Reputation is not a contradiction: reputation
+    from the channel facts, and a contradicted Reputation is not a contradiction: reputation
     is not a claim about who is asking.
     """
 
     def test_a_government_or_lookalike_channel_is_a_contradiction(self):
         for escalation in ("government", "lookalike"):
             verdict, _ = code_verdict(
-                [], [_channel(escalation=escalation)], request_class="ordinary"
+                [], [_channel(status="contradicted", escalation=escalation)], request_class="ordinary"
             )
 
             assert verdict == "stop"
@@ -188,7 +188,7 @@ class TestTheProvisionalEstablishment:
     def test_a_matching_channel_confirms_the_employer(self):
         verdict, breakdown = code_verdict(
             [],
-            [_channel(status="green", escalation="match")],
+            [_channel(status="confirmed", escalation="match")],
             request_class="prohibited",
         )
 
@@ -197,7 +197,7 @@ class TestTheProvisionalEstablishment:
 
     def test_a_green_company_existence_supports_the_employer(self):
         item = VerificationItem(
-            label="Company Existence", status="green", explanation="A real firm."
+            label="Company Existence", status="confirmed", explanation="A real firm."
         )
         _verdict, breakdown = code_verdict([], [item], request_class="prohibited")
 
@@ -208,7 +208,7 @@ class TestTheProvisionalEstablishment:
         nothing about who is asking.
         """
         item = VerificationItem(
-            label="Reputation", status="red", explanation="A result contradicts it."
+            label="Reputation", status="contradicted", explanation="A result contradicts it."
         )
         _verdict, breakdown = code_verdict([], [item], request_class="ordinary")
 

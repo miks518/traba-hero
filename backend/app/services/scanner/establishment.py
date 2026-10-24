@@ -52,9 +52,9 @@ class Establishment:
 
 
 def _channel_reason(item) -> str:
-    if item.status == "red" and item.escalation == "government":
+    if item.status == "contradicted" and item.escalation == "government":
         return "The posting presents itself as a government office and gives a channel outside that office's domain."
-    if item.status == "red" and item.escalation == "lookalike":
+    if item.status == "contradicted" and item.escalation == "lookalike":
         return "The posting's channel differs from the employer's own domain in a lookalike spelling."
     return ""
 
@@ -73,7 +73,7 @@ def establishment_from_record(items: list) -> Establishment:
     )
     if channel is not None:
         if (
-            getattr(channel, "status", "") == "red"
+            getattr(channel, "status", "") == "contradicted"
             and getattr(channel, "escalation", "") in CONTRADICTING_ESCALATIONS
         ):
             return Establishment("contradicted", _channel_reason(channel))
@@ -85,7 +85,7 @@ def establishment_from_record(items: list) -> Establishment:
 
     if any(
         getattr(item, "label", "") == "Company Existence"
-        and getattr(item, "status", "") == "green"
+        and getattr(item, "status", "") == "confirmed"
         for item in items or []
     ):
         return Establishment(

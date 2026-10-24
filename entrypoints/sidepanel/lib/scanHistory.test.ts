@@ -110,7 +110,7 @@ describe('updateScannedJob', () => {
     const verified = result({
       verdict: 'note',
       verificationResult: {
-        items: [{ label: 'Official Registration', status: 'green', explanation: 'CS201500123' }],
+        items: [{ label: 'Official Registration', status: 'confirmed', explanation: 'CS201500123' }],
         report: 'r',
         recommendation: 'x',
       },

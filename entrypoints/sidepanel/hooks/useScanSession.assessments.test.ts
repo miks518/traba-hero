@@ -51,7 +51,7 @@ describe('attaching verdicts back to the findings', () => {
       [0, 2],
       [
         { index: 1, status: 'stale', finding: 'first', sourceUrl: 'https://x' },
-        { index: 2, status: 'red', finding: 'second', sourceUrl: 'https://y' },
+        { index: 2, status: 'contradicted', finding: 'second', sourceUrl: 'https://y' },
       ],
       true,
     );
@@ -59,7 +59,7 @@ describe('attaching verdicts back to the findings', () => {
     expect(merged[0].assessment?.finding).toBe('first');
     expect(merged[2].assessment?.finding).toBe('second');
     // The finding the request did not carry says so, rather than losing its card.
-    expect(merged[1].assessment?.status).toBe('yellow');
+    expect(merged[1].assessment?.status).toBe('unknown');
     expect(merged[1].assessment?.finding).toContain('more findings');
   });
 
@@ -80,7 +80,7 @@ describe('attaching verdicts back to the findings', () => {
       [0],
       [
         { index: 1, status: 'stale', finding: 'first' },
-        { index: 1, status: 'red', finding: 'second' },
+        { index: 1, status: 'contradicted', finding: 'second' },
       ],
       true,
     );
@@ -103,7 +103,7 @@ describe('attaching verdicts back to the findings', () => {
     const merged = mergeAnomalyAssessments(
       [anomaly('a'), anomaly('b')],
       [0, 1],
-      [{ index: 2, status: 'yellow', finding: 'only the second' }],
+      [{ index: 2, status: 'unknown', finding: 'only the second' }],
       true,
     );
 

@@ -169,10 +169,11 @@ export function ReportPanel({
         />
 
         {/*
-          The no-employer path. The posting stage still produced a level and its
-          own findings, so those render; the offer analysis is the verdict for
-          this reading, and it reports what the post asks for and offers rather
-          than anything about a company.
+          The no-employer path. The scan still produced its own findings, so
+          those render; with no employer there is no establishment to decide
+          against, so the banner declines to assert a verdict and `CompanyNameNeeded`
+          states the missing input instead. The offer analysis reports what the
+          post asks for and offers, rather than anything about a company.
         */}
         {!needsCompanyName && (
           <OfferAnalysisCard analysis={result.offerAnalysis} loading={result.offerAnalysisLoading} />

@@ -25,7 +25,7 @@ from app.models.schemas import VerificationItem
 from .verification_prompt import VERIFY_CLAIM_CATEGORIES
 
 _BLOCK_SPLIT_RE = re.compile(r"^\s*VERIFY\s*:", re.IGNORECASE | re.MULTILINE)
-_STATUS_RE = re.compile(r"\bSTATUS\s*:\s*\**\s*(green|yellow|red)\b", re.IGNORECASE)
+_STATUS_RE = re.compile(r"\bSTATUS\s*:\s*\**\s*(green|yellow|red|confirmed|supported|unknown|contradicted|stale)\b", re.IGNORECASE)
 # FINDING is the new field name; DETAIL is the legacy one. Both are accepted so a
 # provider that answers in prose either way still yields an explanation — a card
 # with a status and no explanation reads as a finding that says nothing.
@@ -129,7 +129,10 @@ def _parse_verification_result(text: str) -> list[VerificationItem]:
 
         items.append(VerificationItem(
             label=label,
-            status=status_match.group(1).strip().lower(),
+            status={"green": "confirmed", "yellow": "unknown", "red": "contradicted"}.get(
+                status_match.group(1).strip().lower(),
+                status_match.group(1).strip().lower()
+            ),
             explanation=explanation,
             source_title=source_title,
             source_url=source_url,

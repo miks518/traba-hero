@@ -1,7 +1,7 @@
 /** Just the fields a decision about rendering a check depends on. */
 export interface VisibleCheckInput {
   label: string;
-  status: 'green' | 'yellow' | 'red';
+  status: 'confirmed' | 'supported' | 'unknown' | 'contradicted';
 }
 
 /**
@@ -9,9 +9,9 @@ export interface VisibleCheckInput {
  *
  * One case is hidden: Reputation when nothing confirmed or contradicted it.
  *
- * The reasoning is about the *sentence*, not the status. A `yellow` Company
+ * The reasoning is about the *sentence*, not the state. An `unknown` Company
  * Existence says something a reader can use — this employer has no online
- * footprint — and it carries the sources that establish it. A `yellow`
+ * footprint — and it carries the sources that establish it. An `unknown`
  * Reputation could only say that the results contained no reviews, which is a
  * restatement of the absence rather than a fact about the employer, and it was
  * phrased as one: "The search results do not contain any scam reports, fraud
@@ -23,11 +23,11 @@ export interface VisibleCheckInput {
  *
  * Scoped to this one case on purpose, and both exclusions are load-bearing:
  *
- *   - `red` Reputation is shown. It carries 7 of the 50 refutation points and is
- *     one of the few checks that can raise the score, so a rule that swallowed it
- *     would hide the finding that matters most.
- *   - `yellow` on every other category is shown. Those cards summarise what the
- *     search actually returned, sources included, which is why an all-`yellow`
+ *   - `contradicted` Reputation is shown. It is a retrieved source disagreeing
+ *     with the posting, and a rule that swallowed it would hide the finding that
+ *     matters most.
+ *   - `unknown` on every other category is shown. Those cards summarise what the
+ *     search actually returned, sources included, which is why an all-`unknown`
  *     result still reads as a summary rather than as nothing.
  *
  * Matched case-insensitively because the labeled-text fallback parser takes
@@ -36,7 +36,7 @@ export interface VisibleCheckInput {
  * copy here is a table that can drift from the first and silently stop hiding.
  */
 export function shouldShowCheck({ label, status }: VisibleCheckInput): boolean {
-  if (status !== 'yellow') return true;
+  if (status !== 'unknown') return true;
   return label.trim().toLowerCase() !== 'reputation';
 }
 

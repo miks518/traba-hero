@@ -360,24 +360,21 @@ async def test_knollridges_does_not_become_do_not_proceed():
 
     channel = _items_by_label(data)["Channel Match"]
 
-    assert channel["status"] == "yellow"
+    assert channel["status"] == "unknown"
     assert channel["escalation"] == "free_email"
     assert "ordinary in Philippine job postings" in channel["explanation"]
     assert "not a contradiction by itself" in channel["explanation"]
     assert "recruitment.chred" not in channel["explanation"]
 
-    # The model tried to say critical/95. The code says low/0.
-    assert data["riskLevel"] == "low"
-    assert data["riskScore"] == 0
+    # The model tried to say critical/95. The code says clear.
+    assert data["verdict"] == "clear"
+    assert "riskLevel" not in data
+    assert "riskScore" not in data
+    assert "scoreBreakdown" not in data
 
-    # The reader-visible half. The panel renders `verdictCopy.ts`'s headline for
-    # the level, and `low` is the only level that means "Proceed, with a quick
-    # check". Asserting the level alone leaves the outcome unpinned: the
-    # mapping could be edited to say "Do not proceed" for `low` and every test
-    # in this file would still pass, with this exact bug back in the panel.
-    # The mapping itself is pinned in
-    # `entrypoints/sidepanel/components/report/verdictCopy.test.ts`.
-    assert _headline_for(data["riskLevel"]) == "Proceed, with a quick check"
+    # The reader-visible half: the panel's mapping for the new verdict
+    # vocabulary is not yet in verdictCopy.ts (Task 11). The headline
+    # assertion is skipped for the new verdicts.
 
 
 @pytest.mark.asyncio
@@ -400,24 +397,22 @@ async def test_fake_ched_stays_critical_and_the_chred_domain_is_red():
 
     # The model's Channel Match check said green; the facts said government,
     # outlook, and a lookalike. The code's card wins.
-    assert channel["status"] == "red"
+    assert channel["status"] == "contradicted"
     assert channel["escalation"] == "government"
     assert channel["source_url"] == "https://ched.gov.ph"
     assert "recruitment.chred@outlook.com" in channel["explanation"]
     assert "chred-region6.org" in channel["explanation"]
     assert "ched.gov.ph" in channel["explanation"]
 
-    # Two high fee findings (80) plus one refuted Channel Match (25), capped at
-    # 100. The model tried to say low/0.
-    assert data["riskLevel"] == "critical"
-    assert data["riskScore"] == 100
+    # Two high fee findings plus a refuted government Channel Match.
+    # The contradiction is the only path to stop; the fees do not add a level.
+    assert data["verdict"] == "stop"
+    assert "riskLevel" not in data
+    assert "riskScore" not in data
+    assert "scoreBreakdown" not in data
 
-    # The reader-visible half. `critical` is the one level whose headline is the
-    # flat stop, and it needs a combined score above 75 - which is what two
-    # high fee findings plus a refuted government channel reaches. The mapping
-    # is pinned in
-    # `entrypoints/sidepanel/components/report/verdictCopy.test.ts`.
-    assert _headline_for(data["riskLevel"]) == "Do not proceed"
+    # The reader-visible half: the panel's mapping for the new verdict
+    # vocabulary is not yet in verdictCopy.ts (Task 11).
 
 
 @pytest.mark.asyncio
@@ -478,7 +473,7 @@ async def test_a_posting_with_two_channels_tests_both():
     # And the code still read the free-mail one as a contradiction, while
     # the `.gov.ph` one is the employer's own channel.
     channel = _items_by_label(data)["Channel Match"]
-    assert channel["status"] == "red", channel
+    assert channel["status"] == "contradicted", channel
     assert channel["escalation"] == "government", channel
     assert "recruitment.ched@outlook.com" in channel["explanation"]
 
@@ -540,10 +535,13 @@ async def test_a_fee_plus_a_free_email_is_high_but_not_do_not_proceed():
 
     channel = _items_by_label(data)["Channel Match"]
 
-    assert channel["status"] == "red"
+    assert channel["status"] == "contradicted"
     assert channel["escalation"] == "free_email_with_findings"
-    assert data["riskLevel"] == "high"
-    assert data["riskScore"] == 65
+    # Prohibited request at an unknown employer is a caution.
+    assert data["verdict"] == "caution"
+    assert "riskLevel" not in data
+    assert "riskScore" not in data
+    assert "scoreBreakdown" not in data
 
 
 @pytest.mark.asyncio
@@ -598,11 +596,14 @@ async def test_a_stale_fee_does_not_escalate_a_free_email():
 
     channel = _items_by_label(data)["Channel Match"]
 
-    assert channel["status"] == "yellow"
+    assert channel["status"] == "unknown"
     assert channel["escalation"] == "free_email"
-    assert data["riskLevel"] == "low"
-    assert data["riskScore"] == 0
-    assert data["scoreBreakdown"]["stale_excluded"] == 1
+    # Ordinary request at an unknown employer is clear.
+    assert data["verdict"] == "clear"
+    assert "riskLevel" not in data
+    assert "riskScore" not in data
+    assert "verdictBreakdown" in data
+    assert data["verdictBreakdown"]["stale_excluded"] == 1
 
 
 @pytest.mark.asyncio
@@ -655,14 +656,17 @@ async def test_a_dropped_citation_cannot_put_the_official_domain_on_a_red_card()
 
     channel = _items_by_label(data)["Channel Match"]
 
-    assert channel["status"] == "red"
+    assert channel["status"] == "contradicted"
     assert channel["escalation"] == "government"
     assert channel["source_url"] == ""
     # The explanation may say the posting claims to be a government office; it
     # must not assert the unretrieved official domain.
     assert "ched.gov.ph" not in channel["explanation"]
-    # The strong-channel floor is 51, the bottom of the high band.
-    assert data["riskLevel"] == "high"
+    # The contradiction is the only path to stop.
+    assert data["verdict"] == "stop"
+    assert "riskLevel" not in data
+    assert "riskScore" not in data
+    assert "scoreBreakdown" not in data
 
 
 # --- the government branch is a claim the posting makes about itself --------
@@ -692,24 +696,29 @@ def test_the_government_red_survives_the_citation_binding():
         [_fake_ched_channel_item()], [], _FAKE_CHED_ALLOWED
     )
 
-    assert bound[0].status == "red"
+    assert bound[0].status == "contradicted"
     assert bound[0].escalation == "government"
 
 
-def test_the_government_red_still_reaches_critical_through_the_binding():
+def test_the_government_red_still_reaches_stop_through_the_binding():
     """The corpus found the flagship case failing in the product while passing
     in the test. The demotion to yellow dropped the strong-channel floor, so the
     verification stage refuted nothing and the critical came entirely from the
     two fees - while the card said "That is outside the .gov.ph domain" and was
     worth zero.
+
+    Now the government branch is the one contradiction that needs no retrieved
+    source. The verdict is stop, not critical, because the grid says contradicted
+    stops everything.
     """
     bound, _ = _bind_to_retrieved(
         [_fake_ched_channel_item()], [], _FAKE_CHED_ALLOWED
     )
     anomalies = [Anomaly(**flag) for flag in _fake_ched_request()["anomalies"]]
 
-    _score, level, breakdown = code_verdict(anomalies, bound)
+    verdict, breakdown = code_verdict(anomalies, bound)
 
-    assert level == "critical"
-    assert breakdown["channel_escalation"] == "government"
-    assert breakdown["verification_score"] is not None
+    assert verdict == "stop"
+    assert breakdown["establishment"]["state"] == "contradicted"
+    assert breakdown["establishment"]["reason"] == "The posting presents itself as a government office and gives a channel outside that office's domain."
+    assert breakdown["rule"] == "establishment_contradicted"

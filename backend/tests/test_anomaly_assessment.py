@@ -62,7 +62,7 @@ def test_a_stale_assessment_with_a_retrieved_source_survives():
     assert assessments[0].source_title == "Careers"
 
 
-def test_a_stale_without_a_source_is_demoted_to_yellow():
+def test_a_stale_without_a_source_is_demoted_to_unknown():
     """Absence is never evidence in the reader's favour.
 
     `stale` retires a finding. An unbacked one would retire it on nothing, which
@@ -70,7 +70,7 @@ def test_a_stale_without_a_source_is_demoted_to_yellow():
     """
     *_, assessments = _read([_assess(url="")])
 
-    assert assessments[0].status == "yellow"
+    assert assessments[0].status == "unknown"
     assert assessments[0].source_url == ""
     assert assessments[0].source_title == ""
 
@@ -78,15 +78,15 @@ def test_a_stale_without_a_source_is_demoted_to_yellow():
 def test_a_source_outside_the_retrieved_set_is_dropped_and_demotes():
     *_, assessments = _read([_assess(url="https://attacker.example/never-retrieved")])
 
-    assert assessments[0].status == "yellow"
+    assert assessments[0].status == "unknown"
     assert assessments[0].source_url == ""
     assert assessments[0].source_title == ""
 
 
-def test_a_red_without_a_source_is_demoted_to_yellow():
+def test_a_contradicted_without_a_source_is_demoted_to_unknown():
     *_, assessments = _read([_assess(status="red", url="")])
 
-    assert assessments[0].status == "yellow"
+    assert assessments[0].status == "unknown"
 
 
 def test_an_out_of_range_index_is_dropped_not_renumbered():

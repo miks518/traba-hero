@@ -43,8 +43,8 @@ BLOCK = (
 def test_the_documented_block_shape_parses():
     items = _parse_verification_result(BLOCK)
     assert [i.label for i in items] == ["Company Existence", "Channel Match"]
-    assert items[0].status == "green"
-    assert items[1].status == "red"
+    assert items[0].status == "confirmed"
+    assert items[1].status == "contradicted"
 
 
 def test_finding_is_accepted_as_well_as_detail():
@@ -191,4 +191,8 @@ class TestTheFlowTellsTheTwoEmptyResultsApart:
         assert "No structured findings could be read" in resp.text
         # A verdict still exists: the unreadable verification contributes
         # nothing, and the posting's own score stands.
-        assert '"verification_score": null' in resp.text
+        assert '"verdictBreakdown":' in resp.text
+        assert '"verdict": null' in resp.text
+        assert '"riskLevel"' not in resp.text
+        assert '"riskScore"' not in resp.text
+        assert '"scoreBreakdown"' not in resp.text

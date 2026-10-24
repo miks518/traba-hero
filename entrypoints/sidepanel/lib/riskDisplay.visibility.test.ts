@@ -1,12 +1,12 @@
 /**
  * Reputation renders only when there is something to say.
  *
- * The rule under test is `shouldShowCheck`, which hides exactly one case: a
- * `yellow` Reputation. Both exclusions around it are asserted below, and they
+ * The rule under test is `shouldShowCheck`, which hides exactly one case: an
+ * `unknown` Reputation. Both exclusions around it are asserted below, and they
  * are the reason this is a predicate with a test per branch rather than a
  * `filter` tucked into the component.
  *
- * The hidden case exists because of the sentence it removed. An unconfirmed
+ * The hidden case exists because of the sentence it removed. An unsettled
  * Reputation could only report that the results contained no reviews, and it was
  * phrased as a sentence — "The search results do not contain any scam reports,
  * fraud warnings, formal complaints, or employee reviews for <company>" — which
@@ -20,29 +20,29 @@ import { describe, it, expect } from 'vitest';
 import { shouldShowCheck } from './riskDisplay';
 
 /** The one hidden case. */
-const HIDDEN = { label: 'Reputation', status: 'yellow' } as const;
+const HIDDEN = { label: 'Reputation', status: 'unknown' } as const;
 
 describe('shouldShowCheck', () => {
-  it('hides an unconfirmed Reputation', () => {
+  it('hides an unsettled Reputation', () => {
     expect(shouldShowCheck(HIDDEN)).toBe(false);
   });
 
   it('shows a Reputation that a result contradicted', () => {
-    // The overcorrection that matters most. `red` Reputation carries refutation
-    // weight and is one of the few checks that can raise the score, so a rule
-    // keyed on the label rather than on label-plus-status would hide the single
-    // most consequential card in the panel.
-    expect(shouldShowCheck({ label: 'Reputation', status: 'red' })).toBe(true);
+    // The overcorrection that matters most. A contradicted Reputation is a
+    // retrieved source disagreeing with the posting, so a rule keyed on the
+    // label rather than on label-plus-state would hide the single most
+    // consequential card in the panel.
+    expect(shouldShowCheck({ label: 'Reputation', status: 'contradicted' })).toBe(true);
   });
 
   it('shows a Reputation that a result confirmed', () => {
-    expect(shouldShowCheck({ label: 'Reputation', status: 'green' })).toBe(true);
+    expect(shouldShowCheck({ label: 'Reputation', status: 'confirmed' })).toBe(true);
   });
 
-  it('shows an unconfirmed check that is not Reputation', () => {
+  it('shows an unsettled check that is not Reputation', () => {
     // The second overcorrection. These cards summarise what the search actually
-    // returned, sources included, so an all-yellow result still reads as a
-    // summary. Hiding every yellow would empty the panel and lose the sources.
+    // returned, sources included, so an all-unknown result still reads as a
+    // summary. Hiding every unknown would empty the panel and lose the sources.
     for (const label of [
       'Company Existence',
       'Official Registration',
@@ -50,12 +50,12 @@ describe('shouldShowCheck', () => {
       'Channel Match',
       'Similar Offers',
     ]) {
-      expect(shouldShowCheck({ label, status: 'yellow' }), label).toBe(true);
+      expect(shouldShowCheck({ label, status: 'unknown' }), label).toBe(true);
     }
   });
 
-  it('shows every status for a check that is not Reputation', () => {
-    for (const status of ['green', 'yellow', 'red'] as const) {
+  it('shows every state for a check that is not Reputation', () => {
+    for (const status of ['confirmed', 'supported', 'unknown', 'contradicted'] as const) {
       expect(shouldShowCheck({ label: 'Company Existence', status }), status).toBe(true);
     }
   });
@@ -64,7 +64,7 @@ describe('shouldShowCheck', () => {
     // The labeled-text fallback parser takes whatever label the model wrote, so
     // an exact-case match would let the model dodge the rule by capitalising.
     for (const label of ['reputation', 'REPUTATION', '  Reputation  ']) {
-      expect(shouldShowCheck({ label, status: 'yellow' }), label).toBe(false);
+      expect(shouldShowCheck({ label, status: 'unknown' }), label).toBe(false);
     }
   });
 
@@ -72,7 +72,7 @@ describe('shouldShowCheck', () => {
     // Substring matching would swallow any future category named after
     // reputation, which is the kind of quiet widening a `includes` invites.
     for (const label of ['Reputation Signals', 'Public Reputation Index']) {
-      expect(shouldShowCheck({ label, status: 'yellow' }), label).toBe(true);
+      expect(shouldShowCheck({ label, status: 'unknown' }), label).toBe(true);
     }
   });
 });
@@ -89,9 +89,9 @@ describe('the panel derives emptiness from what it renders', () => {
 
   it('still reports items when one of several is hidden', () => {
     const items = [
-      { label: 'Company Existence', status: 'yellow' as const },
+      { label: 'Company Existence', status: 'unknown' as const },
       HIDDEN,
-      { label: 'Reputation', status: 'red' as const },
+      { label: 'Reputation', status: 'contradicted' as const },
     ];
     expect(items.filter(shouldShowCheck).map((i) => i.label)).toEqual([
       'Company Existence',

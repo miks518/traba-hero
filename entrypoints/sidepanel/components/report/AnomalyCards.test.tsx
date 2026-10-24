@@ -126,7 +126,7 @@ describe('the one-line verdict reason', () => {
   it('shows a reason beside the authored headline', () => {
     render(
       React.createElement(VerdictBlock, {
-        level: 'critical',
+        verdict: 'stop',
         reason: 'This post asks you to pay a fee before you are hired.',
       }),
     );
@@ -140,19 +140,19 @@ describe('the one-line verdict reason', () => {
     // A banner carrying only its authored headline is complete — the instruction
     // stands on its own — so an absent reason must not leave a gap that reads as
     // something withheld.
-    render(React.createElement(VerdictBlock, { level: 'high' }));
+    render(React.createElement(VerdictBlock, { verdict: 'caution' }));
     expect(document.querySelector('[data-role="verdict-headline"]')?.textContent).toBe(
-      'Do not proceed without checking first',
+      'Caution — settle the fee recipient and reason first',
     );
     expect(document.querySelector('[data-role="verdict-reason"]')).toBeNull();
   });
 
   it('shows no reason while the lookup is still running', () => {
-    // The intermediate level is not the verdict, so nothing that reads as a
+    // The intermediate verdict is not the verdict, so nothing that reads as a
     // conclusion sits under it either.
     render(
       React.createElement(VerdictBlock, {
-        level: 'high',
+        verdict: 'caution',
         verifying: true,
         reason: 'This post asks you to pay a fee.',
       }),
@@ -217,14 +217,17 @@ describe('the evidence verdict on a finding', () => {
     expect(link?.textContent).toContain('Careers');
   });
 
-  it('keeps the scan severity when a source contradicts the finding', () => {
+  it('shows the evidence state, not the scan severity, when a source contradicts the finding', () => {
+    // The scan weighed this finding `high`, and that is not what the chip says.
+    // Pricing a finding from the model's severity is the pattern the verdict
+    // moved into code to remove; the chip reports what the evidence found.
     const { container } = render(
       React.createElement(AnomalyCards, {
         anomalies: [
           anomaly({
             severity: 'high',
             assessment: {
-              status: 'red',
+              status: 'contradicted',
               finding: 'The employer states on its own page that no fee is charged.',
               sourceTitle: 'Careers',
               sourceUrl: 'https://employer.example/careers',
@@ -235,8 +238,8 @@ describe('the evidence verdict on a finding', () => {
     );
     const card = container.querySelector('[data-role="anomaly-card"]');
 
-    expect(card?.getAttribute('data-state')).toBe('high');
-    expect(card?.textContent).toContain('Critical');
+    expect(card?.getAttribute('data-state')).toBe('contradicted');
+    expect(card?.textContent).toContain('Contradicted');
     expect(card?.textContent).toContain('Contradicted by a public source');
     expect(card?.querySelector('.status-card-critical')).toBeTruthy();
     expect(card?.querySelector('[data-role="anomaly-source"]')).toBeTruthy();
@@ -248,7 +251,7 @@ describe('the evidence verdict on a finding', () => {
         anomalies: [
           anomaly({
             assessment: {
-              status: 'yellow',
+              status: 'unknown',
               finding: 'The results do not mention this fee.',
             },
           }),
@@ -257,8 +260,8 @@ describe('the evidence verdict on a finding', () => {
     );
     const card = container.querySelector('[data-role="anomaly-card"]');
 
-    expect(card?.getAttribute('data-state')).toBe('unconfirmed');
-    expect(card?.textContent).toContain('Unconfirmed');
+    expect(card?.getAttribute('data-state')).toBe('unknown');
+    expect(card?.textContent).toContain('Not confirmed');
     expect(card?.querySelector('.chip-caution')).toBeTruthy();
     expect(card?.querySelector('.status-card-caution')).toBeTruthy();
     // No source is named because none was relied on.
@@ -280,7 +283,7 @@ describe('the evidence verdict on a finding', () => {
     );
     const card = container.querySelector('[data-role="anomaly-card"]');
 
-    expect(card?.getAttribute('data-state')).toBe('unconfirmed');
+    expect(card?.getAttribute('data-state')).toBe('unknown');
     expect(card?.textContent).not.toContain('Stale');
     expect(card?.textContent).toContain('not confirmed');
   });
@@ -294,7 +297,7 @@ describe('the evidence verdict on a finding', () => {
     );
     const card = container.querySelector('[data-role="anomaly-card"]');
 
-    expect(card?.getAttribute('data-state')).toBe('unconfirmed');
+    expect(card?.getAttribute('data-state')).toBe('unknown');
     expect(card?.textContent).toContain('names no employer');
     expect(card?.querySelector('[role="status"]')).toBeNull();
   });
@@ -308,7 +311,7 @@ describe('the evidence verdict on a finding', () => {
     );
     const card = container.querySelector('[data-role="anomaly-card"]');
 
-    expect(card?.getAttribute('data-state')).toBe('unconfirmed');
+    expect(card?.getAttribute('data-state')).toBe('unknown');
     expect(card?.textContent).toContain('did not finish');
     expect(card?.querySelector('[role="status"]')).toBeNull();
   });
@@ -367,13 +370,12 @@ describe('the wire mapping', () => {
     expect(mapped.anomalies[1].quote).toBeUndefined();
   });
 
-  it('synthesises no score when the backend sent none', () => {
-    // The standing rule. `0` would render as the bottom of a scale, claiming the
-    // posting was assessed and came out clean.
+  it('synthesises no verdict when the backend sent none', () => {
+    // The standing rule. A verdict would render as an assessment the system never made.
     const mapped = mapApiResponse(
-      scanResponse({ risk_level: undefined, risk_score: undefined }),
+      scanResponse({ verdict: undefined }),
     );
-    expect(mapped.riskScore).toBeNull();
-    expect(mapped.riskScored).toBe(false);
+    expect(mapped.verdict).toBeNull();
+    expect(mapped.verdicted).toBe(false);
   });
 });

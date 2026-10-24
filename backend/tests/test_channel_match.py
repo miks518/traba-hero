@@ -1,4 +1,4 @@
-"""Channel Match is a code decision over model-reported facts.
+﻿"""Channel Match is a code decision over model-reported facts.
 
 The regressions this file exists for are both real:
 
@@ -104,7 +104,7 @@ class TestFreeEmailIsInformational:
     def test_the_knollridges_case_is_yellow_not_red(self):
         result = assess_channel_match(KNOLLRIDGES)
 
-        assert result.status == "yellow"
+        assert result.status == "unknown"
         assert result.escalation == "free_email"
         assert result.strong is False
         assert "ordinary in Philippine job postings" in result.explanation
@@ -121,7 +121,7 @@ class TestFreeEmailIsInformational:
             )
         )
 
-        assert result.status == "yellow"
+        assert result.status == "unknown"
         assert result.escalation == "free_email"
 
     def test_a_free_email_with_no_official_channel_is_still_yellow(self):
@@ -129,7 +129,7 @@ class TestFreeEmailIsInformational:
             ChannelFacts(printed_channels=("someone@gmail.com",))
         )
 
-        assert result.status == "yellow"
+        assert result.status == "unknown"
         assert result.escalation == "free_email"
 
 
@@ -137,7 +137,7 @@ class TestGovernmentClaims:
     def test_a_government_claim_with_a_free_email_is_red(self):
         result = assess_channel_match(FAKE_CHED)
 
-        assert result.status == "red"
+        assert result.status == "contradicted"
         assert result.escalation == "government"
         assert result.strong is True
         assert "government office" in result.explanation
@@ -155,7 +155,7 @@ class TestGovernmentClaims:
             )
         )
 
-        assert result.status == "red"
+        assert result.status == "contradicted"
         assert result.escalation == "government"
 
     def test_a_government_mention_that_is_not_a_claim_is_not_enough(self):
@@ -167,7 +167,7 @@ class TestGovernmentClaims:
             )
         )
 
-        assert (result.status, result.escalation) == ("green", "match")
+        assert (result.status, result.escalation) == ("confirmed", "match")
 
     def test_an_official_gov_ph_domain_makes_it_government_even_without_the_flag(self):
         result = assess_channel_match(
@@ -178,7 +178,7 @@ class TestGovernmentClaims:
             )
         )
 
-        assert result.status == "red"
+        assert result.status == "contradicted"
         assert result.escalation == "government"
 
 
@@ -195,7 +195,7 @@ class TestLookalikes:
             )
         )
 
-        assert result.status == "red"
+        assert result.status == "contradicted"
         assert result.escalation == "government"
         assert result.strong is True
 
@@ -207,7 +207,7 @@ class TestLookalikes:
             )
         )
 
-        assert result.status == "red"
+        assert result.status == "contradicted"
         assert result.escalation == "lookalike"
         assert result.strong is True
 
@@ -219,7 +219,7 @@ class TestLookalikes:
             )
         )
 
-        assert result.status == "red"
+        assert result.status == "contradicted"
         assert result.escalation == "lookalike"
 
     def test_a_brand_with_a_suffix_is_a_lookalike(self):
@@ -230,7 +230,7 @@ class TestLookalikes:
             )
         )
 
-        assert result.status == "red"
+        assert result.status == "contradicted"
         assert result.escalation == "lookalike"
 
     def test_a_different_business_is_not_a_lookalike(self):
@@ -241,7 +241,7 @@ class TestLookalikes:
             )
         )
 
-        assert result.status == "yellow"
+        assert result.status == "unknown"
         assert result.escalation == "unconfirmed"
 
     def test_the_paf_portal_is_a_lookalike_of_the_official_mil_ph_site(self):
@@ -259,7 +259,7 @@ class TestLookalikes:
             )
         )
 
-        assert result.status == "red"
+        assert result.status == "contradicted"
         assert result.escalation == "lookalike"
 
     def test_the_official_domain_itself_is_a_match_not_a_lookalike(self):
@@ -270,7 +270,7 @@ class TestLookalikes:
             )
         )
 
-        assert (result.status, result.escalation) == ("green", "match")
+        assert (result.status, result.escalation) == ("confirmed", "match")
 
 
 class TestTheCombinationRule:
@@ -298,7 +298,7 @@ class TestTheCombinationRule:
         """
         result = assess_channel_match(KNOLLRIDGES)
 
-        assert (result.status, result.escalation) == ("yellow", "free_email")
+        assert (result.status, result.escalation) == ("unknown", "free_email")
 
     def test_a_different_channel_alone_is_yellow(self):
         result = assess_channel_match(
@@ -308,7 +308,7 @@ class TestTheCombinationRule:
             )
         )
 
-        assert result.status == "yellow"
+        assert result.status == "unknown"
         assert result.escalation == "unconfirmed"
         assert "not that channel" in result.explanation
 
@@ -324,7 +324,7 @@ class TestTheCombinationRule:
             )
         )
 
-        assert result.status == "yellow"
+        assert result.status == "unknown"
         assert result.escalation == "no_data"
 
     def test_a_matching_channel_is_green(self):
@@ -335,7 +335,7 @@ class TestTheCombinationRule:
             )
         )
 
-        assert (result.status, result.escalation) == ("green", "match")
+        assert (result.status, result.escalation) == ("confirmed", "match")
 
     def test_a_matching_phone_is_green(self):
         result = assess_channel_match(
@@ -345,7 +345,7 @@ class TestTheCombinationRule:
             )
         )
 
-        assert (result.status, result.escalation) == ("green", "match")
+        assert (result.status, result.escalation) == ("confirmed", "match")
 
 
 class TestTheCardRules:
@@ -356,7 +356,7 @@ class TestTheCardRules:
         """
         item = VerificationItem(
             label="Channel Match",
-            status="red",
+            status="contradicted",
             explanation="A different domain is a contradiction.",
             source_title="Old result",
             source_url="https://example.com/old",
@@ -364,20 +364,20 @@ class TestTheCardRules:
 
         applied = apply_channel_rules([item], "", {"Channel Match"})
 
-        assert applied[0].status == "yellow"
+        assert applied[0].status == "unknown"
         assert applied[0].escalation == "no_data"
         assert applied[0].source_url == ""
 
     def test_the_category_is_removed_when_the_posting_made_no_channel_claim(self):
         item = VerificationItem(
             label="Channel Match",
-            status="yellow",
+            status="unknown",
             explanation="x",
             escalation="free_email",
         )
         other = VerificationItem(
             label="Company Existence",
-            status="yellow",
+            status="unknown",
             explanation="y",
         )
 
@@ -393,14 +393,14 @@ class TestTheCardRules:
         """
         item = VerificationItem(
             label="Channel Match",
-            status="yellow",
+            status="unknown",
             explanation="A free email is ordinary.",
             escalation="free_email",
         )
 
         applied = apply_channel_rules([item], "ordinary", {"Channel Match"})
 
-        assert applied[0].status == "yellow"
+        assert applied[0].status == "unknown"
         assert applied[0].escalation == "free_email"
 
     def test_a_free_email_with_a_prohibited_request_becomes_red(self):
@@ -410,14 +410,14 @@ class TestTheCardRules:
         """
         item = VerificationItem(
             label="Channel Match",
-            status="yellow",
+            status="unknown",
             explanation="A free email is ordinary.",
             escalation="free_email",
         )
 
         applied = apply_channel_rules([item], "prohibited", {"Channel Match"})
 
-        assert applied[0].status == "red"
+        assert applied[0].status == "contradicted"
         assert applied[0].escalation == "free_email_with_findings"
         assert "prohibit" in applied[0].explanation.lower()
 
@@ -426,20 +426,20 @@ class TestTheCardRules:
         class unclassified, and the card stays a note."""
         item = VerificationItem(
             label="Channel Match",
-            status="yellow",
+            status="unknown",
             explanation="A free email is ordinary.",
             escalation="free_email",
         )
 
         applied = apply_channel_rules([item], "unclassified", {"Channel Match"})
 
-        assert applied[0].status == "yellow"
+        assert applied[0].status == "unknown"
         assert applied[0].escalation == "free_email"
 
     def test_a_missing_card_is_added_only_when_there_is_another_usable_check(self):
         other = VerificationItem(
             label="Company Existence",
-            status="yellow",
+            status="unknown",
             explanation="y",
         )
 

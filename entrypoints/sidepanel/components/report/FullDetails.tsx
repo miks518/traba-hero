@@ -42,12 +42,12 @@ export interface FullDetailsProps {
  * contradiction exists while withholding the only account of what contradicts
  * what. A reader cannot act on a finding they cannot read.
  *
- * So the three groups from `WhatWeChecked` are repeated here with the sentences
+ * So the groups from `WhatWeChecked` are repeated here with the sentences
  * attached, sharing `groupBy` and `statusPresentation` rather than restating
  * them. The repetition is the correlation: a label above matches its sentence
  * below, and the grouping is what makes that pairing legible.
  *
- * **The share filter is not optional here.** `shouldShowCheck` hides a `yellow`
+ * **The share filter is not optional here.** `shouldShowCheck` hides an `unknown`
  * Reputation, and its docstring says why: that finding used to read "The search
  * results do not contain any scam reports, fraud warnings, formal complaints…",
  * putting the words *scam* and *fraud* beside a named company in order to report
@@ -177,10 +177,10 @@ function CheckDetails({ items }: { items: VerificationItem[] }) {
       <h4 className="text-label-md font-bold text-on-surface">What each check found</h4>
       {groups.map((group) => (
         /*
-          One card per group, tinted by the status the group carries — verified
-          green, contradicted red, could-not-verify amber — so a reader can tell
-          the three apart without reading their headings, and so a red finding is
-          visible as a shape rather than only as a word.
+          One card per group, tinted by the state the group carries — contradicted
+          red, confirmed and supported green, could-not-verify amber — so a reader
+          can tell them apart without reading the headings, and so a contradicted
+          finding is visible as a shape rather than only as a word.
 
           The chip keeps its saturated text and drops its own fill
           (`chip-cutout`), because a chip-coloured chip on a chip-coloured card

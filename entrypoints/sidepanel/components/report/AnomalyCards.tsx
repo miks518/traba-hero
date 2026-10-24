@@ -22,7 +22,7 @@ export interface AnomalyCardsProps {
   assessmentRun?: boolean;
 }
 
-type DisplayState = 'checking' | 'stale' | 'low' | 'mid' | 'high' | 'unconfirmed';
+type DisplayState = 'checking' | 'stale' | 'contradicted' | 'unknown';
 
 const CHIP: Record<DisplayState, { cls: string; label: string; icon: IconName }> = {
   checking: {
@@ -32,10 +32,8 @@ const CHIP: Record<DisplayState, { cls: string; label: string; icon: IconName }>
   },
   // Grey, not green. The finding is retired, not a clean employer record.
   stale: { cls: 'chip-stale', label: 'Stale', icon: 'check_circle' },
-  high: { cls: 'chip-critical', label: 'Critical', icon: 'warning' },
-  mid: { cls: 'chip-caution', label: 'Serious', icon: 'warning' },
-  low: { cls: 'chip-verified', label: 'Minor', icon: 'warning' },
-  unconfirmed: { cls: 'chip-caution', label: 'Unconfirmed', icon: 'question_mark' },
+  contradicted: { cls: 'chip-critical', label: 'Contradicted', icon: 'gpp_bad' },
+  unknown: { cls: 'chip-caution', label: 'Not confirmed', icon: 'question_mark' },
 };
 
 const STRIP: Record<
@@ -48,16 +46,16 @@ const STRIP: Record<
     icon: 'check_circle',
     iconCls: 'text-on-surface-variant',
   },
-  red: {
+  contradicted: {
     cls: 'status-card-critical',
     label: 'Contradicted by a public source',
     icon: 'gpp_bad',
     iconCls: 'text-error',
   },
-  yellow: {
+  unknown: {
     cls: 'status-card-caution',
     label: 'Not confirmed',
-    icon: 'gpp_maybe',
+    icon: 'question_mark',
     iconCls: 'text-verdict-caution',
   },
 };
@@ -65,21 +63,22 @@ const STRIP: Record<
 /**
  * The card's display state.
  *
- * The scan's severity is input, not the answer. A finding the evidence
- * accounts for is `stale` (grey) whatever the scan weighed it at; a finding
- * the evidence contradicts keeps the scan's severity; anything unresolved is
- * amber `Unconfirmed`. `Checking` is its own state and carries no severity.
+ * **The scan's severity is not the answer.** It used to be: a finding the
+ * evidence contradicted kept the severity the scan had weighed it at, so the
+ * panel's chip was priced by the same model judgement the rest of the design
+ * moved into code. The state now comes from the evidence alone — `stale`,
+ * `contradicted`, `unknown` — and the scan's severity still feeds the summary
+ * count. `Checking` is its own state and carries no state word at all.
  */
 function displayState(
-  anomaly: Anomaly,
   checking: boolean,
   assessment: AnomalyAssessment | null,
 ): DisplayState {
   if (checking) return 'checking';
-  if (!assessment) return 'unconfirmed';
+  if (!assessment) return 'unknown';
   if (assessment.status === 'stale') return 'stale';
-  if (assessment.status === 'red') return anomaly.severity ?? 'mid';
-  return 'unconfirmed';
+  if (assessment.status === 'contradicted') return 'contradicted';
+  return 'unknown';
 }
 
 /**
@@ -96,26 +95,26 @@ function resolvedAssessment(
   if (props.checking) return null;
   if (props.needsCompanyName) {
     return {
-      status: 'yellow',
+      status: 'unknown',
       finding: 'This post names no employer, so there was nothing to search. Shown so you notice it.',
     };
   }
   if (props.verificationError) {
     return {
-      status: 'yellow',
+      status: 'unknown',
       finding: 'The employer search did not finish, so this finding was not checked.',
     };
   }
   if (anomaly.assessment) {
     const assessment = anomaly.assessment;
-    // The backend demotes an unbacked `stale`/`red` already. Repeating the rule
-    // here is not belt-and-braces: a saved scan, a hand-edited response, or a
-    // future caller can all reach the card without passing through that parser,
-    // and a retired finding shown without its source is the one state this
-    // component must never render.
-    if (assessment.status !== 'yellow' && !assessment.sourceUrl) {
+    // The backend demotes an unbacked `stale`/`contradicted` already. Repeating
+    // the rule here is not belt-and-braces: a saved scan, a hand-edited
+    // response, or a future caller can all reach the card without passing
+    // through that parser, and a retired or contradicted finding shown without
+    // its source is the one state this component must never render.
+    if (assessment.status !== 'unknown' && !assessment.sourceUrl) {
       return {
-        status: 'yellow',
+        status: 'unknown',
         finding: 'No public source was recorded for this finding, so it was not confirmed.',
       };
     }
@@ -123,12 +122,12 @@ function resolvedAssessment(
   }
   if (props.assessmentRun) {
     return {
-      status: 'yellow',
+      status: 'unknown',
       finding: 'No evidence verdict was recorded for this finding.',
     };
   }
   return {
-    status: 'yellow',
+    status: 'unknown',
     finding: 'This reading has no evidence verdict. It may have been saved before findings were checked.',
   };
 }
@@ -142,13 +141,14 @@ function resolvedAssessment(
  * severity is asserted before the evidence is in.
  *
  * **The final chip follows the evidence, not a second model judgement.**
- * `stale → Stale` (grey), `red → the scan's severity`, `yellow → Unconfirmed`,
- * waiting → `Checking`. The mapping is derived here, so the chip cannot
- * disagree with the strip above it.
+ * `stale → Stale` (grey), `contradicted → Contradicted`, `unknown → Not
+ * confirmed`, waiting → `Checking`. The mapping is derived here, so the chip
+ * cannot disagree with the strip above it. The scan's severity is not rendered
+ * as the chip: it is the model's pricing of a category, and the whole point of
+ * moving the verdict into code is that the state comes from the evidence.
  *
  * **Grey is not green.** A stale finding is retired, not a clean record for the
- * employer. The six category checks still use green for a confirmed claim; this
- * card deliberately does not.
+ * employer, and this card never uses the verified colour.
  *
  * **No finding is silently dropped.** A finding that is missing a verdict, that
  * was too numerous to check, or that belongs to a failed lookup stays on screen
@@ -187,7 +187,7 @@ export function AnomalyCards({
           verificationError,
           assessmentRun,
         });
-        const state = displayState(anomaly, checking, assessment);
+        const state = displayState(checking, assessment);
         const chip = CHIP[state];
         const strip = assessment ? STRIP[assessment.status] : null;
 

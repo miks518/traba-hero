@@ -11,7 +11,7 @@
 // The misleading identifier is part of the cause: `suspicious` reads like it
 // means the risky levels, so anyone extending this branch would reasonably
 // assume the dangerous jobs were already handled. The test therefore asserts the
-// message for every level, not just that the critical case changed.
+// message for every verdict, not just that the critical case changed.
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
@@ -28,14 +28,13 @@ vi.mock('../lib/api', () => ({
   clearHistory: vi.fn().mockResolvedValue(undefined),
 }));
 
-const job = (level: string | null): ScannedJob =>
+const job = (verdict: string | null): ScannedJob =>
   ({
-    id: `job-${level}`,
+    id: `job-${verdict}`,
     timestamp: Date.now(),
     scanResult: {
-      riskLevel: level,
-      riskScore: level === 'critical' ? 90 : 40,
-      riskScored: level !== null,
+      verdict,
+      verdicted: verdict !== null,
       isJobPosting: true,
       postingAnalysis: 'A posting.',
       jobSummary: 'A role.',
@@ -53,10 +52,10 @@ const RESUME = {
 };
 
 /** Minimal resume, because the view renders a preview when one is present. */
-function renderWith(level: string | null, jobs?: ScannedJob[]) {
+function renderWith(verdict: string | null, jobs?: ScannedJob[]) {
   return render(
     React.createElement(ResumeMatchView, {
-      scannedJobs: jobs ?? [job(level)],
+      scannedJobs: jobs ?? [job(verdict)],
       resumeData: RESUME,
       onResumeData: vi.fn(),
       onScanComplete: vi.fn(),
@@ -78,9 +77,9 @@ function expandFirstRow() {
   fireEvent.click(rows[0]);
 }
 
-describe('the per-job matching status is correct for every risk level', () => {
-  it('says a critical job is excluded', async () => {
-    const { container } = renderWith('critical');
+describe('the per-job matching status is correct for every verdict', () => {
+  it('says a stop job is excluded', async () => {
+    const { container } = renderWith('stop');
     await act(async () => {
       expandFirstRow();
     });
@@ -90,8 +89,8 @@ describe('the per-job matching status is correct for every risk level', () => {
     expect(text).not.toMatch(/Included in resume matching/i);
   });
 
-  it('says a high job is excluded', async () => {
-    const { container } = renderWith('high');
+  it('says a caution job is excluded', async () => {
+    const { container } = renderWith('caution');
     await act(async () => {
       expandFirstRow();
     });
@@ -101,8 +100,8 @@ describe('the per-job matching status is correct for every risk level', () => {
     expect(text).not.toMatch(/Included in resume matching/i);
   });
 
-  it('says a moderate job is excluded', async () => {
-    const { container } = renderWith('moderate');
+  it('says a note job is excluded', async () => {
+    const { container } = renderWith('note');
     await act(async () => {
       expandFirstRow();
     });
@@ -110,17 +109,17 @@ describe('the per-job matching status is correct for every risk level', () => {
     expect(container.textContent ?? '').toMatch(/Excluded from resume matching/i);
   });
 
-  it('says an unscored job is excluded pending verification', async () => {
+  it('says an unassessed job is excluded pending verification', async () => {
     const { container } = renderWith(null);
     await act(async () => {
       expandFirstRow();
     });
 
-    expect(container.textContent ?? '').toMatch(/Not yet scored/i);
+    expect(container.textContent ?? '').toMatch(/Not yet assessed/i);
   });
 
-  it('only a low-risk job is reported as included', async () => {
-    const { container } = renderWith('low');
+  it('only a clear job is reported as included', async () => {
+    const { container } = renderWith('clear');
     await act(async () => {
       expandFirstRow();
     });
@@ -131,31 +130,30 @@ describe('the per-job matching status is correct for every risk level', () => {
   });
 });
 
-describe('severity badges are distinguishable', () => {
-  /** High and Moderate shipped byte-identical amber badges. */
-  it('does not paint High and Moderate the same', () => {
-    const { container } = renderWith('high');
-    expect(container.textContent).toMatch(/High/);
+describe('verdict badges are distinguishable', () => {
+  /** Caution and Note must not share identical badges. */
+  it('does not paint Caution and Note the same', () => {
+    const { container } = renderWith('caution');
+    expect(container.textContent).toMatch(/Caution/);
 
-    const { container: moderateRow } = renderWith('moderate');
-    expect(moderateRow.textContent).toMatch(/Moderate/);
+    const { container: noteRow } = renderWith('note');
+    expect(noteRow.textContent).toMatch(/Note/);
   });
 
-  it('High is not the same colour as Moderate', () => {
-    const high = renderWith('high').container.querySelectorAll('[class*="border-amber-500"]');
-    const moderate = renderWith('moderate').container.querySelectorAll('[class*="border-amber-500"]');
+  it('Caution uses the error token, Note uses the verified token', () => {
+    const cautionRow = renderWith('caution');
+    const noteRow = renderWith('note');
 
-    // Neither level may borrow the other's identity: High is an alarm, so it
-    // takes the error token rather than sharing Moderate's amber.
-    const highUsesError = renderWith('high').container.innerHTML.includes('text-error');
-    expect(highUsesError).toBe(true);
-    expect(moderate.length).toBeGreaterThan(0);
-    expect(high).toHaveLength(0);
+    // Caution is an alarm, so it takes the error token rather than sharing Note's verified green.
+    const cautionUsesError = cautionRow.container.innerHTML.includes('text-error');
+    expect(cautionUsesError).toBe(true);
+    const noteUsesVerified = noteRow.container.innerHTML.includes('text-green');
+    expect(noteUsesVerified).toBe(true);
   });
 });
 
-describe('the matching input is low risk only', () => {
-  it('never feeds a high or critical job to the matcher', async () => {
+describe('the matching input is clear jobs only', () => {
+  it('never feeds a stop or caution job to the matcher', async () => {
     const matchResumeStream = vi.fn();
     vi.doMock('../lib/api', () => ({
       pingHealth: vi.fn().mockResolvedValue(true),
@@ -166,7 +164,7 @@ describe('the matching input is low risk only', () => {
 
     const { container } = render(
       React.createElement(ResumeMatchView, {
-        scannedJobs: [job('critical'), job('high'), job('moderate'), job('low')],
+        scannedJobs: [job('stop'), job('caution'), job('note'), job('clear')],
         resumeData: RESUME,
         onResumeData: vi.fn(),
         onScanComplete: vi.fn(),
@@ -176,6 +174,6 @@ describe('the matching input is low risk only', () => {
 
     // The count on the match button is the set that will be matched.
     await act(async () => {});
-    expect(container.textContent).toMatch(/\(1 Low Risk\)/);
+    expect(container.textContent).toMatch(/\(1 Proceed\)/);
   });
 });

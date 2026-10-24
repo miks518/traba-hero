@@ -254,10 +254,11 @@ async def test_a_banned_reason_reaches_the_wire_as_empty():
     assert "definitely a scam" not in resp.text
     # The model's `risk_level` is no longer the verdict. This response carries
     # no usable check and no channel facts, so the code has nothing to score and
-    # emits no level. The sentence is withheld and the model's "critical" did
+    # emits no verdict. The sentence is withheld and the model's "critical" did
     # not reach the wire - which is the point of moving the level into code.
-    assert '"riskLevel": "critical"' not in resp.text
-    assert '"riskLevel": null' in resp.text
+    assert '"verdict": "critical"' not in resp.text
+    assert '"verdict": null' in resp.text
+    assert '"riskLevel"' not in resp.text
 
 
 # --- the prompt contract -------------------------------------------------

@@ -27,9 +27,9 @@ const baseResponse = {
   job_summary: 'Sales associate wanted at Acme Trading in Davao City',
   posting_analysis: 'The post asks for no money.',
   anomalies: [],
-  risk_score: 0,
-  risk_level: 'low',
-  score_breakdown: null,
+  verdict: 'clear',
+  verdicted: true,
+  verdict_breakdown: null,
 };
 
 const mocks = vi.hoisted(() => ({
@@ -201,10 +201,10 @@ describe('a reopened scan', () => {
     summary: 'Accounting role',
     timestamp: '2026-10-09T08:30:00.000Z',
     scanResult: {
-      riskLevel: 'low' as const,
-      riskLabel: 'Low Risk',
-      riskScored: true,
-      riskScore: null,
+      verdict: 'clear' as const,
+      verdictLabel: 'Proceed',
+      verdicted: true,
+      verdictBreakdown: undefined,
       riskDescription: '',
       scanningTarget: 'Scanned Element',
       anomalies: [],

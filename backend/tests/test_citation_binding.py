@@ -97,27 +97,27 @@ def test_canonical_forms_still_match():
 # ── B: the red is bound to the citation ───────────────────────────────────────
 
 
-def test_an_unbacked_red_is_demoted_to_yellow():
+def test_an_unbacked_red_is_demoted_to_unknown():
     items, _ = _read("https://attacker.example/x", status="red")
-    assert items[0].status == "yellow"
+    assert items[0].status == "unknown"
 
 
-def test_a_backed_red_stays_red():
+def test_a_backed_contradicted_stays_contradicted():
     items, _ = _read(RETRIEVED, status="red")
-    assert items[0].status == "red"
+    assert items[0].status == "contradicted"
 
 
-def test_an_unbacked_green_loses_its_url_but_keeps_its_status():
-    """A confirmed claim is not made less true by a missing link, and green
+def test_an_unbacked_confirmed_loses_its_url_but_keeps_its_status():
+    """A confirmed claim is not made less true by a missing link, and confirmed
     already scores zero. Demoting it would invent a doubt."""
     items, _ = _read("https://attacker.example/x", status="green")
-    assert items[0].status == "green"
+    assert items[0].status == "confirmed"
     assert items[0].source_url == ""
 
 
-def test_an_unbacked_yellow_is_left_alone():
+def test_an_unbacked_unknown_is_left_alone():
     items, _ = _read("https://attacker.example/x", status="yellow")
-    assert items[0].status == "yellow"
+    assert items[0].status == "unknown"
     assert items[0].source_url == ""
 
 
@@ -126,10 +126,10 @@ def test_an_unbacked_yellow_is_left_alone():
 
 def test_when_nothing_was_retrieved_no_claim_is_refuted():
     """The search failing or returning empty is the common case, and it is the
-    one that must not produce a `red`. An empty allowed set is what a failed
-    search looks like from here."""
+    one that must not produce a `contradicted`. An empty allowed set is what a
+    failed search looks like from here."""
     items, evidence = _read(RETRIEVED, status="red", allowed=())
-    assert items[0].status == "yellow"
+    assert items[0].status == "unknown"
     assert evidence == []
 
 
@@ -153,4 +153,4 @@ def test_the_fallback_path_is_bound_as_well():
     assert used_json is False
     assert items, "the fallback parser should still produce the item"
     assert items[0].source_url == ""
-    assert items[0].status == "yellow"
+    assert items[0].status == "unknown"

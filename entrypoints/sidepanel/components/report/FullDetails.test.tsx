@@ -28,7 +28,7 @@ afterEach(cleanup);
 function item(over: Partial<VerificationItem> = {}): VerificationItem {
   return {
     label: 'Channel Match',
-    status: 'red',
+    status: 'contradicted',
     explanation: "The posting directs applicants to recruitment.ched@outlook.com, which is not on the employer's own domain.",
     source_title: 'CHED official website',
     source_url: 'https://ched.gov.ph/',
@@ -90,16 +90,19 @@ describe('a check carries the sentence that decided it', () => {
   it('groups a contradicted check under Contradicted, in the order the summary uses', () => {
     const { container } = render(
       React.createElement(FullDetails, {
-        result: result({ items: [item(), item({ label: 'Company Existence', status: 'green' })] }),
+        result: result({ items: [item(), item({ label: 'Company Existence', status: 'confirmed' })] }),
       }),
     );
     opened(container);
     const groups = Array.from(container.querySelectorAll('[data-role="check-details"] [data-group]'));
-    // `groupBy`'s own order — verified, contradicted, unverified — not the order
-    // the items happened to arrive in, and not a copy of the summary's. Both
-    // components call the same function, so a label above lands on its sentence
-    // below.
-    expect(groups.map((g) => g.getAttribute('data-group'))).toEqual(['verified', 'contradicted']);
+    // `groupBy`'s own order — contradicted, confirmed, supported, unknown — not
+    // the order the items happened to arrive in, and not a copy of the summary's.
+    // Both components call the same function, so a label above lands on its
+    // sentence below.
+    expect(groups.map((g) => g.getAttribute('data-group'))).toEqual([
+      'contradicted',
+      'confirmed',
+    ]);
   });
 
   it('says nothing before the reader opens it', () => {
@@ -112,7 +115,7 @@ describe('a check carries the sentence that decided it', () => {
 
 describe('the disclosure is where model prose becomes visible, so the filter guards it', () => {
   /**
-   * `shouldShowCheck` hides a `yellow` Reputation because that finding used to
+   * `shouldShowCheck` hides an `unknown` Reputation because that finding used to
    * read "The search results do not contain any scam reports, fraud warnings,
    * formal complaints…" — the words *scam* and *fraud* beside a named company,
    * in order to report nothing. That was the panel's only surface for
@@ -120,10 +123,10 @@ describe('the disclosure is where model prose becomes visible, so the filter gua
    * sentences makes this the surface where those words would actually appear,
    * so importing the same function is what keeps one policy rather than two.
    */
-  it('hides a yellow Reputation explanation that WhatWeChecked also hides', () => {
+  it('hides an unsettled Reputation explanation that WhatWeChecked also hides', () => {
     const reputation = item({
       label: 'Reputation',
-      status: 'yellow',
+      status: 'unknown',
       explanation: 'The search results do not contain any scam reports, fraud warnings or complaints.',
       source_title: '',
       source_url: '',
@@ -138,10 +141,10 @@ describe('the disclosure is where model prose becomes visible, so the filter gua
     expect(summary.container.textContent).not.toContain('Reputation');
   });
 
-  it('still shows a red Reputation, because it is the finding that carries weight', () => {
+  it('still shows a contradicted Reputation, because it is the finding that carries weight', () => {
     const reputation = item({
       label: 'Reputation',
-      status: 'red',
+      status: 'contradicted',
       explanation: 'A result describes a formal complaint filed against this employer.',
       source_title: '',
       source_url: '',
@@ -177,7 +180,7 @@ describe('the disclosure does not withdraw the evidence', () => {
    */
   it('stays open when an explanation is the only thing behind it', () => {
     const unbound = item({
-      status: 'yellow',
+      status: 'unknown',
       explanation: 'The results place this employer at a different domain than the one the posting names.',
       source_title: '',
       source_url: '',
@@ -290,11 +293,11 @@ describe('each check group is a card tinted by its own status', () => {
    */
   const all = result({
     items: [
-      item({ label: 'Company Existence', status: 'green', explanation: 'A result shows the business trading.' }),
+      item({ label: 'Company Existence', status: 'confirmed', explanation: 'A result shows the business trading.' }),
       item(),
       item({
         label: 'Official Registration',
-        status: 'yellow',
+        status: 'unknown',
         explanation: 'The results do not mention a registration for this employer.',
         source_title: '',
         source_url: '',
@@ -303,9 +306,9 @@ describe('each check group is a card tinted by its own status', () => {
   });
 
   const TINT: Record<string, string> = {
-    verified: 'status-card-verified',
+    confirmed: 'status-card-verified',
     contradicted: 'status-card-critical',
-    unverified: 'status-card-caution',
+    unknown: 'status-card-caution',
   };
 
   it.each(Object.entries(TINT))('tints the %s group %s', (key, cls) => {
@@ -320,7 +323,7 @@ describe('each check group is a card tinted by its own status', () => {
   it('gives could-not-verify the amber tint, since that is what the reader asked for', () => {
     const { container } = render(React.createElement(FullDetails, { result: all }));
     opened(container);
-    const group = container.querySelector('[data-role="check-details"] [data-group="unverified"]');
+    const group = container.querySelector('[data-role="check-details"] [data-group="unknown"]');
     expect(group?.className).toContain('status-card-caution');
     expect(group?.className).not.toContain('status-card-critical');
   });
@@ -333,7 +336,7 @@ describe('each check group is a card tinted by its own status', () => {
   it('cuts the chip out of the card, so it does not vanish into the tint', () => {
     const { container } = render(React.createElement(FullDetails, { result: all }));
     opened(container);
-    const chip = container.querySelector('[data-role="check-details"] [data-group="unverified"] span');
+    const chip = container.querySelector('[data-role="check-details"] [data-group="unknown"] span');
     expect(chip?.className).toContain('chip-cutout');
     // Still the status chip underneath, so the label keeps its saturated text.
     expect(chip?.className).toContain('chip-caution');

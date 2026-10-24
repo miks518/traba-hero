@@ -24,8 +24,8 @@ narrow:
 * Anything else is yellow. "The results do not confirm this channel" is not the
   same claim as "the results contradict this channel", and only the second is red.
 
-The status vocabulary is unchanged (`green` / `yellow` / `red`), so the panel and
-`risk_calculator` need no new rendering. The `escalation` field on
+The status vocabulary is now the establishment states (`confirmed`, `supported`, `unknown`, `contradicted`),
+so the panel and `verdict.py` consume these directly. The `escalation` field on
 `VerificationItem` is the code's own reason, and the final verdict reads it to
 give a strong impersonation finding a floor that one weak finding cannot reach.
 See `docs/decisions/channel-match-severity.md`.
@@ -190,7 +190,7 @@ def assess_channel_match(facts: ChannelFacts) -> ChannelAssessment:
     # domain, which is bound to a retrieved result before this runs.
     if is_government and non_government:
         return ChannelAssessment(
-            status="red",
+            status="contradicted",
             explanation=_government_explanation(facts, is_government, non_government),
             escalation="government",
             strong=True,
@@ -200,7 +200,7 @@ def assess_channel_match(facts: ChannelFacts) -> ChannelAssessment:
     if lookalike:
         printed_domain, official_domain = lookalike
         return ChannelAssessment(
-            status="red",
+            status="contradicted",
             explanation=(
                 f"The posting gives {_quote(printed_domain)} as a contact, while "
                 f"the company's own results use {_quote(official_domain)}. The two "
@@ -217,7 +217,7 @@ def assess_channel_match(facts: ChannelFacts) -> ChannelAssessment:
     )
     if free:
         return ChannelAssessment(
-            status="yellow",
+            status="unknown",
             explanation=_free_email_explanation(facts, free[0], official_domains),
             escalation="free_email",
         )
@@ -235,7 +235,7 @@ def assess_channel_match(facts: ChannelFacts) -> ChannelAssessment:
         )
         if unmatched:
             return ChannelAssessment(
-                status="yellow",
+                status="unknown",
                 explanation=_unconfirmed_explanation(
                     facts, unmatched[0], official_domains
                 ),
@@ -245,12 +245,12 @@ def assess_channel_match(facts: ChannelFacts) -> ChannelAssessment:
         # match is still unknown, so it is not green.
         if _every_channel_matches(printed, official):
             return ChannelAssessment(
-                status="green",
+                status="confirmed",
                 explanation=_match_explanation(facts, official_domains),
                 escalation="match",
             )
         return ChannelAssessment(
-            status="yellow",
+            status="unknown",
             explanation=_unconfirmed_explanation(facts, "", official_domains),
             escalation="unconfirmed",
         )
@@ -258,13 +258,13 @@ def assess_channel_match(facts: ChannelFacts) -> ChannelAssessment:
     # No domains at all: a phone number, a messaging handle, or a meeting place.
     if _every_channel_matches(printed, official) and printed:
         return ChannelAssessment(
-            status="green",
+            status="confirmed",
             explanation=_match_explanation(facts, ()),
             escalation="match",
         )
 
     return ChannelAssessment(
-        status="yellow",
+        status="unknown",
         explanation=NO_DATA_EXPLANATION,
         escalation="no_data",
     )
@@ -305,7 +305,7 @@ def apply_channel_rules(
             return items
         items.append(VerificationItem(
             label="Channel Match",
-            status="yellow",
+            status="unknown",
             explanation=NO_DATA_EXPLANATION,
             escalation="no_data",
         ))
@@ -314,7 +314,7 @@ def apply_channel_rules(
     if not channel.escalation:
         # A response from before the facts split, or a schema-less answer that
         # still put Channel Match in `checks`. The model's status is not used.
-        channel.status = "yellow"
+        channel.status = "unknown"
         channel.explanation = NO_DATA_EXPLANATION
         channel.source_title = ""
         channel.source_url = ""
@@ -323,7 +323,7 @@ def apply_channel_rules(
 
     if channel.escalation in ("free_email", "unconfirmed"):
         if request_class == "prohibited":
-            channel.status = "red"
+            channel.status = "contradicted"
             channel.escalation = f"{channel.escalation}_with_findings"
             channel.explanation = (
                 f"{channel.explanation} The posting also asks for something the "

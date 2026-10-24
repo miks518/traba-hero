@@ -21,12 +21,16 @@ export interface WhatWeCheckedProps {
  * real check is a false claim about coverage wearing the honest hat. So every
  * rule below is about not claiming a check that did not happen.
  *
- * **Three groups, not two.** The design splits into *Verified* and *Could not
- * verify*. That leaves the `red` items with nowhere to go, and a contradicted
- * claim is not a failed check — it is the check *succeeding* and finding the
- * opposite of what the posting stated. Folding it into "could not verify" would
- * lose the single most important thing verification can produce; folding it into
- * "verified" would be the flatly opposite lie.
+ * **Four groups, not two.** The design splits into *Verified* and *Could not
+ * verify*. That leaves the `contradicted` items with nowhere to go, and a
+ * contradicted claim is not a failed check — it is the check *succeeding* and
+ * finding the opposite of what the posting stated. Folding it into "could not
+ * verify" would lose the single most important thing verification can produce;
+ * folding it into "confirmed" would be the flatly opposite lie.
+ *
+ * `confirmed` and `supported` are separate groups for the same reason: calling a
+ * record that was never compared against the posting's channel *confirmed* would
+ * be that lie in a smaller place.
  *
  * **No coverage count.** The design puts "13 of 14 done" in the header and calls
  * it a first-class figure. The denominator is the problem: it must be a constant

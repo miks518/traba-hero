@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
 
@@ -335,9 +335,15 @@ class VerifyRequest(BaseModel):
     search_queries: list[VerifyQuery] | None = []
 
 
+# The four establishment states, plus the retired-by-the-record state.
+# `green`/`yellow`/`red` are retired; they were the model's statuses and
+# conflated the observation with the verdict. The new vocabulary is code-owned.
+VERIFICATION_STATES = ("confirmed", "supported", "unknown", "contradicted", "stale")
+
+
 class VerificationItem(BaseModel):
     label: str
-    status: str  # "green" | "yellow" | "red"
+    status: Literal[VERIFICATION_STATES]
     explanation: str
     # The result the model relied on, copied from the search results. A reader
     # can click through and check the finding instead of taking it on trust.

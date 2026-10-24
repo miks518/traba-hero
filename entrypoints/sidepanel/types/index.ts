@@ -83,17 +83,18 @@ export interface AnomalyAssessment {
    */
   index?: number;
   /**
-   * The evidence verdict on this finding.
+   * The evidence verdict on this finding, in the same vocabulary the six
+   * category checks use.
    *
-   * `stale` means a source about this employer accounted for it and the finding
-   * no longer stands. `red` means a source contradicts it. `yellow` means the
-   * results did not settle it, or nothing could be checked.
+   * `contradicted` means a retrieved source contradicts the finding.
+   * `unknown` means the results did not settle it, or nothing could be checked.
+   * `stale` means a source about this employer accounted for the finding and it
+   * no longer stands.
    *
-   * Not the same vocabulary as the six category checks: those still use
-   * `green | yellow | red`. `green` is deliberately absent here — a retired
-   * finding is grey, not a success colour.
+   * `confirmed` is deliberately absent: a finding is something the posting
+   * itself states, so there is nothing for a source to confirm.
    */
-  status: 'stale' | 'yellow' | 'red';
+  status: 'stale' | 'contradicted' | 'unknown';
   /** What the source says, in one plain sentence. */
   finding: string;
   /** The retrieved result the verdict relies on, for stale/red. */
@@ -154,7 +155,14 @@ export interface MatchKeyword {
 
 export interface VerificationItem {
   label: string;
-  status: 'green' | 'yellow' | 'red';
+  /**
+   * How far the record got in establishing this category's claim. One
+   * vocabulary for every check: `confirmed` (the posting's own channel is the
+   * employer's), `supported` (an independent record names the employer but the
+   * channel was not compared), `unknown` (nothing was learned), `contradicted`
+   * (a retrieved source shows the claim is not the employer's).
+   */
+  status: 'confirmed' | 'supported' | 'unknown' | 'contradicted';
   explanation: string;
   /** The result the finding came from, copied from the search results. */
   source_title?: string;

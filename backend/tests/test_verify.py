@@ -1,4 +1,4 @@
-"""Tests for /api/verify endpoint and verification helpers."""
+﻿"""Tests for /api/verify endpoint and verification helpers."""
 import json
 import re
 import pytest
@@ -21,7 +21,7 @@ def _cycled(outcomes):
 
     A list passed straight to `side_effect` raises `StopIteration` on the call
     that overruns it, and `StopIteration` **cannot be raised into an asyncio
-    Future** — CPython raises `TypeError: StopIteration interacts badly with
+    Future** â€” CPython raises `TypeError: StopIteration interacts badly with
     generators and cannot be raised into a Future` and the awaiting coroutine
     never resumes. Since the flow searches through `asyncio.to_thread`, a
     side_effect pinned to the two employer queries did not fail the test that
@@ -42,7 +42,7 @@ def _cycled(outcomes):
     return _next
 
 
-# â”€â”€ VerifyRequest model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ VerifyRequest model Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 class TestVerifyRequest:
     def test_default_values(self):
@@ -74,26 +74,26 @@ class TestVerifyRequest:
         assert finding.quote == ""
 
 
-# â”€â”€ VerificationItem model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ VerificationItem model Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 class TestVerificationItem:
     def test_valid_item(self):
         item = VerificationItem(
             label="Company Existence",
-            status="green",
+            status="confirmed",
             explanation="Found ACME Corp",
         )
         assert item.label == "Company Existence"
-        assert item.status == "green"
+        assert item.status == "confirmed"
 
     def test_serialization(self):
-        item = VerificationItem(label="SEC", status="yellow", explanation="Partial")
+        item = VerificationItem(label="SEC", status="unknown", explanation="Partial")
         d = item.model_dump()
         assert d["label"] == "SEC"
-        assert d["status"] == "yellow"
+        assert d["status"] == "unknown"
 
 
-# â”€â”€ _build_verify_prompt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ _build_verify_prompt Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 class TestBuildVerifyPrompt:
     def test_includes_company_name(self):
@@ -174,11 +174,11 @@ class TestTheClaimsReachThePrompt:
     """The posting's own statements are what three of the six checks test.
 
     `VERIFY_PROMPT.md` says "the request may state what the posting itself
-    claimed … those statements are the claims under test in categories 3, 4 and
+    claimed â€¦ those statements are the claims under test in categories 3, 4 and
     6", and it says "where the request states nothing for a category, report
     yellow". If the request never states anything, that rule reports yellow on
-    every posting and `Channel Match` — the only check that can tell a real
-    employer from one borrowing its name — cannot fire even once. The prompt was
+    every posting and `Channel Match` â€” the only check that can tell a real
+    employer from one borrowing its name â€” cannot fire even once. The prompt was
     asking a question nobody answered.
 
     Attributes are separate from the findings block for the same reason: an
@@ -212,7 +212,7 @@ class TestTheClaimsReachThePrompt:
 
     def test_a_posting_that_stated_nothing_adds_no_claims_block(self):
         """An empty block would read as "the posting stated nothing", which is a
-        claim about the posting that nothing here supports — and it would be the
+        claim about the posting that nothing here supports â€” and it would be the
         same text for a scan that never reported attributes at all.
         """
         req = VerifyRequest(company_name="ACME")
@@ -252,8 +252,8 @@ class TestTheClaimsReachThePrompt:
     def test_the_employer_is_stated_once_never_twice(self):
         """Two names for one employer, and a model asked to compare them.
 
-        The scan reports the employer twice — as `EMPLOYER NAME:` and inside its
-        attributes block — and `scan_flow` resolves the first (or a regex
+        The scan reports the employer twice â€” as `EMPLOYER NAME:` and inside its
+        attributes block â€” and `scan_flow` resolves the first (or a regex
         fallback over the summary), not the second, so the two can disagree.
         Sending both would give `Channel Match` a mismatch that exists in our
         plumbing rather than in the posting, and red findings are what this
@@ -275,7 +275,7 @@ class TestTheClaimsReachThePrompt:
         Similar Offers asks about the reward the posting offers, so the
         figure is one of the claims under test. Excluding it here because a
         *search* cannot check it would be answering a different question in the
-        wrong place — and would be a second definition of `CHECKABLE_ATTRIBUTES`.
+        wrong place â€” and would be a second definition of `CHECKABLE_ATTRIBUTES`.
         """
         req = VerifyRequest(company_name="ACME", attributes={"PAY": "26,000 monthly"})
         prompt = _build_verify_prompt(req)
@@ -284,7 +284,7 @@ class TestTheClaimsReachThePrompt:
 
     def test_an_empty_attribute_value_produces_no_line(self):
         """`LOCATION:` with nothing after it would read as "the posting named no
-        location" — a claim about the posting this function has no basis for.
+        location" â€” a claim about the posting this function has no basis for.
         """
         req = VerifyRequest(
             company_name="ACME",
@@ -344,7 +344,7 @@ class TestFormatResults:
         """Web text is untrusted input; the guardrails, not the formatter, judge it.
 
         A snippet that reads like an instruction must still reach the model
-        verbatim â€” filtering here would silently delete evidence. What stops it
+        verbatim Ã¢â‚¬â€ filtering here would silently delete evidence. What stops it
         acting as an instruction is the system prompt, which is asserted
         separately in TestUntrustedRetrieval.
         """
@@ -401,7 +401,7 @@ class TestRegistrationCategory:
         """The schema must enumerate exactly the claim categories, no more.
 
         A strict schema's enum is a closed list, so a category missing from it
-        cannot be returned at all — it would simply be unreachable, and the
+        cannot be returned at all â€” it would simply be unreachable, and the
         check it existed for would never run. Equally, an extra category would
         be one the prompt never describes, which is how a model ends up
         inventing a fourth.
@@ -423,7 +423,7 @@ class TestRegistrationCategory:
 class TestRecommendationIsAddressedToAJobSeeker:
     """The reader is an applicant, not a compliance officer.
 
-    The model is steeped in registry vocabulary â€” SEC, DTI, PEZA, BOI, LGU â€”
+    The model is steeped in registry vocabulary Ã¢â‚¬â€ SEC, DTI, PEZA, BOI, LGU Ã¢â‚¬â€
     and the recommendation rule previously said only "a step they can take".
     Given no other guidance, it handed the reader a registry lookup. Reporting
     "Confirm the registration number on the SEC site" is technically actionable
@@ -619,14 +619,14 @@ class TestVerifyOutputReading:
             "checks": [
                 {
                     "category": "Official Registration",
-                    "status": "green",
+                    "status": "confirmed",
                     "finding": "SEC registration number CS201500123, per the companieshouse.ph listing",
                     "source_title": "CAISHEN MARKETING SERVICES, INC. - companieshouse.ph",
                     "source_url": "https://companieshouse.ph/acme",
                 },
                 {
                     "category": "Reputation",
-                    "status": "yellow",
+                    "status": "unknown",
                     "finding": "The results do not mention any scam report or employee experience.",
                     "source_title": "",
                     "source_url": "",
@@ -659,7 +659,7 @@ class TestVerifyOutputReading:
         assert used_json is True
         reg = next(i for i in items if i.label == "Official Registration")
         assert isinstance(reg, VerificationItem)
-        assert reg.status == "green"
+        assert reg.status == "confirmed"
         assert "CS201500123" in reg.explanation
         assert reg.source_url == "https://companieshouse.ph/acme"
         assert reg.source_title == "CAISHEN MARKETING SERVICES, INC. - companieshouse.ph"
@@ -669,7 +669,7 @@ class TestVerifyOutputReading:
 
         items, *_ = _read_verify_output(self._payload(), allowed_urls=self._allowed())
         rep = next(i for i in items if i.label == "Reputation")
-        assert rep.status == "yellow"
+        assert rep.status == "unknown"
         assert rep.source_url == ""
 
     def test_reads_the_evidence_list(self):
@@ -686,7 +686,7 @@ class TestVerifyOutputReading:
         from app.services.scanner.verification_flow import _read_verify_output
 
         payload = json.dumps({
-            "checks": [{"category": "Reputation", "status": "yellow", "finding": "nothing", "source_title": "", "source_url": ""}],
+            "checks": [{"category": "Reputation", "status": "unknown", "finding": "nothing", "source_title": "", "source_url": ""}],
             "report": "r", "recommendation": "x",
         })
         # Positional, not `*_`: the tuple grew a sixth element and a star-unpack
@@ -734,15 +734,15 @@ class TestRegistrationCategoryWeighting:
         """A missing Channel Match has to be reportable, or nothing watches for it.
 
         The diagnostic left at three categories could not name a gap in Channel
-        Match — the only check that can tell a real employer from one borrowing
-        its name — so a response that simply omitted it logged as complete.
+        Match â€” the only check that can tell a real employer from one borrowing
+        its name â€” so a response that simply omitted it logged as complete.
         """
         from app.models.schemas import VerificationItem
         from app.services.scanner.verification_parser import _missing_categories
 
         # Every category but Channel Match.
         items = [
-            VerificationItem(label=label, status="green", explanation="")
+            VerificationItem(label=label, status="confirmed", explanation="")
             for label in ("Company Existence", "Official Registration",
                           "Location / Branch", "Reputation", "Similar Offers")
         ]
@@ -756,9 +756,9 @@ class TestRegistrationCategoryWeighting:
 
         # The old three categories, with the pre-rename registration label.
         items = [
-            VerificationItem(label="Company Existence", status="green", explanation=""),
-            VerificationItem(label="SEC Registration", status="yellow", explanation=""),
-            VerificationItem(label="Reputation", status="yellow", explanation=""),
+            VerificationItem(label="Company Existence", status="confirmed", explanation=""),
+            VerificationItem(label="SEC Registration", status="unknown", explanation=""),
+            VerificationItem(label="Reputation", status="unknown", explanation=""),
         ]
         # The three the response carries are not gaps; the three new checks are,
         # and naming them is the point.
@@ -773,7 +773,7 @@ class TestRegistrationCategoryWeighting:
         full = [
             VerificationItem(
                 label="SEC Registration" if c == "Official Registration" else c,
-                status="green",
+                status="confirmed",
                 explanation="",
             )
             for c in VERIFY_CLAIM_CATEGORIES
@@ -912,9 +912,9 @@ class TestSearchOutcomeReachesTheClient:
 
         all_yellow = json.dumps({
             "checks": [
-                {"category": "Company Existence", "status": "yellow", "detail": "search did not complete"},
-                {"category": "SEC Registration", "status": "yellow", "detail": "search did not complete"},
-                {"category": "Reputation", "status": "yellow", "detail": "search did not complete"},
+                {"category": "Company Existence", "status": "unknown", "detail": "search did not complete"},
+                {"category": "SEC Registration", "status": "unknown", "detail": "search did not complete"},
+                {"category": "Reputation", "status": "unknown", "detail": "search did not complete"},
             ],
             "report": "The search did not complete.",
             "recommendation": "Confirm the employer independently.",
@@ -932,16 +932,17 @@ class TestSearchOutcomeReachesTheClient:
                 })
 
         assert resp.status_code == 200
-        # The wire now sends scoreBreakdown with the new verdict breakdown.
-        # The top-level riskLevel and riskScore are null.
-        assert '"riskLevel": null' in resp.text
-        assert '"riskScore": null' in resp.text
-        assert '"scoreBreakdown":' in resp.text
+        # The wire now sends verdictBreakdown with the new verdict breakdown.
+        # The top-level verdict is null.
         assert '"verdict": null' in resp.text
+        assert '"verdictBreakdown":' in resp.text
+        assert '"scoreBreakdown"' not in resp.text
+        assert '"riskLevel"' not in resp.text
+        assert '"riskScore"' not in resp.text
         assert "final_score" not in resp.text
 
 
-# â”€â”€ _parse_verification_result â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ _parse_verification_result Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 class TestParseVerificationResult:
     def test_parses_valid_output(self):
@@ -962,11 +963,11 @@ END VERIFY"""
         items = _parse_verification_result(text)
         assert len(items) == 3
         assert items[0].label == "Company Existence"
-        assert items[0].status == "green"
+        assert items[0].status == "confirmed"
         assert items[1].label == "SEC Registration"
-        assert items[1].status == "yellow"
+        assert items[1].status == "unknown"
         assert items[2].label == "Scam Reports"
-        assert items[2].status == "green"
+        assert items[2].status == "confirmed"
 
     def test_unreadable_text_raises_instead_of_returning_empty(self):
         """The one change that stops a failed verification rendering as nothing.
@@ -984,17 +985,17 @@ END VERIFY"""
         text = "VERIFY: Test\nSTATUS: Green\nDETAIL: Ok\nEND VERIFY"
         items = _parse_verification_result(text)
         assert len(items) == 1
-        assert items[0].status == "green"
+        assert items[0].status == "confirmed"
 
     def test_parses_single_item(self):
         text = "VERIFY: Online Presence\nSTATUS: red\nDETAIL: Not found.\nEND VERIFY"
         items = _parse_verification_result(text)
         assert len(items) == 1
         assert items[0].label == "Online Presence"
-        assert items[0].status == "red"
+        assert items[0].status == "contradicted"
 
 
-# â”€â”€ _parse_verify_section (REPORT / RECOMMENDATION) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ _parse_verify_section (REPORT / RECOMMENDATION) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 class TestParseVerifySection:
     FULL_OUTPUT = """VERIFY: Company Existence
@@ -1041,7 +1042,7 @@ END RECOMMENDATION"""
         assert "Avoid this job" not in report
 
 
-# â”€â”€ POST /api/verify: auth checks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ POST /api/verify: auth checks Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 
 
@@ -1095,9 +1096,9 @@ class TestTheQueryBudget:
 
     AI = json.dumps({
         "checks": [
-            {"category": "Company Existence", "status": "green", "finding": "A business by that name operates at 12 Katipunan Ave.", "source_title": "Acme", "source_url": "https://example.ph/acme"},
-            {"category": "Official Registration", "status": "green", "finding": "Registered with the SEC as CS201500123.", "source_title": "SEC listing", "source_url": "https://example.ph/sec"},
-            {"category": "Reputation", "status": "yellow", "finding": "The results do not mention this category.", "source_title": "", "source_url": ""},
+            {"category": "Company Existence", "status": "confirmed", "finding": "A business by that name operates at 12 Katipunan Ave.", "source_title": "Acme", "source_url": "https://example.ph/acme"},
+            {"category": "Official Registration", "status": "confirmed", "finding": "Registered with the SEC as CS201500123.", "source_title": "SEC listing", "source_url": "https://example.ph/sec"},
+            {"category": "Reputation", "status": "unknown", "finding": "The results do not mention this category.", "source_title": "", "source_url": ""},
         ],
         "evidence": [{"title": "Acme", "url": "https://example.ph/acme", "snippet": "Staffing firm."}],
         "report": "The results show a registered business.",
@@ -1360,24 +1361,25 @@ async def test_verify_failsafe_when_a_readable_response_carries_no_checks():
         assert '"type": "result"' in body
         assert "No structured findings could be read" in body
         assert "Company Existence" in body
-        # This used to assert `riskScore: 0` on the reasoning that "a verdict
+        # This used to assert `verdictBreakdown: 0` on the reasoning that "a verdict
         # always exists". It no longer does, and the reason is the point: the
         # response was readable and carried nothing, so the model reached no
         # level, and 0 was the ladder's way of saying the same thing while
         # printing a reassuring figure. A failsafe card whose whole content is
         # "we could not read the answer" must not also carry a calm number.
-        assert '"riskLevel": null' in body
-        assert '"riskScore": null' in body
-        assert '"scoreBreakdown":' in body
         assert '"verdict": null' in body
+        assert '"verdictBreakdown":' in body
+        assert '"scoreBreakdown"' not in body
+        assert '"riskLevel"' not in body
+        assert '"riskScore"' not in body
 
 
-# ── Scheme-query helpers ─────────────────────────────────────────────────────
+# â”€â”€ Scheme-query helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 #
 # The plan for this task named four helpers it never defined and told the
 # implementer to "follow the file's existing pattern". That pattern is the one
-# used above: patch the two boundaries the flow actually reaches —
-# `app.routers.scan.search` and `app.routers.scan.chat` — because the runtime's
+# used above: patch the two boundaries the flow actually reaches â€”
+# `app.routers.scan.search` and `app.routers.scan.chat` â€” because the runtime's
 # lambdas resolve those names from the router module's globals at call time.
 #
 # The real `build_scheme_queries` is deliberately NOT stubbed. The decision under
@@ -1429,7 +1431,7 @@ def _chat_corroboration():
         "checks": [
             {
                 "category": category,
-                "status": "green",
+                "status": "confirmed",
                 "finding": "A result confirms this claim.",
                 "source_title": "A page",
                 "source_url": "https://example.ph/source",

@@ -31,16 +31,17 @@ describe('mapping the assessment list from the verify wire', () => {
     ]);
   });
 
-  it('maps an unknown status to yellow rather than passing it through', () => {
+  it('maps an unrecognised status to unknown rather than passing it through', () => {
     // A card that received `green` would look up no strip and render the finding
-    // as if it had been checked and passed. `yellow` is the honest default.
+    // as if it had been checked and passed. `unknown` is the honest default, and
+    // it is the same word the backend uses for "nothing was settled".
     const mapped = mapAnomalyAssessments([
       { index: 1, status: 'green', finding: 'something' },
       { index: 2, status: 'RED', finding: 'something else' },
     ]);
 
-    expect(mapped?.[0].status).toBe('yellow');
-    expect(mapped?.[1].status).toBe('yellow');
+    expect(mapped?.[0].status).toBe('unknown');
+    expect(mapped?.[1].status).toBe('unknown');
   });
 
   it('preserves absent as undefined and an empty list as an empty list', () => {
@@ -54,7 +55,7 @@ describe('mapping the assessment list from the verify wire', () => {
   it('drops an entry that is not an object', () => {
     const mapped = mapAnomalyAssessments([
       null as never,
-      { index: 1, status: 'yellow', finding: 'kept' },
+      { index: 1, status: 'unknown', finding: 'kept' },
     ]);
 
     expect(mapped).toHaveLength(1);
@@ -63,7 +64,7 @@ describe('mapping the assessment list from the verify wire', () => {
 
   it('does not invent an index the wire did not carry', () => {
     const mapped = mapAnomalyAssessments([
-      { status: 'yellow', finding: 'no index' },
+      { status: 'unknown', finding: 'no index' },
     ]);
 
     expect(mapped?.[0].index).toBeUndefined();
