@@ -544,9 +544,10 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 "items": [item.model_dump() for item in items],
                 "report": report,
                 "recommendation": recommendation,
-                "riskScore": None,
-                "riskLevel": None,
-                "scoreBreakdown": breakdown,
+                "verdict": None,
+                "verdictBreakdown": breakdown,
+                "verdictReason": "",
+                "verdictText": "",
                 "request_class": request_class,
                 "search_ok": False,
                 "search_error": "No employer name was given, so nothing was searched.",
@@ -925,21 +926,57 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 len(req.anomalies),
             )
 
+        # The statement is authored from the verdict and the structured facts.
+        # The backend owns the copy; the model never writes it.
+        from .establishment import establishment_from_record
+        from .verdict_copy import StatementFacts, statement as render_statement
+
+        establishment = establishment_from_record(items)
+
+        fee_recipient = ""
+        fee_reason = ""
+        amount = ""
+        documents = ""
+        if req.attributes:
+            fee_recipient = req.attributes.get("FEE_RECIPIENT", "") or ""
+            fee_reason = req.attributes.get("FEE_REASON", "") or ""
+            amount = req.attributes.get("PAY", "") or ""
+            # Documents come from the anomalies' quotes
+            for anomaly in req.anomalies or []:
+                code = getattr(anomaly, "code", "") or ""
+                if code in ("APPLICATION_DOCUMENTS", "DOCUMENTS_VIA_THIRD_PARTY", "ACCOUNT_CREDENTIALS"):
+                    quote = getattr(anomaly, "quote", "") or ""
+                    if quote and not documents:
+                        documents = quote
+
+        facts = StatementFacts(
+            amount=amount,
+            fee_recipient=fee_recipient,
+            fee_reason=fee_reason,
+            documents=documents,
+        )
+        verdict_text = render_statement(
+            risk_level,  # risk_level is the verdict string
+            request_class=request_class,
+            establishment=establishment,
+            facts=facts,
+        )
+
         yield runtime.get_sse()({"type": "result", "data": {
             "items": [item.model_dump() for item in items],
             "evidence": evidence,
             "report": report,
             "recommendation": recommendation,
-            "riskScore": risk_score,
-            "riskLevel": risk_level,
-            "request_class": request_class,
+            "verdict": risk_level,
+            "verdictBreakdown": breakdown,
             "verdictReason": verdict_reason,
+            "verdictText": verdict_text,
+            "request_class": request_class,
             # Always present, possibly empty. See the no-company event above for
             # why absence and an empty list are different states to the client.
             "anomaly_assessments": [
                 assessment.model_dump() for assessment in anomaly_assessments
             ],
-            "scoreBreakdown": breakdown,
             # On the wire, not left to the model. A prompt instruction to "state
             # that the search did not complete" only works if the model obeys;
             # a model that omits it would render three yellow cards identical to

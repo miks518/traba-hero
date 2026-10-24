@@ -3,7 +3,7 @@ import type {
   Anomaly,
   IconName,
   ScanResult,
-  ScanRiskLevel,
+  Verdict,
 } from '../types';
 import { isUnverifiedEmployer } from './riskDisplay';
 
@@ -20,20 +20,16 @@ const SEVERITY_ICONS: Record<string, IconName> = {
 };
 
 /**
- * The level word as prose, for history entries and anything else that needs a
+ * The verdict word as prose, for history entries and anything else that needs a
  * label rather than a token.
- *
- * "Not Scored" for a null level rather than a fallback to `low`. A stored scan
- * whose verification never completed has no level, and calling that low would
- * claim the posting was cleared.
  */
-export function riskLevelLabel(level: string | null | undefined): string {
-  switch (level) {
-    case 'low': return 'Low Risk';
-    case 'moderate': return 'Moderate Risk';
-    case 'high': return 'High Risk';
-    case 'critical': return 'Critical Risk';
-    default: return 'Not Scored';
+export function verdictLabel(verdict: Verdict | null | undefined): string {
+  switch (verdict) {
+    case 'clear': return 'Proceed';
+    case 'note': return 'Note';
+    case 'caution': return 'Caution';
+    case 'stop': return 'Do not proceed';
+    default: return 'Not Assessed';
   }
 }
 
@@ -47,10 +43,10 @@ export function riskLevelLabel(level: string | null | undefined): string {
  * private function cannot be tested. See `UNFINISHED-WORK.md`, "Scan-mapping
  * tests".
  *
- * Nothing here computes anything the backend did not send. `riskScore` is
- * copied through or left null, and `scoreBreakdown` is passed along whole. The
- * one derived value is `unverifiedEmployer`, and it is a *suppression*, not a
- * measurement: it suppresses a verdict the system cannot support.
+ * Nothing here computes anything the backend did not send. The verdict and
+ * breakdown come from the backend's decision grid. The one derived value is
+ * `unverifiedEmployer`, and it is a *suppression*, not a measurement: it
+ * suppresses a verdict the system cannot support.
  */
 export function mapApiResponse(data: ApiScanResponse): ScanResult {
   const isJobPosting = data.valid;
@@ -63,11 +59,8 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
 
   const hasCritical = flags.some((f) => f.severity === 'high');
 
-  // Absent rather than 0. The backend sends no `risk_score` when it measured
-  // none, and `0` would render as the bottom of a scale — a claim that the
-  // posting was assessed and came out clean.
-  const score = typeof data.risk_score === 'number' ? data.risk_score : null;
-  const level: ScanRiskLevel | null = data.risk_level ?? null;
+  // The verdict comes from the backend's decision grid.
+  const verdict: Verdict | null = data.verdict ?? null;
 
   const anomalies: Anomaly[] = flags.map((f, i) => ({
     id: `anomaly-${i}`,
@@ -88,19 +81,19 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
   }));
 
   return {
-    riskLevel: level,
-    riskLabel: riskLevelLabel(level),
+    verdict,
+    verdictLabel: verdictLabel(verdict),
     // Copied through, never defaulted: `''` means the scan reported no class,
     // which is a missing input rather than an ordinary posting.
     requestClass: data.request_class || undefined,
-    riskScored: level !== null || score !== null,
-    riskScore: score,
+    verdicted: verdict !== null,
+    verdictBreakdown: data.verdict_breakdown || undefined,
+    verdictText: data.verdict_text || undefined,
     unverifiedEmployer: isUnverifiedEmployer({
       isJobPosting,
       companyName: data.company_name || null,
       anomalyCount: flags.length,
     }),
-    riskDescription: '',
     scanningTarget: 'Scanned Element',
     anomalies,
     flagsCritical: hasCritical,
@@ -109,7 +102,7 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
     secRegistration: data.sec_registration || [],
     jobSummary: data.job_summary || undefined,
     postingAnalysis: data.posting_analysis || undefined,
-    scoreBreakdown: data.score_breakdown || undefined,
+    verdictBreakdown: data.verdict_breakdown || undefined,
     // Copied through, never defaulted. An empty object here would render as "the
     // posting claimed nothing", which is a claim about the posting; what is true
     // when the scan reports none is that we have nothing to show.

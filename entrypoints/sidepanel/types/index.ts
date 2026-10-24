@@ -209,8 +209,12 @@ export interface VerificationResult {
    * a one-line slot.
    */
   verdictReason?: string;
-  riskScore?: number;
-  riskLevel?: ScanRiskLevel;
+  /** The verdict from the decision grid: clear | note | caution | stop. */
+  verdict?: Verdict;
+  /** The breakdown of how the verdict was reached. */
+  verdictBreakdown?: Record<string, unknown>;
+  /** The authored statement from the backend. */
+  verdictText?: string;
   /** The posting's request class, carried from the scan unchanged. */
   requestClass?: string;
   noCompanyName?: boolean;
@@ -249,34 +253,28 @@ export interface VerificationResult {
   debugSearchRaw?: Array<{ query: string; raw: string }>;
 }
 
-export type ScanRiskLevel = 'low' | 'moderate' | 'high' | 'critical';
+export type Verdict = 'clear' | 'note' | 'caution' | 'stop';
 
 export interface ScanResult {
-  riskLevel: ScanRiskLevel | null;
-  riskLabel: string;
+  /** The verdict from the decision grid: clear | note | caution | stop. */
+  verdict: Verdict | null;
+  /** Human-readable label for the verdict (e.g., "Proceed", "Do not proceed"). */
+  verdictLabel: string;
   /**
    * What the posting asks for, from the scan. Absent means the reading predates
    * the field; it is never defaulted to `ordinary`.
    */
   requestClass?: string;
-  /**
-   * True when a score was actually calculated. The posting's own indicators
-   * always produce one, so this is only false for jobs restored from history
-   * that predate that behaviour — those are shown as unverified rather than
-   * showing a number the system never measured.
-   */
-  riskScored: boolean;
-  riskScore: number | null;
-  /**
-   * The posting named no employer and raised no anomalies, so the posting
-   * stage scored 0 while the employer was never checked. Shown as "Unverified"
-   * rather than "0 / Low Risk", which would claim the post was cleared.
-   * An anomaly is real evidence, so it is scored on severity instead.
-   */
+  /** The authored statement from the backend. */
+  verdictText?: string;
+  /** The breakdown of how the verdict was reached. */
+  verdictBreakdown?: Record<string, unknown>;
+  /** Whether a verdict was actually calculated. */
+  verdicted: boolean;
+  /** Whether the employer could not be verified (suppression). */
   unverifiedEmployer?: boolean;
   riskDescription: string;
   scanningTarget: string;
-  scoreBreakdown?: RiskScoreBreakdown;
   offerAnalysis?: OfferAnalysis;
   offerAnalysisLoading?: boolean;
   anomalies: Anomaly[];
@@ -390,14 +388,13 @@ export interface ApiScanResponse {
   job_summary: string;
   error?: string | null;
   company_name?: string | null;
-  risk_score?: number;
-  risk_level?: ScanRiskLevel;
-  /**
-   * What the posting asks for: `ordinary`, `unclassified` or `prohibited`.
-   * Decided by the backend from the findings and the posting's own attributes.
-   * `''` or absent means the scan reported none — a reading recorded before
-   * the field existed — and is never read as `ordinary`.
-   */
+  /** The verdict from the decision grid: clear | note | caution | stop. */
+  verdict?: Verdict;
+  /** The breakdown of how the verdict was reached. */
+  verdict_breakdown?: Record<string, unknown>;
+  /** The authored statement from the backend. */
+  verdict_text?: string;
+  /** What the posting asks for: `ordinary`, `unclassified` or `prohibited`. */
   request_class?: string;
   sec_registration?: { company_name: string; sec_no: string; status: string; date_approved: string }[];
   /**
@@ -406,7 +403,6 @@ export interface ApiScanResponse {
    * this function sees the client shape. The field name stays snake_case
    * because that is what the endpoint sends.
    */
-  score_breakdown?: RiskScoreBreakdown;
   posting_analysis?: string;
   verification_context?: {
     company_name?: string;

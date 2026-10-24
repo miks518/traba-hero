@@ -1,5 +1,4 @@
-import type { AnomalyAssessment, ApiScanResponse, ResumeData, RiskScoreBreakdown, ScannedJob, VerificationResult } from '../types';
-import { toScoreBreakdown } from './scoreBreakdown';
+import type { AnomalyAssessment, ApiScanResponse, ResumeData, ScannedJob, VerificationResult } from '../types';
 
 const API_BASE = import.meta.env.WXT_API_BASE;
 
@@ -642,11 +641,12 @@ export async function verifyJobStream(
             evidence?: VerificationResult['evidence'];
             report: string;
             recommendation: string;
-            riskScore?: number;
-            riskLevel?: string;
+            verdict?: string;
+            verdictBreakdown?: Record<string, unknown>;
+            verdictReason?: string;
+            verdictText?: string;
+            requestClass?: string;
             request_class?: string;
-            /** The wire's own breakdown. Typed opaque — `toScoreBreakdown` owns it. */
-            scoreBreakdown?: unknown;
             no_company_name?: boolean;
             search_ok?: boolean;
             search_error?: string;
@@ -656,18 +656,6 @@ export async function verifyJobStream(
             queries_failed?: number;
             model_queries?: string[];
             debug_search_raw?: Array<{ query: string; raw: string }>;
-            /**
-             * Present-and-empty is different from absent: the first means the
-             * check ran, the second means this reading predates it. The key is
-             * kept as the marker and never defaulted to `[]`.
-             */
-            anomaly_assessments?: Array<{
-              index: number;
-              status: string;
-              finding: string;
-              source_title?: string;
-              source_url?: string;
-            }>;
             /**
              * camelCase here while its neighbours stay snake_case, because
              * `verification_flow.py` puts it in its response dict that way and the
@@ -687,10 +675,10 @@ export async function verifyJobStream(
               // what may appear here, and an absent value is what the panel reads
               // as "no reason to show".
               verdictReason: data.verdictReason ?? data.verdict_reason ?? '',
-              riskScore: data.riskScore,
-              riskLevel: data.riskLevel as 'low' | 'moderate' | 'high' | 'critical' | undefined,
-              requestClass: data.request_class,
-              scoreBreakdown: toScoreBreakdown(data.scoreBreakdown),
+              verdict: data.verdict,
+              verdictBreakdown: data.verdictBreakdown,
+              verdictText: data.verdictText,
+              requestClass: data.requestClass ?? data.request_class,
               searchOk: data.search_ok,
               searchError: data.search_error,
               searchPartial: data.search_partial,
