@@ -798,6 +798,24 @@ async def chat(
     return content
 
 
+async def chat_turn(
+    messages: list,
+    *,
+    endpoint: str = "assess",
+) -> str:
+    """One turn of the agent session: the whole transcript in, one text out.
+
+    `chat` already takes a message list; `chat_turn` exists so the agent loop
+    has a named seam that says what it is. The transcript is sent whole and
+    the caller re-includes the posting on every turn — nothing between here
+    and the provider summarises it, which is the whole fix for the scan→verify
+    relay. The agent's tool calls arrive as labeled text parsed by
+    `agent_protocol`, not a `tools=` parameter: native tool calling is not
+    available on this client and is not guaranteed across OpenRouter routes.
+    """
+    return await chat(messages, endpoint=endpoint)
+
+
 async def chat_json(
     messages: list,
     max_tokens: int | None = None,
