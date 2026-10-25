@@ -10,24 +10,30 @@ party. `scam` and `fraud` stay out of a query because a query carrying a
 conclusion returns pages that appear to corroborate it.
 
 That rule used to live in the scan prompts alone, with the queries model-authored
-and unfiltered in code. `search_query_is_safe` in `search_planner.py` now drops a
-query carrying a conclusion word before it is ever issued — **in the adaptive mode,
-where the planner chooses the query.** In `fixed` mode, the shipped default, the
-scan model's proposals are issued as they arrive and the prompt sentence is still
-the only control. That is the pre-existing state, and calling it a code control
-would be a guarantee the default does not give.
+and unfiltered in code. `search_query_is_safe` in `search_planner.py` drops a
+query carrying a conclusion word before it is ever issued — and since the
+verdict-procedure work it runs **in every mode**: the adaptive planner applies
+it to the queries it chooses, the fixed mode applies it to the scan model's
+proposals where they are issued (before the cap), and the agent's tool calls
+are filtered at the parser (`agent_protocol.parse_tool_calls`). The earlier
+record — that in `fixed` mode the prompt sentence was the only control — is
+amended rather than left to contradict the code.
 
 The tombstone below exists because "no filter" was a decision a future reader would
-otherwise mistake for an oversight. The filter is no longer absent, but it is not
-universal, and the tombstone says which is which.
+otherwise mistake for an oversight. The filter is now universal, and the class
+`TestTheFixedModeFilterIsACodeControl` is what pins it.
 
 `build_scheme_queries` and its attribute table are deleted outright. The model
 proposes its own searches now, so anything that rebuilt them from attributes
 would be a second, competing source of queries - and a stale one.
 """
 
-import pytest
+import json
 
+import pytest
+from httpx import AsyncClient, ASGITransport
+
+from app.main import app
 from app.services.search import build_queries, merge_results, SearchResult
 
 
@@ -318,3 +324,77 @@ class TestTheSchemeQueryBuilderIsDeleted:
         import app.services.search as search_module
 
         assert not hasattr(search_module, "_squeeze")
+
+
+transport = ASGITransport(app=app)
+
+
+class TestTheFixedModeFilterIsACodeControl:
+    """A prompt sentence is not a control.
+
+    The record said that in the shipped `fixed` mode the scan prompt's rule was
+    the only thing standing between a model query and the search engine. That
+    record described the code truthfully, and the code was wrong; the code is
+    changed here and the record is amended with it, not left to contradict it.
+    The same refusal the adaptive planner's queries answer to now answers the
+    fixed mode's model queries.
+    """
+
+    AI = json.dumps({
+        "checks": [
+            {"category": "Company Existence", "status": "confirmed",
+             "finding": "A business by that name operates.",
+             "source_title": "Acme", "source_url": "https://example.ph/acme"},
+        ],
+        "evidence": [],
+        "report": "The results show a registered business.",
+        "recommendation": "Ask them to confirm the address in writing.",
+    })
+
+    async def _verify(self, model_queries):
+        """The house pattern from test_verify.py: fake the search and the chat
+        at the router boundary, post to the endpoint, count what was issued."""
+        from unittest.mock import patch as _patch
+        from app.services.search import SearchOutcome
+        from tests.test_verify import _cycled
+
+        hits = SearchOutcome(
+            results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True
+        )
+
+        with (
+            _patch("app.routers.scan.search", side_effect=_cycled([hits])) as search,
+            _patch("app.routers.scan.chat", return_value=self.AI),
+        ):
+            async with AsyncClient(transport=transport, base_url="http://test") as c:
+                resp = await c.post("/api/verify", json={
+                    "company_name": "Acme Corp",
+                    "job_summary": "Developer at Acme Corp",
+                    "search_queries": model_queries,
+                })
+        return resp, search
+
+    @pytest.mark.asyncio
+    async def test_a_conclusion_word_in_a_model_query_is_refused(self):
+        resp, search = await self._verify(["Tanika scam reports"])
+        assert resp.status_code == 200
+        issued = [c.args[0] for c in search.call_args_list]
+        assert issued == ["Acme Corp company or employer"]
+
+    @pytest.mark.asyncio
+    async def test_a_safe_model_query_still_runs_beside_the_employer_query(self):
+        resp, search = await self._verify(["Acme Corp branch"])
+        issued = [c.args[0] for c in search.call_args_list]
+        assert issued == ["Acme Corp company or employer", "Acme Corp branch"]
+
+    @pytest.mark.asyncio
+    async def test_a_refused_query_consumes_no_slot(self):
+        """The filter runs before the cap: a refused query must not spend one
+        of the two slots a safe query could have used."""
+        resp, search = await self._verify(
+            ["Tanika scam reports", "Acme Corp branch", "Acme Corp permit"]
+        )
+        issued = [c.args[0] for c in search.call_args_list]
+        assert issued == [
+            "Acme Corp company or employer", "Acme Corp branch", "Acme Corp permit",
+        ]

@@ -320,15 +320,14 @@ _SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "cr
 # The conclusion-word filter is not here and never was: this regex decides what
 # a line *is*, not whether its content is acceptable.
 #
-# It lives in `scanner/search_planner.py:search_query_is_safe`, and it runs
-# **in the adaptive mode only** — that is the mode whose follow-ups the planner
-# chooses, and the check is on the query the planner built. In `fixed` mode the
-# scan model's own proposals are issued as they arrive, and **the prompt
-# sentence is the only control there**. That is the pre-existing state, not
-# something the planner changed, and saying otherwise would read as a guarantee
-# the shipped default does not give. The rule still stands in both scan
-# prompts, so in `fixed` mode the instruction and the prompt agree; in
-# `adaptive` mode the control and the instruction agree as well.
+# It lives in `scanner/search_planner.py:search_query_is_safe`, and it runs in
+# **every mode**: the adaptive planner applies it to its own follow-ups, the
+# fixed mode applies it to the model's proposals where they are issued
+# (`verification_flow`, before the cap), and the agent's tool calls are
+# filtered at the parser (`scanner/agent_protocol.parse_tool_calls`) before
+# any credit is spent. An earlier version of this comment said the prompt
+# sentence was the only control in `fixed` mode; that record is amended, not
+# left to contradict the code. See docs/decisions/search-retrieval.md.
 #
 # `JOB[_\s]*TITLE` joins the alternation for `JOB[_\s]*SUMMARY`'s reason — neither
 # is a prefix of the other, so order is free, and `TITLE` is listed first to match

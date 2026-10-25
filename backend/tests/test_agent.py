@@ -229,3 +229,99 @@ def test_the_runtime_seam_resolves_the_limits_from_settings(monkeypatch):
 
     monkeypatch.setattr("app.config.settings.agent_max_turns", 9)
     assert runtime.get_agent_limits().max_turns == 9
+
+
+@pytest.mark.asyncio
+async def test_the_first_search_is_the_reserved_anchor(monkeypatch):
+    """One search is reserved for the employer's own record, built by code.
+
+    An agent that spent all three on discriminating queries about the posting
+    could come back with nothing about the employer — and both `confirmed` and
+    `supported` need the employer's own pages. The anchor runs before the
+    model's own query, and the model is told the code chose it.
+    """
+    fake_model = _scripted_model([
+        "TOOL: search\nARGUMENT: acme hiring cebu",
+        FINAL_ANSWER,
+    ])
+    monkeypatch.setattr(agent, "chat_turn", fake_model)
+    tools = _FakeTools()
+    result = await run_agent(
+        POSTING,
+        system_prompt="system",
+        tools=tools,
+        limits=AgentLimits(),
+        company="Acme Corporation",
+    )
+    assert tools.searched == [
+        "Acme Corporation company or employer",
+        "acme hiring cebu",
+    ]
+    assert result.searches == 2
+    assert "reserved" in _all_text(fake_model.calls[1]).lower()
+
+
+@pytest.mark.asyncio
+async def test_the_anchor_leaves_two_searches_for_the_agent(monkeypatch):
+    """1 reserved + 2 chosen = the 3-search ceiling."""
+    fake_model = _scripted_model([
+        "TOOL: search\nARGUMENT: acme branch cebu",
+        "TOOL: search\nARGUMENT: acme permit number",
+        "TOOL: search\nARGUMENT: acme job title listing",
+        FINAL_ANSWER,
+    ])
+    monkeypatch.setattr(agent, "chat_turn", fake_model)
+    tools = _FakeTools()
+    result = await run_agent(
+        POSTING,
+        system_prompt="system",
+        tools=tools,
+        limits=AgentLimits(),
+        company="Acme Corporation",
+    )
+    assert tools.searched == [
+        "Acme Corporation company or employer",
+        "acme branch cebu",
+        "acme permit number",
+    ]
+    assert result.searches == 3
+    assert "budget" in _all_text(fake_model.calls[3]).lower()
+
+
+@pytest.mark.asyncio
+async def test_without_a_company_no_anchor_is_reserved(monkeypatch):
+    fake_model = _scripted_model([
+        "TOOL: search\nARGUMENT: acme hiring cebu",
+        FINAL_ANSWER,
+    ])
+    monkeypatch.setattr(agent, "chat_turn", fake_model)
+    tools = _FakeTools()
+    result = await run_agent(
+        POSTING, system_prompt="system", tools=tools, limits=AgentLimits()
+    )
+    assert tools.searched == ["acme hiring cebu"]
+    assert result.searches == 1
+
+
+@pytest.mark.asyncio
+async def test_the_anchor_runs_even_when_the_models_own_calls_are_refused(monkeypatch):
+    """The employer lookup is the point of the session; the model's own
+    refused calls are still explained beside it."""
+    fake_model = _scripted_model([
+        "TOOL: search\nARGUMENT: acme scam",
+        FINAL_ANSWER,
+    ])
+    monkeypatch.setattr(agent, "chat_turn", fake_model)
+    tools = _FakeTools()
+    result = await run_agent(
+        POSTING,
+        system_prompt="system",
+        tools=tools,
+        limits=AgentLimits(),
+        company="Acme Corporation",
+    )
+    assert tools.searched == ["Acme Corporation company or employer"]
+    assert result.searches == 1
+    text = _all_text(fake_model.calls[1]).lower()
+    assert "reserved" in text
+    assert "refused" in text

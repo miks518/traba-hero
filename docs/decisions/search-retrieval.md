@@ -58,21 +58,24 @@ owns the query tests.
 a query carrying one returns pages chosen for containing that word, which then read as
 corroboration of an accusation the query already made up.
 
-**In the shipped default, both scan prompts state the rule and no code enforces it.**
-This is a deliberate decision, not an oversight: `_QUERY_PLACEHOLDERS` survives because a model answering
-`QUERY: none` is answering the *format* rather than proposing a search, which is a
-parsing question rather than a judgment about query content.
+**The conclusion-word filter is a code control in every mode.** Amended
+2026-10-25 (the verdict-procedure work): this record used to say that in the
+shipped default the prompt sentence was the only control, and that the code
+check existed only in the `adaptive` mode that ships off. A prompt sentence is
+not a control, and the record now reads what the code does:
 
-**The exposure is a model reading a job posting and writing `Tanika scam`** — the
-prompt is the only thing standing between that and the provider.
+- `search_planner.search_query_is_safe` filters the queries the *planner*
+  chose (`adaptive`), as before.
+- The `fixed` mode's model queries now pass the same filter where they are
+  issued (`verification_flow`, before the cap), so a refused query consumes
+  no slot a safe query could have used.
+- The agent's tool calls are filtered at the parser
+  (`scanner/agent_protocol.parse_tool_calls`), before any credit is spent, in
+  every mode.
 
-**The `adaptive` mode adds a code control, and only there.**
-`search_planner.search_query_is_safe` drops a query carrying a conclusion word
-before the planner issues it. That check is on the queries the *planner* chose.
-In `fixed` mode the scan model's own proposals are issued as they arrive, and the
-prompt sentence is still the only control there — the pre-existing state. The
-`adaptive` mode ships off, so the control that exists is not the one the
-default runs on.
+**The exposure the filter answers is a model reading a job posting and writing
+`Tanika scam`.** The prompt rule still stands in both scan prompts; the code
+and the instruction now agree in every mode.
 
 ---
 
@@ -227,7 +230,7 @@ strongly — a London VC firm, or an unrelated product with a similar word.
 | Typical cost | 1–3 | 1–2 |
 | The requests go out | one at a time, as they always did | Round 1 alone, then the follow-up round together |
 | A scoped follow-up | never | one domain, from Round 1's results, in `prefer` mode |
-| The conclusion-word filter | **not applied** — the prompt sentence is the control | applied by `search_query_is_safe` |
+| The conclusion-word filter | applied where the queries are issued, before the cap | applied by `search_query_is_safe` |
 
 **`fixed` is the shipped default and stays there.** Nothing has been shown to
 improve a verdict, and the fixtures that would decide it have not been run. The

@@ -22,7 +22,13 @@ from .channel_match import (
 )
 from .dependencies import runtime
 from .request_class import classify_request, facts_from_scan
-from .search_planner import classify_signals, label_results, plan_followups, resolve_entity
+from .search_planner import (
+    classify_signals,
+    label_results,
+    plan_followups,
+    resolve_entity,
+    search_query_is_safe,
+)
 from .verdict import code_verdict
 from .verification_parser import VerificationParseError
 from .verification_prompt import clean_verdict_reason, expected_categories
@@ -625,7 +631,16 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         # `getattr` for the same reason as `attributes`: a client that predates
         # the field sends none, and must produce no query rather than an
         # AttributeError halfway through the stream.
-        model_queries = list(getattr(req, "search_queries", None) or [])[:MAX_SEARCH_QUERIES]
+        #
+        # The conclusion-word filter runs here, before the cap, in every mode:
+        # a prompt sentence is not a control, and a refused query must not
+        # spend a slot a safe query could have used. The planner applies the
+        # same filter to its own follow-ups; this is the fixed mode's copy of
+        # the same door.
+        model_queries = [
+            q for q in (str(raw).strip() for raw in (getattr(req, "search_queries", None) or []))
+            if q and search_query_is_safe(q)
+        ][:MAX_SEARCH_QUERIES]
         collected: list = []
         # TEMPORARY DIAGNOSTIC. The provider's raw body per query, so the panel
         # can show what Tavily actually returned. Remove alongside
