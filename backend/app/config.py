@@ -111,6 +111,18 @@ class Settings(BaseSettings):
     # behind as the default of its replacement. `*` is refused, not honoured.
     cors_allowed_origins: str = ""
 
+    # ── The agent's procedural limits (the verdict procedure, §4.4) ──
+    #
+    # Model round trips and tool calls per scan. AGENT_MAX_SEARCHES stays at 3
+    # because Tavily's free tier is 1,000 credits per *month* — the binding
+    # constraint in the whole system, against the provider's 1,000 requests per
+    # *day*. The loop must spend the same credits on better questions, not
+    # raise the ceiling.
+    agent_max_turns: int = 4
+    agent_max_searches: int = 3
+    agent_max_fetches: int = 4
+    agent_max_fetch_bytes: int = 200_000
+
     @property
     def _trusted_networks(self) -> list:
         """The parsed TRUSTED_PROXIES networks.
