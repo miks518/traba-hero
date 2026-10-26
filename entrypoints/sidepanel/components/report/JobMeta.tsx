@@ -29,7 +29,14 @@ function formatScannedAt(iso: string): string {
 }
 
 /**
- * The subject line: when this was scanned, what the role is, and who is hiring.
+ * The subject line: when this was scanned, who is hiring, and what the role is.
+ *
+ * **The employer is the heading, not the role.** The report is a reading of an
+ * employer — the establishment is one of the verdict's two axes — so the name
+ * the reader is being asked to trust leads, and the role sits beneath it as the
+ * thing being offered. The role is frequently a whole sentence lifted from the
+ * posting ("Sales associate wanted at Acme Trading in Davao"), which reads as a
+ * headline only by accident of length; the employer is the stable subject.
  *
  * **The design's third element is not here.** The HTML reads
  * "Northbridge Talent Solutions · posted 2 days ago on a job board", and both
@@ -39,10 +46,11 @@ function formatScannedAt(iso: string): string {
  * system does not hold, and inferring it would be the same move as the retired
  * score: presenting an unmeasured figure as an observation.
  *
- * The employer line renders only when there is one. A posting that named no
+ * The employer heading renders only when there is one. A posting that named no
  * employer gets `CompanyNameNeeded` further down, which says so in more detail
  * and with a dashed edge; repeating "no employer" here as well would state the
- * same missing input twice and read as two separate problems.
+ * same missing input twice and read as two separate problems. The role line
+ * stays, at its smaller size, because the role is still a fact about the scan.
  */
 export function JobMeta({ timestamp, title, employer }: JobMetaProps) {
   const scannedAt = timestamp ? formatScannedAt(timestamp) : '';
@@ -59,13 +67,13 @@ export function JobMeta({ timestamp, title, employer }: JobMetaProps) {
           Scanned {scannedAt}
         </p>
       )}
-      {title && (
+      {hasEmployer && (
         <h1 className="text-headline-sm font-headline font-bold text-on-surface tracking-tight leading-tight">
-          {title}
+          {employer!.trim()}
         </h1>
       )}
-      {hasEmployer && (
-        <p className="text-body-sm text-on-surface-variant leading-snug">{employer!.trim()}</p>
+      {title && (
+        <p className="text-body-sm text-on-surface-variant leading-snug">{title}</p>
       )}
     </section>
   );

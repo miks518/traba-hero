@@ -104,11 +104,14 @@ async function clickScan() {
 }
 
 /** The subject line's own markup, so the assertions cannot match stray text. */
-function subjectLine(container: HTMLElement): { scanned: string; title: string } {
+function subjectLine(container: HTMLElement): { scanned: string; headline: string; role: string } {
   const meta = container.querySelector('[data-role="job-meta"]');
+  const lines = Array.from(meta?.querySelectorAll('p') ?? []);
   return {
-    scanned: meta?.querySelector('p')?.textContent?.trim() ?? '',
-    title: meta?.querySelector('h1')?.textContent?.trim() ?? '',
+    scanned: lines[0]?.textContent?.trim() ?? '',
+    // The employer is the heading; the role is the line beneath it.
+    headline: meta?.querySelector('h1')?.textContent?.trim() ?? '',
+    role: lines[1]?.textContent?.trim() ?? '',
   };
 }
 
@@ -139,17 +142,20 @@ describe('a fresh scan', () => {
     return { ...utils, job: onScanComplete.mock.calls[0][0] };
   }
 
-  it('shows the job title above the verdict', async () => {
-    // The regression. `title` was never passed to the panel, so the `<h1>` did
-    // not exist on any path and the design's slot 2 was missing outright.
+  it('shows the employer as the headline and the role beneath it', async () => {
+    // The regression this file was written for: `title` was never passed to the
+    // panel, so the role line was missing on every path. It still has to render,
+    // but as the supporting line — the employer is the subject of the reading and
+    // takes the heading slot.
     const { container } = await scanFresh();
     await waitFor(() => expect(container.querySelector('[data-role="report-panel"]')).toBeTruthy());
 
     const meta = subjectLine(container);
-    expect(meta.title).not.toBe('');
+    expect(meta.headline).toBe('Acme Trading');
+    expect(meta.role).not.toBe('');
     // The same derivation history uses, so the panel and the Match tab cannot
     // disagree about what this posting is called.
-    expect(meta.title).toBe('Sales associate wanted at Acme Trading in Davao');
+    expect(meta.role).toBe('Sales associate wanted at Acme Trading in Davao');
   });
 
   it('shows a scan date even though nothing was restored from history', async () => {
@@ -171,7 +177,7 @@ describe('a fresh scan', () => {
     const { container } = await scanFresh({ ...baseResponse, job_summary: '' });
     await waitFor(() => expect(container.querySelector('[data-role="report-panel"]')).toBeTruthy());
 
-    expect(subjectLine(container).title).toBe('Scanned Element');
+    expect(subjectLine(container).role).toBe('Scanned Element');
   });
 
   it('clears the subject line when a new capture starts', async () => {
@@ -190,7 +196,7 @@ describe('a fresh scan', () => {
     });
 
     await waitFor(() => expect(container.querySelector('[data-role="job-meta"]')).toBeNull());
-    expect(subjectLine(container).title).toBe('');
+    expect(subjectLine(container).role).toBe('');
   });
 });
 
@@ -214,7 +220,7 @@ describe('a reopened scan', () => {
     },
   };
 
-  it('shows the stored date and title, so both paths look the same', async () => {
+  it('shows the stored date, employer and role, so both paths look the same', async () => {
     const { ScamScanView } = await import('./ScamScanView');
     const { container } = render(
       React.createElement(ScamScanView, {
@@ -226,12 +232,13 @@ describe('a reopened scan', () => {
     await waitFor(() => expect(container.querySelector('[data-role="job-meta"]')).toBeTruthy());
 
     const meta = subjectLine(container);
-    expect(meta.title).toBe('Junior Accountant');
+    expect(meta.headline).toBe('Santos & Villanueva CPAs');
+    expect(meta.role).toBe('Junior Accountant');
     expect(meta.scanned).toMatch(/^scanned /i);
     expect(meta.scanned).toContain('09');
   });
 
-  it('shows the employer under the title', async () => {
+  it('puts the employer in the heading slot, not the role', async () => {
     const { ScamScanView } = await import('./ScamScanView');
     const { container } = render(
       React.createElement(ScamScanView, {
@@ -241,12 +248,10 @@ describe('a reopened scan', () => {
     );
 
     await waitFor(() => expect(container.querySelector('[data-role="job-meta"]')).toBeTruthy());
-    expect(container.querySelector('[data-role="job-meta"]')?.textContent).toContain(
-      'Santos & Villanueva CPAs'
-    );
+    expect(subjectLine(container).headline).toBe('Santos & Villanueva CPAs');
   });
 
-  it('omits the employer line when the posting named none', async () => {
+  it('omits the employer heading when the posting named none', async () => {
     // The panel says a missing employer is a missing input, in `CompanyNameNeeded`,
     // with a dashed border. Repeating "no employer" in the subject line as well
     // would state the same gap twice and read as two separate problems.
@@ -263,8 +268,8 @@ describe('a reopened scan', () => {
 
     await waitFor(() => expect(container.querySelector('[data-role="job-meta"]')).toBeTruthy());
     const meta = subjectLine(container);
-    expect(meta.title).toBe('Junior Accountant');
-    // The title survives; only the employer line is absent.
-    expect(meta.title).not.toBe('');
+    expect(meta.headline).toBe('');
+    // The role survives, at its smaller size; only the employer heading is absent.
+    expect(meta.role).toBe('Junior Accountant');
   });
 });
