@@ -1,6 +1,4 @@
 from app.ai_limiter import ai_limiter
-from app.config import settings
-from app.services.fetch import fetch_page
 from app.services.search import build_queries, clean_company_name, extract_company_name, is_valid_company_name, merge_results, search
 from app.services.lm_client import (
     _parse_custom,
@@ -10,10 +8,8 @@ from app.services.lm_client import (
     _structured_output_body,
     chat,
     chat_stream_pieces,
-    chat_turn,
 )
 
-from .agent import AgentLimits, AgentTools, run_agent
 from .offer_parser import _parse_analyze_offer
 from .offer_prompt import ANALYZE_OFFER_RESPONSE_SCHEMA, ANALYZE_OFFER_SYSTEM_PROMPT, _build_analyze_offer_prompt
 from .scan_result import _VALID_LINE_RE, _anomalies, _scan_response
@@ -40,26 +36,6 @@ class ScannerDependencies:
     get_sse = staticmethod(lambda: _sse)
     get_parse_resume = staticmethod(lambda: _parse_resume_custom)
     get_parse_match = staticmethod(lambda: _parse_match_custom)
-    get_search = staticmethod(lambda: search)
-    # The agent session and its two tools. The limits resolve at call time so
-    # a settings change without a restart is still honoured by the next scan.
-    get_run_agent = staticmethod(lambda: run_agent)
-    get_chat_turn = staticmethod(lambda: chat_turn)
-    get_fetch_page = staticmethod(lambda: fetch_page)
-    get_agent_limits = staticmethod(
-        lambda: AgentLimits(
-            max_turns=settings.agent_max_turns,
-            max_searches=settings.agent_max_searches,
-            max_fetches=settings.agent_max_fetches,
-            max_fetch_bytes=settings.agent_max_fetch_bytes,
-        )
-    )
-    get_agent_tools = staticmethod(
-        lambda: AgentTools(
-            search=search,
-            fetch=lambda url, max_bytes: fetch_page(url, max_bytes=max_bytes),
-        )
-    )
     get_build_queries = staticmethod(lambda: build_queries)
     get_merge_results = staticmethod(lambda: merge_results)
     get_format_results = staticmethod(lambda: format_results)

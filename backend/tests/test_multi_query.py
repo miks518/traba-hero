@@ -180,6 +180,7 @@ class TestThePhilippinesIsNowCarriedByTheRequest:
             return FakeResponse({"results": []})
 
         monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.settings, "search_provider", "tavily")
         monkeypatch.setattr(mod.settings, "tavily_country", country)
         monkeypatch.setattr(mod.httpx, "post", fake_post)
         mod.search(build_queries("Tanika")[0], 5)
@@ -230,6 +231,7 @@ class TestTheDomainScopeIsAPreferenceNotAFilter:
             return FakeResponse({"results": []})
 
         monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.settings, "search_provider", "tavily")
         monkeypatch.setattr(mod.httpx, "post", fake_post)
         mod.search(build_queries("Tanika")[0], 5, scope)
         return captured

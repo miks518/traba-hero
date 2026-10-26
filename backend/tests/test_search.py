@@ -151,6 +151,7 @@ class TestFailureIsNotAbsence:
             raise AssertionError("must not call the provider without a key")
 
         monkeypatch.setattr(mod.settings, "tavily_api_key", "")
+        monkeypatch.setattr(mod.settings, "search_provider", "tavily")
         monkeypatch.setattr(mod.httpx, "post", explode)
         outcome = mod.search("Jollibee", 5)
 
@@ -320,6 +321,7 @@ class TestSearchSettingsAreConfigurable:
             return FakeResponse(TAVILY_OK)
 
         monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.settings, "search_provider", "tavily")
         monkeypatch.setattr(mod.httpx, "post", fake_post)
         for key, value in overrides.items():
             monkeypatch.setattr(mod.settings, key, value)
@@ -538,6 +540,7 @@ class TestGeographicBoost:
             return FakeResponse(TAVILY_OK)
 
         monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.settings, "search_provider", "tavily")
         monkeypatch.setattr(mod.httpx, "post", fake_post)
         mod.search("MIX Market Integrated Xploration", 5)
 
@@ -564,6 +567,7 @@ class TestGeographicBoost:
             return FakeResponse(TAVILY_OK)
 
         monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.settings, "search_provider", "tavily")
         monkeypatch.setattr(mod.httpx, "post", fake_post)
         mod.search("MIX Market Integrated Xploration", 5)
 
@@ -586,6 +590,7 @@ class TestGeographicBoost:
             return FakeResponse(TAVILY_OK)
 
         monkeypatch.setattr(mod.settings, "tavily_api_key", "tvly-test")
+        monkeypatch.setattr(mod.settings, "search_provider", "tavily")
         monkeypatch.setattr(mod.httpx, "post", fake_post)
         mod.search("MIX Market Integrated Xploration", 5)
 

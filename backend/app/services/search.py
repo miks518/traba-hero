@@ -82,12 +82,12 @@ REQUEST_TIMEOUT = 20.0
 def _get_provider_config() -> dict:
     """Return the active provider's configuration from settings."""
     provider = settings.search_provider.strip().lower()
-    if provider == "keeenable":
+    if provider == "keenable":
         return {
             "endpoint": _KEENABLE_ENDPOINT,
-            "api_key": settings.keeenable_api_key,
-            "max_results": settings.keeenable_max_results,
-            "search_depth": settings.keeenable_search_depth.strip().lower(),
+            "api_key": settings.keenable_api_key,
+            "max_results": settings.keenable_max_results,
+            "search_depth": settings.keenable_search_depth.strip().lower(),
             "country": "",  # Keenable may not support country boost
             "exclude_domains": "",  # Keenable may not support exclude_domains
         }
