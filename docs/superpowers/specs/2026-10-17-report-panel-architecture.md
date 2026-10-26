@@ -241,8 +241,8 @@ Architecturally it is one slot with no binding. It must not render as a live con
 
 | Part | Binds to | Mark |
 |---|---|---|
-| Disclaimer | authored | — |
-| "Ruleset 2026.10.2" | authored constant | — |
+| Assessment limitation | authored | — |
+| "Ruleset 2026.10.2" | — | **dropped 2026-10-27** — the build constant named something a reader cannot act on or compare; the footer keeps only the reading's own limits |
 | "Scan a2f91c" | — | **NEEDS FIELD** — a short id on the response |
 
 The scan id is worth having for a different reason than provenance: it is what lets a
