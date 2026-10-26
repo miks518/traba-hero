@@ -8,6 +8,7 @@ import json
 import time
 
 import httpx
+import pytest
 
 from app.main import app
 from tests.conftest import class_settings
@@ -39,6 +40,22 @@ class FakeResponse:
 
     def json(self):
         return self._payload
+
+
+@pytest.fixture(autouse=True)
+def _pin_tavily_provider(monkeypatch):
+    """Every test here asserts the Tavily request shape, so every test pins
+    the provider.
+
+    The module-level `settings` reads the developer's own `.env`, so an
+    unpinned `search_provider` makes these tests route to whatever provider
+    that machine configured — and the request-shape assertions then describe
+    the wrong API. A test that wants another provider overrides this
+    explicitly.
+    """
+    import app.services.search as mod
+
+    monkeypatch.setattr(mod.settings, "search_provider", "tavily")
 
 
 TAVILY_OK = {

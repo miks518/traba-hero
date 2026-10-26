@@ -82,7 +82,10 @@ REQUEST_TIMEOUT = 20.0
 def _get_provider_config() -> dict:
     """Return the active provider's configuration from settings."""
     provider = settings.search_provider.strip().lower()
-    if provider == "keenable":
+    # "keeenable" (3 e's) is accepted alongside the correct spelling: the name
+    # invites the typo, and a silent fall-through to a different provider would
+    # spend the wrong provider's credits while looking configured.
+    if provider in ("keenable", "keeenable"):
         return {
             "endpoint": _KEENABLE_ENDPOINT,
             "api_key": settings.keenable_api_key,
@@ -91,6 +94,15 @@ def _get_provider_config() -> dict:
             "country": "",  # Keenable may not support country boost
             "exclude_domains": "",  # Keenable may not support exclude_domains
         }
+    if provider not in ("tavily", ""):
+        # A misspelled provider name would otherwise silently fall through to
+        # Tavily while spending its credits and looking configured. A warning
+        # makes the typo loud at the first search.
+        log.warning(
+            "[search] SEARCH_PROVIDER=%r is not a supported provider "
+            "(tavily, keenable); falling back to Tavily",
+            settings.search_provider,
+        )
     # Default to Tavily
     return {
         "endpoint": _TAVILY_ENDPOINT,
