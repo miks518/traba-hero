@@ -75,7 +75,7 @@ _VALID_DEPTHS = frozenset({"basic", "advanced"})
 
 # Supported search provider endpoints
 _TAVILY_ENDPOINT = "https://api.tavily.com/search"
-_KEENABLE_ENDPOINT = "https://api.keeenable.com/v1/search"  # hypothetical; update when confirmed
+_KEENABLE_ENDPOINT = "https://api.keenable.ai/v1/search"  # Keenable API
 REQUEST_TIMEOUT = 20.0
 
 
