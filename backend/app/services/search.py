@@ -401,6 +401,9 @@ def search(
     config = _get_provider_config()
     provider_name = settings.search_provider.strip().lower()
 
+    # DEBUG: log which provider is being used
+    log.info("[search] Using provider: %s, endpoint: %s", provider_name, config["endpoint"])
+
     if not config["api_key"].strip():
         log.error("[search] %s_API_KEY is not configured; cannot search", provider_name.upper())
         return SearchOutcome(
