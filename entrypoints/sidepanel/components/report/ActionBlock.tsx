@@ -19,19 +19,29 @@ export interface ActionBlockProps {
    * colour is code-owned, never model-written.
    */
   recommendation?: string;
+  /**
+   * The offer pass's "what to check" line, written for this posting.
+   *
+   * The offer pass runs when there is no employer to look up, so it has no
+   * retrieved evidence to draw on — only the posting's own words. Its
+   * `what_to_check` is the concrete step the reader can take, and it is the
+   * text the action block should show in place of the authored table, which
+   * is keyed to the verdict family alone and cannot refer to this posting.
+   */
+  whatToCheck?: string;
 }
 
 export function ActionBlock(props: ActionBlockProps) {
-  const { verdict, codes, recommendation } = props;
+  const { verdict, codes, recommendation, whatToCheck } = props;
   const actions = actionsFor(verdict);
   const chips = shareChipsFor(codes);
 
   const bullet = verdict ? actions.bullet : NO_VERDICT_BULLET;
 
-  // The verify recommendation replaces both authored lines when it exists —
-  // one row, the checked posting's own words. Without one the authored table
-  // renders exactly as before.
-  const verified = (recommendation || '').trim();
+  // Verify owns the text when it ran; the offer pass owns it when there was no
+  // employer to look up. Either way the authored table is the fallback for the
+  // states neither reached: no run yet, an error, a screened-out recommendation.
+  const verified = (recommendation || whatToCheck || '').trim();
   const row = (leadText: string | null, bodyText: string) =>
     React.createElement(
       'div',

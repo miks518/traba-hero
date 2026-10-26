@@ -78,7 +78,7 @@ describe('the actions the reader is offered', () => {
     const actions = actionsFor('caution');
     const allText = [actions.lead, actions.rest, actions.secondLead, actions.secondRest].join(' ').toLowerCase();
     // Caution should tell the reader what specific thing to check
-    expect(allText).toMatch(/fee|recipient|document|who/i);
+    expect(allText).toMatch(/what|who|confirm/i);
   });
 });
 

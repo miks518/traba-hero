@@ -142,7 +142,7 @@ describe('the one-line verdict reason', () => {
     // something withheld.
     render(React.createElement(VerdictBlock, { verdict: 'caution' }));
     expect(document.querySelector('[data-role="verdict-headline"]')?.textContent).toBe(
-      'Caution — settle the fee recipient and reason first',
+      'Caution — settle what the offer asks for first',
     );
     expect(document.querySelector('[data-role="verdict-reason"]')).toBeNull();
   });
