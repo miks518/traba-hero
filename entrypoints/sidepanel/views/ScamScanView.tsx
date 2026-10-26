@@ -259,7 +259,7 @@ export function ScamScanView({
       {showReport && (
         <ReportPanel
           result={scanResult}
-          verifying={Boolean(scanResult.verificationLoading) || session.verificationFailed}
+          verifying={Boolean(scanResult.verificationLoading) || Boolean(scanResult.offerAnalysisLoading) || session.verificationFailed}
           verificationError={Boolean(scanResult.verificationError)}
           currentQuery={session.currentSearchQuery}
           // The reason arrives with the verification result and is held on the
