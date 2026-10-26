@@ -637,8 +637,6 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 "verdictText": verdict_text,
                 "request_class": request_class,
                 "search_ok": False,
-                "request_class": request_class,
-                "search_ok": False,
                 "search_error": "No employer name was given, so nothing was searched.",
                 # Always present, never conditional. A client reading
                 # `scheme_queries.length` would otherwise throw on exactly the
