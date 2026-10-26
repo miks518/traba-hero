@@ -541,6 +541,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         company = (req.company_name or "").strip()
         if not runtime.get_company_name_is_valid()(company):
             log.warning("[verify] No valid company name provided ('%s') â€” stopping verification endpoint early.", company)
+            log.info("[verify] request_class=%s anomalies=%s", request_class, [getattr(a, "code", "") for a in (req.anomalies or [])])
             yield runtime.get_sse()({"type": "progress", "percent": 100, "stage": "Cannot verify company name"})
             # No company name means there is nothing to search for, so there are
             # no verification results and therefore no risk score. The finding

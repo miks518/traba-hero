@@ -340,12 +340,6 @@ class VerifyRequest(BaseModel):
         default=[], max_length=MAX_IMAGES_PER_SCAN
     )
 
-    # Original image(s) from the scan, passed through to preserve visual context.
-    # Mirrors `ScanRequest.images_base64`: same count and per-image limits.
-    images_base64: list[Annotated[str, StringConstraints(max_length=MAX_IMAGE_BASE64)]] = Field(
-        default=[], max_length=MAX_IMAGES_PER_SCAN
-    )
-
 
 # The four establishment states, plus the retired-by-the-record state.
 # `green`/`yellow`/`red` are retired; they were the model's statuses and
