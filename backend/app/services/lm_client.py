@@ -90,6 +90,9 @@ def _request_extra_body(structured: dict | None) -> dict:
             body.update(reasoning)
     if structured and "structured" not in _unsupported_params:
         body.update(structured)
+    # Drop provider routing parameter if the provider rejected it (e.g., Groq)
+    if "provider" in _unsupported_params and "provider" in body:
+        body.pop("provider", None)
     return body
 
 
@@ -155,12 +158,14 @@ def _rejected_param(exc: Exception, attempted: set[str]) -> str | None:
         if param in text:
             return param
 
-    if not any(h in text for h in ("reasoning", "response_format", "json_schema", "structured", "schema", "unsupported", "unknown field", "unrecognized", "not allowed", "invalid_request_error")):
+    if not any(h in text for h in ("reasoning", "response_format", "json_schema", "structured", "schema", "unsupported", "unknown field", "unrecognized", "not allowed", "invalid_request_error", "provider is unsupported", "provider not supported", "property 'provider'", 'property "provider"')):
         return None
     if any(h in text for h in ("response_format", "json_schema", "structured", "schema")):
         return "structured"
     if "reasoning" in text:
         return "reasoning"
+    if any(h in text for h in ("provider is unsupported", "provider not supported", "property 'provider'", 'property "provider"')):
+        return "provider"
     return None
 
 
