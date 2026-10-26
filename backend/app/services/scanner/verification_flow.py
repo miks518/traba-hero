@@ -566,20 +566,77 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # employer is exactly where the posting text is all there is. It now
             # carries no level, and the panel says the lookup did not happen
             # rather than reporting a number derived from the absence of one.
-            # No verdict from this branch. The grid would read `unknown` and call
-            # an ordinary request `clear`, and "clear" is the wrong word for a
-            # posting where nobody was looked up at all. That distinction â€” a
-            # missing employer is a missing input, not a clean record â€” is Task
-            # 12's, and until it lands the panel says the lookup did not happen.
-            breakdown = {"verdict": None, "level_source": None}
+            # A missing employer is a missing input, not a clean record, so an
+            # ordinary request must not read as `clear` — nobody was looked up.
+            # But an obvious scam on the face of the posting (prohibited, or a
+            # request that cannot be classified) already asks for something the
+            # rules prohibit, and that does not need an employer to be true: the
+            # task-to-earn pattern is the posting's own text. Those get a partial
+            # verdict — caution or note — with an unknown establishment, rather
+            # than "no verdict", so the reader is not told nobody assessed a
+            # posting that announces itself. An ordinary request with no employer
+            # still gets no verdict: there is nothing to judge it against.
+            from .establishment import Establishment
+            from .verdict_copy import StatementFacts, statement as render_statement
+
+            if request_class in ("prohibited", "unclassified"):
+                establishment = Establishment(
+                    "unknown",
+                    "Nothing in the record establishes who is behind the posting.",
+                )
+                risk_level, breakdown = code_verdict(
+                    req.anomalies or [],
+                    items,
+                    [],
+                    request_class=request_class,
+                    establishment=establishment,
+                )
+                risk_score = None
+
+                # The statement is authored from the verdict and the structured facts,
+                # the same way the normal path builds it.
+                fee_recipient = ""
+                fee_reason = ""
+                amount = ""
+                documents = ""
+                if req.attributes:
+                    fee_recipient = req.attributes.get("FEE_RECIPIENT", "") or ""
+                    fee_reason = req.attributes.get("FEE_REASON", "") or ""
+                    amount = req.attributes.get("PAY", "") or ""
+                    for anomaly in req.anomalies or []:
+                        code = getattr(anomaly, "code", "") or ""
+                        if code in ("APPLICATION_DOCUMENTS", "DOCUMENTS_VIA_THIRD_PARTY", "ACCOUNT_CREDENTIALS"):
+                            quote = getattr(anomaly, "quote", "") or ""
+                            if quote and not documents:
+                                documents = quote
+                facts = StatementFacts(
+                    amount=amount,
+                    fee_recipient=fee_recipient,
+                    fee_reason=fee_reason,
+                    documents=documents,
+                )
+                verdict_text = render_statement(
+                    risk_level,
+                    request_class=request_class,
+                    establishment=establishment,
+                    facts=facts,
+                )
+            else:
+                risk_level = None
+                risk_score = None
+                breakdown = {"verdict": None, "level_source": None}
+                verdict_text = ""
+
             yield runtime.get_sse()({"type": "result", "data": {
                 "items": [item.model_dump() for item in items],
                 "report": report,
                 "recommendation": recommendation,
-                "verdict": None,
+                "verdict": risk_level,
                 "verdictBreakdown": breakdown,
                 "verdictReason": "",
-                "verdictText": "",
+                "verdictText": verdict_text,
+                "request_class": request_class,
+                "search_ok": False,
                 "request_class": request_class,
                 "search_ok": False,
                 "search_error": "No employer name was given, so nothing was searched.",
