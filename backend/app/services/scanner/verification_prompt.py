@@ -390,6 +390,18 @@ def clean_verdict_reason(raw: object) -> str:
     return text if verdict_reason_is_clean(text) else ""
 
 
+def clean_recommendation(raw: object) -> str:
+    """The verify recommendation if it may be shown, else empty.
+
+    Same list, same three failure shapes, same drop-not-show rule as
+    `clean_verdict_reason` — the recommendation is model-written prose read by
+    someone deciding about their own money, so an accusation or a reassurance in
+    it is the same exposure in a longer slot. An empty return sends the panel to
+    its authored fallback copy, which is safe and still actionable.
+    """
+    return clean_verdict_reason(raw)
+
+
 RETRIEVAL_FAILED = """=== SEARCH RESULTS FOR: {company} ===
 NOTE ON RETRIEVAL: the search could not be completed ({error}).
 

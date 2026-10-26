@@ -60,6 +60,11 @@ export type IconName =
   // "alarm", and only one of those is true here.
   | 'question_mark'
   | 'cloud_off'
+  // A circled minus, for the "do not share" chips in the action block. The
+  // chips row was originally written with a string tag (`'Icon'`), so this name
+  // was never checked and the icon never rendered; registering it makes the
+  // future chips row actually draw its icon.
+  | 'do_not_disturb_on'
 
 export interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
   name: IconName;

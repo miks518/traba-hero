@@ -31,7 +31,7 @@ from .search_planner import (
 )
 from .verdict import code_verdict
 from .verification_parser import VerificationParseError
-from .verification_prompt import clean_verdict_reason, expected_categories
+from .verification_prompt import clean_recommendation, clean_verdict_reason, expected_categories
 
 
 log = logging.getLogger("trabahero")
@@ -480,7 +480,11 @@ def _read_verify_output(
         return (
             bound_items,
             str(payload.get("report") or ""),
-            str(payload.get("recommendation") or ""),
+            # Screened like the verdict reason: the recommendation is
+            # model-written prose read by someone deciding about their own
+            # money, and an accusation in it is the same exposure in a longer
+            # slot. A rejected text sends the panel to its authored fallback.
+            clean_recommendation(payload.get("recommendation")),
             True,
             bound_evidence,
             _read_risk_level(payload.get("risk_level")),
@@ -500,7 +504,9 @@ def _read_verify_output(
                   exc, text[:400])
         raise VerificationParseError(str(exc)) from exc
     report = runtime.get_parse_verify_section()(text, "REPORT")
-    recommendation = runtime.get_parse_verify_section()(text, "RECOMMENDATION")
+    recommendation = clean_recommendation(
+        runtime.get_parse_verify_section()(text, "RECOMMENDATION")
+    )
     bound_items, _bound_evidence = _bind_to_retrieved(items, [], allowed_urls)
     # None on this path, and that is the honest answer rather than a default: the
     # labeled-text format has no place to carry a level, so nothing was assessed.

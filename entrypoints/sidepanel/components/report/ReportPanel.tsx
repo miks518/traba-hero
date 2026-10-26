@@ -133,7 +133,7 @@ export function ReportPanel({
 
       <VerdictBlock verdict={verdict} verifying={verifying} reason={verdictReason} />
 
-      <ActionBlock verdict={verdict} />
+      <ActionBlock verdict={verdict} recommendation={result.verificationResult?.recommendation} />
 
       {/*
         Two sibling groups, both always mounted, one visible at a time by `order`.
