@@ -400,6 +400,7 @@ export interface OfferAnalysis {
   what_it_offers: string;
   what_to_check: string;
   is_offer: boolean;
+  verdict_level?: 'clear' | 'note' | 'caution' | 'stop' | null;
 }
 
 export interface OfferStreamResult {

@@ -18,7 +18,7 @@ OUTPUT RULES (apply to every field, in any language):
 - Do not use absolutes: always, never, definitely, guaranteed, 100%.
 - Plain sentences only inside the values. No markdown, no bullets, no headings, no emoji.
 
-OUTPUT FORMAT: return one JSON object and nothing else, with exactly these keys: "kind", "verdict", "what_it_asks", "what_it_offers", "what_to_check", "is_offer", "codes", "risk_level", "risk_score". Say this even if no output schema is supplied to you — the object is the answer, and the plain-sentence rule above applies to what you write inside it, not to the object wrapping it.
+OUTPUT FORMAT: return one JSON object and nothing else, with exactly these keys: "kind", "verdict", "what_it_asks", "what_it_offers", "what_to_check", "is_offer", "codes". Say this even if no output schema is supplied to you — the object is the answer, and the plain-sentence rule above applies to what you write inside it, not to the object wrapping it.
 
 Field rules:
 - kind: a short noun phrase describing the content, for example "Job advertisement", "Chat message", "Earnings scheme", "Recruitment pitch". Set it to exactly NOT_OFFER only when there is no offer of work or income in the content at all.
@@ -27,11 +27,7 @@ Field rules:
 - what_it_offers: one sentence stating what the poster says the reader will receive, such as pay, hours, or a position. Write "Not stated" if the content does not say.
 - what_to_check: one sentence naming one concrete thing to confirm, such as the employer's registered name or a written contract before paying anything.
 - is_offer: true unless kind is NOT_OFFER.
-- codes: the anomaly codes from the posting, as a JSON array of strings. Use the same codes as the scan: FEE_MANDATORY, FEE_CONDITIONAL, PURCHASE_REQUIRED, DEPOSIT_REQUIRED, PAYMENT_FORWARDING, ACCOUNT_CREDENTIALS, DOCUMENTS_VIA_THIRD_PARTY, IMPERSONATES_AUTHORITY, TASK_FOR_EARNING, OTHER. Empty array if none apply. A code must name a demand the posting makes.
-- risk_level: one of low, moderate, high, critical. Your overall reading of this offer. Write only the word, nothing else.
-- risk_score: an integer from 0 to 100 behind that level."""
-
-from app.models.schemas import RISK_LEVELS
+- codes: the anomaly codes from the posting, as a JSON array of strings. Use the same codes as the scan: FEE_MANDATORY, FEE_CONDITIONAL, PURCHASE_REQUIRED, DEPOSIT_REQUIRED, PAYMENT_FORWARDING, ACCOUNT_CREDENTIALS, DOCUMENTS_VIA_THIRD_PARTY, IMPERSONATES_AUTHORITY, TASK_FOR_EARNING, OTHER. Empty array if none apply. A code must name a demand the posting makes."""
 
 # Strict schemas must declare every property required and disallow extras, or
 # the provider rejects the request.
@@ -45,12 +41,10 @@ ANALYZE_OFFER_RESPONSE_SCHEMA = {
         "what_to_check": {"type": "string"},
         "is_offer": {"type": "boolean"},
         "codes": {"type": "array", "items": {"type": "string"}},
-        "risk_level": {"type": "string", "enum": list(RISK_LEVELS)},
-        "risk_score": {"type": "integer", "minimum": 0, "maximum": 100},
     },
     "required": [
         "kind", "verdict", "what_it_asks", "what_it_offers", "what_to_check", "is_offer",
-        "codes", "risk_level", "risk_score",
+        "codes",
     ],
     "additionalProperties": False,
 }

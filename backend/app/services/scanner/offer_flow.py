@@ -2,8 +2,6 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 
-from app.models.schemas import RISK_LEVELS
-
 from .dependencies import runtime
 from .offer_prompt import NOT_OFFER_KIND
 from .request_class import classify_request, facts_from_scan
@@ -26,11 +24,6 @@ FAILSAFE = {
     "codes": [],
     "verdict_level": None,
     "verdictBreakdown": {"verdict": None, "level_source": None},
-    # None, and that is the whole point. The default used to be a score derived
-    # from the scan, so the one case where the model's answer could not be read
-    # printed the calmest verdict on the panel.
-    "risk_level": None,
-    "risk_score": None,
 }
 
 
@@ -66,36 +59,11 @@ async def analyze_offer_event_stream(text: str, company_name: str = "") -> Async
         limiter.release()
 
 
-def _read_score(raw) -> int | None:
-    """A 0-100 integer or nothing. Same rule as the verify path's, for the same
-    reason: the value most tempting to substitute is 0, and 0 says "nothing
-    wrong here" on a dial and in a sorted match list."""
-    if raw is None or isinstance(raw, bool):
-        return None
-    try:
-        value = int(raw)
-    except (TypeError, ValueError):
-        log.warning("[analyze-offer] Ignoring non-numeric risk_score %r", raw)
-        return None
-    if not 0 <= value <= 100:
-        log.warning("[analyze-offer] Ignoring out-of-range risk_score %r", value)
-        return None
-    return value
-
-
 def _read_offer_output(text: str) -> dict | None:
     """Read the analysis result, preferring JSON and falling back to text."""
     payload = runtime.get_parse_json()(text)
     if isinstance(payload, dict) and payload.get("verdict"):
         kind = str(payload.get("kind") or "").strip()
-        level = str(payload.get("risk_level") or "").strip().lower()
-        if level not in RISK_LEVELS:
-            # Unrecognised becomes None, not a guess. `None` is the "not assessed"
-            # the panel already renders as Unverified; a misspelt level reaching
-            # the wire would put a colour on a posting nobody judged.
-            if level:
-                log.warning("[analyze-offer] Ignoring unrecognised risk_level %r", level)
-            level = None
 
         # The verdict is code-owned, like the verify path. The model's codes
         # become a request class, and the grid decides the verdict from it and
@@ -133,12 +101,10 @@ def _read_offer_output(text: str) -> dict | None:
             "is_offer": kind.strip().upper() != NOT_OFFER_KIND if kind else True,
             "codes": codes,
             # Code-owned, like the verify path. The model's risk_level and
-            # risk_score are inputs it produced; the verdict is what the panel
-            # shows.
+            # risk_score are gone — the verdict is what the panel shows, and it
+            # is decided by the grid, not by the model's reading of the offer.
             "verdict_level": verdict,
             "verdictBreakdown": breakdown,
-            "risk_level": level,
-            "risk_score": _read_score(payload.get("risk_score")),
         }
 
     log.warning("[analyze-offer] Response was not JSON; falling back to the labeled-text parser.")
@@ -146,8 +112,6 @@ def _read_offer_output(text: str) -> dict | None:
     if isinstance(parsed, dict):
         # The labeled-text format has nowhere to carry either, so this path yields
         # None rather than inventing them.
-        parsed["risk_level"] = None
-        parsed["risk_score"] = None
         parsed.setdefault("codes", [])
         parsed.setdefault("verdict_level", None)
         parsed.setdefault("verdictBreakdown", {"verdict": None, "level_source": None})
