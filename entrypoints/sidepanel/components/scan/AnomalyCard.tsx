@@ -7,14 +7,23 @@ export interface AnomalyCardProps {
 }
 
 const SEVERITY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  // Full opacity, not a translucent wash. A 1px line at 40% over this surface
-  // was effectively invisible — the reader reported the border as white, and it
-  // was falling back to Tailwind's preflight grey because the translucent class
-  // had never been generated at all. The high-severity outline is the alarm, so
-  // it is the one place in the panel that gets full-strength colour.
-  high: { bg: 'bg-error/20', text: 'text-error', border: 'border-error' },
-  mid: { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/40' },
-  low: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30' },
+  // Theme-resolvable tokens, not the raw palette. The mid and low rows were
+  // authored for the dark theme (`text-amber-400` on an amber wash) and in light
+  // mode put pale ink on a pale fill. The fills are the chip `--bg` tokens — the
+  // same pale fills the report's status cards sit on — and the translucent
+  // borders are declared in `assets/tailwind.css`, because a custom token with an
+  // opacity variant silently generates no class at all (`bg-error/20` below
+  // used to be exactly that: an icon circle with no fill).
+  //
+  // Full opacity, not a translucent wash, for the high border. A 1px line at 40%
+  // over this surface was effectively invisible — the reader reported the border
+  // as white, and it was falling back to Tailwind's preflight grey because the
+  // translucent class had never been generated at all. The high-severity outline
+  // is the alarm, so it is the one place in the panel that gets full-strength
+  // colour.
+  high: { bg: 'bg-chip-critical-bg', text: 'text-error', border: 'border-error' },
+  mid: { bg: 'bg-chip-caution-bg', text: 'text-verdict-caution', border: 'border-verdict-caution/40' },
+  low: { bg: 'bg-chip-verified-bg', text: 'text-verdict-verified', border: 'border-verdict-verified/30' },
 };
 
 export function AnomalyCard({ anomaly }: AnomalyCardProps) {

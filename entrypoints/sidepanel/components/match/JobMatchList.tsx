@@ -8,32 +8,48 @@ export interface JobMatchListProps {
   matches: JobMatchItem[];
 }
 
+/**
+ * The match score's ink and bar, one token per band.
+ *
+ * Theme-resolvable tokens, not the raw palette: `green-400`/`amber-400` were
+ * authored for the dark theme and washed out on the light one. The bar takes the
+ * same token as the number, so the two read as one status in either theme.
+ */
 function scoreColor(score: number): string {
-  if (score >= 70) return 'text-green-400';
-  if (score >= 40) return 'text-amber-400';
+  if (score >= 70) return 'text-secondary';
+  if (score >= 40) return 'text-verdict-caution';
   return 'text-error';
 }
 
 function scoreBarColor(score: number): string {
-  if (score >= 70) return 'bg-green-500';
-  if (score >= 40) return 'bg-amber-500';
+  if (score >= 70) return 'bg-secondary';
+  if (score >= 40) return 'bg-verdict-caution';
   return 'bg-error';
 }
 
+/**
+ * The fit badge's chip class. The `chip-*` pair is the themed pale-fill /
+ * saturated-ink treatment; a raw `bg-green-900/30 text-green-400` badge was
+ * near-invisible in light mode, and `bg-error/10` generated nothing at all —
+ * a custom token with an opacity variant silently produces no class.
+ *
+ * "Over" (more experience than asked) is informational, not a pass, so it takes
+ * the neutral chip rather than green.
+ */
 function fitBadge(fit: string | undefined, type: 'experience' | 'industry'): string | null {
   if (!fit) return null;
   const lower = fit.toLowerCase();
   if (type === 'experience') {
-    if (lower.includes('good') || lower.includes('fit')) return 'bg-green-900/30 text-green-400 border-green-500/30';
-    if (lower.includes('over')) return 'bg-blue-900/30 text-blue-400 border-blue-500/30';
-    if (lower.includes('under')) return 'bg-amber-900/30 text-amber-400 border-amber-500/30';
+    if (lower.includes('good') || lower.includes('fit')) return 'chip-verified';
+    if (lower.includes('over')) return 'chip-stale';
+    if (lower.includes('under')) return 'chip-caution';
   }
   if (type === 'industry') {
-    if (lower.includes('strong')) return 'bg-green-900/30 text-green-400 border-green-500/30';
-    if (lower.includes('moderate')) return 'bg-amber-900/30 text-amber-400 border-amber-500/30';
-    if (lower.includes('weak')) return 'bg-error/10 text-error border-error/30';
+    if (lower.includes('strong')) return 'chip-verified';
+    if (lower.includes('moderate')) return 'chip-caution';
+    if (lower.includes('weak')) return 'chip-critical';
   }
-  return 'bg-surface-container-high text-on-surface-variant border-outline-variant/30';
+  return 'chip-stale';
 }
 
 export function JobMatchList({ jobs, matches }: JobMatchListProps) {
@@ -81,12 +97,12 @@ export function JobMatchList({ jobs, matches }: JobMatchListProps) {
             {(m.experienceFit || m.industryFit) && (
               <div className="flex flex-wrap gap-2">
                 {m.experienceFit && (
-                  <span className={`text-label-sm px-2 py-0.5 rounded border ${fitBadge(m.experienceFit, 'experience')}`}>
+                  <span className={`text-label-sm px-2 py-0.5 rounded ${fitBadge(m.experienceFit, 'experience')}`}>
                     Experience: {m.experienceFit}
                   </span>
                 )}
                 {m.industryFit && (
-                  <span className={`text-label-sm px-2 py-0.5 rounded border ${fitBadge(m.industryFit, 'industry')}`}>
+                  <span className={`text-label-sm px-2 py-0.5 rounded ${fitBadge(m.industryFit, 'industry')}`}>
                     Industry: {m.industryFit}
                   </span>
                 )}
@@ -99,7 +115,7 @@ export function JobMatchList({ jobs, matches }: JobMatchListProps) {
                   <span className="text-label-sm text-on-surface-variant">Matched</span>
                   <div className="flex flex-wrap gap-1">
                     {matchedSkills.map((s, i) => (
-                      <span key={i} className="flex items-center gap-0.5 px-1.5 py-0.5 bg-green-900/30 text-green-400 text-label-sm rounded">
+                      <span key={i} className="flex items-center gap-0.5 px-1.5 py-0.5 chip-verified text-label-sm rounded">
                         <Icon name="check_circle" className="text-[12px]" />
                         {s}
                       </span>
@@ -112,7 +128,7 @@ export function JobMatchList({ jobs, matches }: JobMatchListProps) {
                   <span className="text-label-sm text-on-surface-variant">Gaps</span>
                   <div className="flex flex-wrap gap-1">
                     {skillGaps.map((s, i) => (
-                      <span key={i} className="px-1.5 py-0.5 bg-error/10 text-error text-label-sm rounded">
+                      <span key={i} className="px-1.5 py-0.5 chip-critical text-label-sm rounded">
                         {s}
                       </span>
                     ))}
@@ -122,7 +138,7 @@ export function JobMatchList({ jobs, matches }: JobMatchListProps) {
             </div>
 
             {m.recommendedActions && m.recommendedActions.length > 0 && (
-              <div className="flex flex-col gap-1.5 mt-1 p-2.5 rounded-lg bg-secondary-container/10 border border-secondary/20">
+              <div className="flex flex-col gap-1.5 mt-1 p-2.5 rounded-lg bg-surface-container-lowest border border-secondary/20">
                 <span className="text-label-sm font-bold text-secondary flex items-center gap-1">
                   <Icon name="tips_and_updates" className="text-sm" />
                   Recommended Steps

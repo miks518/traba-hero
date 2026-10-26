@@ -742,6 +742,19 @@
     border-color: color-mix(in srgb, var(--color-error) 20%, transparent);
   }
 
+  /* The anomaly card's mid and low severity outlines. The card's fills and inks
+     moved onto the themed chip tokens, so the borders follow the same tone:
+     translucent, theme-resolvable, and declared by hand like every custom-token
+     variant above — an undeclared one generates nothing and the card falls back
+     to preflight grey. */
+  .border-verdict-caution\/40 {
+    border-color: color-mix(in srgb, var(--color-verdict-caution) 40%, transparent);
+  }
+
+  .border-verdict-verified\/30 {
+    border-color: color-mix(in srgb, var(--color-verdict-verified) 30%, transparent);
+  }
+
   .bg-error\/30 {
     background-color: color-mix(in srgb, var(--color-error) 30%, transparent);
   }
