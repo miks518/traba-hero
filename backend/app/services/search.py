@@ -73,6 +73,34 @@ class SearchOutcome:
 # via TAVILY_COUNTRY; blank disables the boost.
 _VALID_DEPTHS = frozenset({"basic", "advanced"})
 
+# Supported search provider endpoints
+_TAVILY_ENDPOINT = "https://api.tavily.com/search"
+_KEENABLE_ENDPOINT = "https://api.keeenable.com/v1/search"  # hypothetical; update when confirmed
+REQUEST_TIMEOUT = 20.0
+
+
+def _get_provider_config() -> dict:
+    """Return the active provider's configuration from settings."""
+    provider = settings.search_provider.strip().lower()
+    if provider == "keeenable":
+        return {
+            "endpoint": _KEENABLE_ENDPOINT,
+            "api_key": settings.keeenable_api_key,
+            "max_results": settings.keeenable_max_results,
+            "search_depth": settings.keeenable_search_depth.strip().lower(),
+            "country": "",  # Keenable may not support country boost
+            "exclude_domains": "",  # Keenable may not support exclude_domains
+        }
+    # Default to Tavily
+    return {
+        "endpoint": _TAVILY_ENDPOINT,
+        "api_key": settings.tavily_api_key,
+        "max_results": settings.tavily_max_results,
+        "search_depth": settings.tavily_search_depth.strip().lower(),
+        "country": settings.tavily_country.strip(),
+        "exclude_domains": settings.tavily_exclude_domains,
+    }
+
 
 def _normalise_domain(raw: str) -> str:
     """Reduce one user-typed entry to a bare host.
@@ -370,37 +398,43 @@ def search(
     """
     limit = max_results if max_results is not None else settings.tavily_max_results
 
-    if not settings.tavily_api_key.strip():
-        # A missing key must be visible, or every category reads as "no
-        # information" and a broken deployment looks like a clean company.
-        log.error("[search] TAVILY_API_KEY is not configured; cannot search")
+    config = _get_provider_config()
+    provider_name = settings.search_provider.strip().lower()
+
+    if not config["api_key"].strip():
+        log.error("[search] %s_API_KEY is not configured; cannot search", provider_name.upper())
         return SearchOutcome(
             ok=False,
-            error="TAVILY_API_KEY is not configured on the backend.",
+            error=f"{provider_name.upper()}_API_KEY is not configured on the backend.",
         )
 
     started = time.monotonic()
     payload = None
     raw = ""  # TEMPORARY DIAGNOSTIC — see SearchOutcome.raw_response.
 
-    depth = settings.tavily_search_depth.strip().lower()
+    depth = config["search_depth"]
     if depth not in _VALID_DEPTHS:
         # A typo would have the provider reject the request, and the user would
         # be told a company cannot be looked up. Log it, then use the fallback
         # so a cost setting cannot become a verdict.
+        if provider_name == "tavily":
+            fallback = settings.tavily_search_depth_fallback
+        else:
+            fallback = "basic"
         log.error(
-            "[search] TAVILY_SEARCH_DEPTH=%r is not a Tavily depth; using %r",
-            settings.tavily_search_depth,
-            settings.tavily_search_depth_fallback,
+            "[search] %s_SEARCH_DEPTH=%r is not a valid depth; using %r",
+            provider_name.upper(),
+            config["search_depth"],
+            fallback,
         )
-        depth = settings.tavily_search_depth_fallback
+        depth = fallback
 
     body = {
-        "api_key": settings.tavily_api_key,
+        "api_key": config["api_key"],
         "query": query,
         "max_results": limit,
         # Advanced costs 2 credits against basic's 1 and buys broader recall,
-        # which is what a small local employer needs. TAVILY_SEARCH_DEPTH turns
+        # which is what a small local employer needs. SEARCH_DEPTH turns
         # it down when the monthly budget matters more.
         "search_depth": depth,
         # No `include_answer`. A synthesised answer is retrieval's opinion
@@ -408,38 +442,16 @@ def search(
         # copied from the results themselves.
     }
 
-    # Boost, do not filter. A browser search from the Philippines surfaces SEC
-    # filings, city PESO sites, and local job boards for a small employer;
-    # Tavily's own crawl index covers that long tail less well, so a niche name
-    # falls through to whatever it indexes strongly — a London VC firm, or an
-    # unrelated product with a similar word. No query rewrite fixes missing
-    # index coverage.
-    #
-    # `include_domains` is not set globally. In Tavily's default `restrict` mode
-    # it confines results to the listed domains, which would discard precisely
-    # the JobStreet, Indeed PH, and PESO pages this boost exists to surface — so
-    # the *default* mode is still the wrong tool, and no configured
-    # `INCLUDE_DOMAINS` setting exists. A per-query scope may still be passed by
-    # the adaptive planner, and it is sent with `prefer` (below), which boosts
-    # without confining. Both boosts coexist; a filter and a boost do not.
-    country = settings.tavily_country.strip()
-    if country:
-        body["country"] = country
+    # Country boost — only Tavily supports this currently
+    if provider_name == "tavily" and config["country"]:
+        body["country"] = config["country"]
 
-    # `exclude_domains` is a different lever from `include_domains`: it removes
-    # pages the provider would otherwise return rather than restricting the
-    # search to a whitelist. That distinction is why it can be set without
-    # discarding the local job boards and PESO listings above — a domain is
-    # excluded by name, not everything outside it. It still costs recall, so
-    # it stays opt-in and off by default.
-    #
-    # Sent only when something survives parsing. `exclude_domains: []` would
-    # declare an intent to filter while filtering nothing; blank is a
-    # misconfiguration, so the unfiltered query is issued instead.
-    excluded = _parse_domains(settings.tavily_exclude_domains)
-    if excluded:
-        log.info("[search] excluding %d configured domain(s)", len(excluded))
-        body["exclude_domains"] = excluded
+    # exclude_domains — only Tavily supports this currently
+    if provider_name == "tavily" and config["exclude_domains"]:
+        excluded = _parse_domains(config["exclude_domains"])
+        if excluded:
+            log.info("[search] excluding %d configured domain(s)", len(excluded))
+            body["exclude_domains"] = excluded
 
     # `prefer` rather than the provider's default `restrict`, always. The mode
     # is what makes scoping safe here: `restrict` would be a hard filter and the
@@ -453,7 +465,7 @@ def search(
 
     try:
         response = httpx.post(
-            TAVILY_ENDPOINT,
+            config["endpoint"],
             json=body,
             timeout=REQUEST_TIMEOUT,
         )

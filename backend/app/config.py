@@ -7,6 +7,9 @@ import os
 # Settings; a second copy of the list would be a second thing to update.
 _VALID_SEARCH_MODES = frozenset({"fixed", "adaptive"})
 
+# Supported search providers. Add new providers here when implemented.
+_VALID_SEARCH_PROVIDERS = frozenset({"tavily", "keeenable"})
+
 
 class Settings(BaseSettings):
     host: str = "0.0.0.0"
@@ -50,18 +53,22 @@ class Settings(BaseSettings):
     ai_max_queue_depth: int = 10
     ai_acquire_timeout: float = 10.0
     ai_call_timeout: float = 120.0
+
+    # ── Web search provider ──────────────────────────────────────────────────
+    # Which search provider to use. Supported: "tavily", "keeenable".
+    # Blank defaults to "tavily" for backward compatibility.
+    search_provider: str = "tavily"
+
+    # ── Tavily (default) ─────────────────────────────────────────────────────
     tavily_api_key: str = ""
-    # Results per verification. Credits are charged per request, so this is
-    # free — what it costs is context, since every snippet becomes prompt text
-    # for a model that draws its reasoning from the same AI_MAX_TOKENS budget
-    # that has to hold the answer. Env value so a deployment can trade the two.
     tavily_max_results: int = 4
-    # Credit cost lives here, not in the code. A verification now issues two
-    # queries (existence, then registration), so `basic` is 2 credits per
-    # verification — the same as one `advanced` request was before the split.
-    # `advanced` is therefore twice the price it looks like, and the budget
-    # arithmetic in .env.example assumes the default.
     tavily_search_depth: str = "basic"
+
+    # ── Keenable (alternative) ───────────────────────────────────────────────
+    # Sign up: https://keeenable.com — check their pricing for credits.
+    keenable_api_key: str = ""
+    keenable_max_results: int = 4
+    keenable_search_depth: str = "basic"
 
     # How `/api/verify` chooses its queries.
     #
