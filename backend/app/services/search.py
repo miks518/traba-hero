@@ -87,12 +87,15 @@ def _get_provider_config() -> dict:
     # spend the wrong provider's credits while looking configured.
     if provider in ("keenable", "keeenable"):
         return {
+            "name": "keenable",
             "endpoint": _KEENABLE_ENDPOINT,
+            # Keenable reads the key from the `X-API-Key` header, never the body.
+            "auth": "header",
             "api_key": settings.keenable_api_key,
             "max_results": settings.keenable_max_results,
             "search_depth": settings.keenable_search_depth.strip().lower(),
-            "country": "",  # Keenable may not support country boost
-            "exclude_domains": "",  # Keenable may not support exclude_domains
+            "country": "",  # Keenable has no country boost
+            "exclude_domains": "",  # Keenable has no exclude_domains
         }
     if provider not in ("tavily", ""):
         # A misspelled provider name would otherwise silently fall through to
@@ -105,7 +108,10 @@ def _get_provider_config() -> dict:
         )
     # Default to Tavily
     return {
+        "name": "tavily",
         "endpoint": _TAVILY_ENDPOINT,
+        # Tavily reads the key from the `api_key` body field.
+        "auth": "body",
         "api_key": settings.tavily_api_key,
         "max_results": settings.tavily_max_results,
         "search_depth": settings.tavily_search_depth.strip().lower(),
@@ -329,16 +335,28 @@ def _normalise(payload) -> list[SearchResult]:
         )
 
     out: list[SearchResult] = []
+    # Keenable returns no `score`; its results arrive already ranked. A
+    # descending positional score preserves that ranking so `merge_results`,
+    # which orders by score, keeps the provider's ordering when several result
+    # sets are combined. Tavily's own score overrides it per row.
+    positional_score = 1.0
     for row in rows:
         if not isinstance(row, dict):
             continue
+        score = row.get("score")
+        if score is None:
+            score = positional_score
+            positional_score = max(0.0, positional_score - 0.1)
         out.append(
             SearchResult(
                 title=str(row.get("title") or ""),
                 url=str(row.get("url") or ""),
-                # Tavily names the snippet 'content'.
-                snippet=str(row.get("content") or ""),
-                score=float(row.get("score") or 0.0),
+                # Tavily names the snippet 'content'; Keenable offers a short
+                # `description` and a longer `snippet`. The longer text is the
+                # evidence the prompt reads, so it is preferred.
+                snippet=str(row.get("content") or row.get("snippet")
+                            or row.get("description") or ""),
+                score=float(score),
             )
         )
     return out
@@ -408,10 +426,18 @@ def search(
     back from an earlier search. A domain from the posting's own text is never
     scoped to: that would search precisely the thing under suspicion.
     """
-    limit = max_results if max_results is not None else settings.tavily_max_results
-
     config = _get_provider_config()
     provider_name = settings.search_provider.strip().lower()
+
+    # The unset limit falls back to the active provider's own knob, not always
+    # Tavily's: a Keenable deployment tuning KEENABLE_MAX_RESULTS would
+    # otherwise find the value read from TAVILY_MAX_RESULTS.
+    if max_results is not None:
+        limit = max_results
+    elif provider_name in ("keenable", "keeenable"):
+        limit = settings.keenable_max_results
+    else:
+        limit = settings.tavily_max_results
 
     # DEBUG: log which provider is being used
     log.info("[search] Using provider: %s, endpoint: %s", provider_name, config["endpoint"])
@@ -432,10 +458,10 @@ def search(
         # A typo would have the provider reject the request, and the user would
         # be told a company cannot be looked up. Log it, then use the fallback
         # so a cost setting cannot become a verdict.
-        if provider_name == "tavily":
-            fallback = settings.tavily_search_depth_fallback
-        else:
+        if provider_name in ("keenable", "keeenable"):
             fallback = "basic"
+        else:
+            fallback = settings.tavily_search_depth_fallback
         log.error(
             "[search] %s_SEARCH_DEPTH=%r is not a valid depth; using %r",
             provider_name.upper(),
@@ -444,18 +470,33 @@ def search(
         )
         depth = fallback
 
-    body = {
-        "api_key": config["api_key"],
-        "query": query,
-        "max_results": limit,
-        # Advanced costs 2 credits against basic's 1 and buys broader recall,
-        # which is what a small local employer needs. SEARCH_DEPTH turns
-        # it down when the monthly budget matters more.
-        "search_depth": depth,
-        # No `include_answer`. A synthesised answer is retrieval's opinion
-        # rather than evidence, and the verification prompt requires source URLs
-        # copied from the results themselves.
-    }
+    # Keenable bills retrieval depth as `mode` (`pro` for deeper retrieval,
+    # `realtime` for the fastest), not `search_depth`. The env knob keeps the
+    # Tavily spelling so one habit configures both: basic is the fast tier,
+    # advanced is the deep one.
+    if provider_name in ("keenable", "keeenable"):
+        headers = {"X-API-Key": config["api_key"]}
+        body = {
+            "query": query,
+            "max_results": limit,
+            # basic -> realtime (fastest), advanced -> pro (deeper retrieval,
+            # Keenable's default).
+            "mode": "pro" if depth == "advanced" else "realtime",
+        }
+    else:
+        headers = {}
+        body = {
+            "api_key": config["api_key"],
+            "query": query,
+            "max_results": limit,
+            # Advanced costs 2 credits against basic's 1 and buys broader recall,
+            # which is what a small local employer needs. SEARCH_DEPTH turns
+            # it down when the monthly budget matters more.
+            "search_depth": depth,
+            # No `include_answer`. A synthesised answer is retrieval's opinion
+            # rather than evidence, and the verification prompt requires source URLs
+            # copied from the results themselves.
+        }
 
     # Country boost — only Tavily supports this currently
     if provider_name == "tavily" and config["country"]:
@@ -482,6 +523,7 @@ def search(
         response = httpx.post(
             config["endpoint"],
             json=body,
+            headers=headers,
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
