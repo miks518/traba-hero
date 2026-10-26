@@ -152,6 +152,16 @@ describe('the per-job matching status is correct for every verdict', () => {
 });
 
 describe('verdict badges are distinguishable', () => {
+  /**
+   * The row badge carrying a verdict word — not a filter chip, not a control.
+   * Substring, not exact: the icon inside the badge renders its ligature name as
+   * text (`gpp_maybeCaution`), and no other span in the row contains the word.
+   */
+  function badgeFor(container: HTMLElement, label: string): HTMLElement | null {
+    const spans = Array.from(container.querySelectorAll('span'));
+    return spans.find((s) => s.textContent?.includes(label)) ?? null;
+  }
+
   /** Caution and Note must not share identical badges. */
   it('does not paint Caution and Note the same', () => {
     const { container } = renderWith('caution');
@@ -161,15 +171,25 @@ describe('verdict badges are distinguishable', () => {
     expect(noteRow.textContent).toMatch(/Note/);
   });
 
-  it('Caution uses the error token, Note uses the verified token', () => {
-    const cautionRow = renderWith('caution');
-    const noteRow = renderWith('note');
+  it('Caution wears the caution chip, Note the verified chip', () => {
+    // The badge summarises the report banner, whose tone table gives `caution`
+    // the caution tone and `note` the verified one (`verdictCopy.ts`; the same
+    // three-tone decision is documented on the verdict tokens in
+    // `tailwind.config.js`). Red is `stop`'s alone.
+    //
+    // This test used to grep the row's innerHTML for `text-error` / `text-green`
+    // and passed without either badge carrying those classes: the substrings came
+    // from the resume preview's delete button and the Proceed filter chip, so the
+    // badges this test names were never the thing asserted. Asserting the badge
+    // element's own class is the honest form, and it is what exposed the old
+    // dark-theme palette the badges had been wearing.
+    const cautionBadge = badgeFor(renderWith('caution').container, 'Caution');
+    expect(cautionBadge, 'the caution badge').toBeTruthy();
+    expect(cautionBadge!.className).toContain('chip-caution');
 
-    // Caution is an alarm, so it takes the error token rather than sharing Note's verified green.
-    const cautionUsesError = cautionRow.container.innerHTML.includes('text-error');
-    expect(cautionUsesError).toBe(true);
-    const noteUsesVerified = noteRow.container.innerHTML.includes('text-green');
-    expect(noteUsesVerified).toBe(true);
+    const noteBadge = badgeFor(renderWith('note').container, 'Note');
+    expect(noteBadge, 'the note badge').toBeTruthy();
+    expect(noteBadge!.className).toContain('chip-verified');
   });
 });
 

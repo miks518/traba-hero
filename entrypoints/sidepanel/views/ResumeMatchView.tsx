@@ -41,13 +41,26 @@ function verdictLabel(verdict: string | null | undefined): string {
   }
 }
 
+/**
+ * The verdict badge's chip class, one per verdict family.
+ *
+ * The status chips are the themed pair — pale fill, saturated ink, resolved per
+ * theme — which is why this reads `chip-*` rather than a raw palette class. The
+ * raw palette was authored for the dark theme (`green-400` on `green-900/30`)
+ * and in light mode put pale text on a pale fill: "Proceed" was near-invisible.
+ *
+ * `note` shares the verified chip with `clear` on purpose. The report panel
+ * gives both the verified tone (`verdictCopy.ts`: the employer is confirmed in
+ * both), so the history badge agrees with the banner it summarises, and the
+ * label text is what tells them apart.
+ */
 function matchBadgeStyle(verdict: string | null | undefined): string {
   switch (verdict) {
-    case 'stop': return 'bg-red-900/30 text-red-400 border-red-500/40';
-    case 'caution': return 'bg-orange-900/30 text-orange-400 border-orange-500/40';
-    case 'note': return 'bg-amber-900/30 text-amber-400 border-amber-500/40';
-    case 'clear': return 'bg-green-900/30 text-green-400 border-green-500/40';
-    default: return 'bg-surface-container-high border-outline-variant/20';
+    case 'stop': return 'chip-critical';
+    case 'caution': return 'chip-caution';
+    case 'note': return 'chip-verified';
+    case 'clear': return 'chip-verified';
+    default: return 'chip-stale';
   }
 }
 
@@ -82,6 +95,12 @@ function isUnassessedJob(job: ScannedJob): boolean {
  * Each chip filters on the verdict itself, which is why there is no bucket
  * vocabulary left to drift: a chip reading "Caution" keeps exactly the rows
  * wearing a Caution badge.
+ *
+ * The colours are the theme-resolvable tokens (`verdict-*`, `chip-*`), not the
+ * raw palette: an idle `text-green-500` read fine on the dark theme and washed
+ * out on the light one, and the count badges had the same failure as the row
+ * badges — pale ink on a pale fill. The active state takes the chip fill, so a
+ * selected filter looks like the badges it selects.
  */
 /** How each verdict is named in the empty-state sentence, where a sentence needs it. */
 const FILTER_EMPTY_WORD: Record<Exclude<JobFilterCategory, 'all'>, string> = {
@@ -111,33 +130,33 @@ const FILTER_CHIPS: {
     id: 'clear',
     title: 'Proceed',
     icon: 'verified',
-    active: 'bg-green-950/40 text-green-400 border border-green-500/40 shadow-sm',
-    idle: 'text-green-500 hover:bg-surface-container',
-    badge: 'bg-green-900/40 text-green-300',
+    active: 'chip-verified shadow-sm',
+    idle: 'text-verdict-verified hover:bg-surface-container',
+    badge: 'chip-verified',
   },
   {
     id: 'note',
     title: 'Note',
     icon: 'warning',
-    active: 'bg-amber-950/40 text-amber-400 border border-amber-500/40 shadow-sm',
-    idle: 'text-amber-500 hover:bg-surface-container',
-    badge: 'bg-amber-900/40 text-amber-300',
+    active: 'chip-verified shadow-sm',
+    idle: 'text-verdict-verified hover:bg-surface-container',
+    badge: 'chip-verified',
   },
   {
     id: 'caution',
     title: 'Caution',
     icon: 'gpp_maybe',
-    active: 'bg-orange-950/40 text-orange-400 border border-orange-500/40 shadow-sm',
-    idle: 'text-orange-500 hover:bg-surface-container',
-    badge: 'bg-orange-900/40 text-orange-300',
+    active: 'chip-caution shadow-sm',
+    idle: 'text-verdict-caution hover:bg-surface-container',
+    badge: 'chip-caution',
   },
   {
     id: 'stop',
     title: 'Do not proceed',
     icon: 'shield_person',
-    active: 'bg-red-950/40 text-red-400 border border-red-500/40 shadow-sm',
-    idle: 'text-red-500 hover:bg-surface-container',
-    badge: 'bg-red-900/40 text-red-300',
+    active: 'chip-critical shadow-sm',
+    idle: 'text-verdict-critical hover:bg-surface-container',
+    badge: 'chip-critical',
   },
 ];
 
@@ -420,13 +439,13 @@ export function ResumeMatchView({
                         {job.timestamp ? formatTimestamp(job.timestamp) : ''}
                       </span>
                       {sr.verdict === null ? (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] bg-surface-container-high text-on-surface-variant border border-outline-variant/30 shrink-0 font-medium">
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] chip-stale text-on-surface font-semibold shrink-0">
                           <Icon name="info" className="text-[10px]" />
                           Unverified
                         </span>
                       ) : (
                         <span
-                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] border font-medium shrink-0 ${matchBadgeStyle(sr.verdict)}`}
+                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold shrink-0 ${matchBadgeStyle(sr.verdict)}`}
                         >
                           <Icon
                             name={sr.verdict === 'clear' ? 'verified' : sr.verdict === 'stop' ? 'shield_person' : 'warning'}
@@ -480,13 +499,13 @@ export function ResumeMatchView({
                         <span>Not yet assessed. Excluded from resume matching until external verification completes.</span>
                       </div>
                     ) : excluded ? (
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-error-container/15 border border-error/50 text-error text-label-sm">
+                      <div className="flex items-center gap-2 p-2 rounded-lg status-card-critical border text-verdict-critical text-label-sm">
                         <Icon name="shield_person" className="text-xs shrink-0" />
                         <span>Excluded from resume matching.</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-300 text-label-sm">
-                        <Icon name="verified" className="text-xs shrink-0 text-green-400" />
+                      <div className="flex items-center gap-2 p-2 rounded-lg status-card-verified border text-verdict-verified text-label-sm">
+                        <Icon name="verified" className="text-xs shrink-0" />
                         <span>Included in resume matching.</span>
                       </div>
                     )}
@@ -536,7 +555,7 @@ export function ResumeMatchView({
                         ))}
                       </div>
                     ) : (
-                      <p className="text-body-sm text-green-500/90">
+                      <p className="text-body-sm text-secondary">
                         No significant anomalies detected.
                       </p>
                     )}
