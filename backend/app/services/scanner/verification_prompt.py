@@ -662,4 +662,16 @@ def _build_verify_prompt(req: VerifyRequest, search_context: str = "") -> str:
         parts.append(findings)
     if search_context:
         parts.append(f"\n{search_context}")
+    # Original images from the scan, for visual context
+    images = getattr(req, "images_base64", None) or []
+    if images:
+        parts.append("=== ORIGINAL IMAGES FROM SCAN ===")
+        parts.append(
+            "The following image(s) are the original screenshot(s) from the scan. "
+            "Use them to visually verify claims in the findings against the "
+            "original posting. Each image is a base64-encoded JPEG."
+        )
+        for i, img in enumerate(images, 1):
+            parts.append(f"Image {i}: data:image/jpeg;base64,{img}")
+        parts.append("=== END ORIGINAL IMAGES ===")
     return "\n\n".join(parts)
