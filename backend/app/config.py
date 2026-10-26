@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     keenable_api_key: str = ""
     keenable_max_results: int = 4
     keenable_search_depth: str = "basic"
+    # Keenable has no country-ranking parameter, so geography is applied on the
+    # query text instead: the configured country is appended to queries that do
+    # not already mention it. Blank disables the suffix. Mirrors
+    # TAVILY_COUNTRY's default so a switch between providers costs the same
+    # recall.
+    keenable_country: str = "philippines"
 
     # How `/api/verify` chooses its queries.
     #

@@ -94,7 +94,10 @@ def _get_provider_config() -> dict:
             "api_key": settings.keenable_api_key,
             "max_results": settings.keenable_max_results,
             "search_depth": settings.keenable_search_depth.strip().lower(),
-            "country": "",  # Keenable has no country boost
+            # Keenable has no country-ranking parameter. Geography rides on the
+            # query text instead — see the `country_boost` note in search().
+            "country_boost": "query",
+            "country": settings.keenable_country.strip(),
             "exclude_domains": "",  # Keenable has no exclude_domains
         }
     if provider not in ("tavily", ""):
@@ -115,6 +118,9 @@ def _get_provider_config() -> dict:
         "api_key": settings.tavily_api_key,
         "max_results": settings.tavily_max_results,
         "search_depth": settings.tavily_search_depth.strip().lower(),
+        # Tavily's native `country` parameter biases ranking without touching
+        # the query.
+        "country_boost": "param",
         "country": settings.tavily_country.strip(),
         "exclude_domains": settings.tavily_exclude_domains,
     }
@@ -498,9 +504,17 @@ def search(
             # copied from the results themselves.
         }
 
-    # Country boost — only Tavily supports this currently
-    if provider_name == "tavily" and config["country"]:
+    # Country boost, two levers named by `country_boost`. Tavily has a ranking
+    # parameter; Keenable does not, so its geography rides on the query text —
+    # the suffix `build_queries` used to carry before the Tavily param made it
+    # redundant. Redundant there, load-bearing here: the same reasoning that
+    # removed the suffix from every query restores it for the provider that has
+    # no param, and only when the query does not already name the country.
+    if config["country_boost"] == "param" and config["country"]:
         body["country"] = config["country"]
+    elif config["country_boost"] == "query" and config["country"]:
+        if config["country"].lower() not in query.lower():
+            body["query"] = f"{query} {config['country']}"
 
     # exclude_domains — only Tavily supports this currently
     if provider_name == "tavily" and config["exclude_domains"]:

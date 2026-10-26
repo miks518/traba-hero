@@ -637,6 +637,82 @@ class TestGeographicBoost:
         assert captured["search_depth"] == "advanced"
 
 
+KEENABLE_OK = {
+    "query": "test",
+    "mode": "pro",
+    "results": [
+        {"title": "Acme Corp", "url": "https://acme.ph",
+         "description": "A company.", "snippet": "Acme Corp is a Philippine employer."},
+    ],
+}
+
+
+class TestKeenableCountryRidesOnTheQuery:
+    """Keenable has no country-ranking parameter, so geography is query text.
+
+    Tavily's `country` parameter biases ranking without touching the query, and
+    that redundancy is why `build_queries` no longer appends the country. For a
+    provider without the parameter the suffix is not redundant — it is the only
+    geographic lever — so it is restored at the request layer, per provider,
+    rather than back in the query builders where it would apply to both.
+    """
+
+    def _capture(self, monkeypatch, query, **overrides):
+        import app.services.search as mod
+
+        captured = {}
+
+        def fake_post(url, json=None, timeout=None, headers=None):
+            captured.update(url=url, json=json or {}, headers=headers or {})
+            return FakeResponse(KEENABLE_OK)
+
+        monkeypatch.setattr(mod.settings, "keenable_api_key", "keen-test")
+        monkeypatch.setattr(mod.settings, "search_provider", "keenable")
+        monkeypatch.setattr(mod.httpx, "post", fake_post)
+        for key, value in overrides.items():
+            monkeypatch.setattr(mod.settings, key, value)
+        mod.search(query, 5)
+        return captured
+
+    def test_the_country_is_appended_when_the_query_lacks_it(self, monkeypatch):
+        captured = self._capture(monkeypatch, "Lumio Solar company or employer")
+
+        assert captured["json"]["query"] == "Lumio Solar company or employer philippines"
+        assert "country" not in captured["json"]
+
+    def test_a_query_that_already_names_the_country_is_not_doubled(self, monkeypatch):
+        """The suffix applied twice is the same double signal the Tavily param
+        made redundant — the exact thing `build_queries` dropped the suffix to
+        avoid."""
+        captured = self._capture(
+            monkeypatch, "Philippines job postings for Lumio Solar"
+        )
+
+        assert captured["json"]["query"] == "Philippines job postings for Lumio Solar"
+
+    def test_a_blank_country_omits_the_suffix(self, monkeypatch):
+        """A blank boost is a misconfiguration, not a country: the plain query
+        is issued rather than an empty suffix."""
+        captured = self._capture(monkeypatch, "Lumio Solar", keenable_country="   ")
+
+        assert captured["json"]["query"] == "Lumio Solar"
+
+    def test_the_match_is_case_insensitive(self, monkeypatch):
+        """A query naming `Philippines` must not grow `philippines` too."""
+        captured = self._capture(
+            monkeypatch, "Lumio Solar Philippines jobs"
+        )
+
+        assert captured["json"]["query"] == "Lumio Solar Philippines jobs"
+
+    def test_keenable_still_authenticates_via_header(self, monkeypatch):
+        """The suffix must not reintroduce the api_key-in-body mistake."""
+        captured = self._capture(monkeypatch, "Lumio Solar")
+
+        assert captured["headers"] == {"X-API-Key": "keen-test"}
+        assert "api_key" not in captured["json"]
+
+
 class TestCompanyNameHelpers:
     """These were nested inside TestRawProviderBody by accident, which meant a
     class documented as being about the debug tab was also the only home for the
