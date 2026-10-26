@@ -477,4 +477,12 @@ export interface OfferAnalysis {
   whatItOffers: string;
   whatToCheck: string;
   isOffer: boolean;
+  /**
+   * Code-owned verdict, computed from the codes the model emitted and the
+   * request class they imply. Mirrors the verify path's verdict: clear, note,
+   * caution, stop. The model's `risk_level`/`risk_score` are no longer trusted
+   * — the grid decides, so a model that prices a category instead of reading the
+   * whole offer cannot put a colour on a posting nobody judged.
+   */
+  verdictLevel?: 'clear' | 'note' | 'caution' | 'stop' | null;
 }

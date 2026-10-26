@@ -6,6 +6,8 @@ from app.models.schemas import RISK_LEVELS
 
 from .dependencies import runtime
 from .offer_prompt import NOT_OFFER_KIND
+from .request_class import classify_request, facts_from_scan
+from .verdict import code_verdict
 
 log = logging.getLogger("trabahero")
 
@@ -21,6 +23,9 @@ FAILSAFE = {
     "what_it_offers": "Not stated",
     "what_to_check": "Confirm who you would be dealing with before sending money or personal details.",
     "is_offer": True,
+    "codes": [],
+    "verdict_level": None,
+    "verdictBreakdown": {"verdict": None, "level_source": None},
     # None, and that is the whole point. The default used to be a score derived
     # from the scan, so the one case where the model's answer could not be read
     # printed the calmest verdict on the panel.
@@ -91,6 +96,34 @@ def _read_offer_output(text: str) -> dict | None:
             if level:
                 log.warning("[analyze-offer] Ignoring unrecognised risk_level %r", level)
             level = None
+
+        # The verdict is code-owned, like the verify path. The model's codes
+        # become a request class, and the grid decides the verdict from it and
+        # an unknown establishment — the offer path has no employer to look up.
+        codes = payload.get("codes") or []
+        if not isinstance(codes, list):
+            codes = []
+        codes = [str(c).strip().upper() for c in codes if str(c).strip()]
+        # Fee recipient/timing come from what the posting states about who is
+        # paid. The model does not emit attributes here, so fee-bearing codes
+        # resolve to unclassified — the honest reading when the recipient is
+        # unnamed.
+        anomalies = [{"code": c, "quote": ""} for c in codes]
+        request_class = classify_request(facts_from_scan(anomalies, {}))
+
+        from .establishment import Establishment
+        establishment = Establishment(
+            "unknown",
+            "Nothing in the record establishes who is behind the posting.",
+        )
+        verdict, breakdown = code_verdict(
+            anomalies,
+            [],
+            [],
+            request_class=request_class,
+            establishment=establishment,
+        )
+
         return {
             "kind": kind or "Offer",
             "verdict": str(payload.get("verdict")).strip(),
@@ -98,6 +131,12 @@ def _read_offer_output(text: str) -> dict | None:
             "what_it_offers": str(payload.get("what_it_offers") or "").strip(),
             "what_to_check": str(payload.get("what_to_check") or "").strip(),
             "is_offer": kind.strip().upper() != NOT_OFFER_KIND if kind else True,
+            "codes": codes,
+            # Code-owned, like the verify path. The model's risk_level and
+            # risk_score are inputs it produced; the verdict is what the panel
+            # shows.
+            "verdict_level": verdict,
+            "verdictBreakdown": breakdown,
             "risk_level": level,
             "risk_score": _read_score(payload.get("risk_score")),
         }
@@ -109,4 +148,7 @@ def _read_offer_output(text: str) -> dict | None:
         # None rather than inventing them.
         parsed["risk_level"] = None
         parsed["risk_score"] = None
+        parsed.setdefault("codes", [])
+        parsed.setdefault("verdict_level", None)
+        parsed.setdefault("verdictBreakdown", {"verdict": None, "level_source": None})
     return parsed
