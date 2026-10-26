@@ -166,7 +166,7 @@ class TestOptions:
         opts = options("caution")
         assert len(opts) >= 1
         # Caution options should tell the reader what to settle first
-        assert any("fee" in o.lower() or "recipient" in o.lower() or "document" in o.lower() or "who" in o.lower() for o in opts)
+        assert any("what" in o.lower() or "who" in o.lower() or "confirm" in o.lower() for o in opts)
 
     def test_stop_has_do_not_send_option(self):
         opts = options("stop")

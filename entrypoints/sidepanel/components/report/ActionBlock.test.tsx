@@ -69,7 +69,7 @@ describe('the action block prefers the verify recommendation', () => {
     // authored table is the safe and still-actionable degradation.
     const text = block({ verdict: 'caution', recommendation: '   ' });
 
-    expect(text).toContain('Ask who receives the fee and why.');
+    expect(text).toContain('Ask what the offer asks for and why.');
   });
 
   it('renders the code-authored fallback recommendation on the no-verdict path', () => {

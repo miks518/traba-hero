@@ -56,7 +56,7 @@ const VERDICT_TABLE: Record<Verdict, VerdictCopy> = {
     tone: 'critical',
   },
   caution: {
-    headline: 'Caution — settle the fee recipient and reason first',
+    headline: 'Caution — settle what the offer asks for first',
     tone: 'caution',
   },
   note: {
@@ -156,8 +156,8 @@ const ACTION_TABLE: Record<Verdict | 'unknown', ActionLines> = {
     bullet: 'bg-verdict-critical',
   },
   caution: {
-    lead: 'Ask who receives the fee and why.',
-    rest: 'A fee to a personal account or an agency before a contract is the pattern the rules prohibit.',
+    lead: 'Ask what the offer asks for and why.',
+    rest: 'An offer that asks for something before a contract is the pattern the rules prohibit.',
     secondLead: 'Confirm the employer\'s identity',
     secondRest: 'through an official channel before you send anything.',
     bullet: 'bg-verdict-caution-container',

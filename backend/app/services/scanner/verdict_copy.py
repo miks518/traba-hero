@@ -126,8 +126,10 @@ def statement(
         else:
             text = f"The posting {ask}. {record} The record supports the employer's identity."
     elif verdict == "caution":
-        # Caution: prohibited request at unknown employer
-        text = f"The posting {ask}. The employer has not been established — settle the fee recipient and reason first."
+        # Caution: prohibited request at unknown employer. The ask may be a fee,
+        # a task, documents, or credentials — so the sentence names what the
+        # posting asks for rather than presuming a fee.
+        text = f"The posting {ask}. The employer has not been established — settle what the offer asks for first."
     elif verdict == "stop":
         # Stop: contradicted employer
         text = f"The posting {ask}. The communication is not from the employer it names. {record} This is a contradicted impersonation."
@@ -151,7 +153,7 @@ def options(verdict: str) -> tuple[str, ...]:
         )
     if verdict == "caution":
         return (
-            "Ask the poster to confirm who receives the fee and why",
+            "Ask the poster to confirm what they are asking for and why",
             "Confirm the employer's identity through an official channel first",
         )
     if verdict == "stop":
