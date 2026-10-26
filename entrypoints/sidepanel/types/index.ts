@@ -485,4 +485,5 @@ export interface OfferAnalysis {
    * whole offer cannot put a colour on a posting nobody judged.
    */
   verdictLevel?: 'clear' | 'note' | 'caution' | 'stop' | null;
+  verdictBreakdown?: Record<string, unknown>;
 }

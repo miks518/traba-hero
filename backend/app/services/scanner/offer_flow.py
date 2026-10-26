@@ -27,7 +27,9 @@ FAILSAFE = {
 }
 
 
-async def analyze_offer_event_stream(text: str, company_name: str = "") -> AsyncIterator[str]:
+async def analyze_offer_event_stream(text: str, company_name: str = "", anomalies: list = None) -> AsyncIterator[str]:
+    if anomalies is None:
+        anomalies = []
     limiter = runtime.get_ai_limiter()
     await limiter.acquire()
     try:
@@ -45,7 +47,7 @@ async def analyze_offer_event_stream(text: str, company_name: str = "") -> Async
         )
         log.info("[analyze-offer] Raw model output (%d chars): %s", len(final_text), final_text[:800])
 
-        parsed = _read_offer_output(final_text)
+        parsed = _read_offer_output(final_text, anomalies)
         if not parsed:
             log.warning("[analyze-offer] Output could not be read, using failsafe. Raw: %s", final_text[:300])
             parsed = dict(FAILSAFE)
@@ -59,7 +61,9 @@ async def analyze_offer_event_stream(text: str, company_name: str = "") -> Async
         limiter.release()
 
 
-def _read_offer_output(text: str) -> dict | None:
+def _read_offer_output(text: str, anomalies: list = None) -> dict | None:
+    if anomalies is None:
+        anomalies = []
     """Read the analysis result, preferring JSON and falling back to text."""
     payload = runtime.get_parse_json()(text)
     if isinstance(payload, dict) and payload.get("verdict"):
@@ -72,12 +76,16 @@ def _read_offer_output(text: str) -> dict | None:
         if not isinstance(codes, list):
             codes = []
         codes = [str(c).strip().upper() for c in codes if str(c).strip()]
-        # Fee recipient/timing come from what the posting states about who is
-        # paid. The model does not emit attributes here, so fee-bearing codes
-        # resolve to unclassified — the honest reading when the recipient is
-        # unnamed.
-        anomalies = [{"code": c, "quote": ""} for c in codes]
-        request_class = classify_request(facts_from_scan(anomalies, {}))
+        # The scan's anomalies are the primary input — they carry the codes
+        # and quotes the scan detected. The model's codes are a second
+        # opinion, merged in so a finding the scan missed still counts.
+        scan_codes = [getattr(a, "code", "") or "" for a in (anomalies or [])]
+        all_codes = list(dict.fromkeys(scan_codes + codes))  # dedupe, scan first
+        # Fee recipient/timing: prefer the scan's attributes, but the offer
+        # path doesn't receive attributes, so fee-bearing codes resolve to
+        # unclassified — the honest reading when the recipient is unnamed.
+        all_anomalies = [{"code": c, "quote": ""} for c in all_codes if c]
+        request_class = classify_request(facts_from_scan(all_anomalies, {}))
 
         from .establishment import Establishment
         establishment = Establishment(

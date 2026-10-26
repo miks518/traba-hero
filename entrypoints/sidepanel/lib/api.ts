@@ -401,6 +401,7 @@ export interface OfferAnalysis {
   what_to_check: string;
   is_offer: boolean;
   verdict_level?: 'clear' | 'note' | 'caution' | 'stop' | null;
+  verdictBreakdown?: Record<string, unknown>;
 }
 
 export interface OfferStreamResult {
@@ -418,6 +419,7 @@ export async function analyzeOfferStream(
   companyName: string,
   externalSignal: AbortSignal,
   onProgress: (progress: ScanProgress) => void,
+  anomalies: unknown[] = [],
   timeoutMs = 90000,
 ): Promise<OfferStreamResult> {
   const controller = new AbortController();
@@ -431,7 +433,7 @@ export async function analyzeOfferStream(
     const res = await fetch(`${API_BASE}/api/analyze-offer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
-      body: JSON.stringify({ text, company_name: companyName }),
+      body: JSON.stringify({ text, company_name: companyName, anomalies }),
       signal: controller.signal,
     });
 

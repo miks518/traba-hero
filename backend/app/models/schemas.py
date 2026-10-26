@@ -250,6 +250,11 @@ class AnalyzeOfferRequest(BaseModel):
     text: str = Field(..., max_length=50_000)
     company_name: str = ""
     language: str = "english"
+    # The scan's findings, forwarded so the offer pass can compute a request
+    # class from them rather than only from the codes the model emits. The
+    # model's codes are a second opinion; the scan's anomalies are the
+    # primary input, the same way verify reads them.
+    anomalies: list[VerifyAnomaly] = Field(default=[], max_length=MAX_VERIFY_ANOMALIES)
 
 
 class ResumeAnalysisRequest(BaseModel):

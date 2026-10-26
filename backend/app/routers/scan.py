@@ -299,6 +299,6 @@ async def analyze_offer(req: AnalyzeOfferRequest, request: Request):
 
     log.info("[analyze-offer] Assessing %d chars of content", len(text))
     return StreamingResponse(
-        analyze_offer_event_stream(text, req.company_name or ""),
+        analyze_offer_event_stream(text, req.company_name or "", req.anomalies or []),
         media_type="text/event-stream",
     )

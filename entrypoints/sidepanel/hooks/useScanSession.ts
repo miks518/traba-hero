@@ -231,7 +231,7 @@ export function useScanSession({
     [onScanResultUpdate],
   );
 
-  const startOfferAnalysis = useCallback(async (text: string, companyName: string) => {
+  const startOfferAnalysis = useCallback(async (text: string, companyName: string, anomalies: unknown[] = []) => {
     verifyAbortRef.current?.abort();
     const controller = new AbortController();
     verifyAbortRef.current = controller;
@@ -244,6 +244,7 @@ export function useScanSession({
         companyName,
         controller.signal,
         (p) => setProgress(p),
+        anomalies,
       );
 
       if (result.data) {
@@ -261,6 +262,17 @@ export function useScanSession({
                   whatToCheck: raw.what_to_check,
                   isOffer: raw.is_offer,
                 },
+                // The offer path now carries a code-owned verdict, the same way
+                // verify does. Adopt it so the verdict block and action block
+                // render a reading instead of "No verdict on this one".
+                ...(raw.verdict_level
+                  ? {
+                      verdicted: true,
+                      verdict: raw.verdict_level,
+                      verdictLabel: verdictLabel(raw.verdict_level),
+                      verdictBreakdown: raw.verdictBreakdown,
+                    }
+                  : {}),
               }
             : null,
         );
@@ -525,7 +537,7 @@ export function useScanSession({
             jobId,
           );
         } else if (data.job_summary) {
-          startOfferAnalysis(data.job_summary, data.company_name || '');
+          startOfferAnalysis(data.job_summary, data.company_name || '', data.anomalies ?? []);
         }
       }
     } catch (e) {
