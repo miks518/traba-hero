@@ -77,7 +77,7 @@ export function VerdictBlock({ verdict, verifying, reason }: VerdictBlockProps) 
           aria-hidden
         />
         <span className="text-label-sm font-bold tracking-widest uppercase opacity-90">
-          Verdict
+          Assessment
         </span>
         {verifying && (
           <span className="ml-auto inline-flex items-center gap-1.5 text-label-sm opacity-90">
