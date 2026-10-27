@@ -435,6 +435,13 @@ GUARDRAILS = (
     # when something else is also wrong." Only the absolute form is pinned here,
     # so the carve-out cannot be reintroduced as the guardrail.
     ("a generic or personal email is never an anomaly", "a generic or personal email is not an anomaly"),
+    # Added 2026-10-28. A DM asking for a name, contact number and email was
+    # reported as "Asks for personal details via informal direct message ...
+    # bypasses secure, official application channels" — the model re-framed the
+    # banned informal-channel flag as a data-collection finding, and no rule
+    # covered that framing. The closure states the ordinary case positively.
+    ("a dm asking for contact details is the application", "the contact details are the application"),
+    ("the channel formality is not the concern", "never by the formality of the channel"),
     # Added 2026-10-16. A live scan spent both model-authored queries chasing
     # business registration, which `build_queries` already covers with
     # "<company> company or employer" — two of three credits buying a second copy
@@ -526,6 +533,31 @@ def test_the_ordinary_things_rule_carries_no_carve_out():
             f"{name} reintroduced an 'on their own' carve-out, which permits "
             "flagging a free email domain when the posting has another oddity"
         )
+
+
+def test_the_data_harvest_framing_stays_out_of_the_prompt():
+    """The framings the model invented must not enter the prompt, even to
+    forbid them.
+
+    A DM asking for a name, contact number and email was reported as "Asks
+    for personal details via informal direct message ... bypasses secure,
+    official application channels". The model re-framed the banned
+    informal-channel flag as a data-collection finding, which no rule
+    covered. The fix states the ordinary case positively ("the contact
+    details are the application") and deliberately does not repeat the
+    failure's vocabulary: a prompt that names the re-framing in order to
+    forbid it hands the model the phrase, and the severity-list lesson is
+    that the model takes the half it needs. So the absence is pinned instead
+    - in both copies, because either one alone reintroduces the framing as
+    advice.
+    """
+    for name, source in (("SYSTEM_PROMPT.md", low), ("prompts.py", rules.lower())):
+        for phrase in ("personal details", "bypass", "harvest"):
+            assert phrase not in source, (
+                f"{name} carries {phrase!r}; the data-harvest framing of an "
+                "informal application must stay out of the prompt entirely, "
+                "not merely be forbidden"
+            )
 
 
 def test_a_guardrail_cannot_be_dropped_from_one_copy_alone():
