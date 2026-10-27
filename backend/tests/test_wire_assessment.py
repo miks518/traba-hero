@@ -113,7 +113,7 @@ async def test_the_verify_wire_carries_assessment_not_score():
     assert "scoreBreakdown" not in data, f"old key scoreBreakdown still present: {data.get('scoreBreakdown')}"
 
     # The assessment is a string from the grid
-    assert data["assessment"] in ("clear", "note", "caution", "stop")
+    assert data["assessment"] in ("green", "yellow", "red")
 
     # The breakdown is a dict with the decision record
     breakdown = data["assessmentBreakdown"]

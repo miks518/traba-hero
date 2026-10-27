@@ -111,15 +111,17 @@ export function migrateScannedJobs(stored: unknown): ScannedJob[] {
       ? { ...(rest as unknown as ScanResult), anomalies: legacyFlags as Anomaly[] }
       : (rest as unknown as ScanResult);
 
-    // Map a legacy level onto the nearest assessment word, and mark it as legacy.
-    // The two inputs the grid reads are not in a stored record, so this is a
-    // label and never a computed assessment.
+    // Map a legacy level onto the nearest assessment colour, and mark it as
+    // legacy. The two inputs the grid reads are not in a stored record, so this
+    // is a label and never a computed assessment. The labels keep the recorded
+    // meaning ("High risk" was the old ladder's own word); the stamp is what
+    // stops a legacy record from presenting itself as a current assessment.
     if (legacyRiskLevel !== undefined && renamed.assessment === undefined) {
       const mapping: Record<string, { assessment: Assessment; label: string }> = {
-        critical: { assessment: 'stop', label: 'Do not proceed' },
-        high: { assessment: 'stop', label: 'Do not proceed' },
-        moderate: { assessment: 'caution', label: 'Caution' },
-        low: { assessment: 'clear', label: 'Proceed' },
+        critical: { assessment: 'red', label: 'High risk' },
+        high: { assessment: 'red', label: 'High risk' },
+        moderate: { assessment: 'yellow', label: 'Caution' },
+        low: { assessment: 'green', label: 'Nothing found against it' },
       };
       const mapped = mapping[legacyRiskLevel as string];
       if (mapped) {
@@ -127,6 +129,24 @@ export function migrateScannedJobs(stored: unknown): ScannedJob[] {
         renamed.assessmentLabel = mapped.label;
         renamed.assessed = true;
         renamed.assessmentRecordedUnder = 'previous-procedure';
+      }
+    }
+
+    // Scans recorded under the previous vocabulary (`clear`/`note`/`caution`/
+    // `stop`) map onto the colours, with the recorded strength kept: a stored
+    // `stop` was a contradiction finding, so it renders as "Contradicted".
+    const legacyWords: Record<string, { assessment: Assessment; label: string }> = {
+      clear: { assessment: 'green', label: 'Nothing found against it' },
+      note: { assessment: 'yellow', label: 'Caution' },
+      caution: { assessment: 'yellow', label: 'Caution' },
+      stop: { assessment: 'red', label: 'Contradicted' },
+    };
+    const storedAssessment = renamed.assessment as unknown as string;
+    if (storedAssessment && legacyWords[storedAssessment]) {
+      const mapped = legacyWords[storedAssessment];
+      renamed.assessment = mapped.assessment;
+      if (!renamed.assessmentLabel) {
+        renamed.assessmentLabel = mapped.label;
       }
     }
 

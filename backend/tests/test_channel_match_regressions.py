@@ -364,7 +364,7 @@ async def test_knollridges_does_not_become_do_not_proceed():
     assert "recruitment.chred" not in channel["explanation"]
 
     # The model tried to say critical/95. The code says clear.
-    assert data["assessment"] == "clear"
+    assert data["assessment"] == "green"
     assert "riskLevel" not in data
     assert "riskScore" not in data
     assert "scoreBreakdown" not in data
@@ -403,7 +403,7 @@ async def test_fake_ched_stays_critical_and_the_chred_domain_is_red():
 
     # Two high fee findings plus a refuted government Channel Match.
     # The contradiction is the only path to stop; the fees do not add a level.
-    assert data["assessment"] == "stop"
+    assert data["assessment"] == "red"
     assert "riskLevel" not in data
     assert "riskScore" not in data
     assert "scoreBreakdown" not in data
@@ -534,7 +534,7 @@ async def test_a_fee_plus_a_free_email_is_high_but_not_do_not_proceed():
     assert channel["status"] == "contradicted"
     assert channel["escalation"] == "free_email_with_findings"
     # Prohibited request at an unknown employer is a caution.
-    assert data["assessment"] == "caution"
+    assert data["assessment"] == "yellow"
     assert "riskLevel" not in data
     assert "riskScore" not in data
     assert "scoreBreakdown" not in data
@@ -594,7 +594,7 @@ async def test_a_stale_fee_does_not_escalate_a_free_email():
     assert channel["status"] == "unknown"
     assert channel["escalation"] == "free_email"
     # Ordinary request at an unknown employer is clear.
-    assert data["assessment"] == "clear"
+    assert data["assessment"] == "green"
     assert "riskLevel" not in data
     assert "riskScore" not in data
     assert "assessmentBreakdown" in data
@@ -657,7 +657,7 @@ async def test_a_dropped_citation_cannot_put_the_official_domain_on_a_red_card()
     # must not assert the unretrieved official domain.
     assert "ched.gov.ph" not in channel["explanation"]
     # The contradiction is the only path to stop.
-    assert data["assessment"] == "stop"
+    assert data["assessment"] == "red"
     assert "riskLevel" not in data
     assert "riskScore" not in data
     assert "scoreBreakdown" not in data
@@ -712,7 +712,7 @@ def test_the_government_red_still_reaches_stop_through_the_binding():
 
     assessment, breakdown = code_assessment(anomalies, bound)
 
-    assert assessment == "stop"
+    assert assessment == "red"
     assert breakdown["establishment"]["state"] == "contradicted"
     assert breakdown["establishment"]["reason"] == "The posting presents itself as a government office and gives a channel outside that office's domain."
     assert breakdown["rule"] == "establishment_contradicted"

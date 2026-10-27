@@ -1,56 +1,66 @@
 import { describe, it, expect } from 'vitest';
-import { riskAccent, ELEVATED_ASSESSMENTS } from './riskAccent';
+import { riskAccent, ELEVATING_RULES, isElevated } from './riskAccent';
 import type { Assessment } from '../types';
 
 describe('riskAccent', () => {
-  it('paints stop and caution in the danger token', () => {
-    expect(riskAccent('stop').text).toBe('text-error');
-    expect(riskAccent('caution').text).toBe('text-error');
+  it('gives red the elevated tone', () => {
+    expect(riskAccent('red').text).toBe('text-error');
   });
 
-  it('paints note in the caution token', () => {
-    expect(riskAccent('note').text).toBe('text-tertiary');
+  it('gives yellow the caution tone', () => {
+    expect(riskAccent('yellow').text).toBe('text-tertiary');
   });
 
-  it('leaves clear and unmeasured unaccented', () => {
-    // Accenting a clear assessment would spend the panel's loudest signal on the
-    // least urgent outcome, which is what the reader learns to ignore.
-    expect(riskAccent('clear').text).toBe('');
+  it('gives green no accent', () => {
+    expect(riskAccent('green').text).toBe('');
+  });
+
+  it('gives nothing no accent', () => {
     expect(riskAccent(null).text).toBe('');
   });
 
-  it('tints the button background only for elevated assessments', () => {
-    expect(riskAccent('stop').button).not.toBe('');
-    expect(riskAccent('caution').button).not.toBe('');
-    expect(riskAccent('note').button).toBe('');
-    expect(riskAccent('clear').button).toBe('');
-    expect(riskAccent(null).button).toBe('');
+  it('red gets the full button treatment', () => {
+    expect(riskAccent('red').button).not.toBe('');
   });
 
-  it('tints card borders for elevated assessments', () => {
-    expect(riskAccent('stop').border).toContain('border-error');
+  it('yellow gets no button treatment', () => {
+    expect(riskAccent('yellow').button).toBe('');
   });
 
-  it('keeps a softer border for note but no button tint', () => {
-    // A border is a quiet signal and note warrants one. The button is the
-    // loudest element on the panel, and spending it on a note assessment would
-    // train the reader to ignore it before a real stop arrives.
-    expect(riskAccent('note').border).toContain('border-tertiary');
-    expect(riskAccent('note').button).toBe('');
+  it('green gets no button treatment', () => {
+    expect(riskAccent('green').button).toBe('');
   });
 
-  it('never returns a raw hex value', () => {
-    // The design system is token-based; a literal would drift from light/dark.
-    for (const assessment of ['clear', 'note', 'caution', 'stop', null] as (Assessment | null)[]) {
-      const a = riskAccent(assessment);
-      for (const value of [a.text, a.button, a.border, a.surface]) {
-        expect(value).not.toMatch(/#[0-9a-f]{3,6}/i);
-        expect(value).not.toMatch(/hsl\(/);
-      }
+  it('red carries the error border', () => {
+    expect(riskAccent('red').border).toContain('border-error');
+  });
+
+  it('yellow carries the caution border', () => {
+    expect(riskAccent('yellow').border).toContain('border-tertiary');
+  });
+
+  it('yellow elevates to the error tone only for the scam-shape rule', () => {
+    expect(
+      riskAccent('yellow', 'prohibited_at_unestablished_employer').text,
+    ).toBe('text-error');
+    expect(riskAccent('yellow', 'unclassified_request').text).toBe('text-tertiary');
+    expect(riskAccent('yellow').text).toBe('text-tertiary');
+  });
+
+  it('elevation covers every assessment and the absence', () => {
+    for (const assessment of ['green', 'yellow', 'red', null] as (Assessment | null)[]) {
+      expect(() => riskAccent(assessment)).not.toThrow();
     }
   });
 
-  it('names exactly the assessments that promote the evidence', () => {
-    expect([...ELEVATED_ASSESSMENTS].sort()).toEqual(['caution', 'stop']);
+  it('elevating rules are named, not colours', () => {
+    expect([...ELEVATING_RULES]).toEqual(['prohibited_at_unestablished_employer']);
+  });
+
+  it('isElevated matches the accent decision', () => {
+    expect(isElevated('red')).toBe(true);
+    expect(isElevated('yellow', 'prohibited_at_unestablished_employer')).toBe(true);
+    expect(isElevated('yellow')).toBe(false);
+    expect(isElevated('green')).toBe(false);
   });
 });

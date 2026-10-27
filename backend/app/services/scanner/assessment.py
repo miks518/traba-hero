@@ -15,19 +15,22 @@ What replaces it has two axes, and both are code-owned:
 - **Whether the record establishes who is asking** — `confirmed`, `supported`,
   `unknown` or `contradicted`, decided by `establishment`.
 
-The grid is four rules deep:
+The grid is three colours deep:
 
 | request class      | confirmed | supported | unknown | contradicted |
 |--------------------|-----------|-----------|---------|--------------|
-| ordinary           | clear     | clear     | clear   | **stop**     |
-| cannot be classified | note    | note      | note    | **stop**     |
-| prohibited         | note      | caution   | caution | **stop**     |
+| ordinary           | green     | green     | green   | **red**      |
+| cannot be classified | yellow  | yellow    | yellow  | **red**      |
+| prohibited         | yellow    | yellow    | yellow  | **red**      |
 
-`contradicted` is the only path to `stop`. That is the strongest output this
+`contradicted` is the only path to `red`. That is the strongest output this
 system can produce, and the only one that needs evidence the posting cannot
-supply about itself. `unknown` never rises above a note on its own, because
-absence is not a finding. A prohibited request at a confirmed employer softens to
-a note: the reader can go and see the request on the employer's own site.
+supply about itself. `unknown` never rises above `yellow` on its own, because
+absence is not a finding. A prohibited request at a confirmed employer softens
+into the same `yellow`: the reader can go and see the request on the employer's
+own site. What separates the two yellows is the *rule* in the breakdown, which
+the panel renders under the chip — the colour says "uncertain", the rule says
+why.
 
 The breakdown is the record of how the assessment was reached, and it carries no
 number. `docs/decisions/scoring-model.md` records why the scale was abandoned.
@@ -37,9 +40,16 @@ from __future__ import annotations
 
 from app.services.scanner.establishment import Establishment, establishment_from_record
 
-# Ordered weakest to strongest. The panel reads the first four; nothing else is
-# a assessment.
-ASSESSMENTS = ("clear", "note", "caution", "stop")
+# The assessment tokens are the panel's colours: `green`, `yellow`, `red`.
+# They name the strength of the evidence relation, not a verdict about the
+# posting and not an instruction to the reader — the chip words on the panel
+# are "Nothing found against it", "Caution" and "Contradicted", and the sentence
+# under each chip is the rule that produced it. Three colours, five rules: the
+# two yellows the old ladder carried (`note`, `caution`) were both uncertainty,
+# and a chip for a tier the product's own user never noticed was not carrying
+# its weight. What distinguishes them now is the rule in the breakdown, which
+# the panel renders under the chip.
+ASSESSMENTS = ("green", "yellow", "red")
 
 # The request classes, in the order `request_class` ranks them. An unrecognised
 # class is `unclassified`, never `ordinary`: a class the code cannot read is a
@@ -66,14 +76,14 @@ def _decide(request_class: str, state: str) -> tuple[str, str]:
     request was prohibited and the record established nothing".
     """
     if state == "contradicted":
-        return "stop", "establishment_contradicted"
+        return "red", "establishment_contradicted"
 
     if request_class == "prohibited":
         if state == "confirmed":
-            return "note", "prohibited_at_confirmed_employer"
-        return "caution", "prohibited_at_unestablished_employer"
+            return "yellow", "prohibited_at_confirmed_employer"
+        return "yellow", "prohibited_at_unestablished_employer"
 
-    return ("note" if request_class == "unclassified" else "clear"), _REQUEST_RULES[request_class]
+    return ("yellow" if request_class == "unclassified" else "green"), _REQUEST_RULES[request_class]
 
 
 def _record(items: list) -> list[dict]:

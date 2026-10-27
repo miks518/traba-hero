@@ -4,8 +4,8 @@ import type { ScanResult, Assessment } from '../types';
 
 function result(over: Partial<ScanResult> = {}): ScanResult {
   return {
-    assessment: 'clear',
-    assessmentLabel: 'Proceed',
+    assessment: 'green',
+    assessmentLabel: 'Nothing found against it',
     assessed: true,
     assessmentBreakdown: undefined,
     scanningTarget: 'Scanned Element',
@@ -24,20 +24,44 @@ function at(assessment: Assessment | null, settled = true): ScanResult {
 }
 
 describe('shouldElevateEvidence', () => {
-  it('promotes the evidence for a stop assessment', () => {
-    expect(shouldElevateEvidence(at('stop'))).toBe(true);
+  it('promotes the evidence for a red assessment', () => {
+    expect(shouldElevateEvidence(at('red'))).toBe(true);
   });
 
-  it('promotes the evidence for a caution assessment', () => {
-    expect(shouldElevateEvidence(at('caution'))).toBe(true);
+  it('promotes the evidence for the scam-shape yellow', () => {
+    // A prohibited request at an employer the record never established is the
+    // reading a jobseeker most needs to see before they reply. The rule
+    // arrives from the assessment breakdown, not the colour.
+    expect(
+      shouldElevateEvidence({
+        ...at('yellow'),
+        elevationRule: 'prohibited_at_unestablished_employer',
+      })
+    ).toBe(true);
   });
 
-  it('leaves note where it is', () => {
-    expect(shouldElevateEvidence(at('note'))).toBe(false);
+  it('leaves the unclassified yellow where it is', () => {
+    // Uncertainty about the request class is what the chip word already says;
+    // the evidence does not lead for it.
+    expect(
+      shouldElevateEvidence({
+        ...at('yellow'),
+        elevationRule: 'unclassified_request',
+      })
+    ).toBe(false);
   });
 
-  it('leaves clear where it is', () => {
-    expect(shouldElevateEvidence(at('clear'))).toBe(false);
+  it('leaves a confirmed-employer fee demand where it is', () => {
+    expect(
+      shouldElevateEvidence({
+        ...at('yellow'),
+        elevationRule: 'prohibited_at_confirmed_employer',
+      })
+    ).toBe(false);
+  });
+
+  it('leaves green where it is', () => {
+    expect(shouldElevateEvidence(at('green'))).toBe(false);
   });
 
   it('does not promote an unverified result', () => {
@@ -47,33 +71,34 @@ describe('shouldElevateEvidence', () => {
   });
 
   it('waits while verification is still running', () => {
-    // The level at this point is the posting stage's alone. It can still move
-    // once the employer score blends in, and rearranging under the reader
+    // The assessment at this point is the posting stage's alone. It can still
+    // move once the employer check blends in, and rearranging under the reader
     // mid-flight is worse than a moment's wait.
-    expect(shouldElevateEvidence(at('stop', false))).toBe(false);
+    expect(shouldElevateEvidence(at('red', false))).toBe(false);
   });
 
   it('waits while the offer analysis is still running', () => {
     expect(
-      shouldElevateEvidence(result({ assessment: 'stop', offerAnalysisLoading: true }))
+      shouldElevateEvidence(result({ assessment: 'red', offerAnalysisLoading: true }))
     ).toBe(false);
   });
 
   it('promotes once a failed verification has settled', () => {
-    // A failed lookup still leaves a real posting-stage score. The evidence is
-    // known, so leading with it is correct even though the employer was not.
+    // A failed lookup still leaves a real posting-stage assessment. The
+    // evidence is known, so leading with it is correct even though the
+    // employer was not.
     expect(
       shouldElevateEvidence(
-        result({ assessment: 'stop', verificationLoading: false, verificationError: true })
+        result({ assessment: 'red', verificationLoading: false, verificationError: true })
       )
     ).toBe(true);
   });
 
-  it('promotes a stop assessment that has no employer at all', () => {
-    // Nothing to verify, so nothing is pending. The posting score is final.
+  it('promotes a red assessment that has no employer at all', () => {
+    // Nothing to verify, so nothing is pending. The posting assessment is final.
     expect(
       shouldElevateEvidence(
-        result({ assessment: 'stop', verificationLoading: false, companyName: null })
+        result({ assessment: 'red', verificationLoading: false, companyName: null })
       )
     ).toBe(true);
   });

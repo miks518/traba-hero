@@ -103,14 +103,14 @@ def _read_offer_output(text: str, anomalies: list = None) -> dict | None:
         # Task-to-earn via a direct message is a concrete scam pattern: the
         # reader completes work for a stranger and is paid only if the stranger
         # chooses to pay, and the stranger can block them at any point. The grid
-        # would read this as "caution" (prohibited + unknown establishment),
+        # would read this as "yellow" (prohibited + unestablished employer),
         # but the pattern itself is the strongest signal available to this pass
         # — there is no employer to look up and no search to contradict it, so
-        # caution (which says "settle the recipient first") understates it.
-        # Override to "stop" when the posting contains TASK_FOR_EARNING.
-        if assessment == "caution" and "TASK_FOR_EARNING" in codes:
-            assessment = "stop"
-            breakdown["assessment"] = "stop"
+        # yellow (which says "uncertain") understates it.
+        # Override to "red" when the posting contains TASK_FOR_EARNING.
+        if assessment == "yellow" and "TASK_FOR_EARNING" in codes:
+            assessment = "red"
+            breakdown["assessment"] = "red"
             breakdown["rule"] = "task_for_earning_at_unestablished_employer"
 
         return {

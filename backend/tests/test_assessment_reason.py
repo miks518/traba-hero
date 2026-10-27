@@ -70,7 +70,7 @@ def test_the_schema_caps_the_reason_at_a_length_a_one_line_slot_can_hold():
 
 
 def test_the_reason_is_read_from_the_json():
-    _, _, _, _, _, _, _, reason, _assessments = _read_verify_output(
+    _, _, _, _, _, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
         '"risk_level": "high", "risk_score": 70, '
         '"assessment_reason": "This post asks you to send application documents to a third-party site."}'
@@ -83,7 +83,7 @@ def test_an_absent_reason_is_empty_rather_than_an_error():
     """A verification recorded before this field must still render. The
     headline carries the assessment on its own; the reason is an addition.
     """
-    _, _, _, _, _, _, _, reason, _assessments = _read_verify_output(
+    _, _, _, _, _, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
         '"risk_level": "low", "risk_score": 10}'
     )
@@ -92,7 +92,7 @@ def test_an_absent_reason_is_empty_rather_than_an_error():
 
 
 def test_a_blank_reason_is_empty():
-    _, _, _, _, _, _, _, reason, _assessments = _read_verify_output(
+    _, _, _, _, _, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
         '"risk_level": "low", "risk_score": 10, "assessment_reason": "   "}'
     )
@@ -149,18 +149,18 @@ def test_an_ordinary_reason_survives_the_screen(reason):
 
 
 def test_a_banned_reason_leaves_the_assessment_intact():
-    """Degradation, not failure. The level and the checks are unaffected; only
+    """Degradation, not failure. The checks are unaffected; only
     the sentence is withheld, so the reader still gets the assessment.
     """
-    items, _, _, _, _, level, score, reason, _assessments = _read_verify_output(
-        '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
-        '"risk_level": "critical", "risk_score": 95, '
+    items, _, _, _, _, reason, _assessments = _read_verify_output(
+        '{"checks": [{"category": "Company Existence", "status": "green", '
+        '"finding": "A business by that name operates.", "source_title": "", "source_url": ""}], '
+        '"evidence": [], "report": "r", "recommendation": "x", '
         '"assessment_reason": "This is definitely a scam."}'
     )
 
     assert reason == ""
-    assert level == "critical"
-    assert score == 95
+    assert len(items) == 1
 
 
 # --- the wire ------------------------------------------------------------

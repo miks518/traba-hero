@@ -4,7 +4,6 @@ from collections.abc import AsyncIterator
 
 from app.config import settings
 from app.models.schemas import (
-    RISK_LEVELS,
     AnomalyAssessment,
     VerificationItem,
     VerifyRequest,
@@ -183,46 +182,6 @@ def _bind_to_retrieved(items: list, evidence: list, allowed: frozenset[str]) -> 
     return bound, kept
 
 
-def _read_risk_level(raw) -> str | None:
-    """The model's overall level, validated against the vocabulary.
-
-    Anything unrecognised becomes `None` rather than being coerced. `None` means
-    nothing was assessed, and the panel already has a rendering for it; a
-    misspelt level reaching the wire as truth would put a colour on a posting
-    that no stage ever judged. The schema's enum makes this unreachable on the
-    structured path, but the no-schema path has no enum â€” only this prompt's
-    wording â€” so the check has to exist.
-    """
-    level = str(raw or "").strip().lower()
-    if level in RISK_LEVELS:
-        return level
-    if level:
-        log.warning("[verify] Ignoring unrecognised risk_level %r", level)
-    return None
-
-
-def _read_risk_score(raw) -> int | None:
-    """The model's magnitude, validated to a 0-100 integer or nothing.
-
-    `None` rather than a coerced default. The score drives the dial and the
-    ordering in the match list, so a wrong value is a wrong dial - and the value
-    that would be most tempting to substitute, `0`, is the one that says "nothing
-    wrong here". Out of range, non-numeric, or absent all mean the model did not
-    give one we can use.
-    """
-    if raw is None or isinstance(raw, bool):
-        return None
-    try:
-        value = int(raw)
-    except (TypeError, ValueError):
-        log.warning("[verify] Ignoring non-numeric risk_score %r", raw)
-        return None
-    if not 0 <= value <= 100:
-        log.warning("[verify] Ignoring out-of-range risk_score %r", value)
-        return None
-    return value
-
-
 # The statuses the verification model may write for an anomaly. This is the
 # model's input vocabulary, not the wire's: `_read_anomaly_assessments` maps
 # every one of these onto the four establishment states.
@@ -395,14 +354,16 @@ def _read_verify_output(
     text: str,
     allowed_urls: frozenset[str] = frozenset(),
     anomaly_count: int = 0,
-) -> tuple[list, str, str, bool, list, str | None, int | None, str, list[AnomalyAssessment]]:
+) -> tuple[list, str, str, bool, list, str, list[AnomalyAssessment]]:
     """Read the verification result, preferring JSON and falling back to text.
 
     JSON is the intended shape, but the provider may still answer with prose if
     it does not support structured outputs, so the labeled-text parser remains as
     a fallback rather than being deleted. Returns (items, report, recommendation,
-    used_json, evidence, risk_level, risk_score, assessment_reason,
-    anomaly_assessments).
+    used_json, evidence, assessment_reason, anomaly_assessments). The model's
+    `risk_level` and `risk_score` fields, when a response still carries them,
+    are dropped here: the assessment is the grid's, and a level the model
+    proposed is diagnosable in the raw response, not on the wire.
 
     `anomaly_count` is the number of findings the request sent, which is what
     the assessments' 1-based indices refer to. It defaults to zero, so a caller
@@ -488,8 +449,6 @@ def _read_verify_output(
             clean_recommendation(payload.get("recommendation")),
             True,
             bound_evidence,
-            _read_risk_level(payload.get("risk_level")),
-            _read_risk_score(payload.get("risk_score")),
             clean_assessment_reason(payload.get("assessment_reason")),
             _read_anomaly_assessments(payload, anomaly_count, allowed_urls),
         )
@@ -521,7 +480,7 @@ def _read_verify_output(
     # tells "this backend ran the check and could not carry a assessment" from
     # "this reading predates the check" â€” both render amber, with different
     # notes, and neither invents a stale finding.
-    return bound_items, report, recommendation, False, [], None, None, "", []
+    return bound_items, report, recommendation, False, [], "", []
 
 
 async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
@@ -911,8 +870,8 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             r.url for r in merged if getattr(r, "url", "")
         )
         (
-            items, report, recommendation, used_json, evidence, model_risk_level,
-            model_risk_score, assessment_reason, anomaly_assessments,
+            items, report, recommendation, used_json, evidence,
+            assessment_reason, anomaly_assessments,
         ) = _read_verify_output(
             final_text,
             allowed_urls=retrieved_urls,
@@ -992,14 +951,13 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             failsafe = True
 
         # The assessment is code-owned and it has no number. The model's own
-        # `risk_level` and `risk_score` were already not inputs; they are still
-        # read by `_read_verify_output` so an old provider response is
-        # diagnosable in the log.
+        # `risk_level` and `risk_score` fields are dropped at the parse, so a
+        # response that still carries them is diagnosable in the raw dump only.
         if not ok or failsafe:
             # Two different reasons not to decide, and both mean "we did not
             # assess": the search did not complete, or the response was readable
-            # but carried nothing usable. Neither is `clear`, and neither is
-            # `stop`.
+            # but carried nothing usable. Neither is `green`, and neither is
+            # `red`.
             risk_level = None
             risk_score = None
             breakdown: dict = {
@@ -1016,15 +974,6 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # There is no number any more. The key stays on the wire until the
             # next task removes it, and `None` says "not scored" rather than 0.
             risk_score = None
-
-        if model_risk_level is not None or model_risk_score is not None:
-            log.info(
-                "[verify] Ignored model risk fields for the assessment: level=%s score=%s; code assessment=%s rule=%s",
-                model_risk_level,
-                model_risk_score,
-                risk_level,
-                breakdown.get("rule"),
-            )
 
         log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, rule=%s, assessment=%s", len(items), len(report), len(recommendation), breakdown.get("rule"), risk_level)
         if items:

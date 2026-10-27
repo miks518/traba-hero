@@ -5,9 +5,9 @@ panel's own copy. The statement is rendered from structured facts off the record
 — the amount, the fee's recipient and reason, what kind of documents — so the
 panel never puts model prose in front of the reader.
 
-The rule that catches me: a `clear` statement must not say the posting asks for
+The rule that catches me: a `green` statement must not say the posting asks for
 nothing when it asks for something. A posting that asks for a 500 peso uniform
-is clear, and the sentence has to say so, because a false statement on the panel
+is green, and the sentence has to say so, because a false statement on the panel
 is the one thing the libel guardrail cannot tolerate.
 
 No statement contains an accusation and no statement contains a hedge — no
@@ -116,22 +116,19 @@ def statement(
     # Build the second part: what the record showed
     record = est
 
-    if assessment == "clear":
-        # Clear: ordinary request, no contradiction
+    if assessment == "green":
+        # Green: ordinary request, no contradiction
         text = f"The posting {ask}. {record}"
-    elif assessment == "note":
-        # Note: request is prohibited or unclassified but employer is confirmed/supported
-        if request_class == "prohibited":
-            text = f"The posting {ask}. The employer is confirmed and the fee is stated on their site."
+    elif assessment == "yellow":
+        # Yellow: uncertainty, from either of two rules. A prohibited request at
+        # a confirmed employer says so; everything else lets the establishment
+        # phrase state what the record did and did not settle.
+        if request_class == "prohibited" and establishment.state == "confirmed":
+            text = f"The posting {ask}. The employer is confirmed, and the posting still asks for it."
         else:
-            text = f"The posting {ask}. {record} The record supports the employer's identity."
-    elif assessment == "caution":
-        # Caution: prohibited request at unknown employer. The ask may be a fee,
-        # a task, documents, or credentials — so the sentence names what the
-        # posting asks for rather than presuming a fee.
-        text = f"The posting {ask}. The employer has not been established — settle what the offer asks for first."
-    elif assessment == "stop":
-        # Stop: contradicted employer
+            text = f"The posting {ask}. {record}"
+    elif assessment == "red":
+        # Red: contradicted employer
         text = f"The posting {ask}. The communication is not from the employer it names. {record} This is a contradicted impersonation."
     else:
         text = f"The posting {ask}. {record}"
@@ -144,19 +141,14 @@ def options(assessment: str) -> tuple[str, ...]:
 
     Options are choices, not orders. They offer what the reader can do next.
     """
-    if assessment == "clear":
-        return ("Proceed with the application",)
-    if assessment == "note":
-        return (
-            "Check the employer's official site for the stated fee",
-            "Confirm the application process directly with the employer",
-        )
-    if assessment == "caution":
+    if assessment == "green":
+        return ("Continue the application",)
+    if assessment == "yellow":
         return (
             "Ask the poster to confirm what they are asking for and why",
             "Confirm the employer's identity through an official channel first",
         )
-    if assessment == "stop":
+    if assessment == "red":
         return (
             "Do not send money or documents",
             "Report the posting to the platform and the agency it impersonates",

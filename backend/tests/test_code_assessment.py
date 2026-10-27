@@ -54,7 +54,7 @@ def _decide(request_class: str, state: str) -> str:
 
 class TestTheAssessmentVocabulary:
     def test_the_assessments_are_a_closed_set(self):
-        assert ASSESSMENTS == ("clear", "note", "caution", "stop")
+        assert ASSESSMENTS == ("green", "yellow", "red")
 
 
 class TestTheGrid:
@@ -63,50 +63,60 @@ class TestTheGrid:
     @pytest.mark.parametrize(
         "request_class,state,expected",
         [
-            ("ordinary", "confirmed", "clear"),
-            ("ordinary", "supported", "clear"),
-            ("ordinary", "unknown", "clear"),
-            ("ordinary", "contradicted", "stop"),
-            ("unclassified", "confirmed", "note"),
-            ("unclassified", "supported", "note"),
-            ("unclassified", "unknown", "note"),
-            ("unclassified", "contradicted", "stop"),
-            ("prohibited", "confirmed", "note"),
-            ("prohibited", "supported", "caution"),
-            ("prohibited", "unknown", "caution"),
-            ("prohibited", "contradicted", "stop"),
+            ("ordinary", "confirmed", "green"),
+            ("ordinary", "supported", "green"),
+            ("ordinary", "unknown", "green"),
+            ("ordinary", "contradicted", "red"),
+            ("unclassified", "confirmed", "yellow"),
+            ("unclassified", "supported", "yellow"),
+            ("unclassified", "unknown", "yellow"),
+            ("unclassified", "contradicted", "red"),
+            ("prohibited", "confirmed", "yellow"),
+            ("prohibited", "supported", "yellow"),
+            ("prohibited", "unknown", "yellow"),
+            ("prohibited", "contradicted", "red"),
         ],
     )
     def test_the_cell(self, request_class, state, expected):
         assert _decide(request_class, state) == expected
 
-    def test_an_ordinary_request_at_an_unknown_employer_is_clear(self):
+    def test_an_ordinary_request_at_an_unknown_employer_is_green(self):
         """The posting asks for nothing the rules prohibit, and the record shows
         nothing either way. There is no finding to report and no limit to state.
         """
-        assert _decide("ordinary", "unknown") == "clear"
+        assert _decide("ordinary", "unknown") == "green"
 
-    def test_a_prohibited_request_at_an_unknown_employer_is_caution(self):
+    def test_a_prohibited_request_at_an_unknown_employer_is_yellow(self):
         """The request is one the rules prohibit, and nobody has established who
-        is asking. That is a warning, not a assessment.
+        is asking. The rule, not the colour, carries that this is the scam
+        shape rather than an unclassifiable ask.
         """
-        assert _decide("prohibited", "unknown") == "caution"
+        assert _decide("prohibited", "unknown") == "yellow"
+        _assessment, breakdown = code_assessment(
+            [], [], request_class="prohibited", establishment=Establishment("unknown")
+        )
+        assert breakdown["rule"] == "prohibited_at_unestablished_employer"
 
-    def test_a_prohibited_request_at_a_confirmed_employer_is_a_note(self):
+    def test_a_prohibited_request_at_a_confirmed_employer_is_yellow(self):
         """The reader can go and see the request on the employer's own site.
-        A verified employer charging a lawful fee is a note, not a caution.
+        A verified employer charging a fee is the same colour as the scam
+        shape - the rule says which is which.
         """
-        assert _decide("prohibited", "confirmed") == "note"
+        assert _decide("prohibited", "confirmed") == "yellow"
+        _assessment, breakdown = code_assessment(
+            [], [], request_class="prohibited", establishment=Establishment("confirmed")
+        )
+        assert breakdown["rule"] == "prohibited_at_confirmed_employer"
 
-    def test_an_unclassified_request_is_a_note(self):
+    def test_an_unclassified_request_is_yellow(self):
         """A request whose shape the facts do not settle is a question for the
         reader. It is not a charge, and it is not nothing.
         """
-        assert _decide("unclassified", "supported") == "note"
+        assert _decide("unclassified", "supported") == "yellow"
 
 
 class TestOnlyAContradictionStops:
-    def test_a_contradicted_employer_stops_whatever_the_request(self):
+    def test_a_contradicted_employer_is_red_whatever_the_request(self):
         for request_class in ("ordinary", "unclassified", "prohibited"):
             assessment, breakdown = code_assessment(
                 [],
@@ -115,24 +125,24 @@ class TestOnlyAContradictionStops:
                 establishment=Establishment("contradicted", reason="The domain is not the agency's."),
             )
 
-            assert assessment == "stop"
+            assert assessment == "red"
             assert breakdown["establishment"]["state"] == "contradicted"
 
-    def test_unknown_never_rises_above_a_note_on_its_own(self):
+    def test_unknown_never_rises_above_yellow_on_its_own(self):
         """Absence is never red. A record that establishes nothing leaves the
-        ordinary posting clear and the unclassified one a note.
+        ordinary posting green and the unclassified one yellow.
         """
-        assert _decide("ordinary", "unknown") == "clear"
-        assert _decide("unclassified", "unknown") == "note"
+        assert _decide("ordinary", "unknown") == "green"
+        assert _decide("unclassified", "unknown") == "yellow"
 
-    def test_every_path_to_stop_needs_the_contradiction(self):
+    def test_every_path_to_red_needs_the_contradiction(self):
         """Asserted as a property over the whole grid, not as three examples:
-        if any cell without `contradicted` returns stop, the guarantee is gone.
+        if any cell without `contradicted` returns red, the guarantee is gone.
         """
         states = ("confirmed", "supported", "unknown")
         for request_class in ("ordinary", "unclassified", "prohibited"):
             for state in states:
-                assert _decide(request_class, state) != "stop"
+                assert _decide(request_class, state) != "red"
 
 
 class TestTheBreakdownCarriesNoNumber:
@@ -183,7 +193,7 @@ class TestTheProvisionalEstablishment:
                 [], [_channel(status="contradicted", escalation=escalation)], request_class="ordinary"
             )
 
-            assert assessment == "stop"
+            assert assessment == "red"
 
     def test_a_matching_channel_confirms_the_employer(self):
         assessment, breakdown = code_assessment(
@@ -193,7 +203,7 @@ class TestTheProvisionalEstablishment:
         )
 
         assert breakdown["establishment"]["state"] == "confirmed"
-        assert assessment == "note"
+        assert assessment == "yellow"
 
     def test_a_green_company_existence_supports_the_employer(self):
         item = VerificationItem(

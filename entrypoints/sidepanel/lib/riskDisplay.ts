@@ -67,14 +67,25 @@ export function isUnverifiedEmployer({
   return !companyName || companyName.trim().length === 0;
 }
 
-/** The assessments that put the evidence above the prose. */
-export const ELEVATED_ASSESSMENTS = ['stop', 'caution'] as const;
+/** The assessments that put the evidence above the prose.
+ *
+ * Red is the colour; the rule is the gate for yellow — a prohibited request at
+ * an unestablished employer elevates, an unclassified one does not. The rule
+ * travels in the assessment breakdown, so the constant is a colour list no
+ * more: `shouldElevateEvidence` reads the rule directly.
+ */
 
-/** Just the fields a decision about layout depends on. */
+/** Just the fields a decision about layout depends on.
+ *
+ * `elevationRule` is the grid rule from the assessment breakdown: yellow is
+ * uncertainty from either of two rules, and only one of them — the prohibited
+ * request at an unestablished employer — leads with the evidence.
+ */
 export interface ElevationInput {
-  assessment: 'clear' | 'note' | 'caution' | 'stop' | null;
+  assessment: 'green' | 'yellow' | 'red' | null;
   verificationLoading?: boolean;
   offerAnalysisLoading?: boolean;
+  elevationRule?: string;
 }
 
 /**
@@ -95,9 +106,16 @@ export function shouldElevateEvidence({
   assessment,
   verificationLoading,
   offerAnalysisLoading,
+  elevationRule,
 }: ElevationInput): boolean {
   if (verificationLoading || offerAnalysisLoading) return false;
-  return assessment === 'stop' || assessment === 'caution';
+  // Red always leads with the evidence. Yellow leads only for the rule that
+  // names the scam shape — a prohibited request at an employer the record
+  // never established. An unclassified request at a confirmed employer is the
+  // same colour and deliberately does not: the chip says Caution and the
+  // breakdown says why, and that is enough.
+  if (assessment === 'red') return true;
+  return assessment === 'yellow' && elevationRule === 'prohibited_at_unestablished_employer';
 }
 
 /**

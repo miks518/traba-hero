@@ -21,17 +21,12 @@ MAX_IMAGES_PER_SCAN = 4
 # there is one convention for "one thing uploaded by a person" rather than two.
 MAX_IMAGE_BASE64 = 5_000_000
 
-# The overall level vocabulary. `/api/analyze-offer` still asks its model for a
-# level; `/api/verify` now computes its level in `assessment.py` from the posting's
-# findings and the code-assigned Channel Match severity. Defined here rather than
-# in a prompt module because both schemas need the same words, and a vocabulary
-# restated in two places is how an enum and a prompt drift apart into producing a
-# value the other does not accept.
-#
-# There is deliberately no number. The ring's scale was the reason a severity
-# ladder existed, the ladder was fitted to the ring, and neither survived
-# contact with a posting that asked for a fee for an ordinary reason.
-RISK_LEVELS = ("low", "moderate", "high", "critical")
+# The assessment vocabulary is the grid's three colours (`assessment.py`):
+# `green`, `yellow`, `red`. The old `low`/`moderate`/`high`/`critical` ladder and
+# the model-owned level it weighted are retired - the words were conclusions,
+# and "Proceed" claimed a clearance the grid never measured. The panel's chip
+# words for the colours are "Nothing found against it", "Caution" and
+# "Contradicted", and the rule that produced the colour is in the breakdown.
 
 
 # How many jobs one match request may carry.
@@ -232,9 +227,9 @@ class ScanResponse(BaseModel):
     # `None` is a real value and means nothing was assessed - no employer could
     # be named, or the lookup did not complete. It is not "low". The frontend
     # already renders `null` as Unverified and excludes it from resume matching.
-    # Both nullable, and both None for the ordinary path. No stage produces a
-    # number any more: the level is the model's and it is a category, so there
-    # is nothing for a score to hold. Kept on the wire because stored scan
+    # Both nullable, and both None for the ordinary path: no stage produces a
+    # number, and the assessment itself is the grid's colour word carried in the
+    # `assessment` field. Kept on the wire because stored scan
     # history carries it, and removing a key needs a migration for that.
     risk_score: int | None = None
     risk_level: str | None = None

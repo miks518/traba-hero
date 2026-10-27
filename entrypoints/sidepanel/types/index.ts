@@ -267,7 +267,14 @@ export interface VerificationResult {
   debugSearchRaw?: Array<{ query: string; raw: string }>;
 }
 
-export type Assessment = 'clear' | 'note' | 'caution' | 'stop';
+/**
+ * The grid's three colours (`assessment.py`). The words the panel renders for
+ * them — "Nothing found against it", "Caution", "Contradicted" — live in
+ * `assessmentLabel()`; the tokens name the evidence strength, not a verdict.
+ * Stored scans recorded under the previous procedure carry the old words
+ * (`clear`/`note`/`caution`/`stop`) and are mapped at render.
+ */
+export type Assessment = 'green' | 'yellow' | 'red';
 
 export interface ScanResult {
   /** The assessment from the decision grid: clear | note | caution | stop. */

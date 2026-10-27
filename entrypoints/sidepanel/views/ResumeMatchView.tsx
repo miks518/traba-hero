@@ -33,10 +33,14 @@ function jobIcon(index: number): IconName {
 
 function assessmentLabel(assessment: string | null | undefined): string {
   switch (assessment) {
-    case 'stop': return 'Do not proceed';
+    case 'red': return 'Contradicted';
+    case 'yellow': return 'Caution';
+    case 'green': return 'Nothing found against it';
+    // The previous procedure's words, for scans recorded before the change.
+    case 'stop': return 'Contradicted';
     case 'caution': return 'Caution';
-    case 'note': return 'Note';
-    case 'clear': return 'Proceed';
+    case 'note': return 'Caution';
+    case 'clear': return 'Nothing found against it';
     default: return 'Not Assessed';
   }
 }
@@ -47,15 +51,20 @@ function assessmentLabel(assessment: string | null | undefined): string {
  * The status chips are the themed pair — pale fill, saturated ink, resolved per
  * theme — which is why this reads `chip-*` rather than a raw palette class. The
  * raw palette was authored for the dark theme (`green-400` on `green-900/30`)
- * and in light mode put pale text on a pale fill: "Proceed" was near-invisible.
+ * and in light mode put pale text on a pale fill: the green label was
+ * near-invisible.
  *
- * `note` shares the verified chip with `clear` on purpose. The report panel
- * gives both the verified tone (`assessmentCopy.ts`: the employer is confirmed in
- * both), so the history badge agrees with the banner it summarises, and the
- * label text is what tells them apart.
+ * The words on the chips are the evidence relation — "Nothing found against
+ * it", "Caution", "Contradicted" — not a verdict; `assessmentLabel` owns them
+ * and this only owns the colour they sit on. The previous procedure's words map
+ * onto the same chips, so an old history renders in the right colour.
  */
 function matchBadgeStyle(assessment: string | null | undefined): string {
   switch (assessment) {
+    case 'red': return 'chip-critical';
+    case 'yellow': return 'chip-caution';
+    case 'green': return 'chip-verified';
+    // The previous procedure's words.
     case 'stop': return 'chip-critical';
     case 'caution': return 'chip-caution';
     case 'note': return 'chip-verified';
@@ -67,21 +76,18 @@ function matchBadgeStyle(assessment: string | null | undefined): string {
 /**
  * A posting the reader can act on, so it is the set that gets matched.
  *
- * `clear` asks for nothing the rules prohibit. `note` asks for something
- * prohibited at an employer the record *confirmed*, which is why the reader can
- * go and see the fee on the employer's own site. Neither is a reason to withhold
- * the matching; `caution` and `stop` are.
+ * `green` asks for nothing the rules prohibit. `yellow` is uncertainty — a
+ * prohibited or unclassifiable ask the record has not settled, which is why the
+ * reader should look before sending anything. Neither is a reason to withhold
+ * the matching; `red` is.
  */
 function isMatchableJob(job: ScannedJob): boolean {
-  return (
-    (job.scanResult.assessment === 'clear' || job.scanResult.assessment === 'note') &&
-    job.scanResult.isJobPosting
-  );
+  return job.scanResult.assessment === 'green' && job.scanResult.isJobPosting;
 }
 
-/** Caution or stop: the reader is being told to settle something first. */
+/** Red: the reader is being told the record contradicted the posting. */
 function isExcludedJob(job: ScannedJob): boolean {
-  return job.scanResult.assessment === 'caution' || job.scanResult.assessment === 'stop';
+  return job.scanResult.assessment === 'yellow' || job.scanResult.assessment === 'red';
 }
 
 /** Scanned but never assessed by external verification, so it cannot be matched. */
@@ -90,11 +96,13 @@ function isUnassessedJob(job: ScannedJob): boolean {
 }
 
 /**
- * The history chips, one per assessment word.
+ * The history chips, one per assessment colour.
  *
  * Each chip filters on the assessment itself, which is why there is no bucket
  * vocabulary left to drift: a chip reading "Caution" keeps exactly the rows
- * wearing a Caution badge.
+ * wearing a Caution badge. Stored scans recorded under the previous words are
+ * mapped onto the colours at migration, so a chip keeps exactly the rows it
+ * names.
  *
  * The colours are the theme-resolvable tokens (`assessment-*`, `chip-*`), not the
  * raw palette: an idle `text-green-500` read fine on the dark theme and washed
@@ -104,10 +112,9 @@ function isUnassessedJob(job: ScannedJob): boolean {
  */
 /** How each assessment is named in the empty-state sentence, where a sentence needs it. */
 const FILTER_EMPTY_WORD: Record<Exclude<JobFilterCategory, 'all'>, string> = {
-  clear: 'clear',
-  note: 'a note',
-  caution: 'a caution',
-  stop: 'do not proceed',
+  green: 'green',
+  yellow: 'a caution',
+  red: 'contradicted',
 };
 
 const FILTER_CHIPS: {
@@ -131,8 +138,8 @@ const FILTER_CHIPS: {
     badge: 'bg-surface-container-highest text-on-surface-variant',
   },
   {
-    id: 'clear',
-    title: 'Proceed',
+    id: 'green',
+    title: 'Nothing found against it',
     icon: 'verified',
     color: 'text-icon-verified',
     active: 'chip-verified shadow-sm',
@@ -140,7 +147,7 @@ const FILTER_CHIPS: {
     badge: 'chip-verified',
   },
   {
-    id: 'caution',
+    id: 'yellow',
     title: 'Caution',
     icon: 'gpp_maybe',
     color: 'text-icon-caution',
@@ -149,8 +156,8 @@ const FILTER_CHIPS: {
     badge: 'chip-caution',
   },
   {
-    id: 'stop',
-    title: 'Do not proceed',
+    id: 'red',
+    title: 'Contradicted',
     icon: 'gpp_bad',
     color: 'text-icon-critical',
     active: 'chip-critical shadow-sm',
@@ -451,7 +458,7 @@ export function ResumeMatchView({
                           className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold shrink-0 ${matchBadgeStyle(sr.assessment)}`}
                         >
                           <Icon
-                            name={sr.assessment === 'clear' ? 'verified' : sr.assessment === 'stop' ? 'shield_person' : 'warning'}
+                            name={sr.assessment === 'green' ? 'verified' : sr.assessment === 'red' ? 'shield_person' : 'warning'}
                             className="text-[10px]"
                           />
                           {assessmentLabel(sr.assessment)}

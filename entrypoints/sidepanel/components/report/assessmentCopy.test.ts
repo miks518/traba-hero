@@ -5,79 +5,74 @@ import { assessmentFor, actionsFor, NO_ASSESSMENT, VERIFYING } from './assessmen
  * The assessment -> headline contract.
  *
  * **This is the reader-visible half of the assessment grid, and it is pinned.**
- * The backend decides the assessment (clear | note | caution | stop), this file
- * decides the words, and the reader sees the words. A change to either half
- * that breaks the other is caught here.
+ * The backend decides the assessment (green | yellow | red), this file decides
+ * the words, and the reader sees the words. A change to either half that breaks
+ * the other is caught here.
  *
- * "Do not proceed" is the ace card: it is said only for `stop`, and `stop`
- * requires a contradiction (the government branch or a lookalike domain).
- * Every other assessment states what was found and what the record showed.
+ * "Contradicted" is the ace card: it is said only for `red`, and `red` requires
+ * a contradiction (the government branch or a lookalike domain). "Nothing found
+ * against it" claims only that the search found nothing — never that the
+ * posting is safe. "Caution" is the one advisory word, backed by the grid rule
+ * in the breakdown.
  */
-describe('what each assessment tells the reader to do', () => {
-  it('says exactly "Do not proceed" for stop, and nothing else', () => {
-    // The one headline that is a flat stop. It is reserved for `stop`,
+describe('what each assessment tells the reader', () => {
+  it('says exactly "Contradicted" for red, and nothing else', () => {
+    // The one headline that names the fact. It is reserved for `red`,
     // which requires a contradiction - the government branch or a lookalike.
-    expect(assessmentFor('stop').headline).toBe('Do not proceed');
+    expect(assessmentFor('red').headline).toBe('Contradicted');
   });
 
-  it('gives caution a conditional instruction, not the flat stop', () => {
-    // Caution means the request is prohibited but the employer is unknown.
-    // The reader should settle the fee recipient/reason first.
-    expect(assessmentFor('caution').headline).not.toContain('Do not proceed');
-    expect(assessmentFor('caution').headline).not.toContain('stop');
-    expect(assessmentFor('caution').headline).toContain('Caution');
+  it('gives yellow the advisory word', () => {
+    // Yellow is uncertainty, from either grid rule: an unclassifiable request,
+    // or a prohibited one whose asker the record never established.
+    expect(assessmentFor('yellow').headline).toBe('Caution');
+    expect(assessmentFor('yellow').headline).not.toContain('Contradicted');
   });
 
-  it('gives note a confirm instruction, not a stop', () => {
-    // Note means the request is prohibited/unclassified but the employer is confirmed/supported.
-    // The reader should check the employer's own site.
-    expect(assessmentFor('note').headline).not.toContain('Do not proceed');
-    expect(assessmentFor('note').headline).not.toContain('stop');
-    expect(assessmentFor('note').headline).toContain('Note');
+  it('never claims the posting is safe for green', () => {
+    // Green means ordinary request and nothing found against it — not a clean
+    // bill of health. The headline reports the search's outcome.
+    expect(assessmentFor('green').headline).toBe('Nothing found against it');
+    expect(assessmentFor('green').headline).not.toContain('Proceed');
+    expect(assessmentFor('green').headline).not.toContain('safe');
+    expect(assessmentFor('green').headline).not.toContain('Contradicted');
   });
 
-  it('gives clear a proceed instruction', () => {
-    // Clear means the request is ordinary and the employer is not contradicted.
-    // The reader should proceed.
-    expect(assessmentFor('clear').headline).toBe('Proceed');
-    expect(assessmentFor('clear').headline).not.toContain('Do not proceed');
-    expect(assessmentFor('clear').headline).not.toContain('stop');
-  });
-
-  it('never tells the reader to stop below stop', () => {
-    // "Do not proceed" is the ace card. Only `stop` may carry it.
-    for (const assessment of ['clear', 'note', 'caution'] as const) {
+  it('never says contradicted below red', () => {
+    // "Contradicted" is the ace card. Only `red` may carry it.
+    for (const assessment of ['green', 'yellow'] as const) {
       const headline = assessmentFor(assessment).headline;
-      expect(headline).not.toMatch(/do not proceed/i);
-      expect(headline).not.toMatch(/stop/i);
+      expect(headline).not.toMatch(/contradicted/i);
     }
   });
 });
 
 describe('the actions the reader is offered', () => {
-  it('stop offers the reader the choice to not send money or documents', () => {
-    const actions = actionsFor('stop');
+  it('red offers the reader the choice to not send money or documents', () => {
+    const actions = actionsFor('red');
     expect(actions.lead).toMatch(/do not send/i);
     expect(actions.rest).toMatch(/money|document/i);
-    // No "proceed" in the stop instructions
+    // The red actions never soften into "proceed"
     const allText = [actions.lead, actions.rest, actions.secondLead, actions.secondRest].join(' ').toLowerCase();
     expect(allText).not.toContain('proceed');
   });
 
-  it('clear does not carry an alarm', () => {
-    const actions = actionsFor('clear');
+  it('green does not carry an alarm, and does not claim clearance', () => {
+    const actions = actionsFor('green');
     const allText = [actions.lead, actions.rest, actions.secondLead, actions.secondRest].join(' ').toLowerCase();
-    // Clear should offer the reader's next steps, not warnings
+    // Green offers the reader's next steps, not warnings — and never the
+    // retired "Proceed", which claimed a clearance the grid never measured.
     expect(allText).not.toMatch(/stop/i);
     expect(allText).not.toMatch(/do not send/i);
     expect(allText).not.toMatch(/warning/i);
     expect(allText).not.toMatch(/caution/i);
+    expect(allText).not.toContain('proceed');
   });
 
-  it('caution tells the reader what to settle first', () => {
-    const actions = actionsFor('caution');
+  it('yellow tells the reader what to settle first', () => {
+    const actions = actionsFor('yellow');
     const allText = [actions.lead, actions.rest, actions.secondLead, actions.secondRest].join(' ').toLowerCase();
-    // Caution should tell the reader what specific thing to check
+    // Yellow should tell the reader what specific thing to check
     expect(allText).toMatch(/what|who|confirm/i);
   });
 });
@@ -88,13 +83,13 @@ describe('the states with no assessment behind them', () => {
     // complete. "No assessment on this one" is the honest answer.
     expect(assessmentFor(null).headline).toBe('No assessment on this one');
     expect(assessmentFor(undefined).headline).toBe('No assessment on this one');
-    expect(NO_ASSESSMENT.headline).not.toContain('Do not proceed');
+    expect(NO_ASSESSMENT.headline).not.toContain('Contradicted');
   });
 
   it('asserts nothing while the employer lookup is running', () => {
     // The intermediate state is not the assessment. The copy says only what is
     // true, which is that a check is in flight.
     expect(VERIFYING.headline).toBe('Checking this company');
-    expect(VERIFYING.headline).not.toContain('Do not proceed');
+    expect(VERIFYING.headline).not.toContain('Contradicted');
   });
 });

@@ -46,15 +46,29 @@ const CAUTION: Accent = {
   button: '',
 };
 
-/** The assessments that get elevated treatment. */
-export const ELEVATED_ASSESSMENTS = ['stop', 'caution'] as const;
+/** The grid rule that makes a yellow lead with the evidence.
+ *
+ * Yellow is uncertainty, and most of it stays the quiet caution tone. The one
+ * exception is the scam shape — a prohibited request at an employer the record
+ * never established — where the chip says "Caution" but the panel leads with
+ * what was and was not found, because that is the reading a jobseeker most
+ * needs to see before they reply.
+ */
+export const ELEVATING_RULES = ['prohibited_at_unestablished_employer'] as const;
 
-export function isElevated(assessment: Assessment | null | undefined): boolean {
-  return assessment === 'stop' || assessment === 'caution';
+export function isElevated(
+  assessment: Assessment | null | undefined,
+  rule?: string,
+): boolean {
+  if (assessment === 'red') return true;
+  return assessment === 'yellow' && !!rule && (ELEVATING_RULES as readonly string[]).includes(rule);
 }
 
-export function riskAccent(assessment: Assessment | null | undefined): Accent {
-  if (isElevated(assessment)) return ELEVATED;
-  if (assessment === 'note') return CAUTION;
+export function riskAccent(
+  assessment: Assessment | null | undefined,
+  rule?: string,
+): Accent {
+  if (isElevated(assessment, rule)) return ELEVATED;
+  if (assessment === 'yellow') return CAUTION;
   return NONE;
 }

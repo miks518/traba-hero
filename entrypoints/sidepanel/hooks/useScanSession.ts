@@ -637,14 +637,17 @@ export function useScanSession({
   })();
 
   /**
-   * A settled stop or caution assessment drops the neutral context below the
-   * findings. Derived from the same decision the panel's colour comes from, so
-   * the emphasis and the tone can never disagree about whether this is dangerous.
+   * A settled red or prohibited-at-unestablished assessment drops the neutral
+   * context below the findings. Derived from the same decision the panel's
+   * colour comes from, so the emphasis and the tone can never disagree about
+   * whether this is dangerous.
    */
   const elevate = shouldElevateEvidence({
     assessment: scanResult?.assessment ?? null,
     verificationLoading: scanResult?.verificationLoading,
     offerAnalysisLoading: scanResult?.offerAnalysisLoading,
+    elevationRule:
+      (scanResult?.assessmentBreakdown as { rule?: string } | undefined)?.rule,
   });
 
   return {
@@ -663,6 +666,8 @@ export function useScanSession({
     verificationRun,
     needsCompanyName,
     elevate,
+    elevationRule:
+      (scanResult?.assessmentBreakdown as { rule?: string } | undefined)?.rule,
     handleScreenshotReady,
     removeScreenshot,
     resetAll,

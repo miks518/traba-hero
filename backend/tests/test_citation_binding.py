@@ -58,7 +58,7 @@ def _json_response(url: str, status: str = "red", category: str = "Channel Match
 
 
 def _read(url: str, status: str = "red", allowed=(RETRIEVED,)):
-    items, _report, _rec, _json, evidence, _level, _score, _reason, _assessments = _read_verify_output(
+    items, _report, _rec, _json, evidence, _reason, _assessments = _read_verify_output(
         _json_response(url, status), allowed_urls=frozenset(allowed)
     )
     return items, evidence
@@ -147,7 +147,7 @@ def test_the_fallback_path_is_bound_as_well():
         "SOURCE: https://attacker.example/never-retrieved | About us\n"
         "END VERIFY\n"
     )
-    items, _report, _rec, used_json, evidence, _level, _score, _reason, _assessments = _read_verify_output(
+    items, _report, _rec, used_json, evidence, _reason, _assessments = _read_verify_output(
         text, allowed_urls=frozenset({RETRIEVED})
     )
     assert used_json is False

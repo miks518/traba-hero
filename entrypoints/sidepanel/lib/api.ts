@@ -400,7 +400,7 @@ export interface OfferAnalysis {
   what_it_offers: string;
   what_to_check: string;
   is_offer: boolean;
-  assessment_level?: 'clear' | 'note' | 'caution' | 'stop' | null;
+  assessment_level?: 'green' | 'yellow' | 'red' | null;
   assessmentBreakdown?: Record<string, unknown>;
 }
 
@@ -680,7 +680,7 @@ export async function verifyJobStream(
               // what may appear here, and an absent value is what the panel reads
               // as "no reason to show".
               assessmentReason: data.assessmentReason ?? '',
-              assessment: data.assessment as 'clear' | 'note' | 'caution' | 'stop' | undefined,
+              assessment: data.assessment as 'green' | 'yellow' | 'red' | undefined,
               assessmentBreakdown: data.assessmentBreakdown,
               assessmentText: data.assessmentText,
               requestClass: data.requestClass ?? data.request_class,

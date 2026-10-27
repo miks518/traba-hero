@@ -23,48 +23,42 @@
 import type { Assessment } from '../../types';
 
 /**
- * Four tones for four assessments.
+ * Three tones for three assessments.
  *
- * `stop` gets the critical tone (red). `caution` gets the caution tone (amber).
- * `note` gets the verified tone (green) because the employer is confirmed/supported.
- * `clear` gets the verified tone (green) because the request is ordinary.
- * `unknown` gets the unknown tone (grey) for missing employer / in-flight.
+ * `red` gets the critical tone. `yellow` gets the caution tone — it is
+ * uncertainty, from either grid rule. `green` gets the verified tone, which is
+ * a statement about the search's outcome and never a clearance: the employer
+ * may still be unestablished. `unknown` gets the unknown tone (grey) for
+ * missing employer / in-flight.
  */
 export type AssessmentTone = 'critical' | 'caution' | 'verified' | 'unknown';
 
 export interface AssessmentCopy {
-  /** Short imperative instruction. The reader acts on this. */
+  /** The chip word. The reader acts on the sentence below it. */
   headline: string;
   tone: AssessmentTone;
 }
 
 /**
- * The phrase table. Four assessments, four reviewed strings.
+ * The phrase table. Three assessments, three reviewed strings.
  *
- * Written as imperatives addressed to the reader, because the design settles
- * this: *the assessment is a short instruction plus a one-line reason, not a number
- * or a level word*. "Proceed" tells a reader what to do; "Low Risk" tells them
- * where they landed — and the latter overclaims when the posting was unchecked.
- *
- * "Do not proceed" is the ace card: it is the headline for `stop` only, and
- * `stop` requires a contradiction. Every other assessment states what was found
- * and what the record showed.
+ * The words report the evidence relation, not a verdict: "Contradicted" is the
+ * headline for `red` only, and `red` requires a contradiction. "Caution" is the
+ * one advisory word, backed by the grid rule in the breakdown. "Nothing found
+ * against it" claims only that the search found nothing — never that the
+ * posting is safe.
  */
 const ASSESSMENT_TABLE: Record<Assessment, AssessmentCopy> = {
-  stop: {
-    headline: 'Do not proceed',
+  red: {
+    headline: 'Contradicted',
     tone: 'critical',
   },
-  caution: {
-    headline: 'Caution — settle what the offer asks for first',
+  yellow: {
+    headline: 'Caution',
     tone: 'caution',
   },
-  note: {
-    headline: 'Note — check the employer\'s own site for the stated fee',
-    tone: 'verified',
-  },
-  clear: {
-    headline: 'Proceed',
+  green: {
+    headline: 'Nothing found against it',
     tone: 'verified',
   },
 };
@@ -103,18 +97,32 @@ export const VERIFYING: AssessmentCopy = {
   tone: 'unknown',
 };
 
+/**
+ * The previous procedure's words, for scans recorded before the change. They
+ * map onto the colour whose grid cell they would have been, so an old history
+ * renders the right copy instead of crashing on a key the table no longer has.
+ */
+const LEGACY_ASSESSMENT: Record<string, Assessment> = {
+  clear: 'green',
+  note: 'yellow',
+  caution: 'yellow',
+  stop: 'red',
+};
+
 export function assessmentFor(assessment: Assessment | null | undefined): AssessmentCopy {
   if (!assessment) return NO_ASSESSMENT;
-  return ASSESSMENT_TABLE[assessment];
+  if (assessment in ASSESSMENT_TABLE) return ASSESSMENT_TABLE[assessment];
+  const legacy = LEGACY_ASSESSMENT[assessment];
+  return legacy ? ASSESSMENT_TABLE[legacy] : NO_ASSESSMENT;
 }
 
 /**
  * The two instruction lines in the action block.
  *
  * Authored per assessment family, and keyed to the family rather than the exact
- * assessment on purpose: `stop` needs the reader to stop; `caution` needs the
- * reader to settle the fee; `note` needs the reader to check the employer's site;
- * `clear` needs the reader to proceed.
+ * grid rule on purpose: `red` needs the reader to stop; the merged `yellow`
+ * covers both of its rules with the same two moves — ask what the offer wants,
+ * confirm who is asking. The breakdown carries the rule for anything finer.
  *
  * The second line is the one that keeps this from being a lecture. It tells the
  * reader what to do *next*, which is a thing they can act on today.
@@ -148,30 +156,23 @@ export interface ActionLines {
 }
 
 const ACTION_TABLE: Record<Assessment | 'unknown', ActionLines> = {
-  stop: {
+  red: {
     lead: 'Do not send money or documents.',
     rest: 'Even if the request says the fee is refundable, do not send money or identity documents. Stop the application and do not reply to the recruiter until you have checked the company yourself.',
     secondLead: 'Check the company yourself',
     secondRest: 'through an official channel before you apply for anything.',
     bullet: 'bg-assessment-critical',
   },
-  caution: {
+  yellow: {
     lead: 'Ask what the offer asks for and why.',
     rest: 'An offer that asks for something before a contract is the pattern the rules prohibit.',
     secondLead: 'Confirm the employer\'s identity',
     secondRest: 'through an official channel before you send anything.',
     bullet: 'bg-assessment-caution-container',
   },
-  note: {
-    lead: 'Check the employer\'s official site for the stated fee.',
-    rest: 'The employer is confirmed and the fee is stated on their site.',
-    secondLead: 'Proceed with the application',
-    secondRest: 'through the company\'s own domain.',
-    bullet: 'bg-assessment-verified',
-  },
-  clear: {
-    lead: 'Proceed with the application.',
-    rest: 'The posting asks for nothing the rules prohibit.',
+  green: {
+    lead: 'Continue with the application.',
+    rest: 'The posting asks for nothing the rules prohibit, and nothing found contradicts it.',
     secondLead: 'Keep the conversation on the company\'s own domain.',
     secondRest: 'If they switch to a personal email or a messaging app, that is worth asking about before you send anything.',
     bullet: 'bg-assessment-verified',
@@ -197,7 +198,9 @@ export const NO_ASSESSMENT_BULLET = 'bg-assessment-unknown';
 
 export function actionsFor(assessment: Assessment | null | undefined): ActionLines {
   if (!assessment) return ACTION_TABLE.unknown;
-  return ACTION_TABLE[assessment];
+  if (assessment in ACTION_TABLE) return ACTION_TABLE[assessment];
+  const legacy = LEGACY_ASSESSMENT[assessment];
+  return legacy ? ACTION_TABLE[legacy] : ACTION_TABLE.unknown;
 }
 
 /**

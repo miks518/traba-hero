@@ -1,17 +1,17 @@
-// A critical job told the reader it was "Included in resume matching".
+// A red job told the reader it was "Included in resume matching".
 //
-// The exclusion itself was never broken: `verifiedJobs` is `low` risk only, and
-// that collection is what gets matched. The label was. The per-job status
-// branch tested `suspicious` — which is `isSuspiciousJob`, meaning *moderate* —
-// and then `riskLevel === null`, so `high` and `critical` fell through to the
-// final `else` and got the green "No high-severity indicators found. Included in
-// resume matching." message. The one branch that must never be reassuring is the
-// branch the most dangerous job took.
+// The exclusion itself was never broken: `verifiedJobs` is the matchable set
+// only, and that collection is what gets matched. The label was. The per-job
+// status branch tested `suspicious` — which is `isSuspiciousJob`, meaning
+// *moderate* — and then `riskLevel === null`, so the dangerous jobs fell through
+// to the final `else` and got the green "No high-severity indicators found.
+// Included in resume matching." message. The one branch that must never be
+// reassuring is the branch the most dangerous job took.
 //
 // The misleading identifier is part of the cause: `suspicious` reads like it
 // means the risky levels, so anyone extending this branch would reasonably
 // assume the dangerous jobs were already handled. The test therefore asserts the
-// message for every assessment, not just that the critical case changed.
+// message for every assessment, not just that the red case changed.
 
 import { describe, it, expect, afterEach, vi } from 'vitest';import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import React from 'react';
@@ -77,8 +77,8 @@ function expandFirstRow() {
 }
 
 describe('the per-job matching status is correct for every assessment', () => {
-  it('says a stop job is excluded', async () => {
-    const { container } = renderWith('stop');
+  it('says a red job is excluded', async () => {
+    const { container } = renderWith('red');
     await act(async () => {
       expandFirstRow();
     });
@@ -88,8 +88,11 @@ describe('the per-job matching status is correct for every assessment', () => {
     expect(text).not.toMatch(/Included in resume matching/i);
   });
 
-  it('says a caution job is excluded', async () => {
-    const { container } = renderWith('caution');
+  it('says a yellow job is excluded', async () => {
+    // Yellow is uncertainty: a prohibited or unclassifiable ask the record has
+    // not settled. The reader is told to settle it before anything else, so the
+    // matcher does not feed it a match.
+    const { container } = renderWith('yellow');
     await act(async () => {
       expandFirstRow();
     });
@@ -97,20 +100,6 @@ describe('the per-job matching status is correct for every assessment', () => {
     const text = container.textContent ?? '';
     expect(text).toMatch(/Excluded from resume matching/i);
     expect(text).not.toMatch(/Included in resume matching/i);
-  });
-
-  it('says a note job is included, because the employer was confirmed', async () => {
-    // `note` is a prohibited request at an employer the record confirmed, so the
-    // reader can go and see the fee on the employer's own site. That is a
-    // posting the matcher may use; `caution` and `stop` are not.
-    const { container } = renderWith('note');
-    await act(async () => {
-      expandFirstRow();
-    });
-
-    const text = container.textContent ?? '';
-    expect(text).toMatch(/Included in resume matching/i);
-    expect(text).not.toMatch(/Excluded from resume matching/i);
   });
 
   it('says an unassessed job is excluded pending verification', async () => {
@@ -126,10 +115,10 @@ describe('the per-job matching status is correct for every assessment', () => {
     // A stored reading has no request class and no establishment, so its assessment
     // was mapped from the retired level. Showing that word without saying where
     // it came from would present a legacy label as a decision this system made.
-    const legacy = job('caution');
+    const legacy = job('yellow');
     legacy.scanResult.assessmentRecordedUnder = 'previous-procedure';
 
-    const { container } = renderWith('caution', [legacy]);
+    const { container } = renderWith('yellow', [legacy]);
     await act(async () => {
       expandFirstRow();
     });
@@ -139,8 +128,8 @@ describe('the per-job matching status is correct for every assessment', () => {
     expect(text).not.toMatch(/Included in resume matching/i);
   });
 
-  it('only a clear job is reported as included', async () => {
-    const { container } = renderWith('clear');
+  it('only a green job is reported as included', async () => {
+    const { container } = renderWith('green');
     await act(async () => {
       expandFirstRow();
     });
@@ -162,39 +151,24 @@ describe('assessment badges are distinguishable', () => {
     return spans.find((s) => s.textContent?.includes(label)) ?? null;
   }
 
-  /** Caution and Note must not share identical badges. */
-  it('does not paint Caution and Note the same', () => {
-    const { container } = renderWith('caution');
-    expect(container.textContent).toMatch(/Caution/);
+  /** The three colours must not share identical badges. */
+  it('paints each colour its own badge', () => {
+    const redBadge = badgeFor(renderWith('red').container, 'Contradicted');
+    expect(redBadge, 'the red badge').toBeTruthy();
+    expect(redBadge!.className).toContain('chip-critical');
 
-    const { container: noteRow } = renderWith('note');
-    expect(noteRow.textContent).toMatch(/Note/);
-  });
+    const yellowBadge = badgeFor(renderWith('yellow').container, 'Caution');
+    expect(yellowBadge, 'the yellow badge').toBeTruthy();
+    expect(yellowBadge!.className).toContain('chip-caution');
 
-  it('Caution wears the caution chip, Note the verified chip', () => {
-    // The badge summarises the report banner, whose tone table gives `caution`
-    // the caution tone and `note` the verified one (`assessmentCopy.ts`; the same
-    // three-tone decision is documented on the assessment tokens in
-    // `tailwind.config.js`). Red is `stop`'s alone.
-    //
-    // This test used to grep the row's innerHTML for `text-error` / `text-green`
-    // and passed without either badge carrying those classes: the substrings came
-    // from the resume preview's delete button and the Proceed filter chip, so the
-    // badges this test names were never the thing asserted. Asserting the badge
-    // element's own class is the honest form, and it is what exposed the old
-    // dark-theme palette the badges had been wearing.
-    const cautionBadge = badgeFor(renderWith('caution').container, 'Caution');
-    expect(cautionBadge, 'the caution badge').toBeTruthy();
-    expect(cautionBadge!.className).toContain('chip-caution');
-
-    const noteBadge = badgeFor(renderWith('note').container, 'Note');
-    expect(noteBadge, 'the note badge').toBeTruthy();
-    expect(noteBadge!.className).toContain('chip-verified');
+    const greenBadge = badgeFor(renderWith('green').container, 'Nothing found against it');
+    expect(greenBadge, 'the green badge').toBeTruthy();
+    expect(greenBadge!.className).toContain('chip-verified');
   });
 });
 
 describe('the matching input is the matchable assessments', () => {
-  it('never feeds a stop or caution job to the matcher', async () => {
+  it('never feeds a red or yellow job to the matcher', async () => {
     const matchResumeStream = vi.fn();
     vi.doMock('../lib/api', () => ({
       pingHealth: vi.fn().mockResolvedValue(true),
@@ -205,7 +179,7 @@ describe('the matching input is the matchable assessments', () => {
 
     const { container } = render(
       React.createElement(ResumeMatchView, {
-        scannedJobs: [job('stop'), job('caution'), job('note'), job('clear')],
+        scannedJobs: [job('red'), job('yellow'), job('green')],
         resumeData: RESUME,
         onResumeData: vi.fn(),
         onScanComplete: vi.fn(),
@@ -214,9 +188,9 @@ describe('the matching input is the matchable assessments', () => {
     );
 
     // The count on the match button is the set that will be matched, and it is
-    // the two the reader can act on.
+    // the one the reader can act on.
     await act(async () => {});
-    expect(container.textContent).toMatch(/\(2\)/);
-    expect(container.textContent).not.toMatch(/\(4\)/);
+    expect(container.textContent).toMatch(/\(1\)/);
+    expect(container.textContent).not.toMatch(/\(3\)/);
   });
 });

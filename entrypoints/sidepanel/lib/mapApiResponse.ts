@@ -26,12 +26,29 @@ function iconForCode(code?: string): IconName {
  * The assessment word as prose, for history entries and anything else that needs a
  * label rather than a token.
  */
-export function assessmentLabel(assessment: Assessment | null | undefined): string {
+/**
+ * The wire's assessment word → the panel's chip word.
+ *
+ * The words report the evidence relation, not a verdict: the strongest one
+ * ("Contradicted") names the fact that a retrieved source states something
+ * different from the posting, and the softest one ("Nothing found against it")
+ * claims only that the search found nothing — never that the posting is safe.
+ * "Caution" is the one advisory word, and it is backed by the grid rule that
+ * produced it, which the breakdown carries.
+ *
+ * Stored scans recorded under the previous vocabulary keep their recorded
+ * words, mapped so an old history renders without re-learning a new word.
+ */
+export function assessmentLabel(assessment: string | null | undefined): string {
   switch (assessment) {
-    case 'clear': return 'Proceed';
-    case 'note': return 'Note';
+    case 'green': return 'Nothing found against it';
+    case 'yellow': return 'Caution';
+    case 'red': return 'Contradicted';
+    // The previous procedure's words, for scans recorded before the change.
+    case 'clear': return 'Nothing found against it';
+    case 'note': return 'Caution';
     case 'caution': return 'Caution';
-    case 'stop': return 'Do not proceed';
+    case 'stop': return 'Contradicted';
     default: return 'Not Assessed';
   }
 }

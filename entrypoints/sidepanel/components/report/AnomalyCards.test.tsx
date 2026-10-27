@@ -126,13 +126,13 @@ describe('the one-line assessment reason', () => {
   it('shows a reason beside the authored headline', () => {
     render(
       React.createElement(AssessmentBlock, {
-        assessment: 'stop',
+        assessment: 'red',
         reason: 'This post asks you to pay a fee before you are hired.',
       }),
     );
     const headline = document.querySelector('[data-role="assessment-headline"]');
     const reason = document.querySelector('[data-role="assessment-reason"]');
-    expect(headline?.textContent).toBe('Do not proceed');
+    expect(headline?.textContent).toBe('Contradicted');
     expect(reason?.textContent).toContain('pay a fee');
   });
 
@@ -140,9 +140,9 @@ describe('the one-line assessment reason', () => {
     // A banner carrying only its authored headline is complete — the instruction
     // stands on its own — so an absent reason must not leave a gap that reads as
     // something withheld.
-    render(React.createElement(AssessmentBlock, { assessment: 'caution' }));
+    render(React.createElement(AssessmentBlock, { assessment: 'yellow' }));
     expect(document.querySelector('[data-role="assessment-headline"]')?.textContent).toBe(
-      'Caution — settle what the offer asks for first',
+      'Caution',
     );
     expect(document.querySelector('[data-role="assessment-reason"]')).toBeNull();
   });
@@ -152,7 +152,7 @@ describe('the one-line assessment reason', () => {
     // conclusion sits under it either.
     render(
       React.createElement(AssessmentBlock, {
-        assessment: 'caution',
+        assessment: 'yellow',
         verifying: true,
         reason: 'This post asks you to pay a fee.',
       }),

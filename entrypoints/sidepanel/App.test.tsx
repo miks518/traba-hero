@@ -21,10 +21,10 @@ const storedJob: ScannedJob = {
   summary: 'A role.',
   timestamp: '2026-10-09T08:30:00.000Z',
   scanResult: {
-    riskLevel: 'low',
-    riskLabel: 'Low Risk',
-    riskScored: true,
-    riskScore: 12,
+    
+    
+    
+    
     riskDescription: '',
     scanningTarget: 'Scanned Element',
     anomalies: [],

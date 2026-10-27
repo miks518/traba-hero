@@ -50,8 +50,8 @@ describe('scan history length', () => {
 
 function result(over: Partial<ScanResult> = {}): ScanResult {
   return {
-    assessment: 'clear',
-    assessmentLabel: 'Proceed',
+    assessment: 'green',
+    assessmentLabel: 'Nothing found against it',
     assessed: true,
     assessmentBreakdown: undefined,
     scanningTarget: 'Scanned Element',
@@ -75,30 +75,30 @@ function job(id: string, over: Partial<ScanResult> = {}): ScannedJob {
 describe('updateScannedJob', () => {
   it('replaces the assessment once verification finishes', () => {
     // The bug: the history entry is written at scan time with the posting-stage
-    // assessment, then verification blends in an employer score and the panel moves
-    // to 'note' while history stays at null.
+    // assessment, then verification blends in the employer check and the panel
+    // moves to 'yellow' while history stays at null.
     const stored = [job('a', { assessment: null })];
 
-    const next = updateScannedJob(stored, 'a', result({ assessment: 'note' }));
+    const next = updateScannedJob(stored, 'a', result({ assessment: 'yellow' }));
 
-    expect(next[0].scanResult.assessment).toBe('note');
+    expect(next[0].scanResult.assessment).toBe('yellow');
   });
 
   it('does not append a second entry for the same job', () => {
     const stored = [job('a')];
-    const next = updateScannedJob(stored, 'a', result({ assessment: 'note' }));
+    const next = updateScannedJob(stored, 'a', result({ assessment: 'yellow' }));
     expect(next).toHaveLength(1);
   });
 
   it('leaves other jobs untouched', () => {
-    const stored = [job('a'), job('b', { assessment: 'caution' })];
-    const next = updateScannedJob(stored, 'a', result({ assessment: 'note' }));
-    expect(next[1].scanResult.assessment).toBe('caution');
+    const stored = [job('a'), job('b', { assessment: 'yellow' })];
+    const next = updateScannedJob(stored, 'a', result({ assessment: 'yellow' }));
+    expect(next[1].scanResult.assessment).toBe('yellow');
   });
 
   it('is a no-op when the id is unknown', () => {
     const stored = [job('a')];
-    const next = updateScannedJob(stored, 'missing', result({ assessment: 'note' }));
+    const next = updateScannedJob(stored, 'missing', result({ assessment: 'yellow' }));
     expect(next).toEqual(stored);
   });
 
@@ -107,7 +107,7 @@ describe('updateScannedJob', () => {
     // only the number would leave history claiming a score it cannot explain.
     const stored = [job('a')];
     const verified = result({
-      assessment: 'note',
+      assessment: 'yellow',
       verificationResult: {
         items: [{ label: 'Official Registration', status: 'confirmed', explanation: 'CS201500123' }],
         report: 'r',
@@ -125,7 +125,7 @@ describe('updateScannedJob', () => {
     // entry left there forever would show a spinner that never resolves.
     const stored = [job('a', { verificationLoading: true })];
 
-    const next = updateScannedJob(stored, 'a', result({ assessment: 'note', verificationLoading: false, verificationError: true }));
+    const next = updateScannedJob(stored, 'a', result({ assessment: 'yellow', verificationLoading: false, verificationError: true }));
 
     expect(next[0].scanResult.verificationLoading).toBe(false);
     expect(next[0].scanResult.verificationError).toBe(true);
@@ -174,7 +174,7 @@ describe('migrateScannedJobs renames the findings field', () => {
     // is a warning, and the two nearest are those.
     const next = migrateScannedJobs(legacy());
 
-    expect(next[0].scanResult.assessment).toBe('caution');
+    expect(next[0].scanResult.assessment).toBe('yellow');
     expect(next[0].scanResult.assessmentLabel).toBe('Caution');
   });
 
@@ -195,16 +195,16 @@ describe('migrateScannedJobs renames the findings field', () => {
     // had improved.
     const next = migrateScannedJobs(legacy({ riskLevel: 'high', riskLabel: 'High Risk' }));
 
-    expect(next[0].scanResult.assessment).toBe('stop');
+    expect(next[0].scanResult.assessment).toBe('red');
     expect(next[0].scanResult.assessmentRecordedUnder).toBe('previous-procedure');
   });
 
   it('leaves a record that already carries a assessment untouched', () => {
     const next = migrateScannedJobs(
-      legacy({ assessment: 'clear', assessmentLabel: 'Proceed', assessed: true, requestClass: 'ordinary' }),
+      legacy({ assessment: 'green', assessmentLabel: 'Nothing found against it', assessed: true, requestClass: 'ordinary' }),
     );
 
-    expect(next[0].scanResult.assessment).toBe('clear');
+    expect(next[0].scanResult.assessment).toBe('green');
     expect(next[0].scanResult.assessmentRecordedUnder).toBeUndefined();
   });
 
@@ -223,7 +223,7 @@ describe('migrateScannedJobs renames the findings field', () => {
 
   it('still clears a synthesised assessment it finds on the way past', () => {
     // The original purpose of this function is unchanged by the rename.
-    const next = migrateScannedJobs(legacy({ assessed: false, assessment: 'stop' }));
+    const next = migrateScannedJobs(legacy({ assessed: false, assessment: 'red' }));
 
     expect(next[0].scanResult.assessment).toBeNull();
     expect(next[0].scanResult.assessmentLabel).toBe('Not Assessed');

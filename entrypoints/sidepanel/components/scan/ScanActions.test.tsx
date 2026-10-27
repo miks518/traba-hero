@@ -25,7 +25,7 @@ describe('ScanActions risk accent', () => {
     // accent key into a flat error wash. The colour is meant to carry the risk;
     // the affordance is not part of that message and changing it at the same
     // moment as the message makes the button harder to aim at.
-    render(React.createElement(ScanActions, { accent: riskAccent('stop') }));
+    render(React.createElement(ScanActions, { accent: riskAccent('red') }));
     const cls = button().className;
     expect(cls).toContain('tactile-btn-accent');
     expect(cls).toContain('tactile-btn-error');
@@ -37,7 +37,7 @@ describe('ScanActions risk accent', () => {
     const { rerender } = render(React.createElement(ScanActions, {}));
     const accented = button().className;
 
-    rerender(React.createElement(ScanActions, { accent: riskAccent('stop') }));
+    rerender(React.createElement(ScanActions, { accent: riskAccent('red') }));
     const red = button().className;
 
     expect(accented).toContain('tactile-btn-accent');
@@ -48,7 +48,10 @@ describe('ScanActions risk accent', () => {
 
   it('returns to the accent colour when the accent is withdrawn', () => {
     const { rerender } = render(
-      React.createElement(ScanActions, { accent: riskAccent('caution') })
+      React.createElement(
+        ScanActions,
+        { accent: riskAccent('yellow', 'prohibited_at_unestablished_employer') }
+      )
     );
     expect(button().className).toContain('tactile-btn-error');
 
@@ -63,7 +66,7 @@ describe('ScanActions risk accent', () => {
   it('keeps the picker-active styling over the risk accent', () => {
     // Cancelling a pick is a direct instruction from the reader and must stay
     // the loudest thing on the button.
-    render(React.createElement(ScanActions, { accent: riskAccent('stop'), isPickerActive: true }));
+    render(React.createElement(ScanActions, { accent: riskAccent('red'), isPickerActive: true }));
     expect(button().className).toContain('hover:bg-error/30');
   });
 });

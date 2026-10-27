@@ -39,7 +39,7 @@ function block(props: {
 describe('the action block prefers the verify recommendation', () => {
   it('renders the recommendation when verification produced one', () => {
     const text = block({
-      assessment: 'caution',
+      assessment: 'yellow',
       recommendation: 'The results show no company named QuickCash Solutions. Ask the poster to confirm the fee recipient in writing.',
     });
 
@@ -49,7 +49,7 @@ describe('the action block prefers the verify recommendation', () => {
 
   it('renders one row, not the authored pair, when the recommendation stands', () => {
     const text = block({
-      assessment: 'stop',
+      assessment: 'red',
       recommendation: 'A retrieved source accounts for this request.',
     });
 
@@ -58,7 +58,7 @@ describe('the action block prefers the verify recommendation', () => {
   });
 
   it('falls back to the authored copy when no recommendation arrived', () => {
-    const text = block({ assessment: 'stop' });
+    const text = block({ assessment: 'red' });
 
     expect(text).toContain('Do not send money or documents.');
     expect(text).toContain('Check the company yourself');
@@ -67,7 +67,7 @@ describe('the action block prefers the verify recommendation', () => {
   it('falls back when the recommendation is blank', () => {
     // The backend sends an empty string for a screened-out recommendation; the
     // authored table is the safe and still-actionable degradation.
-    const text = block({ assessment: 'caution', recommendation: '   ' });
+    const text = block({ assessment: 'yellow', recommendation: '   ' });
 
     expect(text).toContain('Ask what the offer asks for and why.');
   });
