@@ -18,6 +18,7 @@ export type IconName =
   | 'picture_as_pdf'
   | 'edit'
   | 'add'
+  | 'check'
   | 'check_circle'
   | 'rocket_launch'
   | 'close'

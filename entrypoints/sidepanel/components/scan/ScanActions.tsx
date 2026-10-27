@@ -145,22 +145,51 @@ function advancedScanToggle(
 ) {
   if (!onAdvancedScanChange) return null;
   return (
+    // The whole row is a card, like the panel's notice blocks — a bare native
+    // checkbox read as unstyled HTML pasted under a tactile button. The fill
+    // on toggle is the row itself: border and wash shift with the state over
+    // 200ms, which is the "fill animation" the first version lacked.
     <label
       data-role="advanced-scan"
-      className={`mt-2 flex items-start gap-2 px-0.5 ${disabled ? 'opacity-60' : 'cursor-pointer'}`}
+      className={`mt-3 flex items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors duration-200 ${
+        disabled ? 'opacity-60' : 'cursor-pointer'
+      } ${
+        advancedScan
+          ? 'border-secondary/30 bg-secondary/10'
+          : 'border-outline-variant/20 bg-surface-container-lowest'
+      }`}
     >
+      {/* sr-only input + a drawn box: a native checkbox has no fill animation
+          to transition, and accent-color alone cannot animate. The input keeps
+          the semantics and the keyboard; the box is drawn and driven by the
+          same state, so they can never disagree. */}
       <input
         type="checkbox"
         checked={advancedScan}
         disabled={disabled}
         onChange={(e) => onAdvancedScanChange(e.target.checked)}
-        className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[var(--color-secondary)]"
+        className="peer sr-only"
       />
+      <span
+        aria-hidden
+        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all duration-200 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-secondary ${
+          advancedScan
+            ? 'border-secondary bg-secondary'
+            : 'border-outline-variant bg-surface-container-low'
+        }`}
+      >
+        <Icon
+          name="check"
+          className={`h-3.5 w-3.5 text-on-secondary transition-all duration-200 ${
+            advancedScan ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
+          }`}
+        />
+      </span>
       <span className="min-w-0">
         <span className="block text-label-md font-label font-semibold text-on-surface leading-tight">
           Advanced scan
         </span>
-        <span className="block text-[11px] text-on-surface-variant leading-snug">
+        <span className="mt-0.5 block text-body-sm text-on-surface-variant leading-snug">
           The model thinks through the posting before answering, for a more
           careful read. It might take a few minutes.
         </span>
@@ -168,5 +197,4 @@ function advancedScanToggle(
     </label>
   );
 }
-
 export default ScanActions;

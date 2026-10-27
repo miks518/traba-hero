@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor, act } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, screen, cleanup, waitFor, act, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { ScanActions } from './ScanActions';
 import { riskAccent } from '../../lib/riskAccent';
@@ -68,5 +68,64 @@ describe('ScanActions risk accent', () => {
     // the loudest thing on the button.
     render(React.createElement(ScanActions, { accent: riskAccent('red'), isPickerActive: true }));
     expect(button().className).toContain('hover:bg-error/30');
+  });
+});
+
+
+describe('the Advanced-scan toggle', () => {
+  function toggle(container: HTMLElement): HTMLInputElement | null {
+    return container.querySelector('[data-role="advanced-scan"] input[type="checkbox"]');
+  }
+
+  function box(container: HTMLElement): HTMLElement | null {
+    return container.querySelector('[data-role="advanced-scan"] span[aria-hidden]');
+  }
+
+  it('renders only when the session owns the setting', () => {
+    const { container } = render(React.createElement(ScanActions, {}));
+    expect(container.querySelector('[data-role="advanced-scan"]')).toBeNull();
+  });
+
+  it('starts unchecked and reports the toggle through the setter', () => {
+    const onAdvancedScanChange = vi.fn();
+    const { container } = render(
+      React.createElement(ScanActions, {
+        advancedScan: false,
+        onAdvancedScanChange,
+      })
+    );
+
+    const input = toggle(container);
+    expect(input?.checked).toBe(false);
+
+    fireEvent.click(input!);
+    expect(onAdvancedScanChange).toHaveBeenCalledWith(true);
+  });
+
+  it('draws the checked box filled, unchecked box empty', () => {
+    // The fill is the animation: border and wash shift with the state over
+    // 200ms, so the class list is what is asserted — happy-dom performs no
+    // transitions, exactly like the ScanActions accent tests.
+    const on = render(React.createElement(ScanActions, { advancedScan: true, onAdvancedScanChange: vi.fn() }));
+    expect(box(on.container)?.className).toContain('bg-secondary');
+    expect(box(on.container)?.className).toContain('border-secondary');
+
+    const off = render(React.createElement(ScanActions, { advancedScan: false, onAdvancedScanChange: vi.fn() }));
+    expect(box(off.container)?.className).toContain('bg-surface-container-low');
+    expect(box(off.container)?.className).not.toContain('bg-secondary');
+  });
+
+  it('names the cost in the disclaimer', () => {
+    const { container } = render(React.createElement(ScanActions, { advancedScan: false, onAdvancedScanChange: vi.fn() }));
+    const text = container.querySelector('[data-role="advanced-scan"]')?.textContent ?? '';
+    expect(text).toMatch(/Advanced scan/i);
+    expect(text).toMatch(/few minutes/i);
+  });
+
+  it('renders disabled when the scan controls are disabled', () => {
+    const { container } = render(
+      React.createElement(ScanActions, { advancedScan: false, onAdvancedScanChange: vi.fn(), disabled: true })
+    );
+    expect(toggle(container)?.disabled).toBe(true);
   });
 });
