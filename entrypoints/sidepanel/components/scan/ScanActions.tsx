@@ -180,7 +180,7 @@ function advancedScanToggle(
       >
         <Icon
           name="check"
-          className={`h-3.5 w-3.5 text-on-secondary transition-all duration-200 ${
+          className={`text-sm leading-none text-on-secondary transition-all duration-200 ${
             advancedScan ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
           }`}
         />
