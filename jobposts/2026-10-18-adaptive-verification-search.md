@@ -23,7 +23,7 @@ Goals
 
 Non-goals
 - Domain age, certificate history and direct page fetching. Round 0 leaves hooks for them (section 8).
-- Changing the verdict logic. This proposal changes what evidence is gathered.
+- Changing the assessment logic. This proposal changes what evidence is gathered.
 
 ## 3. Design
 
@@ -125,7 +125,7 @@ Mutation-check each in both directions, per the repo convention. Use function `s
 
 1. Land the current search-error fix first. Do not combine it with this.
 2. Add `VERIFY_SEARCH_MODE=fixed|adaptive`, default `fixed`.
-3. Run the fixtures in both modes against saved model outputs. Compare verdicts and credits.
+3. Run the fixtures in both modes against saved model outputs. Compare assessments and credits.
 4. Switch the default only when adaptive is at least as good on every fixture and within the ceiling.
 5. Record three decisions: adaptive search under a 3-credit ceiling, the scoped `include_domains` exception, and retiring model-proposed queries.
 
@@ -133,7 +133,7 @@ Future Round 0 hooks (separate proposals): domain age from RDAP or certificate t
 
 ## 9. Risks
 
-- The entity-domain heuristic can pick an aggregator or news domain. Contained: a wrong domain produces a wrong scoped query, not a wrong verdict. Keep the denylist small and tested.
+- The entity-domain heuristic can pick an aggregator or news domain. Contained: a wrong domain produces a wrong scoped query, not a wrong assessment. Keep the denylist small and tested.
 - Sequential rounds add one round trip of latency. Run the Round 2 queries in parallel and report rounds in the progress stream.
 - Nothing here is shown to improve accuracy yet. The fixtures decide.
 - The Tavily behaviour of `include_domains` combined with the country boost should be checked against its documentation.

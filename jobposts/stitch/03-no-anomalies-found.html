@@ -27,7 +27,7 @@
             "on-surface-variant": "#434652",
             "outline": "#747783",
             "outline-variant": "#c3c6d3",
-            "verdict-verified": "#1b6d39",
+            "assessment-verified": "#1b6d39",
             "chip-verified-bg": "#e8f5e9",
             "chip-verified-text": "#1b6d39",
             "code-pill-bg": "#f3f4f5",
@@ -58,7 +58,7 @@
       cursor: default;
     }
 
-    .tactile-card-verdict {
+    .tactile-card-assessment {
       border: 1px solid #14532d;
       box-shadow: 0 4px 0 0 #0d381e, inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
     }
@@ -153,15 +153,15 @@
         </p>
 </section>
 <!-- END: HeaderMetadata -->
-<!-- BEGIN: VerdictBanner -->
-<section class="bg-[#1b6d39] text-white p-5 rounded-xl tactile-card-verdict space-y-2" data-purpose="verdict-banner">
+<!-- BEGIN: AssessmentBanner -->
+<section class="bg-[#1b6d39] text-white p-5 rounded-xl tactile-card-assessment space-y-2" data-purpose="assessment-banner">
 <div class="flex items-center gap-2">
 <!-- Circle check icon -->
 <svg class="w-5 h-5 text-white stroke-[2.5]" fill="none" stroke="currentColor" viewbox="0 0 24 24">
 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"></circle>
 <path d="M8.5 12.5l2.5 2.5 5-5" stroke-linecap="round" stroke-linejoin="round"></path>
 </svg>
-<span class="text-[11px] font-bold tracking-widest uppercase opacity-95">VERDICT</span>
+<span class="text-[11px] font-bold tracking-widest uppercase opacity-95">ASSESSMENT</span>
 </div>
 <h2 class="text-xl font-headline font-bold tracking-tight text-white pt-0.5">
           No anomalies found
@@ -170,7 +170,7 @@
           In the 13 checks we completed, nothing unusual turned up. One check could not run.
         </p>
 </section>
-<!-- END: VerdictBanner -->
+<!-- END: AssessmentBanner -->
 <!-- BEGIN: GoodHabitsSection -->
 <section class="space-y-2" data-purpose="good-habits">
 <h3 class="font-headline font-bold text-[17px] text-[#171b26]">

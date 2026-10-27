@@ -131,7 +131,7 @@ const FILTER_CHIPS: {
     title: 'Proceed',
     icon: 'verified',
     active: 'chip-verified shadow-sm',
-    idle: 'text-assessment-verified hover:bg-surface-container',
+    idle: 'chip-verified',
     badge: 'chip-verified',
   },
   {
@@ -139,7 +139,7 @@ const FILTER_CHIPS: {
     title: 'Note',
     icon: 'warning',
     active: 'chip-verified shadow-sm',
-    idle: 'text-assessment-verified hover:bg-surface-container',
+    idle: 'chip-verified',
     badge: 'chip-verified',
   },
   {
@@ -147,7 +147,7 @@ const FILTER_CHIPS: {
     title: 'Caution',
     icon: 'gpp_maybe',
     active: 'chip-caution shadow-sm',
-    idle: 'text-assessment-caution hover:bg-surface-container',
+    idle: 'chip-caution',
     badge: 'chip-caution',
   },
   {
@@ -155,7 +155,7 @@ const FILTER_CHIPS: {
     title: 'Do not proceed',
     icon: 'shield_person',
     active: 'chip-critical shadow-sm',
-    idle: 'text-assessment-critical hover:bg-surface-container',
+    idle: 'chip-critical',
     badge: 'chip-critical',
   },
 ];

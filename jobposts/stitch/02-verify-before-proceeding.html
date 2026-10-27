@@ -12,12 +12,12 @@
       theme: {
         extend: {
           colors: {
-            "verdict-verified-container": "#2e7d32",
+            "assessment-verified-container": "#2e7d32",
             "secondary-fixed-dim": "#ffba22",
             "tertiary": "#5e0001",
             "inverse-primary": "#b0c6ff",
             "primary": "#002764",
-            "verdict-critical": "#b20806",
+            "assessment-critical": "#b20806",
             "surface": "#faf9ff",
             "primary-container": "#003c90",
             "surface-container": "#edeeef",
@@ -41,7 +41,7 @@
             "on-background": "#171b26",
             "surface-container-lowest": "#ffffff",
             "chip-caution-text": "#7c5800",
-            "verdict-critical-container": "#93000a",
+            "assessment-critical-container": "#93000a",
             "primary-fixed-dim": "#b0c6ff",
             "error-container": "#ffdad6",
             "on-primary-container": "#88abff",
@@ -49,7 +49,7 @@
             "on-primary-fixed-variant": "#0e4296",
             "surface-dim": "#d6d9e8",
             "on-tertiary-fixed-variant": "#930002",
-            "verdict-verified": "#1b6d39",
+            "assessment-verified": "#1b6d39",
             "error": "#ba1a1a",
             "on-secondary-container": "#6b4b00",
             "chip-critical-bg": "#ffebee",
@@ -60,10 +60,10 @@
             "tertiary-container": "#880001",
             "inverse-on-surface": "#edf0ff",
             "chip-caution-bg": "#fff8e1",
-            "verdict-caution": "#feb700",
+            "assessment-caution": "#feb700",
             "on-tertiary-container": "#ff8d7c",
             "primary-fixed": "#d9e2ff",
-            "verdict-caution-text": "#342800",
+            "assessment-caution-text": "#342800",
             "on-error": "#ffffff",
             "code-pill-text": "#5b606d",
             "chip-critical-text": "#b20806",
@@ -194,15 +194,15 @@
         </p>
 </section>
 <!-- END: JobMetadata -->
-<!-- BEGIN: VerdictBanner (Vigilance Amber) -->
-<section class="tactile-card tactile-card-amber bg-[#feb700] rounded-2xl p-4 text-slate-950" data-purpose="verdict-banner">
-<!-- Verdict Label Header -->
+<!-- BEGIN: AssessmentBanner (Vigilance Amber) -->
+<section class="tactile-card tactile-card-amber bg-[#feb700] rounded-2xl p-4 text-slate-950" data-purpose="assessment-banner">
+<!-- Assessment Label Header -->
 <div class="flex items-center space-x-1.5">
 <!-- Warning Triangle -->
 <svg class="w-4 h-4 text-black shrink-0" fill="currentColor" viewbox="0 0 24 24">
 <path clip-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" fill-rule="evenodd"></path>
 </svg>
-<span class="text-[11px] font-black tracking-widest uppercase font-mono">VERDICT</span>
+<span class="text-[11px] font-black tracking-widest uppercase font-mono">ASSESSMENT</span>
 </div>
 <!-- Banner Title -->
 <h2 class="text-[20px] font-black text-slate-950 mt-1.5 tracking-tight font-heading">
@@ -213,7 +213,7 @@
           Nothing here asks for money, but 2 anomalies need a second look.
         </p>
 </section>
-<!-- END: VerdictBanner -->
+<!-- END: AssessmentBanner -->
 <!-- BEGIN: BeforeYouApply -->
 <section class="space-y-2" data-purpose="before-you-apply">
 <h2 class="text-[18px] font-bold text-on-surface tracking-tight font-heading">
@@ -352,7 +352,7 @@
 <ul class="space-y-2 pl-0.5">
 <!-- Item 1 -->
 <li class="flex items-center space-x-2.5 text-[13px] text-slate-800 font-medium">
-<span class="text-verdict-verified shrink-0">
+<span class="text-assessment-verified shrink-0">
 <svg class="w-4 h-4 fill-current" viewbox="0 0 20 20">
 <path clip-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" fill-rule="evenodd"></path>
 </svg>
@@ -361,7 +361,7 @@
 </li>
 <!-- Item 2 -->
 <li class="flex items-center space-x-2.5 text-[13px] text-slate-800 font-medium">
-<span class="text-verdict-verified shrink-0">
+<span class="text-assessment-verified shrink-0">
 <svg class="w-4 h-4 fill-current" viewbox="0 0 20 20">
 <path clip-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" fill-rule="evenodd"></path>
 </svg>
@@ -370,7 +370,7 @@
 </li>
 <!-- Item 3 -->
 <li class="flex items-center space-x-2.5 text-[13px] text-slate-800 font-medium">
-<span class="text-verdict-verified shrink-0">
+<span class="text-assessment-verified shrink-0">
 <svg class="w-4 h-4 fill-current" viewbox="0 0 20 20">
 <path clip-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" fill-rule="evenodd"></path>
 </svg>
