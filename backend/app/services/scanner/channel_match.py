@@ -25,8 +25,8 @@ narrow:
   same claim as "the results contradict this channel", and only the second is red.
 
 The status vocabulary is now the establishment states (`confirmed`, `supported`, `unknown`, `contradicted`),
-so the panel and `verdict.py` consume these directly. The `escalation` field on
-`VerificationItem` is the code's own reason, and the final verdict reads it to
+so the panel and `assessment.py` consume these directly. The `escalation` field on
+`VerificationItem` is the code's own reason, and the final assessment reads it to
 give a strong impersonation finding a floor that one weak finding cannot reach.
 See `docs/decisions/channel-match-severity.md`.
 """

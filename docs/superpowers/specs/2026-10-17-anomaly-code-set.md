@@ -13,7 +13,7 @@ See **Limits** at the end — the evidence base is small and this says so.
 
 The 0–100 score is retired. What replaces it must do two jobs at once:
 
-1. **Be comparable across runs**, so Phase 6.2 can measure verdict stability and
+1. **Be comparable across runs**, so Phase 6.2 can measure assessment stability and
    Phase 6.5 can act as a regression gate.
 2. **Be legible to a job seeker**, so Phase 7.1 can lead with reasons a reader
    can act on.
@@ -235,7 +235,7 @@ built from data.
 ## 8. Open decisions this draft does not make
 
 1. **Does the scan emit a level before verification finishes?** If it does not, the
-   panel has no verdict between scan-complete and verify-complete. That is more
+   panel has no assessment between scan-complete and verify-complete. That is more
    honest — you cannot judge danger before knowing who is asking — but it is a visible
    change and the copy has to cover it.
 2. **Are Family I codes `high` by default?** Proposed: no severity field at all, per

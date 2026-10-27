@@ -1,7 +1,7 @@
 """The wire loses the score.
 
-`riskScore`, `riskLevel`, `scoreBreakdown` are gone. `verdict` and
-`verdictBreakdown` replace them. The breakdown is a record of how the verdict
+`riskScore`, `riskLevel`, `scoreBreakdown` are gone. `assessment` and
+`assessmentBreakdown` replace them. The breakdown is a record of how the assessment
 was reached - the class of the request, the establishment, the rule that fired,
 and the sources - not a magnitude.
 """
@@ -62,7 +62,7 @@ def _knollridges_payload() -> dict:
         ],
         "report": "The results show a recruitment firm with its own site.",
         "recommendation": "Ask the recruiter to confirm the email address in writing.",
-        "verdict_reason": "It gives an email address the company's own site does not show.",
+        "assessment_reason": "It gives an email address the company's own site does not show.",
         "anomaly_assessments": [],
         "channel_match": {
             "printed_channels": ["yvonne.knollridges@gmail.com"],
@@ -87,8 +87,8 @@ def _knollridges_request() -> dict:
 
 
 @pytest.mark.asyncio
-async def test_the_verify_wire_carries_verdict_not_score():
-    """The result event carries `verdict` and `verdictBreakdown`, not
+async def test_the_verify_wire_carries_assessment_not_score():
+    """The result event carries `assessment` and `assessmentBreakdown`, not
     `riskLevel`, `riskScore`, or `scoreBreakdown`."""
     data = await _verify(
         _knollridges_payload(),
@@ -104,21 +104,21 @@ async def test_the_verify_wire_carries_verdict_not_score():
     )
 
     # The new keys
-    assert "verdict" in data, "wire must carry verdict"
-    assert "verdictBreakdown" in data, "wire must carry verdictBreakdown"
+    assert "assessment" in data, "wire must carry assessment"
+    assert "assessmentBreakdown" in data, "wire must carry assessmentBreakdown"
 
     # The old keys are gone
     assert "riskLevel" not in data, f"old key riskLevel still present: {data.get('riskLevel')}"
     assert "riskScore" not in data, f"old key riskScore still present: {data.get('riskScore')}"
     assert "scoreBreakdown" not in data, f"old key scoreBreakdown still present: {data.get('scoreBreakdown')}"
 
-    # The verdict is a string from the grid
-    assert data["verdict"] in ("clear", "note", "caution", "stop")
+    # The assessment is a string from the grid
+    assert data["assessment"] in ("clear", "note", "caution", "stop")
 
     # The breakdown is a dict with the decision record
-    breakdown = data["verdictBreakdown"]
+    breakdown = data["assessmentBreakdown"]
     assert isinstance(breakdown, dict)
-    assert "verdict" in breakdown
+    assert "assessment" in breakdown
     assert "exposure" in breakdown
     assert "establishment" in breakdown
     assert "rule" in breakdown

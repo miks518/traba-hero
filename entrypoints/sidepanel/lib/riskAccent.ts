@@ -1,4 +1,4 @@
-import type { Verdict } from '../types';
+import type { Assessment } from '../types';
 
 /**
  * Risk colour for chrome, not for prose.
@@ -10,7 +10,7 @@ import type { Verdict } from '../types';
  *
  * `text` and `surface` are for headers and accents. Body prose deliberately has
  * no entry: long blocks of red or amber on a light surface are the hardest
- * thing on the panel to read, and this is where someone reads a verdict
+ * thing on the panel to read, and this is where someone reads a assessment
  * carefully enough to act on it.
  */
 export interface Accent {
@@ -46,15 +46,15 @@ const CAUTION: Accent = {
   button: '',
 };
 
-/** The verdicts that get elevated treatment. */
-export const ELEVATED_VERDICTS = ['stop', 'caution'] as const;
+/** The assessments that get elevated treatment. */
+export const ELEVATED_ASSESSMENTS = ['stop', 'caution'] as const;
 
-export function isElevated(verdict: Verdict | null | undefined): boolean {
-  return verdict === 'stop' || verdict === 'caution';
+export function isElevated(assessment: Assessment | null | undefined): boolean {
+  return assessment === 'stop' || assessment === 'caution';
 }
 
-export function riskAccent(verdict: Verdict | null | undefined): Accent {
-  if (isElevated(verdict)) return ELEVATED;
-  if (verdict === 'note') return CAUTION;
+export function riskAccent(assessment: Assessment | null | undefined): Accent {
+  if (isElevated(assessment)) return ELEVATED;
+  if (assessment === 'note') return CAUTION;
   return NONE;
 }

@@ -1,15 +1,15 @@
-# The Verdict Procedure and the Agent Loop — Implementation Plan
+# The Assessment Procedure and the Agent Loop — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the weighted risk score with an auditable two-axis decision procedure, and replace the scan→verify relay with one agent that holds the posting for the whole proceeding.
 
-**Architecture:** Four parts on one branch, each independently shippable. **Part 1** fixes the classification layer — the anomaly taxonomy, the request facts, the classifier, the free-email combination rule, and the citation binding that currently discards the Fake CHED impersonation. **Part 2** replaces the score with the verdict grid and rewrites the wire and the panel. **Part 3** replaces the two-stage pipeline with one agent session holding a `search` and a `fetch` tool. **Part 4** decides establishment — `confirmed` / `supported` / `unknown` / `contradicted` — from the employer's own record.
+**Architecture:** Four parts on one branch, each independently shippable. **Part 1** fixes the classification layer — the anomaly taxonomy, the request facts, the classifier, the free-email combination rule, and the citation binding that currently discards the Fake CHED impersonation. **Part 2** replaces the score with the assessment grid and rewrites the wire and the panel. **Part 3** replaces the two-stage pipeline with one agent session holding a `search` and a `fetch` tool. **Part 4** decides establishment — `confirmed` / `supported` / `unknown` / `contradicted` — from the employer's own record.
 
 **Tech Stack:** Python 3.12, FastAPI, Pydantic v2, httpx, pytest, Tavily search, OpenRouter (chat + vision). TypeScript 5, React 19, WXT, Vitest, Tailwind.
 
-**Spec:** `docs/superpowers/specs/2026-10-21-verdict-procedure-agent-loop-design.md`
-**Research:** `docs/research/2026-10-21-verdict-grid-research.md` (the rules behind the grid), `docs/research/2026-10-21-corpus-baseline.md` (the measured "before" column and the two defects Part 1 fixes)
+**Spec:** `docs/superpowers/specs/2026-10-21-assessment-procedure-agent-loop-design.md`
+**Research:** `docs/research/2026-10-21-assessment-grid-research.md` (the rules behind the grid), `docs/research/2026-10-21-corpus-baseline.md` (the measured "before" column and the two defects Part 1 fixes)
 
 ---
 
@@ -20,7 +20,7 @@ These hold for every task in this plan. A task's requirements implicitly include
 - **The default suite must be fully offline.** Never make live OpenRouter or Tavily calls from a test. `backend/tests/conftest.py` installs an autouse `_offline_ai_and_search` fixture and a session-scoped `_block_external_dns` guard. A new external entry point (the `fetch` tool) must be faked at the module boundary and covered by the DNS guard.
 - **Use `class_settings(monkeypatch)` from `backend/tests/conftest.py`** for any test asserting a shipped default. A test that constructs `Settings()` directly reads the real `backend/.env` and prints the live `AI_API_KEY` on failure.
 - **Never commit a secret.** `backend/.env` and the root `.env` are ignored; `.env.example` carries placeholders only.
-- **Nothing in `verdictCopy.ts` or the new `verdict_copy.py` may be written by a model.** Every word the panel says is authored in code and looked up.
+- **Nothing in `assessmentCopy.ts` or the new `assessment_copy.py` may be written by a model.** Every word the panel says is authored in code and looked up.
 - **A red test in this repo is a finding, not a condition.** If a test you wrote fails for a reason the spec does not explain, stop and record the finding before fixing it.
 - **Never let the product assert what it cannot support.** Every statement traces to the input; unknowns are declared, never inferred. The absence of a result is never red.
 - **One logical change per commit.** The message says what changed and why; the body carries the reason. Scratch files (`debug*.py`, `probe*.py`, `.bak`, output dumps) are deleted, not committed.
@@ -37,17 +37,17 @@ These hold for every task in this plan. A task's requirements implicitly include
 
 Five input classes the spec implies that a task's tests must pin. Each is added to the task that owns the code, in that task's own step style.
 
-1. **A legitimate posting that asks for the ordinary applicant packet** (résumé, 2×2, transcript, SSS, PhilHealth, Pag-IBIG, NBI, medical) through a free email. Expected: no charge, and the verdict is never `caution` or `stop`. The corpus measured this as the product's worst false positive — `docs/research/2026-10-21-corpus-baseline.md` §4. Pinned by Task 3 and Task 4.
+1. **A legitimate posting that asks for the ordinary applicant packet** (résumé, 2×2, transcript, SSS, PhilHealth, Pag-IBIG, NBI, medical) through a free email. Expected: no charge, and the assessment is never `caution` or `stop`. The corpus measured this as the product's worst false positive — `docs/research/2026-10-21-corpus-baseline.md` §4. Pinned by Task 3 and Task 4.
 2. **A government office whose posting gives a non-`.gov.ph` contact, where the official page was never retrieved.** Expected: the impersonation is red and strong, because the posting made the claim and supplied the domain. Pinned by Task 6 — the case the existing fixture cannot reach.
-3. **A fee whose recipient and timing the posting does not state.** Expected: the class is `unclassified`, not `prohibited` and not `ordinary`, so the verdict is a question and never a charge. Pinned by Task 3.
-4. **A posting that names no employer.** Expected: no verdict (grey), the employer prompt, and no charge from the posting's own text. Pinned by Task 7 and Task 12.
+3. **A fee whose recipient and timing the posting does not state.** Expected: the class is `unclassified`, not `prohibited` and not `ordinary`, so the assessment is a question and never a charge. Pinned by Task 3.
+4. **A posting that names no employer.** Expected: no assessment (grey), the employer prompt, and no charge from the posting's own text. Pinned by Task 7 and Task 12.
 5. **A model answer that cites a URL the search never returned.** Expected: the citation is dropped and the claim it carried is demoted — except for the government branch, which needs no retrieved source. Pinned by Task 6.
 
 ---
 
 # Part 1 — The classification layer
 
-*Nothing in the verdict changes in this part. The inputs do. Every task here is worth having on its own: Part 1 alone drops the measured false-positive rate and restores the Fake CHED impersonation.*
+*Nothing in the assessment changes in this part. The inputs do. Every task here is worth having on its own: Part 1 alone drops the measured false-positive rate and restores the Fake CHED impersonation.*
 
 ### Task 1: Split the document codes
 
@@ -358,7 +358,7 @@ the model never decides whether a request is a scam."
 git add backend/app/services/scanner/scan_result.py backend/app/services/scanner/verification_flow.py backend/app/models/schemas.py entrypoints/sidepanel/types/index.ts entrypoints/sidepanel/lib/api.ts entrypoints/sidepanel/lib/mapApiResponse.ts backend/tests/test_request_class.py
 git commit -m "feat: carry the request class on the wire
 
-The verdict needs it and the panel will show it. Nothing reads it yet: the
+The assessment needs it and the panel will show it. Nothing reads it yet: the
 score still decides the level, and the score does not know what a request
 class is. Part 2 does."
 ```
@@ -437,7 +437,7 @@ def test_the_government_red_survives_the_citation_binding():
     assert bound[0].escalation == "government"
 ```
 
-and a second test asserting `code_verdict` on that item returns `critical` with `channel_escalation == "government"` and `verification_score` **not** `None`.
+and a second test asserting `code_assessment` on that item returns `critical` with `channel_escalation == "government"` and `verification_score` **not** `None`.
 
 - [ ] **Step 2: Run the test to verify it fails** — `cd backend && .venv\Scripts\python.exe -m pytest tests/test_channel_match_regressions.py -q`. Expected: FAIL — `assert 'yellow' == 'red'`.
 
@@ -519,14 +519,14 @@ It contributes the low weight, and in Part 2 it makes the posting's class
 
 # Part 2 — The clerk
 
-### Task 8: `verdict.py` decides, and it decides without a number
+### Task 8: `assessment.py` decides, and it decides without a number
 
 **Files:**
-- Modify: `backend/app/services/scanner/verdict.py`
+- Modify: `backend/app/services/scanner/assessment.py`
 - Create: `backend/app/services/scanner/establishment.py` (the `Establishment` dataclass and the provisional mapping; Task 21 fills in the real decision)
-- Modify: `backend/app/services/scanner/verification_flow.py` and `offer_flow.py` (the two call sites of `code_verdict`)
+- Modify: `backend/app/services/scanner/verification_flow.py` and `offer_flow.py` (the two call sites of `code_assessment`)
 - Delete: `backend/app/services/scanner/risk_calculator.py` (with the tombstone in `backend/tests/test_scanner_package.py`)
-- Test: `backend/tests/test_code_verdict.py`
+- Test: `backend/tests/test_code_assessment.py`
 
 **Interfaces:**
 - Consumes: the request class (Task 4) and the establishment state.
@@ -534,15 +534,15 @@ It contributes the low weight, and in Part 2 it makes the posting's class
 
 ```python
 # establishment.py
-VERDICTS = ("clear", "note", "caution", "stop")
+ASSESSMENTS = ("clear", "note", "caution", "stop")
 
 @dataclass(frozen=True)
 class Establishment:
     state: str            # confirmed | supported | unknown | contradicted
     reason: str = ""
 
-# verdict.py
-def code_verdict(
+# assessment.py
+def code_assessment(
     anomalies: list,
     items: list[VerificationItem],
     assessments: list = (),
@@ -552,47 +552,47 @@ def code_verdict(
 ) -> tuple[str, dict]
 ```
 
-The breakdown it returns is the record of how the verdict was reached — `verdict`, `exposure`, `establishment`, `rule`, `record` — and carries **no number**.
+The breakdown it returns is the record of how the assessment was reached — `assessment`, `exposure`, `establishment`, `rule`, `record` — and carries **no number**.
 
-- [ ] **Step 1: Write the failing tests** in `backend/tests/test_code_verdict.py`, one per cell of the grid and one per rule that decides it:
+- [ ] **Step 1: Write the failing tests** in `backend/tests/test_code_assessment.py`, one per cell of the grid and one per rule that decides it:
 
 ```python
 def test_an_ordinary_request_at_an_unknown_employer_is_clear():
-    verdict, breakdown = code_verdict([], [], request_class="ordinary",
+    assessment, breakdown = code_assessment([], [], request_class="ordinary",
                                        establishment=Establishment("unknown"))
-    assert verdict == "clear"
+    assert assessment == "clear"
 
 
 def test_a_prohibited_request_at_an_unknown_employer_is_caution():
-    verdict, _ = code_verdict([], [], request_class="prohibited",
+    assessment, _ = code_assessment([], [], request_class="prohibited",
                               establishment=Establishment("unknown"))
-    assert verdict == "caution"
+    assert assessment == "caution"
 
 
 def test_a_prohibited_request_at_a_confirmed_employer_is_a_note():
-    verdict, _ = code_verdict([], [], request_class="prohibited",
+    assessment, _ = code_assessment([], [], request_class="prohibited",
                               establishment=Establishment("confirmed"))
-    assert verdict == "note"
+    assert assessment == "note"
 
 
 def test_an_unclassified_request_is_a_note():
-    verdict, _ = code_verdict([], [], request_class="unclassified",
+    assessment, _ = code_assessment([], [], request_class="unclassified",
                               establishment=Establishment("supported"))
-    assert verdict == "note"
+    assert assessment == "note"
 
 
 def test_a_contradicted_employer_stops_whatever_the_request():
-    verdict, breakdown = code_verdict([], [], request_class="ordinary",
+    assessment, breakdown = code_assessment([], [], request_class="ordinary",
                                       establishment=Establishment("contradicted"))
-    assert verdict == "stop"
+    assert assessment == "stop"
     assert breakdown["establishment"]["state"] == "contradicted"
 ```
 
-and a test asserting `code_verdict` returns a breakdown with **no** key whose name contains "score" and no value that is a number representing risk.
+and a test asserting `code_assessment` returns a breakdown with **no** key whose name contains "score" and no value that is a number representing risk.
 
-- [ ] **Step 2: Run the tests to verify they fail** — `cd backend && .venv\Scripts\python.exe -m pytest tests/test_code_verdict.py -q`. Expected: FAIL — the signature does not exist.
+- [ ] **Step 2: Run the tests to verify they fail** — `cd backend && .venv\Scripts\python.exe -m pytest tests/test_code_assessment.py -q`. Expected: FAIL — the signature does not exist.
 
-- [ ] **Step 3: Implement** — rewrite `verdict.py` around the grid from the spec §3.4:
+- [ ] **Step 3: Implement** — rewrite `assessment.py` around the grid from the spec §3.4:
 
 | Class of the request | `confirmed` | `supported` | `unknown` | `contradicted` |
 |---|---|---|---|---|
@@ -604,7 +604,7 @@ and a test asserting `code_verdict` returns a breakdown with **no** key whose na
 
 **Provisional establishment in this part.** Part 4 decides establishment properly. Until then, `establishment.py` derives the state from today's channel escalation: `government` or `lookalike` → `contradicted`; a `match` escalation → `confirmed`; a green `Company Existence` → `supported`; anything else → `unknown`. A red `Reputation` is **not** a contradiction — reputation is not a claim about who is asking.
 
-**Update the two call sites.** `verification_flow.py` and `offer_flow.py` both call `code_verdict` and both expect the old `(score, level, breakdown)` triple. They now take `(verdict, breakdown)`, and the level they put on the wire is the verdict string. Nothing else in either file changes.
+**Update the two call sites.** `verification_flow.py` and `offer_flow.py` both call `code_assessment` and both expect the old `(score, level, breakdown)` triple. They now take `(assessment, breakdown)`, and the level they put on the wire is the assessment string. Nothing else in either file changes.
 
 - [ ] **Step 4: Delete `risk_calculator.py`** and add the tombstone to `backend/tests/test_scanner_package.py`, in the house style of the existing tombstones: assert the name is absent from the package and that the module file is gone, and say why in the test's docstring. Update `backend/tests/test_risk_model.py` — it recomputes the AHP weights and has no reason to exist — by deleting it and replacing it with a tombstone that asserts `app.services.scanner.risk_calculator` cannot be imported.
 
@@ -613,15 +613,15 @@ and a test asserting `code_verdict` returns a breakdown with **no** key whose na
 - [ ] **Step 6: Commit**
 
 ```bash
-git add backend/app/services/scanner/verdict.py backend/app/services/scanner/__init__.py backend/tests/test_code_verdict.py backend/tests/test_scanner_package.py backend/tests/test_risk_model.py
-git commit -m "feat: the verdict is a decision procedure, not a sum
+git add backend/app/services/scanner/assessment.py backend/app/services/scanner/__init__.py backend/tests/test_code_assessment.py backend/tests/test_scanner_package.py backend/tests/test_risk_model.py
+git commit -m "feat: the assessment is a decision procedure, not a sum
 
 The score was a sum of weights over categories, and nothing in 37 describes a
 posting. A panelist asking where the number came from gets no answer, and
 the Saaty derivation does not help: AHP needs a fixed commensurable variable
 set and a job post is not one.
 
-The verdict is now a class of request against an establishment, decided by an
+The assessment is now a class of request against an establishment, decided by an
 authored grid. STOP requires a contradiction, which is the only path to the
 strongest output and the only one that needs hard evidence. 'contradicted' is
 the only path to stop; 'unknown' never rises above a note on its own; a
@@ -635,22 +635,22 @@ scripts/derive_refutation_weights.py go with it in Task 10."
 ### Task 9: The authored statements and options
 
 **Files:**
-- Create: `backend/app/services/scanner/verdict_copy.py`
-- Test: `backend/tests/test_verdict_copy.py` (new)
+- Create: `backend/app/services/scanner/assessment_copy.py`
+- Test: `backend/tests/test_assessment_copy.py` (new)
 
 **Interfaces:**
-- Consumes: the verdict, the request class, the establishment, and the structured facts (the amount, the fee's recipient and reason, what kind of documents).
+- Consumes: the assessment, the request class, the establishment, and the structured facts (the amount, the fee's recipient and reason, what kind of documents).
 - Produces:
 
 ```python
-def statement(verdict: str, *, request_class: str, establishment: Establishment,
+def statement(assessment: str, *, request_class: str, establishment: Establishment,
               facts: StatementFacts) -> str
-def options(verdict: str) -> tuple[str, ...]
+def options(assessment: str) -> tuple[str, ...]
 ```
 
 `StatementFacts` is a frozen dataclass with `amount: str = ""`, `fee_recipient: str = ""`, `fee_reason: str = ""`, `documents: str = ""`, `role: str = ""`.
 
-- [ ] **Step 1: Write the failing tests** in `backend/tests/test_verdict_copy.py`:
+- [ ] **Step 1: Write the failing tests** in `backend/tests/test_assessment_copy.py`:
 
 ```python
 def test_a_clear_statement_names_what_the_posting_does_ask():
@@ -675,22 +675,22 @@ def test_a_stop_statement_names_the_impersonation():
     assert "not from the employer it names" in text
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail** — `cd backend && .venv\Scripts\python.exe -m pytest tests/test_verdict_copy.py -q`. Expected: FAIL — no module.
+- [ ] **Step 2: Run the tests to verify they fail** — `cd backend && .venv\Scripts\python.exe -m pytest tests/test_assessment_copy.py -q`. Expected: FAIL — no module.
 
 - [ ] **Step 3: Implement** — the statements are templates with the structured facts substituted. The rules:
 
   - Every statement has **two parts**: what the posting asks for, and what the record showed. The first comes from the facts, the second from the establishment.
   - A `clear` statement **must not say the posting asks for nothing** when it asks for something. A posting that asks for a ₱500 uniform is clear and says so.
-  - No statement contains an accusation and no statement contains a hedge — no "likely", "appears", "suggests", "may", "might", "could". The same word ban `clean_verdict_reason` applies, because the same reader-facing risk applies.
-  - The `options` are per verdict family and offer the reader's choices rather than orders. `clear` gets one; `stop` gets "do not send money or documents"; `caution` gets the specific thing to settle first.
+  - No statement contains an accusation and no statement contains a hedge — no "likely", "appears", "suggests", "may", "might", "could". The same word ban `clean_assessment_reason` applies, because the same reader-facing risk applies.
+  - The `options` are per assessment family and offer the reader's choices rather than orders. `clear` gets one; `stop` gets "do not send money or documents"; `caution` gets the specific thing to settle first.
 
-- [ ] **Step 4: Run the tests to verify they pass** — `cd backend && .venv\Scripts\python.exe -m pytest tests/test_verdict_copy.py -q`. Expected: PASS.
+- [ ] **Step 4: Run the tests to verify they pass** — `cd backend && .venv\Scripts\python.exe -m pytest tests/test_assessment_copy.py -q`. Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/app/services/scanner/verdict_copy.py backend/tests/test_verdict_copy.py
-git commit -m "feat: authored statements and options for each verdict
+git add backend/app/services/scanner/assessment_copy.py backend/tests/test_assessment_copy.py
+git commit -m "feat: authored statements and options for each assessment
 
 Every word is in code and looked up, like the panel's own copy. The statement
 is rendered from structured facts off the record - the amount, the fee's
@@ -713,17 +713,17 @@ on the panel is the one thing the libel guardrail cannot tolerate."
 - Delete: `entrypoints/sidepanel/lib/scoreBreakdown.ts` (with a tombstone)
 - Delete: `backend/scripts/derive_refutation_weights.py` (with a tombstone in `backend/tests/`)
 - Delete: `docs/scoring.md`, `docs/decisions/scoring-model.md`
-- Test: `backend/tests/test_code_verdict.py`, `entrypoints/sidepanel/lib/api.test.ts` if it exists
+- Test: `backend/tests/test_code_assessment.py`, `entrypoints/sidepanel/lib/api.test.ts` if it exists
 
 **Interfaces:**
-- Consumes: Task 8's `code_verdict` and Task 9's `statement`.
-- Produces: `VerificationResult.verdict: str = ""` and `VerificationResult.verdict_breakdown: dict = {}` replace `riskLevel` / `riskScore` / `scoreBreakdown`. `ScanResponse.verdict: str = ""` and `ScanResponse.verdict_breakdown: dict = {}` replace `risk_level` / `risk_score` / `score_breakdown`.
+- Consumes: Task 8's `code_assessment` and Task 9's `statement`.
+- Produces: `VerificationResult.assessment: str = ""` and `VerificationResult.assessment_breakdown: dict = {}` replace `riskLevel` / `riskScore` / `scoreBreakdown`. `ScanResponse.assessment: str = ""` and `ScanResponse.assessment_breakdown: dict = {}` replace `risk_level` / `risk_score` / `score_breakdown`.
 
-- [ ] **Step 1: Write the failing test** — a verify response carries `verdict` and `verdict_breakdown`, and the payload carries **no** key named `riskLevel`, `riskScore` or `scoreBreakdown`. Assert on the keys of the result dict, not on their values.
+- [ ] **Step 1: Write the failing test** — a verify response carries `assessment` and `assessment_breakdown`, and the payload carries **no** key named `riskLevel`, `riskScore` or `scoreBreakdown`. Assert on the keys of the result dict, not on their values.
 
 - [ ] **Step 2: Run the test to verify it fails** — `cd backend && .venv\Scripts\python.exe -m pytest tests/ -q`. Expected: FAIL — the old keys are present.
 
-- [ ] **Step 3: Implement** — rename the fields on both schemas and in the result event; delete `scoreBreakdown.ts` and `derive_refutation_weights.py` with tombstones in the house style; delete `docs/scoring.md` and `docs/decisions/scoring-model.md`. Update `backend/app/models/schemas.py`'s `RISK_LEVELS` to `VERDICTS = ("clear", "note", "caution", "stop")` and every place that imports it — `verification_flow.py`, `offer_flow.py`, `offer_prompt.py`.
+- [ ] **Step 3: Implement** — rename the fields on both schemas and in the result event; delete `scoreBreakdown.ts` and `derive_refutation_weights.py` with tombstones in the house style; delete `docs/scoring.md` and `docs/decisions/scoring-model.md`. Update `backend/app/models/schemas.py`'s `RISK_LEVELS` to `ASSESSMENTS = ("clear", "note", "caution", "stop")` and every place that imports it — `verification_flow.py`, `offer_flow.py`, `offer_prompt.py`.
 
 - [ ] **Step 4: Run the tests to verify they pass** — `cd backend && .venv\Scripts\python.exe -m pytest tests/ -q`. Expected: PASS.
 
@@ -735,8 +735,8 @@ git commit -m "feat: the wire loses the score
 
 riskScore, riskScored and scoreBreakdown are gone, and with them the
 remaining home for the retired number: the resume-match list still rendered
-'40% Risk' next to every job. verdict and verdictBreakdown replace them, and
-the breakdown is a record of how the verdict was reached - the class of the
+'40% Risk' next to every job. assessment and assessmentBreakdown replace them, and
+the breakdown is a record of how the assessment was reached - the class of the
 request, the establishment, the rule that fired, and the sources - not a
 magnitude.
 
@@ -747,23 +747,23 @@ not wrong; it answered a question this product no longer asks."
 ### Task 11: The panel reads the new vocabulary
 
 **Files:**
-- Modify: `entrypoints/sidepanel/components/report/verdictCopy.ts`
+- Modify: `entrypoints/sidepanel/components/report/assessmentCopy.ts`
 - Modify: `entrypoints/sidepanel/components/report/ActionBlock.tsx`
-- Modify: `entrypoints/sidepanel/components/report/VerdictBlock.tsx`
+- Modify: `entrypoints/sidepanel/components/report/AssessmentBlock.tsx`
 - Modify: `entrypoints/sidepanel/components/report/ReportPanel.tsx`
-- Modify: `entrypoints/sidepanel/types/index.ts` (`ScanRiskLevel` → `Verdict`)
-- Test: `entrypoints/sidepanel/components/report/verdictCopy.test.ts`
+- Modify: `entrypoints/sidepanel/types/index.ts` (`ScanRiskLevel` → `Assessment`)
+- Test: `entrypoints/sidepanel/components/report/assessmentCopy.test.ts`
 
 **Interfaces:**
-- Consumes: `verdict` and `verdictBreakdown` from the wire (Task 10) and the backend's statement (Task 9).
-- Produces: `verdictFor(verdict: Verdict | null): VerdictCopy`, `actionsFor(verdict: Verdict | null): ActionLines`, and `VerdictBlock` rendering the label as a chip and the statement beneath it.
+- Consumes: `assessment` and `assessmentBreakdown` from the wire (Task 10) and the backend's statement (Task 9).
+- Produces: `assessmentFor(assessment: Assessment | null): AssessmentCopy`, `actionsFor(assessment: Assessment | null): ActionLines`, and `AssessmentBlock` rendering the label as a chip and the statement beneath it.
 
-- [ ] **Step 1: Write the failing test** in `verdictCopy.test.ts`, following the house style of the existing level→headline contract test:
+- [ ] **Step 1: Write the failing test** in `assessmentCopy.test.ts`, following the house style of the existing level→headline contract test:
 
 ```ts
 it('never tells the reader to stop below stop', () => {
-  for (const verdict of ['clear', 'note', 'caution'] as const) {
-    expect(verdictFor(verdict).headline).not.toMatch(/do not proceed/i);
+  for (const assessment of ['clear', 'note', 'caution'] as const) {
+    expect(assessmentFor(assessment).headline).not.toMatch(/do not proceed/i);
   }
 });
 ```
@@ -772,7 +772,7 @@ and a test that `actionsFor('stop')` offers the reader's options without the wor
 
 - [ ] **Step 2: Run the test to verify it fails** — `npm test -- --run`. Expected: FAIL — the vocabulary is the old one.
 
-- [ ] **Step 3: Implement** — the label vocabulary becomes `clear | note | caution | stop` with tones `verified | caution | critical | unknown`. **"Do not proceed" is the ace card**: it is the headline for `stop` only, and `stop` requires a contradiction. Every other verdict's statement comes from the backend's authored statement. The action block offers the reader's options rather than orders.
+- [ ] **Step 3: Implement** — the label vocabulary becomes `clear | note | caution | stop` with tones `verified | caution | critical | unknown`. **"Do not proceed" is the ace card**: it is the headline for `stop` only, and `stop` requires a contradiction. Every other assessment's statement comes from the backend's authored statement. The action block offers the reader's options rather than orders.
 
 - [ ] **Step 4: Run the tests to verify they pass** — `npm test -- --run` and `npm run compile`. Expected: PASS.
 
@@ -780,10 +780,10 @@ and a test that `actionsFor('stop')` offers the reader's options without the wor
 
 ```bash
 git add entrypoints/sidepanel/components/report/ entrypoints/sidepanel/types/index.ts
-git commit -m "feat: the panel reads the verdict vocabulary
+git commit -m "feat: the panel reads the assessment vocabulary
 
 'Do not proceed' is the ace card: it is said only for stop, and stop
-requires a contradiction. Every other verdict states what was found and what
+requires a contradiction. Every other assessment states what was found and what
 the record showed, and the action block offers the reader's options instead
 of ordering them - the reader is the judge."
 ```
@@ -796,17 +796,17 @@ of ordering them - the reader is the judge."
 - Modify: `entrypoints/sidepanel/components/report/AnomalyCards.tsx`
 - Modify: `entrypoints/sidepanel/components/report/checkPresentation.ts`
 - Modify: `backend/app/services/scanner/verification_flow.py` (the status the model writes is no longer a status)
-- Test: `entrypoints/sidepanel/components/report/AnomalyCards.test.tsx`, `backend/tests/test_code_verdict.py`
+- Test: `entrypoints/sidepanel/components/report/AnomalyCards.test.tsx`, `backend/tests/test_code_assessment.py`
 
 **Interfaces:**
 - Consumes: the four establishment states.
 - Produces: the six claim categories keep their **grouping** and lose their green/yellow/red statuses; the per-item state becomes `confirmed | supported | unknown | contradicted`, and the retired-by-the-record state keeps the name `stale`.
 
-- [ ] **Step 1: Write the failing test** — a check with no state other than the four renders as one of the four; a check whose state is `contradicted` renders with the critical treatment; and a posting that names no employer renders the grey "no verdict on this one" with the employer prompt, **not** a verdict.
+- [ ] **Step 1: Write the failing test** — a check with no state other than the four renders as one of the four; a check whose state is `contradicted` renders with the critical treatment; and a posting that names no employer renders the grey "no assessment on this one" with the employer prompt, **not** a assessment.
 
 - [ ] **Step 2: Run the test to verify it fails** — `npm test -- --run`. Expected: FAIL.
 
-- [ ] **Step 3: Implement** — collapse both status vocabularies onto the four states. A model-written status beside a code-owned establishment state is two verdicts in one panel and they will disagree, so the model's per-category status stops being a status: the category becomes a **fact with its source**, and the state comes from the code.
+- [ ] **Step 3: Implement** — collapse both status vocabularies onto the four states. A model-written status beside a code-owned establishment state is two assessments in one panel and they will disagree, so the model's per-category status stops being a status: the category becomes a **fact with its source**, and the state comes from the code.
 
 - [ ] **Step 4: Run the tests to verify they pass** — `npm test -- --run` and `npm run compile`. Expected: PASS.
 
@@ -818,7 +818,7 @@ git commit -m "refactor: one status vocabulary
 
 The panel carried two incompatible status systems - green/yellow/red for the
 six claim categories and stale/yellow/red for the findings - and a
-model-written one beside a code-owned one is two verdicts in one panel. They
+model-written one beside a code-owned one is two assessments in one panel. They
 will disagree, and the corpus caught one: a red Location/Branch card on a
 600-store franchise, because the company's own page listed a different venue.
 
@@ -838,11 +838,11 @@ onto the four establishment states."
 - Consumes: the new vocabulary.
 - Produces: `migrateScannedJobs` maps a stored `low` → `clear`, `moderate` → `caution`, `high` → `stop`, `critical` → `stop`, and marks the entry as recorded under the previous procedure. `JobFilterCategory` becomes `'clear' | 'note' | 'caution' | 'stop'`.
 
-- [ ] **Step 1: Write the failing test** — a stored scan with `riskLevel: "moderate"` restores as `verdict: "caution"` with `verdictRecordedUnder: "previous-procedure"`, and restores **without** inventing a request class or an establishment. A stored scan is never silently re-labelled as a new verdict.
+- [ ] **Step 1: Write the failing test** — a stored scan with `riskLevel: "moderate"` restores as `assessment: "caution"` with `assessmentRecordedUnder: "previous-procedure"`, and restores **without** inventing a request class or an establishment. A stored scan is never silently re-labelled as a new assessment.
 
 - [ ] **Step 2: Run the test to verify it fails** — `npm test -- --run`. Expected: FAIL.
 
-- [ ] **Step 3: Implement** — the migration, the `JobFilterCategory` union, the list's filter (include `clear` and `note`, exclude `caution` and `stop`), and the removal of the "40% Risk" render in favour of the verdict label.
+- [ ] **Step 3: Implement** — the migration, the `JobFilterCategory` union, the list's filter (include `clear` and `note`, exclude `caution` and `stop`), and the removal of the "40% Risk" render in favour of the assessment label.
 
 - [ ] **Step 4: Run the tests to verify they pass** — `npm test -- --run` and `npm run compile`. Expected: PASS.
 
@@ -850,12 +850,12 @@ onto the four establishment states."
 
 ```bash
 git add entrypoints/sidepanel/lib/scanHistory.ts entrypoints/sidepanel/views/ResumeMatchView.tsx entrypoints/sidepanel/types/index.ts entrypoints/sidepanel/views/
-git commit -m "feat: migrate stored history, and show the verdict instead of a percentage
+git commit -m "feat: migrate stored history, and show the assessment instead of a percentage
 
 A stored scan carries a level and no request class and no establishment, so a
-new verdict cannot be computed from it. It restores as the old label with a
+new assessment cannot be computed from it. It restores as the old label with a
 note that it was recorded under the previous procedure. It is never silently
-re-labelled as a verdict the system did not reach."
+re-labelled as a assessment the system did not reach."
 ```
 
 **Part 2 done.** The score is gone from the wire, the code and the panel. Re-measure the corpus: every legitimate posting must now be `clear` or `note`, and Fake CHED must be `stop` with the impersonation in the statement.
@@ -916,7 +916,7 @@ async def test_a_page_over_the_cap_is_truncated():
 git add backend/app/services/fetch.py backend/tests/test_fetch.py
 git commit -m "feat: a fetch tool that refuses to touch anything private
 
-The employer's own pages are the fact the verdict needs and the current
+The employer's own pages are the fact the assessment needs and the current
 pipeline cannot get: the model only ever sees Tavily snippets, so it can
 never know whether the employer's site lists this role.
 
@@ -1049,7 +1049,7 @@ The scan->verify relay exists because two models were cheaper than one, and
 the cost was the compression. The corpus showed what it costs: the scan took
 the forgery's misspelled agency name at face value, so the employer lookup
 searched for an agency that does not exist, so the one rule written for that
-case fired and was discarded, so the verdict rested on the fees.
+case fired and was discarded, so the assessment rested on the fees.
 
 The posting is re-sent on every turn and never summarised on the way. There
 is no hop where the context can be dropped."
@@ -1099,9 +1099,9 @@ reading a job posting and writing 'Tanika scam'."
 
 **Interfaces:**
 - Consumes: `run_agent` (Task 16).
-- Produces: `POST /api/assess` with the same SSE shape as today — `progress` events and a final `result` event — carrying `valid`, `anomalies`, `attributes`, `request_class`, `verdict`, `verdict_breakdown`, `items`, `record`, `search_ok`, `search_count`, `establishment`.
+- Produces: `POST /api/assess` with the same SSE shape as today — `progress` events and a final `result` event — carrying `valid`, `anomalies`, `attributes`, `request_class`, `assessment`, `assessment_breakdown`, `items`, `record`, `search_ok`, `search_count`, `establishment`.
 
-- [ ] **Step 1: Write the failing test** — posting an image to `/api/assess` returns a result event with a `verdict` and no `riskLevel`, and `/api/scan` and `/api/verify` return 404.
+- [ ] **Step 1: Write the failing test** — posting an image to `/api/assess` returns a result event with a `assessment` and no `riskLevel`, and `/api/scan` and `/api/verify` return 404.
 
 - [ ] **Step 2: Run the test to verify it fails** — `cd backend && .venv\Scripts\python.exe -m pytest tests/test_assess_endpoint.py -q`. Expected: FAIL — the endpoint does not exist.
 
@@ -1135,7 +1135,7 @@ the old pair is a deliberate act."
 - Consumes: the `/api/assess` stream.
 - Produces: `scanAndAssess(imagesBase64: string[]): AsyncGenerator<...>` replacing the scan-then-verify pair. `verificationLoading` becomes one loading state.
 
-- [ ] **Step 1: Write the failing test** — one request is made for a scan, and the result carries the verdict.
+- [ ] **Step 1: Write the failing test** — one request is made for a scan, and the result carries the assessment.
 
 - [ ] **Step 2: Run the test to verify it fails** — `npm test -- --run`. Expected: FAIL.
 
@@ -1192,7 +1192,7 @@ fix, one level up."
 
 **Files:**
 - Modify: `backend/app/services/scanner/establishment.py` (the provisional mapping from Task 8 becomes the real decision)
-- Modify: `backend/app/services/scanner/verdict.py` (the call site)
+- Modify: `backend/app/services/scanner/assessment.py` (the call site)
 - Modify: `backend/app/services/scanner/offer_flow.py` and `offer_prompt.py` (the offer path gets the same procedure)
 - Test: `backend/tests/test_establishment.py` (new)
 
@@ -1247,7 +1247,7 @@ and a test that an unbound source URL leaves the state at `unknown` rather than 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/app/services/scanner/establishment.py backend/app/services/scanner/verdict.py backend/app/services/scanner/offer_flow.py backend/app/services/scanner/offer_prompt.py backend/tests/test_establishment.py
+git add backend/app/services/scanner/establishment.py backend/app/services/scanner/assessment.py backend/app/services/scanner/offer_flow.py backend/app/services/scanner/offer_prompt.py backend/tests/test_establishment.py
 git commit -m "feat: establishment is decided over the employer's own record
 
 Four states: confirmed, supported, unknown, contradicted. Confirmed means
@@ -1258,7 +1258,7 @@ the posting's claims are false, in a way that bears on who is asking.
 
 The offer path gets the same procedure. It has no employer, so its
 establishment is unknown by construction and the request class carries the
-verdict - which closes the last model-owned level in the product."
+assessment - which closes the last model-owned level in the product."
 ```
 
 ### Task 22: `confirmed` is checked in code, against the fetched text
@@ -1305,15 +1305,15 @@ not confirmed."
 
 - [ ] **Step 1: Write the runner** — the same script the baseline used: for each image, `POST /api/assess`, parse the SSE result, write one JSON record. A 13-second pause between calls keeps the endpoints under their 5-per-minute limit. It must not be run without the reviewer's explicit permission, because it calls the provider.
 
-- [ ] **Step 2: Run it** and record the results in `docs/research/2026-10-21-corpus-baseline.md` as an "after" section: every legitimate posting's verdict, and Fake CHED's.
+- [ ] **Step 2: Run it** and record the results in `docs/research/2026-10-21-corpus-baseline.md` as an "after" section: every legitimate posting's assessment, and Fake CHED's.
 
-- [ ] **Step 3: Check the acceptance criteria** — no legitimate posting reaches `caution` or `stop`; Fake CHED is `stop` with the impersonation in the statement and not the fee; every changed verdict is explained by a named rule. Any that is not is a finding, and the finding is recorded before it is fixed.
+- [ ] **Step 3: Check the acceptance criteria** — no legitimate posting reaches `caution` or `stop`; Fake CHED is `stop` with the impersonation in the statement and not the fee; every changed assessment is explained by a named rule. Any that is not is a finding, and the finding is recorded before it is fixed.
 
 - [ ] **Step 4: Commit** the runner and the updated baseline:
 
 ```bash
 git add backend/scripts/corpus_run.py docs/research/2026-10-21-corpus-baseline.md
-git commit -m "docs: the corpus after the verdict procedure
+git commit -m "docs: the corpus after the assessment procedure
 
 The before column is in the same file. The corpus is the reviewer's local
 machine and is not committed."
@@ -1322,7 +1322,7 @@ machine and is not committed."
 ### Task 24: The controlled pairs, and the docs
 
 **Files:**
-- Create: `docs/decisions/verdict-procedure.md` (the decision record: the two axes, the grid, the materiality rule, the burden of proof, and why the score is gone)
+- Create: `docs/decisions/assessment-procedure.md` (the decision record: the two axes, the grid, the materiality rule, the burden of proof, and why the score is gone)
 - Modify: `AGENTS.md` (the contradictions list: #3 and #5 closed, #6 and #8 given their homes, #7 closed)
 - Modify: `docs/architecture.md`, `Documentation.md`
 - Modify: `docs/decisions/verification-design.md` (the categories survive as the record's grouping)
@@ -1334,7 +1334,7 @@ machine and is not committed."
 - Consumes: everything above.
 - Produces: the record of the decision, and a repository whose documentation map matches the code.
 
-- [ ] **Step 1: Write the decision record** `docs/decisions/verdict-procedure.md` — the house style is the existing records: what the failure was, what replaced it, the rules with their citations, what each one costs, and what the decision does not do.
+- [ ] **Step 1: Write the decision record** `docs/decisions/assessment-procedure.md` — the house style is the existing records: what the failure was, what replaced it, the rules with their citations, what each one costs, and what the decision does not do.
 
 - [ ] **Step 2: Update the contradictions list** in `AGENTS.md`: #3 (the calculator is live again) is now resolved the other way, with the reason; #5 (the offer path's model-owned level) is closed; #6 (`escalation`) and #8 (`rounds`) are given their new homes (`establishment.reason` and the agent transcript); #7 (the identity question) is closed by Tasks 21 and 22.
 
@@ -1345,7 +1345,7 @@ machine and is not committed."
 ```bash
 cd backend && .venv\Scripts\python.exe -m pytest tests/ -q && cd .. && npm test -- --run && npm run compile
 git add AGENTS.md docs/
-git commit -m "docs: the verdict procedure, and the records it supersedes"
+git commit -m "docs: the assessment procedure, and the records it supersedes"
 ```
 
 ---
@@ -1356,7 +1356,7 @@ git commit -m "docs: the verdict procedure, and the records it supersedes"
 
 **Gaps found and closed during review.** The spec's §12 open question on the corpus is answered by Task 23 and the pairs in the baseline §8; the spec's `POSTING_SEVERITY_WEIGHTS` removal is in Task 8; the spec's mention of `docs/decisions/scoring-model.md` is in Task 10; the offer path's model-owned level is closed in Task 21.
 
-**Type consistency.** `classify_request` returns a `REQUEST_CLASSES` member; `code_verdict` takes `request_class: str` and an `Establishment`; `Establishment` is defined in Task 8 and imported by Tasks 9, 21 and 22; `StatementFacts` is defined in Task 9 and consumed there only; `EmployerRecord` is defined in Task 20 and consumed by Task 21. `apply_channel_rules` changes signature in Task 5 and its call site is in Task 5.
+**Type consistency.** `classify_request` returns a `REQUEST_CLASSES` member; `code_assessment` takes `request_class: str` and an `Establishment`; `Establishment` is defined in Task 8 and imported by Tasks 9, 21 and 22; `StatementFacts` is defined in Task 9 and consumed there only; `EmployerRecord` is defined in Task 20 and consumed by Task 21. `apply_channel_rules` changes signature in Task 5 and its call site is in Task 5.
 
 **Review Focus coverage.** Item 1 is pinned by Task 3's `test_a_free_email_with_an_ordinary_packet_is_ordinary` and Task 5's `test_a_free_email_with_an_ordinary_request_stays_yellow`. Item 2 by Task 6. Item 3 by Task 3's `test_a_fee_with_no_stated_recipient_cannot_be_classified`. Item 4 by Task 7 and Task 12. Item 5 by Task 6 and Task 21's unbound-source test.
 

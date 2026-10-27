@@ -2,8 +2,8 @@
 
 The scan→verify relay exists because two models were cheaper than one, and the
 cost was the compression: the verify model never saw the flyer, only a lossy,
-model-chosen summary of it, so the fact that decided the verdict was often not
-in the room when the verdict was written. The loop removes the hop. The
+model-chosen summary of it, so the fact that decided the assessment was often not
+in the room when the assessment was written. The loop removes the hop. The
 posting is re-sent on every turn, whole, next to the whole transcript — there
 is no place for the context to be dropped.
 
@@ -61,7 +61,7 @@ class AgentResult:
     `text` is the model's last turn — the structured answer when the session
     finished properly, and the unexecuted tool-call turn when the turn budget
     ran out first. The caller parses it either way and reads an unreadable
-    answer as "no verdict".
+    answer as "no assessment".
     """
 
     text: str
@@ -296,7 +296,7 @@ async def run_agent(
         if turns == limits.max_turns:
             # The budget ends on a turn that asked for tools. Executing them
             # would spend credits on results nobody reads; ending here hands
-            # the caller an unreadable answer, which it reports as no verdict.
+            # the caller an unreadable answer, which it reports as no assessment.
             log.warning("[assess] turn limit reached on a tool-call turn")
             break
         blocks: list[str] = []

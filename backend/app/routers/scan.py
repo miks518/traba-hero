@@ -282,13 +282,13 @@ async def verify_job(req: VerifyRequest, request: Request):
 async def analyze_offer(req: AnalyzeOfferRequest, request: Request):
     """Post-only analysis: used when a posting names no employer, so there is
     nothing to look up. Assesses the offer on its own terms and returns a
-    verdict. One AI call, no search."""
+    assessment. One AI call, no search."""
     text = (req.text or "").strip()
     if not text:
         return StreamingResponse(
             iter([_sse({"type": "result", "data": {
                 "kind": "NOT_OFFER",
-                "verdict": "No content was provided to assess.",
+                "assessment": "No content was provided to assess.",
                 "what_it_asks": "Nothing",
                 "what_it_offers": "Not stated",
                 "what_to_check": "Provide the text or image of the offer.",

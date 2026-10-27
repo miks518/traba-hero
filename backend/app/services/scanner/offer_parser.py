@@ -10,8 +10,8 @@ import re
 
 from .offer_prompt import NOT_OFFER_KIND
 
-_FIELDS = ("KIND", "VERDICT", "WHAT IT ASKS", "WHAT IT OFFERS", "WHAT TO CHECK")
-_LINE_RE = re.compile(r"^\s*(KIND|VERDICT|WHAT\s+IT\s+ASKS|WHAT\s+IT\s+OFFERS|WHAT\s+TO\s+CHECK)\s*:\s*(.+?)\s*$", re.IGNORECASE)
+_FIELDS = ("KIND", "ASSESSMENT", "WHAT IT ASKS", "WHAT IT OFFERS", "WHAT TO CHECK")
+_LINE_RE = re.compile(r"^\s*(KIND|ASSESSMENT|WHAT\s+IT\s+ASKS|WHAT\s+IT\s+OFFERS|WHAT\s+TO\s+CHECK)\s*:\s*(.+?)\s*$", re.IGNORECASE)
 
 
 def _parse_analyze_offer(text: str) -> dict | None:
@@ -28,12 +28,12 @@ def _parse_analyze_offer(text: str) -> dict | None:
         if key in _FIELDS and key not in captured:
             captured[key] = match.group(2).strip()
 
-    if not captured.get("KIND") or not captured.get("VERDICT"):
+    if not captured.get("KIND") or not captured.get("ASSESSMENT"):
         return None
 
     return {
         "kind": captured["KIND"],
-        "verdict": captured["VERDICT"],
+        "assessment": captured["ASSESSMENT"],
         "what_it_asks": captured.get("WHAT IT ASKS", ""),
         "what_it_offers": captured.get("WHAT IT OFFERS", ""),
         "what_to_check": captured.get("WHAT TO CHECK", ""),

@@ -22,7 +22,7 @@ MAX_IMAGES_PER_SCAN = 4
 MAX_IMAGE_BASE64 = 5_000_000
 
 # The overall level vocabulary. `/api/analyze-offer` still asks its model for a
-# level; `/api/verify` now computes its level in `verdict.py` from the posting's
+# level; `/api/verify` now computes its level in `assessment.py` from the posting's
 # findings and the code-assigned Channel Match severity. Defined here rather than
 # in a prompt module because both schemas need the same words, and a vocabulary
 # restated in two places is how an enum and a prompt drift apart into producing a
@@ -118,7 +118,7 @@ class VerifyAnomaly(BaseModel):
 
 
 class AnomalyAssessment(BaseModel):
-    """The verify stage's verdict on one posting finding.
+    """The verify stage's assessment on one posting finding.
 
     Internal shape, not a request model. `index` is 1-based and matches the
     numbered findings block the prompt builds. `status` is one of `stale`,
@@ -317,14 +317,14 @@ class VerifyRequest(BaseModel):
     # `| None` so an explicit JSON `null` is the same claim as `{}` and as an
     # omitted key. All three say "the posting stated nothing", and rejecting one
     # spelling of a missing input with a 422 fails the whole verification for a
-    # detail that carries no verdict.
+    # detail that carries no assessment.
     attributes: dict[AttributeKey, AttributeValue] | None = Field(
         default={}, max_length=MAX_VERIFY_ATTRIBUTES
     )
     # The searches the scan model proposed. `| None` for the same reason as
     # `attributes`: an explicit `null`, an omitted key and an empty list all
     # mean "the model proposed no search", and rejecting one spelling of that
-    # with a 422 fails a whole verification over a detail carrying no verdict.
+    # with a 422 fails a whole verification over a detail carrying no assessment.
     #
     # Nothing here checks what a query *says*. The rule that a query must not
     # name a conclusion lives in both scan prompts and nowhere else - a
@@ -348,7 +348,7 @@ class VerifyRequest(BaseModel):
 
 # The four establishment states, plus the retired-by-the-record state.
 # `green`/`yellow`/`red` are retired; they were the model's statuses and
-# conflated the observation with the verdict. The new vocabulary is code-owned.
+# conflated the observation with the assessment. The new vocabulary is code-owned.
 VERIFICATION_STATES = ("confirmed", "supported", "unknown", "contradicted", "stale")
 
 
@@ -364,7 +364,7 @@ class VerificationItem(BaseModel):
     # produced the status (`government`, `lookalike`, `free_email`,
     # `free_email_with_findings`, `unconfirmed`, `unconfirmed_with_findings`,
     # `match`, `no_data`). Empty on every other category and on a stored response
-    # from before the facts split. `verdict.py` reads this for the strong-channel
+    # from before the facts split. `assessment.py` reads this for the strong-channel
     # floor; the panel ignores it.
     escalation: str = ""
 

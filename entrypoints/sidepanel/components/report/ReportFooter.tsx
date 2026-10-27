@@ -15,7 +15,7 @@ export interface ReportFooterProps {
 /**
  * The assessment's own limits, and the one place the panel is allowed to state them.
  *
- * Kept as authored prose rather than generated, for the same reason as the verdict:
+ * Kept as authored prose rather than generated, for the same reason as the assessment:
  * it is a claim about what this product can and cannot do, and that claim has to
  * survive a run in which every other string on the panel came from a model.
  *

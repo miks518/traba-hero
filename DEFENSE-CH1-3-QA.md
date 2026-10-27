@@ -120,7 +120,7 @@ The search results help the LLM make more informed decisions, but are **not retu
 
 ### Q9: "How are risk levels determined?"
 
-**Answer:** The backend returns a `verdict_percentage` (0-100 scam score). The frontend applies thresholds:
+**Answer:** The backend returns a `assessment_percentage` (0-100 scam score). The frontend applies thresholds:
 - **Score ≥ 70** → "High Risk" (scam)
 - **Score 40-69** → "Medium Risk" (suspicious)
 - **Score < 40** → "Low Risk" (legitimate)

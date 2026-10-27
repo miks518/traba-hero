@@ -174,7 +174,7 @@ OUTPUT RULES:
 - Do not use absolutes: always, never, definitely, guaranteed, 100%.
 - Plain sentences inside the values. No markdown, bullets, headers, or emoji.
 
-OUTPUT FORMAT: return one JSON object and nothing else, with exactly seven keys: "checks", "evidence", "report", "recommendation", "verdict_reason", "anomaly_assessments", "channel_match". A "checks" entry has "category", "status", "finding", "source_title", "source_url". An "evidence" entry has "title", "url", "snippet". An "anomaly_assessments" entry has "index", "status", "finding", "source_title", "source_url". A "channel_match" entry has "printed_channels", "official_channels", "government_claim", "finding", "source_title", "source_url". Do not return a risk level or a risk score; the server computes both. Say this even if no output schema is supplied - the object is the answer, and the plain-sentence rule applies to what you write inside it, not to the object wrapping it.
+OUTPUT FORMAT: return one JSON object and nothing else, with exactly seven keys: "checks", "evidence", "report", "recommendation", "assessment_reason", "anomaly_assessments", "channel_match". A "checks" entry has "category", "status", "finding", "source_title", "source_url". An "evidence" entry has "title", "url", "snippet". An "anomaly_assessments" entry has "index", "status", "finding", "source_title", "source_url". A "channel_match" entry has "printed_channels", "official_channels", "government_claim", "finding", "source_title", "source_url". Do not return a risk level or a risk score; the server computes both. Say this even if no output schema is supplied - the object is the answer, and the plain-sentence rule applies to what you write inside it, not to the object wrapping it.
 
 CATEGORIES. The request names which of these to report and which to omit, and the request wins: these six are the vocabulary, not a quota. Report the ones you are told to report and no others. Never invent a category outside this list. Where the request says to omit a category, the posting made no such claim — write no entry for it, and no placeholder, empty, or "not stated" finding.
 
@@ -217,7 +217,7 @@ FIELDS:
 - channel_match: the facts for the Channel Match category, as described in category 4. Return empty "printed_channels" and "official_channels", "government_claim" false, and an empty "finding" when the request omits Channel Match or when you found no channel. Never put a status in this object. A response with no channel facts is not a contradiction; the server renders it yellow.
 - report: 2-3 plain sentences describing what the results show. No accusations. End by noting that this is based on public web search results only.
 - recommendation: 1-2 plain sentences addressed to a job seeker — someone looking for work, not an investigator. Name what the results showed about this employer, then give one step they can take in an ordinary hiring exchange: ask the employer to confirm something in writing, arrange to meet them at an address they give you, or not send money or personal details before they have spoken with someone. Do not tell them to check a registry, a government website, or a business permit, and do not tell them what to think about the company. The checking is this tool's job; the reader is looking for a way to respond to a job offer.
-- verdict_reason: ONE sentence, 140 characters or fewer, naming what this posting asks the reader to give up. This is the only sentence of yours shown as the panel's headline line, so it carries the whole tone ban: no accusation, no hedge, no absolute. Write what the posting does, never what it is - "This post asks you to pay a fee before you are hired", never "This is a scam post". Name the concrete thing where you can, because the reader is looking at one posting and not at a category: "It sends your documents to a site that is not the employer's own" beats "There is a channel concern". If the posting asks for nothing and nothing was found, say so plainly - "Nothing in this post asks for money" is a correct answer, and it is not the same as claiming the employer is safe, so do not add that. Never write a hedge: no likely, probably, appears, suggests, might, may, could, always, never, definitely. If you cannot say it in one sentence without one of those, say less."""
+- assessment_reason: ONE sentence, 140 characters or fewer, naming what this posting asks the reader to give up. This is the only sentence of yours shown as the panel's headline line, so it carries the whole tone ban: no accusation, no hedge, no absolute. Write what the posting does, never what it is - "This post asks you to pay a fee before you are hired", never "This is a scam post". Name the concrete thing where you can, because the reader is looking at one posting and not at a category: "It sends your documents to a site that is not the employer's own" beats "There is a channel concern". If the posting asks for nothing and nothing was found, say so plainly - "Nothing in this post asks for money" is a correct answer, and it is not the same as claiming the employer is safe, so do not add that. Never write a hedge: no likely, probably, appears, suggests, might, may, could, always, never, definitely. If you cannot say it in one sentence without one of those, say less."""
 
 
 def load_verify_prompt() -> str:
@@ -314,8 +314,8 @@ VERIFY_RESPONSE_SCHEMA = {
         },
         # The panel's one-line reason. Capped here rather than truncated in
         # code: truncation ends a sentence mid-clause, which reads as a bug.
-        "verdict_reason": {"type": "string", "maxLength": 140},
-        # The verify stage's verdict on each numbered posting finding. `stale`
+        "assessment_reason": {"type": "string", "maxLength": 140},
+        # The verify stage's assessment on each numbered posting finding. `stale`
         # replaces the old green: a source about this employer accounted for the
         # finding, so it no longer stands. `red` keeps the finding, `yellow`
         # means the results did not settle it.
@@ -336,7 +336,7 @@ VERIFY_RESPONSE_SCHEMA = {
         },
     },
     "required": [
-        "checks", "evidence", "report", "recommendation", "verdict_reason",
+        "checks", "evidence", "report", "recommendation", "assessment_reason",
         "anomaly_assessments", "channel_match",
     ],
     "additionalProperties": False,
@@ -350,10 +350,10 @@ VERIFY_RESPONSE_SCHEMA = {
 # violation is dropped rather than displayed.
 #
 # Three groups, matching the prompt's own `OUTPUT RULES`: accusations, inference
-# hedges, and absolutes. A verdict naming a post a scam is the libel exposure the
+# hedges, and absolutes. A assessment naming a post a scam is the libel exposure the
 # whole rule set exists to prevent, and this slot would make it the most
 # prominent instance of exactly that.
-_VERDICT_REASON_BANNED = (
+_ASSESSMENT_REASON_BANNED = (
     # accusations
     "scam", "scammer", "fraud", "fraudulent", "fake", "falsify", "falsified",
     "suspicious", "illegitimate", "criminal",
@@ -368,10 +368,10 @@ _VERDICT_REASON_BANNED = (
 )
 
 
-def verdict_reason_is_clean(raw: object) -> bool:
+def assessment_reason_is_clean(raw: object) -> bool:
     """Whether a model-written reason may be shown as the panel's headline line.
 
-    A rejection degrades the verdict block to its authored headline, which is
+    A rejection degrades the assessment block to its authored headline, which is
     safe and still actionable. Showing the reader a conclusion is not available
     as a failure mode.
     """
@@ -381,25 +381,25 @@ def verdict_reason_is_clean(raw: object) -> bool:
     if not text:
         return False
     lowered = text.lower()
-    return not any(word in lowered for word in _VERDICT_REASON_BANNED)
+    return not any(word in lowered for word in _ASSESSMENT_REASON_BANNED)
 
 
-def clean_verdict_reason(raw: object) -> str:
+def clean_assessment_reason(raw: object) -> str:
     """The reason if it may be shown, else empty."""
     text = str(raw or "").strip()
-    return text if verdict_reason_is_clean(text) else ""
+    return text if assessment_reason_is_clean(text) else ""
 
 
 def clean_recommendation(raw: object) -> str:
     """The verify recommendation if it may be shown, else empty.
 
     Same list, same three failure shapes, same drop-not-show rule as
-    `clean_verdict_reason` — the recommendation is model-written prose read by
+    `clean_assessment_reason` — the recommendation is model-written prose read by
     someone deciding about their own money, so an accusation or a reassurance in
     it is the same exposure in a longer slot. An empty return sends the panel to
     its authored fallback copy, which is safe and still actionable.
     """
-    return clean_verdict_reason(raw)
+    return clean_assessment_reason(raw)
 
 
 RETRIEVAL_FAILED = """=== SEARCH RESULTS FOR: {company} ===

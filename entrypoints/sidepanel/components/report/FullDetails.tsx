@@ -3,12 +3,12 @@ import { Icon } from '../common';
 import { shouldShowCheck } from '../../lib/riskDisplay';
 import { groupBy, statusPresentation } from './checkPresentation';
 import type { VerificationItem, VerificationResult } from '../../types';
-import type { VerdictTone } from './verdictCopy';
+import type { AssessmentTone } from './assessmentCopy';
 
 export interface FullDetailsProps {
   result?: VerificationResult;
   /**
-   * The verdict tone to fill this disclosure with, so it matches the banner
+   * The assessment tone to fill this disclosure with, so it matches the banner
    * above it rather than reading as a foreign card.
    *
    * Supplied by `ReportPanel` rather than looked up here: the banner's tone is
@@ -20,7 +20,7 @@ export interface FullDetailsProps {
    * red-toned disclosure over a result that is about to come back clean is the
    * same overclaim as the retired score, in a new place.
    */
-  tone?: VerdictTone;
+  tone?: AssessmentTone;
 }
 
 /**
@@ -239,7 +239,7 @@ export function FullDetails({ result, tone = 'unknown' }: FullDetailsProps) {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        className={`tactile-disclosure tactile-verdict-${tone} w-full px-4 py-3 flex items-center justify-between gap-2 text-left cursor-pointer`}
+        className={`tactile-disclosure tactile-assessment-${tone} w-full px-4 py-3 flex items-center justify-between gap-2 text-left cursor-pointer`}
         data-role="full-details-toggle"
       >
         <span className="text-body-md font-headline font-semibold min-w-0">

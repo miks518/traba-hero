@@ -230,7 +230,7 @@ def test_a_code_line_inside_a_prose_section_is_prose_not_a_keyword():
     the keyword mid-line, passed with the gate removed, and was testing nothing.
 
     This is the documented failure mode for the ATTRIBUTES keys: a matched
-    keyword closes the section first, so the line is dropped and the verdict
+    keyword closes the section first, so the line is dropped and the assessment
     goes with it — and `JOB SUMMARY` can vanish entirely, since `close_section`
     writes no key for an empty buffer.
     """

@@ -1,4 +1,4 @@
-"""The verdict, as a decision procedure rather than a sum.
+"""The assessment, as a decision procedure rather than a sum.
 
 The score this module used to produce was a sum of weights over categories, and
 nothing about "37" describes a posting. A reader asking where the number came from
@@ -29,7 +29,7 @@ supply about itself. `unknown` never rises above a note on its own, because
 absence is not a finding. A prohibited request at a confirmed employer softens to
 a note: the reader can go and see the request on the employer's own site.
 
-The breakdown is the record of how the verdict was reached, and it carries no
+The breakdown is the record of how the assessment was reached, and it carries no
 number. `docs/decisions/scoring-model.md` records why the scale was abandoned.
 """
 
@@ -38,8 +38,8 @@ from __future__ import annotations
 from app.services.scanner.establishment import Establishment, establishment_from_record
 
 # Ordered weakest to strongest. The panel reads the first four; nothing else is
-# a verdict.
-VERDICTS = ("clear", "note", "caution", "stop")
+# a assessment.
+ASSESSMENTS = ("clear", "note", "caution", "stop")
 
 # The request classes, in the order `request_class` ranks them. An unrecognised
 # class is `unclassified`, never `ordinary`: a class the code cannot read is a
@@ -59,9 +59,9 @@ def _normalise_request_class(request_class: str) -> str:
 
 
 def _decide(request_class: str, state: str) -> tuple[str, str]:
-    """Return `(verdict, rule)` for one cell of the grid.
+    """Return `(assessment, rule)` for one cell of the grid.
 
-    `rule` is the name of the rule that produced the verdict, so a reader — or a
+    `rule` is the name of the rule that produced the assessment, so a reader — or a
     later bug report — can tell "the record contradicted the employer" from "the
     request was prohibited and the record established nothing".
     """
@@ -77,7 +77,7 @@ def _decide(request_class: str, state: str) -> tuple[str, str]:
 
 
 def _record(items: list) -> list[dict]:
-    """The checks the verdict read, reduced to the fields that decided it.
+    """The checks the assessment read, reduced to the fields that decided it.
 
     Deliberately not the whole `VerificationItem`: the explanation is already
     rendered on the card, and copying it here would let the two drift.
@@ -93,7 +93,7 @@ def _record(items: list) -> list[dict]:
     ]
 
 
-def code_verdict(
+def code_assessment(
     anomalies: list,
     items: list,
     assessments: list = (),
@@ -101,7 +101,7 @@ def code_verdict(
     request_class: str = "ordinary",
     establishment: Establishment | None = None,
 ) -> tuple[str, dict]:
-    """Decide the verdict from the request class and the establishment.
+    """Decide the assessment from the request class and the establishment.
 
     `establishment` is passed by a caller that has already decided it. Left out,
     it is read from the channel facts in `items` — the provisional mapping in
@@ -115,7 +115,7 @@ def code_verdict(
     """
     normalised = _normalise_request_class(request_class)
     state = establishment or establishment_from_record(items)
-    verdict, rule = _decide(normalised, state.state)
+    assessment, rule = _decide(normalised, state.state)
 
     stale_excluded = sum(
         1
@@ -124,7 +124,7 @@ def code_verdict(
     )
 
     breakdown = {
-        "verdict": verdict,
+        "assessment": assessment,
         "exposure": normalised,
         "establishment": {"state": state.state, "reason": state.reason},
         "rule": rule,
@@ -133,4 +133,4 @@ def code_verdict(
         "stale_excluded": stale_excluded,
         "level_source": "code",
     }
-    return verdict, breakdown
+    return assessment, breakdown

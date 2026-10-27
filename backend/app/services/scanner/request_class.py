@@ -1,12 +1,12 @@
 """What a posting asks for, and whether the rules governing it permit it.
 
 A pure function over facts on the face of the posting. It exists because the
-verdict needs a stable input that is not a model's opinion: a fee to the
+assessment needs a stable input that is not a model's opinion: a fee to the
 employer for a uniform and a fee to a personal GCash account are both "a fee",
 and only the first is ordinary.
 
 The rules, and the citations behind each one, are in
-`docs/research/2026-10-21-verdict-grid-research.md` §4. The two that decide
+`docs/research/2026-10-21-assessment-grid-research.md` §4. The two that decide
 most cases:
 
 - DOLE DO 141-14 §35 forbids collecting a placement fee from a worker for

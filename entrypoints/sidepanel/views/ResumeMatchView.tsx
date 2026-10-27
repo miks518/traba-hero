@@ -31,8 +31,8 @@ function jobIcon(index: number): IconName {
 
 
 
-function verdictLabel(verdict: string | null | undefined): string {
-  switch (verdict) {
+function assessmentLabel(assessment: string | null | undefined): string {
+  switch (assessment) {
     case 'stop': return 'Do not proceed';
     case 'caution': return 'Caution';
     case 'note': return 'Note';
@@ -42,7 +42,7 @@ function verdictLabel(verdict: string | null | undefined): string {
 }
 
 /**
- * The verdict badge's chip class, one per verdict family.
+ * The assessment badge's chip class, one per assessment family.
  *
  * The status chips are the themed pair — pale fill, saturated ink, resolved per
  * theme — which is why this reads `chip-*` rather than a raw palette class. The
@@ -50,12 +50,12 @@ function verdictLabel(verdict: string | null | undefined): string {
  * and in light mode put pale text on a pale fill: "Proceed" was near-invisible.
  *
  * `note` shares the verified chip with `clear` on purpose. The report panel
- * gives both the verified tone (`verdictCopy.ts`: the employer is confirmed in
+ * gives both the verified tone (`assessmentCopy.ts`: the employer is confirmed in
  * both), so the history badge agrees with the banner it summarises, and the
  * label text is what tells them apart.
  */
-function matchBadgeStyle(verdict: string | null | undefined): string {
-  switch (verdict) {
+function matchBadgeStyle(assessment: string | null | undefined): string {
+  switch (assessment) {
     case 'stop': return 'chip-critical';
     case 'caution': return 'chip-caution';
     case 'note': return 'chip-verified';
@@ -74,35 +74,35 @@ function matchBadgeStyle(verdict: string | null | undefined): string {
  */
 function isMatchableJob(job: ScannedJob): boolean {
   return (
-    (job.scanResult.verdict === 'clear' || job.scanResult.verdict === 'note') &&
+    (job.scanResult.assessment === 'clear' || job.scanResult.assessment === 'note') &&
     job.scanResult.isJobPosting
   );
 }
 
 /** Caution or stop: the reader is being told to settle something first. */
 function isExcludedJob(job: ScannedJob): boolean {
-  return job.scanResult.verdict === 'caution' || job.scanResult.verdict === 'stop';
+  return job.scanResult.assessment === 'caution' || job.scanResult.assessment === 'stop';
 }
 
 /** Scanned but never assessed by external verification, so it cannot be matched. */
 function isUnassessedJob(job: ScannedJob): boolean {
-  return job.scanResult.verdict === null;
+  return job.scanResult.assessment === null;
 }
 
 /**
- * The history chips, one per verdict word.
+ * The history chips, one per assessment word.
  *
- * Each chip filters on the verdict itself, which is why there is no bucket
+ * Each chip filters on the assessment itself, which is why there is no bucket
  * vocabulary left to drift: a chip reading "Caution" keeps exactly the rows
  * wearing a Caution badge.
  *
- * The colours are the theme-resolvable tokens (`verdict-*`, `chip-*`), not the
+ * The colours are the theme-resolvable tokens (`assessment-*`, `chip-*`), not the
  * raw palette: an idle `text-green-500` read fine on the dark theme and washed
  * out on the light one, and the count badges had the same failure as the row
  * badges — pale ink on a pale fill. The active state takes the chip fill, so a
  * selected filter looks like the badges it selects.
  */
-/** How each verdict is named in the empty-state sentence, where a sentence needs it. */
+/** How each assessment is named in the empty-state sentence, where a sentence needs it. */
 const FILTER_EMPTY_WORD: Record<Exclude<JobFilterCategory, 'all'>, string> = {
   clear: 'clear',
   note: 'a note',
@@ -131,7 +131,7 @@ const FILTER_CHIPS: {
     title: 'Proceed',
     icon: 'verified',
     active: 'chip-verified shadow-sm',
-    idle: 'text-verdict-verified hover:bg-surface-container',
+    idle: 'text-assessment-verified hover:bg-surface-container',
     badge: 'chip-verified',
   },
   {
@@ -139,7 +139,7 @@ const FILTER_CHIPS: {
     title: 'Note',
     icon: 'warning',
     active: 'chip-verified shadow-sm',
-    idle: 'text-verdict-verified hover:bg-surface-container',
+    idle: 'text-assessment-verified hover:bg-surface-container',
     badge: 'chip-verified',
   },
   {
@@ -147,7 +147,7 @@ const FILTER_CHIPS: {
     title: 'Caution',
     icon: 'gpp_maybe',
     active: 'chip-caution shadow-sm',
-    idle: 'text-verdict-caution hover:bg-surface-container',
+    idle: 'text-assessment-caution hover:bg-surface-container',
     badge: 'chip-caution',
   },
   {
@@ -155,7 +155,7 @@ const FILTER_CHIPS: {
     title: 'Do not proceed',
     icon: 'shield_person',
     active: 'chip-critical shadow-sm',
-    idle: 'text-verdict-critical hover:bg-surface-container',
+    idle: 'text-assessment-critical hover:bg-surface-container',
     badge: 'chip-critical',
   },
 ];
@@ -193,13 +193,13 @@ export function ResumeMatchView({
   const unassessedJobs = useMemo(() => scannedJobs.filter(isUnassessedJob), [scannedJobs]);
 
   /**
-   * The filter reads the verdict directly, so a chip and the badge on the row it
+   * The filter reads the assessment directly, so a chip and the badge on the row it
    * keeps cannot disagree. It used to read three hand-rolled buckets, which is a
    * second definition of the same words.
    */
   const filteredJobs = useMemo(() => {
     if (filterCategory === 'all') return scannedJobs;
-    return scannedJobs.filter((job) => job.scanResult.verdict === filterCategory);
+    return scannedJobs.filter((job) => job.scanResult.assessment === filterCategory);
   }, [filterCategory, scannedJobs]);
 
   const processResumeFile = useCallback(async (base64: string, fileType: string, _fileName: string) => {
@@ -381,7 +381,7 @@ export function ResumeMatchView({
               const count =
                 id === 'all'
                   ? scannedJobs.length
-                  : scannedJobs.filter((job) => job.scanResult.verdict === id).length;
+                  : scannedJobs.filter((job) => job.scanResult.assessment === id).length;
               return (
                 <button
                   key={id}
@@ -438,23 +438,23 @@ export function ResumeMatchView({
                       <span className="block text-label-sm text-on-surface-variant/70 truncate">
                         {job.timestamp ? formatTimestamp(job.timestamp) : ''}
                       </span>
-                      {sr.verdict === null ? (
+                      {sr.assessment === null ? (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] chip-stale text-on-surface font-semibold shrink-0">
                           <Icon name="info" className="text-[10px]" />
                           Unverified
                         </span>
                       ) : (
                         <span
-                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold shrink-0 ${matchBadgeStyle(sr.verdict)}`}
+                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold shrink-0 ${matchBadgeStyle(sr.assessment)}`}
                         >
                           <Icon
-                            name={sr.verdict === 'clear' ? 'verified' : sr.verdict === 'stop' ? 'shield_person' : 'warning'}
+                            name={sr.assessment === 'clear' ? 'verified' : sr.assessment === 'stop' ? 'shield_person' : 'warning'}
                             className="text-[10px]"
                           />
-                          {verdictLabel(sr.verdict)}
+                          {assessmentLabel(sr.assessment)}
                         </span>
                       )}
-                      {sr.verdictRecordedUnder === 'previous-procedure' && (
+                      {sr.assessmentRecordedUnder === 'previous-procedure' && (
                         <span className="text-[10px] text-on-surface-variant/70 shrink-0">
                           under the previous procedure
                         </span>
@@ -493,28 +493,28 @@ export function ResumeMatchView({
                         through to "Included in resume matching" — the one branch
                         that must never be reassuring, taken by the most
                         dangerous posting. */}
-                    {sr.verdict === null ? (
+                    {sr.assessment === null ? (
                       <div className="flex items-center gap-2 p-2 rounded-lg bg-surface-container border border-outline-variant/20 text-on-surface-variant text-label-sm">
                         <Icon name="info" className="text-xs shrink-0" />
                         <span>Not yet assessed. Excluded from resume matching until external verification completes.</span>
                       </div>
                     ) : excluded ? (
-                      <div className="flex items-center gap-2 p-2 rounded-lg status-card-critical border text-verdict-critical text-label-sm">
+                      <div className="flex items-center gap-2 p-2 rounded-lg status-card-critical border text-assessment-critical text-label-sm">
                         <Icon name="shield_person" className="text-xs shrink-0" />
                         <span>Excluded from resume matching.</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 p-2 rounded-lg status-card-verified border text-verdict-verified text-label-sm">
+                      <div className="flex items-center gap-2 p-2 rounded-lg status-card-verified border text-assessment-verified text-label-sm">
                         <Icon name="verified" className="text-xs shrink-0" />
                         <span>Included in resume matching.</span>
                       </div>
                     )}
 
-                    {sr.verdictRecordedUnder === 'previous-procedure' && (
+                    {sr.assessmentRecordedUnder === 'previous-procedure' && (
                       <p className="text-label-sm text-on-surface-variant">
-                        This verdict wording was carried over from the previous
+                        This assessment wording was carried over from the previous
                         procedure, which recorded a level rather than a class of
-                        request. Scan the posting again for a verdict this
+                        request. Scan the posting again for a assessment this
                         version reached.
                       </p>
                     )}

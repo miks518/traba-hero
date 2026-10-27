@@ -3,19 +3,19 @@ export type { ReportPanelProps } from './ReportPanel';
 export { ReportSkeleton } from './ReportSkeleton';
 export type { ReportSkeletonProps } from './ReportSkeleton';
 export { JobMeta } from './JobMeta';
-export { VerdictBlock } from './VerdictBlock';
+export { AssessmentBlock } from './AssessmentBlock';
 export { ActionBlock } from './ActionBlock';
 export { AnomalyCards } from './AnomalyCards';
 export { WhatWeChecked } from './WhatWeChecked';
 export { FullDetails } from './FullDetails';
 export { ReportFooter } from './ReportFooter';
 export {
-  verdictFor,
+  assessmentFor,
   actionsFor,
   shareChipsFor,
-  NO_VERDICT,
+  NO_ASSESSMENT,
   VERIFYING,
-  type VerdictCopy,
-  type VerdictTone,
+  type AssessmentCopy,
+  type AssessmentTone,
   type ActionLines,
-} from './verdictCopy';
+} from './assessmentCopy';

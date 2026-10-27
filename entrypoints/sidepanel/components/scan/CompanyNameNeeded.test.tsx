@@ -50,7 +50,7 @@ describe('CompanyNameNeeded', () => {
 
   it('offers no text input', () => {
     // The name would flow straight into the verification prompt, which produces
-    // a verdict about a named real company. Guidance only, by decision.
+    // a assessment about a named real company. Guidance only, by decision.
     expect(panel).not.toMatch(/<input|<textarea|type="text"/i);
   });
 });

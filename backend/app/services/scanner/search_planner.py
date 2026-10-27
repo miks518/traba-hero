@@ -7,7 +7,7 @@ I/O at all.
 
 `plan_followups` chooses questions. **It never decides anything.** No value here
 sets a status; the verify prompt remains the only thing that makes a claim about
-an employer. A wrong entity-domain produces a wrong query, not a wrong verdict.
+an employer. A wrong entity-domain produces a wrong query, not a wrong assessment.
 
 Design: `docs/superpowers/specs/2026-10-18-adaptive-verification-search.md`
 """
@@ -341,7 +341,7 @@ def resolve_entity(signals: Signals, results: list) -> Entity:
 
     **Heuristics for choosing queries only.** No field here sets a status, and the
     verify prompt remains the only thing that decides anything about an employer.
-    A wrong `domain` produces a wrong scoped query, not a wrong verdict — which is
+    A wrong `domain` produces a wrong scoped query, not a wrong assessment — which is
     why the aggregator denylist is a size-and-test question rather than a
     correctness one.
     """

@@ -50,10 +50,10 @@ describe('scan history length', () => {
 
 function result(over: Partial<ScanResult> = {}): ScanResult {
   return {
-    verdict: 'clear',
-    verdictLabel: 'Proceed',
-    verdicted: true,
-    verdictBreakdown: undefined,
+    assessment: 'clear',
+    assessmentLabel: 'Proceed',
+    assessed: true,
+    assessmentBreakdown: undefined,
     scanningTarget: 'Scanned Element',
     anomalies: [],
     flagsCritical: false,
@@ -74,41 +74,41 @@ function job(id: string, over: Partial<ScanResult> = {}): ScannedJob {
 }
 
 describe('updateScannedJob', () => {
-  it('replaces the verdict once verification finishes', () => {
+  it('replaces the assessment once verification finishes', () => {
     // The bug: the history entry is written at scan time with the posting-stage
-    // verdict, then verification blends in an employer score and the panel moves
+    // assessment, then verification blends in an employer score and the panel moves
     // to 'note' while history stays at null.
-    const stored = [job('a', { verdict: null })];
+    const stored = [job('a', { assessment: null })];
 
-    const next = updateScannedJob(stored, 'a', result({ verdict: 'note' }));
+    const next = updateScannedJob(stored, 'a', result({ assessment: 'note' }));
 
-    expect(next[0].scanResult.verdict).toBe('note');
+    expect(next[0].scanResult.assessment).toBe('note');
   });
 
   it('does not append a second entry for the same job', () => {
     const stored = [job('a')];
-    const next = updateScannedJob(stored, 'a', result({ verdict: 'note' }));
+    const next = updateScannedJob(stored, 'a', result({ assessment: 'note' }));
     expect(next).toHaveLength(1);
   });
 
   it('leaves other jobs untouched', () => {
-    const stored = [job('a'), job('b', { verdict: 'caution' })];
-    const next = updateScannedJob(stored, 'a', result({ verdict: 'note' }));
-    expect(next[1].scanResult.verdict).toBe('caution');
+    const stored = [job('a'), job('b', { assessment: 'caution' })];
+    const next = updateScannedJob(stored, 'a', result({ assessment: 'note' }));
+    expect(next[1].scanResult.assessment).toBe('caution');
   });
 
   it('is a no-op when the id is unknown', () => {
     const stored = [job('a')];
-    const next = updateScannedJob(stored, 'missing', result({ verdict: 'note' }));
+    const next = updateScannedJob(stored, 'missing', result({ assessment: 'note' }));
     expect(next).toEqual(stored);
   });
 
-  it('carries the verification result and verdict breakdown through', () => {
+  it('carries the verification result and assessment breakdown through', () => {
     // The employer stage also produces evidence the reader can open. Updating
     // only the number would leave history claiming a score it cannot explain.
     const stored = [job('a')];
     const verified = result({
-      verdict: 'note',
+      assessment: 'note',
       verificationResult: {
         items: [{ label: 'Official Registration', status: 'confirmed', explanation: 'CS201500123' }],
         report: 'r',
@@ -126,7 +126,7 @@ describe('updateScannedJob', () => {
     // entry left there forever would show a spinner that never resolves.
     const stored = [job('a', { verificationLoading: true })];
 
-    const next = updateScannedJob(stored, 'a', result({ verdict: 'note', verificationLoading: false, verificationError: true }));
+    const next = updateScannedJob(stored, 'a', result({ assessment: 'note', verificationLoading: false, verificationError: true }));
 
     expect(next[0].scanResult.verificationLoading).toBe(false);
     expect(next[0].scanResult.verificationError).toBe(true);
@@ -168,22 +168,22 @@ describe('migrateScannedJobs renames the findings field', () => {
     expect(next[0].scanResult.anomalies[0].severity).toBe('high');
   });
 
-  it('maps a stored level onto the nearest verdict word', () => {
+  it('maps a stored level onto the nearest assessment word', () => {
     // `moderate` becomes `caution`: the old level was a score band, the new word
     // is a warning, and the two nearest are those.
     const next = migrateScannedJobs(legacy());
 
-    expect(next[0].scanResult.verdict).toBe('caution');
-    expect(next[0].scanResult.verdictLabel).toBe('Caution');
+    expect(next[0].scanResult.assessment).toBe('caution');
+    expect(next[0].scanResult.assessmentLabel).toBe('Caution');
   });
 
-  it('marks the mapping as a legacy reading, not a verdict this system reached', () => {
+  it('marks the mapping as a legacy reading, not a assessment this system reached', () => {
     // The whole difference between a migration and a silent re-labelling. A
     // stored record has no request class and no establishment, so the grid
     // cannot run on it; the word is a label and the flag says so.
     const next = migrateScannedJobs(legacy());
 
-    expect(next[0].scanResult.verdictRecordedUnder).toBe('previous-procedure');
+    expect(next[0].scanResult.assessmentRecordedUnder).toBe('previous-procedure');
     // And neither grid input is invented to fill the gap.
     expect(next[0].scanResult.requestClass).toBeUndefined();
   });
@@ -194,17 +194,17 @@ describe('migrateScannedJobs renames the findings field', () => {
     // had improved.
     const next = migrateScannedJobs(legacy({ riskLevel: 'high', riskLabel: 'High Risk' }));
 
-    expect(next[0].scanResult.verdict).toBe('stop');
-    expect(next[0].scanResult.verdictRecordedUnder).toBe('previous-procedure');
+    expect(next[0].scanResult.assessment).toBe('stop');
+    expect(next[0].scanResult.assessmentRecordedUnder).toBe('previous-procedure');
   });
 
-  it('leaves a record that already carries a verdict untouched', () => {
+  it('leaves a record that already carries a assessment untouched', () => {
     const next = migrateScannedJobs(
-      legacy({ verdict: 'clear', verdictLabel: 'Proceed', verdicted: true, requestClass: 'ordinary' }),
+      legacy({ assessment: 'clear', assessmentLabel: 'Proceed', assessed: true, requestClass: 'ordinary' }),
     );
 
-    expect(next[0].scanResult.verdict).toBe('clear');
-    expect(next[0].scanResult.verdictRecordedUnder).toBeUndefined();
+    expect(next[0].scanResult.assessment).toBe('clear');
+    expect(next[0].scanResult.assessmentRecordedUnder).toBeUndefined();
   });
 
   it('drops the old key rather than keeping both', () => {
@@ -220,11 +220,11 @@ describe('migrateScannedJobs renames the findings field', () => {
     expect(next[0].scanResult.anomalies).toBeUndefined();
   });
 
-  it('still clears a synthesised verdict it finds on the way past', () => {
+  it('still clears a synthesised assessment it finds on the way past', () => {
     // The original purpose of this function is unchanged by the rename.
-    const next = migrateScannedJobs(legacy({ verdicted: false, verdict: 'stop' }));
+    const next = migrateScannedJobs(legacy({ assessed: false, assessment: 'stop' }));
 
-    expect(next[0].scanResult.verdict).toBeNull();
-    expect(next[0].scanResult.verdictLabel).toBe('Not Assessed');
+    expect(next[0].scanResult.assessment).toBeNull();
+    expect(next[0].scanResult.assessmentLabel).toBe('Not Assessed');
   });
 });

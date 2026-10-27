@@ -400,10 +400,10 @@ def _posting_analysis_block(body: str) -> str:
 
 
 def test_posting_analysis_cannot_say_legitimate_or_scam():
-    """A verdict naming a post a scam, or a company legitimate, is the libel risk.
+    """A assessment naming a post a scam, or a company legitimate, is the libel risk.
 
     The opening line of the prompt lists these words, but a long prompt drifts:
-    the rule has to be repeated in the field that produces the verdict, next to
+    the rule has to be repeated in the field that produces the assessment, next to
     the instruction to base it on the reported anomalies.
     """
     for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
@@ -444,8 +444,8 @@ GUARDRAILS = (
     ("task-for-earning is named", "task-for-earning"),
     ("task element is concrete", "discrete task"),
     ("work then payment is ordinary", "work followed by payment"),
-    ("label is not a verdict", "must not name a conclusion"),
-    ("posting analysis bans verdict words", "what the posting asks for"),
+    ("label is not a assessment", "must not name a conclusion"),
+    ("posting analysis bans assessment words", "what the posting asks for"),
     # Added 2026-10-12 after a live probe. The model flagged a Gmail address and
     # an absent salary despite both being forbidden, because this list was in
     # prompts.py and not in SYSTEM_PROMPT.md. The file the backend loads is the

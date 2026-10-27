@@ -32,7 +32,7 @@ function formatScannedAt(iso: string): string {
  * The subject line: when this was scanned, who is hiring, and what the role is.
  *
  * **The employer is the heading, not the role.** The report is a reading of an
- * employer — the establishment is one of the verdict's two axes — so the name
+ * employer — the establishment is one of the assessment's two axes — so the name
  * the reader is being asked to trust leads, and the role sits beneath it as the
  * thing being offered. The role is frequently a whole sentence lifted from the
  * posting ("Sales associate wanted at Acme Trading in Davao"), which reads as a

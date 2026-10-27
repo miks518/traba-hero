@@ -50,7 +50,7 @@ export interface ScamScanViewProps {
  * 0–100 index asserted a precision no stage could defend, invited "how did you get
  * 80?" with no answer available, and was summed from parts that were not
  * commensurable — parts which no longer exist in that form anyway. What replaces
- * it is a short authored instruction in `verdictCopy.ts` plus, once the backend
+ * it is a short authored instruction in `assessmentCopy.ts` plus, once the backend
  * carries one, a one-line reason. See `docs/decisions/report-panel-redesign.md`.
  *
  * **`PostingAnalysis` and `JobSummary` are gone from the panel too.** Their
@@ -265,7 +265,7 @@ export function ScamScanView({
           // The reason arrives with the verification result and is held on the
           // result itself, so it survives a later stage patching it — the same
           // reason `applyResult` composes onto the ref rather than replacing.
-          verdictReason={scanResult.verificationResult?.verdictReason || undefined}
+          assessmentReason={scanResult.verificationResult?.assessmentReason || undefined}
           // Both come from the session, not from `restoredJob`. Reading them off
           // the history record made the subject line blank on a fresh scan and
           // the date appear only when a job was reopened from the Match tab —
@@ -307,7 +307,7 @@ export function ScamScanView({
           its own. A button still red after the result was gone would describe the
           *next* scan rather than the one on screen.
         */
-        accent={session.elevate ? riskAccent(scanResult?.verdict) : undefined}
+        accent={session.elevate ? riskAccent(scanResult?.assessment) : undefined}
       />
 
       {screenshots.length > 0 && !hasScanned && (

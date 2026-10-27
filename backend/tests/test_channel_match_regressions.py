@@ -28,28 +28,28 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.models.schemas import Anomaly
 from app.services.lm_client import _parse_custom
-from app.services.scanner.verdict import code_verdict
+from app.services.scanner.assessment import code_assessment
 from app.services.scanner.verification_flow import _bind_to_retrieved, _read_channel_item
 from app.services.search import SearchOutcome, SearchResult
 
 
 transport = ASGITransport(app=app)
 
-VERDICT_COPY = (
+ASSESSMENT_COPY = (
     Path(__file__).resolve().parents[2]
     / "entrypoints"
     / "sidepanel"
     / "components"
     / "report"
-    / "verdictCopy.ts"
+    / "assessmentCopy.ts"
 )
 
 
 def _headline_for(level: str | None) -> str:
     """The headline the panel renders for a level, read from the real file.
 
-    **The two halves of the verdict are a contract, and this is the seam.** The
-    backend decides the level; `verdictCopy.ts` decides the words; the reader
+    **The two halves of the assessment are a contract, and this is the seam.** The
+    backend decides the level; `assessmentCopy.ts` decides the words; the reader
     sees the words. A test that asserts only the level pins one half, and the
     other half can be edited into saying "Do not proceed" for a level the
     backend chose carefully - which is exactly the bug these fixtures exist to
@@ -60,12 +60,12 @@ def _headline_for(level: str | None) -> str:
     the two sides drifting apart quietly.
     """
     if not level:
-        return "No verdict on this one"
-    source = VERDICT_COPY.read_text(encoding="utf-8")
+        return "No assessment on this one"
+    source = ASSESSMENT_COPY.read_text(encoding="utf-8")
     match = re.search(
         rf"\b{re.escape(level)}:\s*\{{\s*headline:\s*'([^']+)'", source
     )
-    assert match, f"verdictCopy.ts has no headline for level {level!r}"
+    assert match, f"assessmentCopy.ts has no headline for level {level!r}"
     return match.group(1)
 
 
@@ -124,7 +124,7 @@ def _knollridges_payload() -> dict:
         ],
         "report": "The results show a recruitment firm with its own site.",
         "recommendation": "Ask the recruiter to confirm the email address in writing.",
-        "verdict_reason": "It gives an email address the company's own site does not show.",
+        "assessment_reason": "It gives an email address the company's own site does not show.",
         "anomaly_assessments": [],
         "channel_match": {
             "printed_channels": ["yvonne.knollridges@gmail.com"],
@@ -137,7 +137,7 @@ def _knollridges_payload() -> dict:
             "source_title": "Knollridges",
             "source_url": "https://knollridges.com.ph",
         },
-        # Deliberately the old model-owned verdict. It must not reach the wire.
+        # Deliberately the old model-owned assessment. It must not reach the wire.
         "risk_level": "critical",
         "risk_score": 95,
     }
@@ -197,7 +197,7 @@ def _fake_ched_payload() -> dict:
         ],
         "report": "The results show the government office the posting names.",
         "recommendation": "Confirm the application process with the office directly.",
-        "verdict_reason": "It asks for a fee before it will accept an application.",
+        "assessment_reason": "It asks for a fee before it will accept an application.",
         "anomaly_assessments": [],
         "channel_match": {
             "printed_channels": [
@@ -215,7 +215,7 @@ def _fake_ched_payload() -> dict:
             "source_title": "CHED Regional Office VI",
             "source_url": "https://ched.gov.ph",
         },
-        # The model's own verdict is the opposite of the facts. It must not reach
+        # The model's own assessment is the opposite of the facts. It must not reach
         # the wire.
         "risk_level": "low",
         "risk_score": 0,
@@ -281,7 +281,7 @@ def _two_channel_payload() -> dict:
         ],
         "report": "The results show the government office the posting names.",
         "recommendation": "Confirm the application process with the office directly.",
-        "verdict_reason": "It asks you to apply through a free-mail address.",
+        "assessment_reason": "It asks you to apply through a free-mail address.",
         "anomaly_assessments": [],
         "channel_match": {
             "printed_channels": [
@@ -367,14 +367,14 @@ async def test_knollridges_does_not_become_do_not_proceed():
     assert "recruitment.chred" not in channel["explanation"]
 
     # The model tried to say critical/95. The code says clear.
-    assert data["verdict"] == "clear"
+    assert data["assessment"] == "clear"
     assert "riskLevel" not in data
     assert "riskScore" not in data
     assert "scoreBreakdown" not in data
 
-    # The reader-visible half: the panel's mapping for the new verdict
-    # vocabulary is not yet in verdictCopy.ts (Task 11). The headline
-    # assertion is skipped for the new verdicts.
+    # The reader-visible half: the panel's mapping for the new assessment
+    # vocabulary is not yet in assessmentCopy.ts (Task 11). The headline
+    # assertion is skipped for the new assessments.
 
 
 @pytest.mark.asyncio
@@ -406,13 +406,13 @@ async def test_fake_ched_stays_critical_and_the_chred_domain_is_red():
 
     # Two high fee findings plus a refuted government Channel Match.
     # The contradiction is the only path to stop; the fees do not add a level.
-    assert data["verdict"] == "stop"
+    assert data["assessment"] == "stop"
     assert "riskLevel" not in data
     assert "riskScore" not in data
     assert "scoreBreakdown" not in data
 
-    # The reader-visible half: the panel's mapping for the new verdict
-    # vocabulary is not yet in verdictCopy.ts (Task 11).
+    # The reader-visible half: the panel's mapping for the new assessment
+    # vocabulary is not yet in assessmentCopy.ts (Task 11).
 
 
 @pytest.mark.asyncio
@@ -538,7 +538,7 @@ async def test_a_fee_plus_a_free_email_is_high_but_not_do_not_proceed():
     assert channel["status"] == "contradicted"
     assert channel["escalation"] == "free_email_with_findings"
     # Prohibited request at an unknown employer is a caution.
-    assert data["verdict"] == "caution"
+    assert data["assessment"] == "caution"
     assert "riskLevel" not in data
     assert "riskScore" not in data
     assert "scoreBreakdown" not in data
@@ -599,11 +599,11 @@ async def test_a_stale_fee_does_not_escalate_a_free_email():
     assert channel["status"] == "unknown"
     assert channel["escalation"] == "free_email"
     # Ordinary request at an unknown employer is clear.
-    assert data["verdict"] == "clear"
+    assert data["assessment"] == "clear"
     assert "riskLevel" not in data
     assert "riskScore" not in data
-    assert "verdictBreakdown" in data
-    assert data["verdictBreakdown"]["stale_excluded"] == 1
+    assert "assessmentBreakdown" in data
+    assert data["assessmentBreakdown"]["stale_excluded"] == 1
 
 
 @pytest.mark.asyncio
@@ -663,7 +663,7 @@ async def test_a_dropped_citation_cannot_put_the_official_domain_on_a_red_card()
     # must not assert the unretrieved official domain.
     assert "ched.gov.ph" not in channel["explanation"]
     # The contradiction is the only path to stop.
-    assert data["verdict"] == "stop"
+    assert data["assessment"] == "stop"
     assert "riskLevel" not in data
     assert "riskScore" not in data
     assert "scoreBreakdown" not in data
@@ -708,7 +708,7 @@ def test_the_government_red_still_reaches_stop_through_the_binding():
     worth zero.
 
     Now the government branch is the one contradiction that needs no retrieved
-    source. The verdict is stop, not critical, because the grid says contradicted
+    source. The assessment is stop, not critical, because the grid says contradicted
     stops everything.
     """
     bound, _ = _bind_to_retrieved(
@@ -716,9 +716,9 @@ def test_the_government_red_still_reaches_stop_through_the_binding():
     )
     anomalies = [Anomaly(**flag) for flag in _fake_ched_request()["anomalies"]]
 
-    verdict, breakdown = code_verdict(anomalies, bound)
+    assessment, breakdown = code_assessment(anomalies, bound)
 
-    assert verdict == "stop"
+    assert assessment == "stop"
     assert breakdown["establishment"]["state"] == "contradicted"
     assert breakdown["establishment"]["reason"] == "The posting presents itself as a government office and gives a channel outside that office's domain."
     assert breakdown["rule"] == "establishment_contradicted"

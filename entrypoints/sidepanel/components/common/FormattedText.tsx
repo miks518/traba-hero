@@ -6,7 +6,7 @@ export interface FormattedTextProps {
   /**
    * Applied to every rendered line — paragraphs and bullet bodies alike. The
    * default is the panel's body style; pass an override where a block needs its
-   * own weight, such as the verdict in `PostingAnalysis` reading a step larger
+   * own weight, such as the assessment in `PostingAnalysis` reading a step larger
    * than every other prose the panel writes.
    */
   bodyClassName?: string;

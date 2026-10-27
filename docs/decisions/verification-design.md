@@ -3,7 +3,7 @@
 Owner files: `backend/VERIFY_PROMPT.md`,
 `backend/app/services/scanner/verification_prompt.py`,
 `verification_parser.py`, `verification_flow.py`,
-`channel_match.py`, `verdict.py`.
+`channel_match.py`, `assessment.py`.
 
 ---
 
@@ -105,15 +105,15 @@ that rule, passing the findings into the same prompt would reopen the failure th
 original exclusion was written to prevent.
 
 A `stale` assessment removes that specific finding from the code's posting score
-in `verdict.py`. The model does not write a lower level; the exclusion is the
+in `assessment.py`. The model does not write a lower level; the exclusion is the
 mechanism. `yellow` and `red` assessments do not change the posting score.
 
 The labeled-text fallback has no `anomaly_assessments` section, so it returns an
-empty list and every card renders amber. Its missing `verdict_reason` is the same
+empty list and every card renders amber. Its missing `assessment_reason` is the same
 declared degradation. The final level is still computed in code; the fallback
 does not remove it.
 
-The client derives the final chip from the verdict rather than accepting a
+The client derives the final chip from the assessment rather than accepting a
 second severity from the model: `stale → Stale` (grey), `red → the scan's
 severity`, `yellow → Unconfirmed` (amber), in flight → `Checking` (neutral).
 `Checking` asserts no severity. More than 20 findings are capped before the
@@ -126,7 +126,7 @@ See `docs/superpowers/specs/2026-10-20-anomaly-evidence-assessment-design.md`.
 
 The verify model used to return `risk_level` and `risk_score`. It no longer
 does, and the flow ignores them if an old provider still sends them. The level
-comes from `verdict.py`:
+comes from `assessment.py`:
 
 - `_posting_risk_from_flags` prices the posting's findings.
 - `_refutation_score_from_verify` prices the retrieved contradictions.
@@ -137,7 +137,7 @@ comes from `verdict.py`:
 
 The reason is recorded in `docs/decisions/scoring-model.md`: the model owning the
 level let one weak Channel Match observation become "Do not proceed." The model
-still writes `report`, `recommendation`, `verdict_reason` and
+still writes `report`, `recommendation`, `assessment_reason` and
 `anomaly_assessments`; it does not write the number.
 
 A failed search still returns `riskLevel: null` and `riskScore: null`. A readable
@@ -199,7 +199,7 @@ output.
 
 It also logs `[verify] Parsed N of M anomaly assessments; missing indices: ...`
 when the model omits a finding. A missing assessment is not filled in; the card
-renders its own amber "no verdict recorded" note.
+renders its own amber "no assessment recorded" note.
 
 `risk_calculator`'s weight table knows the six canonical labels plus the legacy
 `SEC Registration`. **Any other legacy label such as "Scam Reports" parses and renders

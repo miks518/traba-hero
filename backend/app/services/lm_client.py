@@ -496,7 +496,7 @@ def _parse_custom(raw: str) -> dict | None:
                 # Prose, not a key. `Company states applicants should bring their
                 # own laptop.` matches `COMPANY`, and a matched keyword closes the
                 # section first, so reading it as a key silently truncated the
-                # verdict at that line - and could leave JOB SUMMARY absent
+                # assessment at that line - and could leave JOB SUMMARY absent
                 # entirely, since `close_section` writes nothing for an empty
                 # buffer. Appended back to the buffer rather than dropped: the
                 # line is ordinary text and belongs to the section that is open.
@@ -535,7 +535,7 @@ def _parse_custom(raw: str) -> dict | None:
             # `CODE:` and `QUOTE:` are ordinary English words. "Enter CODE: 4471
             # at the gate" inside a job summary matches this regex, and a matched
             # keyword closes the section first - so reading it as a key silently
-            # truncated the verdict at that line, which is the documented failure
+            # truncated the assessment at that line, which is the documented failure
             # mode for the ATTRIBUTES keys. Appended back, for the same reason
             # and with the same consequence of dropping it.
             buf.append(line.rstrip())
@@ -671,7 +671,7 @@ def _parse_custom(raw: str) -> dict | None:
             result["company_name"] = rest.strip()
         elif kw == "POSTING ANALYSIS":
             # Assessment of the posting's structure, kept separate from the job
-            # summary so the panel can show the verdict and the role separately.
+            # summary so the panel can show the assessment and the role separately.
             section = kw.lower().replace(" ", "_")
             if rest:
                 buf.append(rest)

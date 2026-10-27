@@ -1,4 +1,4 @@
-"""The verify stage's verdict on each posting finding.
+"""The verify stage's assessment on each posting finding.
 
 The findings are the scan's own claims, so the verify model is asked to assess
 them against the same retrieved results it uses for the six category checks.
@@ -29,7 +29,7 @@ def _payload(assessments, checks=None):
         "recommendation": "x",
         "risk_level": "moderate",
         "risk_score": 40,
-        "verdict_reason": "",
+        "assessment_reason": "",
         "anomaly_assessments": assessments,
     })
 
@@ -96,7 +96,7 @@ def test_an_out_of_range_index_is_dropped_not_renumbered():
 
 
 def test_a_fractional_index_is_dropped_not_truncated():
-    """`int(1.5)` is 1, which would attach the verdict to the wrong finding."""
+    """`int(1.5)` is 1, which would attach the assessment to the wrong finding."""
     *_, assessments = _read([_assess(index=1.5)])
 
     assert assessments == []
@@ -128,7 +128,7 @@ def test_an_assessment_with_no_sentence_is_dropped():
     """The strip is the sentence and, for stale/red, the source.
 
     An entry with no sentence would render a label over an empty space, which is
-    worse than the card's own "no verdict recorded" note.
+    worse than the card's own "no assessment recorded" note.
     """
     *_, assessments = _read([_assess(finding="   ")])
 

@@ -178,7 +178,7 @@ These hold everywhere and are not stylistic preferences.
 - **Absence is never `red`.** A claim nobody could confirm is `yellow`. Points require a
   retrieved source that *contradicts* a claim.
 - **Never synthesise a score in the client.** The number is computed by
-  `verdict.py`, which calls `risk_calculator.py`'s arithmetic, and sent in
+  `assessment.py`, which calls `risk_calculator.py`'s arithmetic, and sent in
   `score_breakdown`. Presenting a number the system never measured is the exact
   exposure the prompt rules exist to prevent.
 - **The scan's findings are `anomalies`, not red flags.** Three legacy code paths support
@@ -209,7 +209,7 @@ Listed, **not resolved** — each needs a decision or a check against live code.
 3. **`risk_calculator.py` was described as retired**, yet the filter categories and the
    score bands were still documented as computed there, while `risk_level` and `risk_score`
    were model-emitted. **Resolved 2026-10-21:** the calculator is live again as the
-   arithmetic behind `verdict.py`. `_posting_risk_from_flags`, `_combine_scores`,
+   arithmetic behind `assessment.py`. `_posting_risk_from_flags`, `_combine_scores`,
    `_level_for` and `_refutation_score_from_verify` run;
    `_calculate_risk_score_from_verify` remains dead. The model no longer emits a level.
    See `docs/decisions/scoring-model.md`.
@@ -239,7 +239,7 @@ Listed, **not resolved** — each needs a decision or a check against live code.
    `channel_match.py` nor the independent-finding rule, because both compare the
    posting's channels against the employer's own channels and find them equal. The
    branch `feat/verification-comparison` solved it with a model-written
-   `name_comparison`; that is a model-owned verdict, which is the shape
+   `name_comparison`; that is a model-owned assessment, which is the shape
    `channel_match.py` exists to remove, so it was not ported. **Needs a decision**,
    and if it is decided it must be decided code-side — a fact the model reports and
    code prices. See `docs/decisions/scan-channel-enumeration.md`.

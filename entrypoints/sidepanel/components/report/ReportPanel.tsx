@@ -1,12 +1,12 @@
 import React from 'react';
 import { JobMeta } from './JobMeta';
-import { VerdictBlock } from './VerdictBlock';
+import { AssessmentBlock } from './AssessmentBlock';
 import { ActionBlock } from './ActionBlock';
 import { AnomalyCards } from './AnomalyCards';
 import { WhatWeChecked } from './WhatWeChecked';
 import { FullDetails } from './FullDetails';
 import { ReportFooter } from './ReportFooter';
-import { VERIFYING, verdictFor } from './verdictCopy';
+import { VERIFYING, assessmentFor } from './assessmentCopy';
 import { CompanyNameNeeded, InvalidContentError, OfferAnalysisCard } from '../scan';
 import { useFlipReorder } from '../../lib/useFlipReorder';
 import type { ScanResult } from '../../types';
@@ -24,7 +24,7 @@ export interface ReportPanelProps {
    * the banner first renders: the scan lands, the banner shows its authored
    * headline, and the reason only exists once the employer lookup settles.
    */
-  verdictReason?: string;
+  assessmentReason?: string;
   /** When this was scanned. Absent for a live scan. */
   timestamp?: string;
   /** The role, as the posting states it. */
@@ -69,10 +69,10 @@ export interface ReportPanelProps {
  *     count drifts with whatever the panel happens to render
  *   - "Was this accurate?" — no database, no destination for the answer. A click
  *     with nowhere to go reads as a working feature and silently discards the
- *     only signal that would tell us the verdict taxonomy is wrong.
+ *     only signal that would tell us the assessment taxonomy is wrong.
  *
- * The three slots that used to be on this list now ship: the one-line verdict
- * reason (`verdict_reason`), the anomaly rule code (`Anomaly.code`), and the
+ * The three slots that used to be on this list now ship: the one-line assessment
+ * reason (`assessment_reason`), the anomaly rule code (`Anomaly.code`), and the
  * quote block on each anomaly card (`Anomaly.quote`). Each was held back until
  * there was a real field behind it, because a slot filled from a paraphrase is
  * the same failure as a score the system never measured.
@@ -96,7 +96,7 @@ export function ReportPanel({
   verifying,
   verificationError,
   currentQuery,
-  verdictReason,
+  assessmentReason,
   timestamp,
   title,
   needsCompanyName,
@@ -107,17 +107,17 @@ export function ReportPanel({
   // reasons unrelated to order.
   const flip = useFlipReorder(elevate);
 
-  const verdict = result.verdict;
+  const assessment = result.assessment;
 
   // The banner's tone, resolved once here and handed to both the banner and the
-  // disclosure below it. `VerdictBlock` looks this up for itself from the same
+  // disclosure below it. `AssessmentBlock` looks this up for itself from the same
   // two inputs, so there is one rule rather than two — but it is a lookup from
   // the authored table, not a second definition of which level means what, and
   // the two components have to agree or the panel reads as two objects.
-  const tone = (verifying ? VERIFYING : verdictFor(verdict)).tone;
+  const tone = (verifying ? VERIFYING : assessmentFor(assessment)).tone;
 
   // `VALID: false` is a state of its own, not an empty report. The scan found no
-  // offer of work to assess, so there is no verdict, no findings and no checks
+  // offer of work to assess, so there is no assessment, no findings and no checks
   // — and saying so is the content.
   if (!result.isJobPosting) {
     return (
@@ -131,10 +131,10 @@ export function ReportPanel({
     <article className="flex flex-col gap-stack-md" data-role="report-panel">
       <JobMeta timestamp={timestamp} title={title} employer={result.companyName} />
 
-      <VerdictBlock verdict={verdict} verifying={verifying} reason={verdictReason} />
+      <AssessmentBlock assessment={assessment} verifying={verifying} reason={assessmentReason} />
 
       <ActionBlock
-        verdict={verdict}
+        assessment={assessment}
         recommendation={result.verificationResult?.recommendation}
         whatToCheck={result.offerAnalysis?.whatToCheck}
       />
@@ -143,7 +143,7 @@ export function ReportPanel({
         Two sibling groups, both always mounted, one visible at a time by `order`.
 
         **Promotion is restated, not kept.** The old scheme reordered a pair of
-        groups to move *evidence up*. Here the verdict and the instructions
+        groups to move *evidence up*. Here the assessment and the instructions
         already occupy the top, so there is nothing above them to promote, and
         what promotion means has changed: the neutral context — what we checked,
         where it came from — drops *below* the findings. A reader who has just
@@ -175,7 +175,7 @@ export function ReportPanel({
         {/*
           The no-employer path. The scan still produced its own findings, so
           those render; with no employer there is no establishment to decide
-          against, so the banner declines to assert a verdict and `CompanyNameNeeded`
+          against, so the banner declines to assert a assessment and `CompanyNameNeeded`
           states the missing input instead. The offer analysis reports what the
           post asks for and offers, rather than anything about a company.
         */}

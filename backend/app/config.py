@@ -210,7 +210,7 @@ class Settings(BaseSettings):
 
         Sending "advnaced" would have the provider reject the request, turning
         a configuration typo into a search failure reported to the user as an
-        employer that cannot be looked up. A typo costs recall, not a verdict.
+        employer that cannot be looked up. A typo costs recall, not a assessment.
         """
         return "basic" if self.tavily_search_depth.strip().lower() == "basic" else "advanced"
 

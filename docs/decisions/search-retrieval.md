@@ -59,7 +59,7 @@ a query carrying one returns pages chosen for containing that word, which then r
 corroboration of an accusation the query already made up.
 
 **The conclusion-word filter is a code control in every mode.** Amended
-2026-10-25 (the verdict-procedure work): this record used to say that in the
+2026-10-25 (the assessment-procedure work): this record used to say that in the
 shipped default the prompt sentence was the only control, and that the code
 check existed only in the `adaptive` mode that ships off. A prompt sentence is
 not a control, and the record now reads what the code does:
@@ -233,7 +233,7 @@ strongly — a London VC firm, or an unrelated product with a similar word.
 | The conclusion-word filter | applied where the queries are issued, before the cap | applied by `search_query_is_safe` |
 
 **`fixed` is the shipped default and stays there.** Nothing has been shown to
-improve a verdict, and the fixtures that would decide it have not been run. The
+improve a assessment, and the fixtures that would decide it have not been run. The
 design is in `docs/superpowers/specs/2026-10-18-adaptive-verification-search.md`.
 
 **`fixed` is unchanged in every respect a reader can observe:** the same queries,
@@ -295,7 +295,7 @@ change.
 - An unrecognised depth **logs an error and falls back to advanced** rather than being
   sent. The provider would reject it, and a rejected search is reported to the user as
   a company that cannot be looked up, so **a typo in a cost setting must never become
-  a verdict.**
+  a assessment.**
 - A blank country is dropped from the request rather than sent as `""`.
 - **Credits are per *request*.** A verification issues the single employer query plus
   at most two follow-ups, so `basic` costs 1–3 credits and `advanced` 2–6 — which is
@@ -350,7 +350,7 @@ an error.**
 
 - A leading `*.` is preserved, since flattening it would widen what gets dropped.
 - Entries without a dot are discarded, so a stray word in a `.env` cannot become a
-  domain Tavily rejects — **the same typo-becomes-a-verdict failure the depth
+  domain Tavily rejects — **the same typo-becomes-a-assessment failure the depth
   fallback exists to prevent.**
 - A blank value is dropped from the request rather than sent as `[]`.
 

@@ -32,7 +32,7 @@ Reading one as a key did two things at once:
 2. because a matched keyword closes the section first, it truncated `POSTING ANALYSIS`
    at that line.
 
-**The verdict was gone with no error anywhere**, and `JOB SUMMARY` could vanish
+**The assessment was gone with no error anywhere**, and `JOB SUMMARY` could vanish
 **entirely**, since `close_section` writes no key at all for an empty buffer.
 
 **A rejected line is appended back to the section buffer, not dropped** — dropping it

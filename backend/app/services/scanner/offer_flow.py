@@ -5,25 +5,25 @@ from collections.abc import AsyncIterator
 from .dependencies import runtime
 from .offer_prompt import NOT_OFFER_KIND
 from .request_class import classify_request, facts_from_scan
-from .verdict import code_verdict
+from .assessment import code_assessment
 
 log = logging.getLogger("trabahero")
 
 # Used when the model output cannot be read. The comment that used to sit here
-# said a failsafe cost the user an explanation and not a verdict, because the
+# said a failsafe cost the user an explanation and not a assessment, because the
 # score came from the scan's indicators rather than from this pass. That is no
 # longer true: this pass now produces the level, so an unreadable answer yields
-# no level, and the cost is exactly a verdict.
+# no level, and the cost is exactly a assessment.
 FAILSAFE = {
     "kind": "Offer",
-    "verdict": "This content was not readable well enough to assess in detail. The indicators listed above were found in the content itself.",
+    "assessment": "This content was not readable well enough to assess in detail. The indicators listed above were found in the content itself.",
     "what_it_asks": "Not stated",
     "what_it_offers": "Not stated",
     "what_to_check": "Confirm who you would be dealing with before sending money or personal details.",
     "is_offer": True,
     "codes": [],
-    "verdict_level": None,
-    "verdictBreakdown": {"verdict": None, "level_source": None},
+    "assessment_level": None,
+    "assessmentBreakdown": {"assessment": None, "level_source": None},
 }
 
 
@@ -66,11 +66,11 @@ def _read_offer_output(text: str, anomalies: list = None) -> dict | None:
         anomalies = []
     """Read the analysis result, preferring JSON and falling back to text."""
     payload = runtime.get_parse_json()(text)
-    if isinstance(payload, dict) and payload.get("verdict"):
+    if isinstance(payload, dict) and payload.get("assessment"):
         kind = str(payload.get("kind") or "").strip()
 
-        # The verdict is code-owned, like the verify path. The model's codes
-        # become a request class, and the grid decides the verdict from it and
+        # The assessment is code-owned, like the verify path. The model's codes
+        # become a request class, and the grid decides the assessment from it and
         # an unknown establishment — the offer path has no employer to look up.
         codes = payload.get("codes") or []
         if not isinstance(codes, list):
@@ -92,7 +92,7 @@ def _read_offer_output(text: str, anomalies: list = None) -> dict | None:
             "unknown",
             "Nothing in the record establishes who is behind the posting.",
         )
-        verdict, breakdown = code_verdict(
+        assessment, breakdown = code_assessment(
             anomalies,
             [],
             [],
@@ -108,24 +108,24 @@ def _read_offer_output(text: str, anomalies: list = None) -> dict | None:
         # — there is no employer to look up and no search to contradict it, so
         # caution (which says "settle the recipient first") understates it.
         # Override to "stop" when the posting contains TASK_FOR_EARNING.
-        if verdict == "caution" and "TASK_FOR_EARNING" in codes:
-            verdict = "stop"
-            breakdown["verdict"] = "stop"
+        if assessment == "caution" and "TASK_FOR_EARNING" in codes:
+            assessment = "stop"
+            breakdown["assessment"] = "stop"
             breakdown["rule"] = "task_for_earning_at_unestablished_employer"
 
         return {
             "kind": kind or "Offer",
-            "verdict": str(payload.get("verdict")).strip(),
+            "assessment": str(payload.get("assessment")).strip(),
             "what_it_asks": str(payload.get("what_it_asks") or "").strip(),
             "what_it_offers": str(payload.get("what_it_offers") or "").strip(),
             "what_to_check": str(payload.get("what_to_check") or "").strip(),
             "is_offer": kind.strip().upper() != NOT_OFFER_KIND if kind else True,
             "codes": codes,
             # Code-owned, like the verify path. The model's risk_level and
-            # risk_score are gone — the verdict is what the panel shows, and it
+            # risk_score are gone — the assessment is what the panel shows, and it
             # is decided by the grid, not by the model's reading of the offer.
-            "verdict_level": verdict,
-            "verdictBreakdown": breakdown,
+            "assessment_level": assessment,
+            "assessmentBreakdown": breakdown,
         }
 
     log.warning("[analyze-offer] Response was not JSON; falling back to the labeled-text parser.")
@@ -134,6 +134,6 @@ def _read_offer_output(text: str, anomalies: list = None) -> dict | None:
         # The labeled-text format has nowhere to carry either, so this path yields
         # None rather than inventing them.
         parsed.setdefault("codes", [])
-        parsed.setdefault("verdict_level", None)
-        parsed.setdefault("verdictBreakdown", {"verdict": None, "level_source": None})
+        parsed.setdefault("assessment_level", None)
+        parsed.setdefault("assessmentBreakdown", {"assessment": None, "level_source": None})
     return parsed

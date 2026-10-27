@@ -1,6 +1,6 @@
 """Fetch one page, for the agent's `fetch` tool.
 
-The employer's own pages are the fact the verdict needs and the search snippets
+The employer's own pages are the fact the assessment needs and the search snippets
 cannot give: whether the employer's own site lists this role, on the terms the
 posting advertises. `fetch` exists so `confirmed` can be established against
 the page itself rather than a model's reading of a snippet.

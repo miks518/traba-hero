@@ -9,11 +9,11 @@ Misleading (ghost jobs, fake urgency, inflated titles)
 1.2 Build the risk taxonomy
 
 List each red flag with an ID, a definition, and a weight (e.g., “asks for payment” = critical, “vague company description” = minor)
-Mark some flags as hard fails that force a High-Risk verdict regardless of score
+Mark some flags as hard fails that force a High-Risk assessment regardless of score
 
 1.3 Fix the output schema
 
-Verdict, numeric score, triggered flags, evidence quotes, confidence, recommended next steps
+Assessment, numeric score, triggered flags, evidence quotes, confidence, recommended next steps
 
 1.4 Build the gold dataset
 
@@ -79,11 +79,11 @@ Posting age, repost frequency, whether the role is still listed on the company s
 
 Every external fact is stored with its source URL and retrieval time. Anything that fails to load is marked “unverified”, never assumed safe.
 
-Phase 5: Synthesis and Verdict
+Phase 5: Synthesis and Assessment
 
 5.1 Combine the rule score (Phase 3) and the evidence score (Phase 4) with fixed weights
 5.2 Apply hard-fail overrides
-5.3 Map to verdict bands, e.g. 0–29 Low risk, 30–59 Caution, 60+ High risk, with an “Insufficient data” band
+5.3 Map to assessment bands, e.g. 0–29 Low risk, 30–59 Caution, 60+ High risk, with an “Insufficient data” band
 5.4 Compute confidence from how many checks completed and how much evidence agrees
 5.5 Generate the explanation with an LLM at temperature 0, constrained to cite only the triggered flags and stored evidence, so it can’t invent reasons
 
@@ -96,8 +96,8 @@ Cached external lookups per post so repeated runs see the same evidence
 
 6.2 Consistency testing
 
-Run each test post 5 to 10 times and measure verdict stability
-Any post that flips verdicts gets its rules or prompts fixed
+Run each test post 5 to 10 times and measure assessment stability
+Any post that flips assessments gets its rules or prompts fixed
 
 6.3 Accuracy testing on the locked set
 
@@ -113,7 +113,7 @@ Scores near a band threshold are routed to “Caution” rather than flipping ra
 Any change to rules, prompts, or model must pass the test set before release, with 90% as the minimum
 Phase 7: Delivery to the Job Seeker
 
-7.1 Report format: verdict first, then top 3 reasons with evidence, then what couldn’t be verified
+7.1 Report format: assessment first, then top 3 reasons with evidence, then what couldn’t be verified
 7.2 Actionable guidance: questions to ask the recruiter, how to verify independently, what not to share
 7.3 Safety messaging: this is a risk assessment, not proof of fraud or legitimacy
 

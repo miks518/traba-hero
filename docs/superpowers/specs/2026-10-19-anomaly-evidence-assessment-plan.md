@@ -47,7 +47,7 @@ validation error.
 Insert before `VerifyAnomaly`:
 ```python
 class AnomalyAssessment(BaseModel):
-    """The verification stage's verdict on one posted anomaly.
+    """The verification stage's assessment on one posted anomaly.
 
     Three states:
     - confirmed: evidence from search results accounts for or explains the claim.
@@ -297,11 +297,11 @@ bound_assessments = _bind_assessment_to_retrieved(assessments, allowed_urls)
 
 Update the return tuple signature to carry `bound_assessments`. Currently:
 ```
-(items, report, recommendation, used_json, evidence, risk_level, risk_score, verdict_reason)
+(items, report, recommendation, used_json, evidence, risk_level, risk_score, assessment_reason)
 ```
 Becomes:
 ```
-(items, report, recommendation, used_json, evidence, risk_level, risk_score, verdict_reason, bound_assessments)
+(items, report, recommendation, used_json, evidence, risk_level, risk_score, assessment_reason, bound_assessments)
 ```
 
 Update all call sites that unpack this tuple (`verification_event_stream` and tests).
@@ -393,7 +393,7 @@ Add `"anomalies": assessed_anomalies` to the no-company yield dict.
 After `_read_verify_output` returns (now 9-tuple), call `_apply_assessments_to_anomalies`:
 
 ```python
-items, report, recommendation, used_json, evidence, risk_level, risk_score, verdict_reason, assessments = _read_verify_output(
+items, report, recommendation, used_json, evidence, risk_level, risk_score, assessment_reason, assessments = _read_verify_output(
     final_text, allowed_urls=retrieved_urls
 )
 assessed_anomalies = _apply_assessments_to_anomalies(req.anomalies or [], assessments)

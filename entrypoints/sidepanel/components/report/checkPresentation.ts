@@ -20,7 +20,7 @@ import type { VerificationItem } from '../../types';
  * **One vocabulary, four states.** The panel used to carry two incompatible
  * status systems — `green`/`yellow`/`red` for the six claim categories and
  * `stale`/`yellow`/`red` for the findings — and a model-written status beside a
- * code-owned one is two verdicts in one panel. They disagree, and the corpus
+ * code-owned one is two assessments in one panel. They disagree, and the corpus
  * caught one: a red Location/Branch card on a 600-store franchise, because the
  * company's own page listed a different venue. Both vocabularies now retire
  * onto the establishment states:

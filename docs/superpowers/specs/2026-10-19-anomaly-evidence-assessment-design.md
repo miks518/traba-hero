@@ -18,7 +18,7 @@ Under the current architecture:
 ### The Desired Behavior
 
 - **Initial Scan & Display:** Anomalies detected during scan remain attached to the scan result, but their presentation reflects their assessment against verification evidence.
-- **Evidence-Based Verdicts per Anomaly:**
+- **Evidence-Based Assessments per Anomaly:**
   1. **Confirmed by Context / Evidence (Green Strip):** Evidence accounts for the posting's claim (e.g., fee is confirmed as an official medical exam or authorized clinic fee, supported by a retrieved source URL and title).
   2. **Contradicted by Evidence (Red Strip):** Evidence contradicts the posting or confirms illegitimate collection (e.g., employer policy states "Does not collect any recruitment/placement fees", or the posting's claims are refuted by official advisories).
   3. **Unconfirmed / No Employer to Search (Amber / Yellow Strip):** If no company or employer is named, or if search retrieval fails/yields no assessment, the anomaly card displays a clear yellow notice:
@@ -137,7 +137,7 @@ In `verification_flow.py`, the `"result"` event includes `anomalies`:
         "recommendation": recommendation,
         "riskScore": risk_score,
         "riskLevel": risk_level,
-        "verdictReason": verdict_reason,
+        "assessmentReason": assessment_reason,
         ...
     }
 }
@@ -172,7 +172,7 @@ export interface VerificationResult {
   anomalies?: Anomaly[];
   report: string;
   recommendation: string;
-  verdictReason?: string;
+  assessmentReason?: string;
   riskScore?: number;
   riskLevel?: ScanRiskLevel;
   noCompanyName?: boolean;

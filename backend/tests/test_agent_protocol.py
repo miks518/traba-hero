@@ -1,6 +1,6 @@
 """The agent's tool calls are labeled text, with the safety filter at the door.
 
-Task 15 of the verdict-procedure plan. `lm_client.chat()` has no `tools=`
+Task 15 of the assessment-procedure plan. `lm_client.chat()` has no `tools=`
 parameter, no multi-turn seam of its own, and native tool calling is not
 guaranteed across OpenRouter routes — so the protocol is two labeled lines,
 parsed here, and the conclusion-word filter drops a refused query before a

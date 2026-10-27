@@ -41,7 +41,7 @@ describe('choosing which findings one verify request carries', () => {
   });
 });
 
-describe('attaching verdicts back to the findings', () => {
+describe('attaching assessments back to the findings', () => {
   it('maps a request index through the selected list to the original finding', () => {
     // The request carried findings 0 and 2; the model's index 1 means the first
     // of those, which is original finding 0.
@@ -74,7 +74,7 @@ describe('attaching verdicts back to the findings', () => {
     expect(merged[1].assessment).toBeUndefined();
   });
 
-  it('keeps the first verdict when an index is duplicated', () => {
+  it('keeps the first assessment when an index is duplicated', () => {
     const merged = mergeAnomalyAssessments(
       [anomaly('a')],
       [0],
@@ -99,7 +99,7 @@ describe('attaching verdicts back to the findings', () => {
     expect(merged.every((item) => item.assessment === undefined)).toBe(true);
   });
 
-  it('leaves a selected finding without a verdict absent, for the card to explain', () => {
+  it('leaves a selected finding without a assessment absent, for the card to explain', () => {
     const merged = mergeAnomalyAssessments(
       [anomaly('a'), anomaly('b')],
       [0, 1],
@@ -111,9 +111,9 @@ describe('attaching verdicts back to the findings', () => {
     expect(merged[1].assessment?.finding).toBe('only the second');
   });
 
-  it('clears a previous verdict when the new check ran and did not return one', () => {
+  it('clears a previous assessment when the new check ran and did not return one', () => {
     // Re-verification: the old `stale` must not survive as if this run had
-    // produced it. The card's amber "no verdict recorded" is the honest state.
+    // produced it. The card's amber "no assessment recorded" is the honest state.
     const previous = {
       ...anomaly('a'),
       assessment: {
@@ -127,8 +127,8 @@ describe('attaching verdicts back to the findings', () => {
     expect(merged[0].assessment).toBeUndefined();
   });
 
-  it('keeps a stored verdict when the check did not run', () => {
-    // A saved scan from the feature's own era keeps its verdict; only a new
+  it('keeps a stored assessment when the check did not run', () => {
+    // A saved scan from the feature's own era keeps its assessment; only a new
     // run that came back empty may clear it.
     const stored = {
       ...anomaly('a'),

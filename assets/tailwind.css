@@ -75,7 +75,7 @@
      light text on a mid-tone fill. */
   --color-on-risk-ink: #151c27;
 
-  /* ── Verdict tones ────────────────────────────────────────────────────
+  /* ── Assessment tones ────────────────────────────────────────────────────
      Three tiers rather than four, because the panel has four levels and three
      shapes: `low` and `moderate` are both "proceed, with something to check",
      so they share the caution fill and are told apart by the headline, which is
@@ -86,28 +86,28 @@
      token rather than --color-on-surface because that flips to light in the dark
      theme and would put light text on a mid-tone fill - the same reason
      --color-on-risk-ink exists above, and the same failure it was added to fix. */
-  --color-verdict-verified: #1b6d39;
-  --color-verdict-verified-container: #1b6d39;
-  --color-verdict-verified-on: #ffffff;
+  --color-assessment-verified: #1b6d39;
+  --color-assessment-verified-container: #1b6d39;
+  --color-assessment-verified-on: #ffffff;
 
-  --color-verdict-caution: #7c5800;
-  --color-verdict-caution-container: #feb700;
+  --color-assessment-caution: #7c5800;
+  --color-assessment-caution-container: #feb700;
   /* Near-black dark gold, not plain black. The prompt rules that keep the words
      "scam" and "fraud" off a named employer's are reader-facing obligations, and
      amber at #342800 is the only ink here that clears AA on #feb700 without
      reading as a second alert colour. */
-  --color-verdict-caution-on: #342800;
+  --color-assessment-caution-on: #342800;
 
-  --color-verdict-critical: #b20806;
-  --color-verdict-critical-container: #b20806;
-  --color-verdict-critical-on: #ffffff;
+  --color-assessment-critical: #b20806;
+  --color-assessment-critical-container: #b20806;
+  --color-assessment-critical-on: #ffffff;
 
-  /* No verdict. A posting that named no employer was never assessed, so this is
+  /* No assessment. A posting that named no employer was never assessed, so this is
      deliberately neutral rather than amber: amber already means caution, and
      reusing it here would dress an absent measurement as a finding. */
-  --color-verdict-unknown: #737971;
-  --color-verdict-unknown-container: #e2e8f8;
-  --color-verdict-unknown-on: #151c27;
+  --color-assessment-unknown: #737971;
+  --color-assessment-unknown-container: #e2e8f8;
+  --color-assessment-unknown-on: #151c27;
 
   /* ── Status chips ──────────────────────────────────────────────────────
      Pale fill, saturated text. A chip is a label beside content, not an alert on
@@ -185,25 +185,25 @@
   --color-error-container: #93000a;
   --color-on-error-container: #ffdad6;
 
-  /* Verdict tones, dark. The fills darken and the inks lighten together, so the
+  /* Assessment tones, dark. The fills darken and the inks lighten together, so the
      contrast ratio a chip or a banner was checked at in light is the same one in
      dark. A dark-mode fill left at its light-theme value reads as a lit panel
      inside an unlit one. */
-  --color-verdict-verified: #4ade80;
-  --color-verdict-verified-container: #14532d;
-  --color-verdict-verified-on: #ebf1ff;
+  --color-assessment-verified: #4ade80;
+  --color-assessment-verified-container: #14532d;
+  --color-assessment-verified-on: #ebf1ff;
 
-  --color-verdict-caution: #ffba22;
-  --color-verdict-caution-container: #7c5800;
-  --color-verdict-caution-on: #fff8e1;
+  --color-assessment-caution: #ffba22;
+  --color-assessment-caution-container: #7c5800;
+  --color-assessment-caution-on: #fff8e1;
 
-  --color-verdict-critical: #ffb4ab;
-  --color-verdict-critical-container: #93000a;
-  --color-verdict-critical-on: #ffdad6;
+  --color-assessment-critical: #ffb4ab;
+  --color-assessment-critical-container: #93000a;
+  --color-assessment-critical-on: #ffdad6;
 
-  --color-verdict-unknown: #909094;
-  --color-verdict-unknown-container: #2a313d;
-  --color-verdict-unknown-on: #e3e2e7;
+  --color-assessment-unknown: #909094;
+  --color-assessment-unknown-container: #2a313d;
+  --color-assessment-unknown-on: #e3e2e7;
 
   --color-chip-verified-bg: #16301f;
   --color-chip-verified-text: #7ddba0;
@@ -339,37 +339,37 @@
     box-shadow: 0 2px 0 0 color-mix(in srgb, var(--tactile-base), black 55%);
   }
 
-  /* ── Verdict surface ─────────────────────────────────────────────────
+  /* ── Assessment surface ─────────────────────────────────────────────────
      The filled tone container that replaces the risk gauge, and — since the
      "Full details and sources" disclosure took the same fill — the one place
      the two live.
 
      Every stop derives from one variable, the same way the buttons do, so a
      tone change cannot leave one edge, border or shadow on the old colour.
-     The tone modifiers below set only `--verdict-base` and `--verdict-ink`,
+     The tone modifiers below set only `--assessment-base` and `--assessment-ink`,
      which is what lets the disclosure carry the banner's tone by carrying the
      same modifier class: there is no second palette to keep in step.
 
-     `--verdict-base` is declared here rather than per-element so a bare
+     `--assessment-base` is declared here rather than per-element so a bare
      `.tactile-disclosure` with no tone modifier still resolves, to the same
      grey the banner falls back to. */
-  .tactile-verdict,
+  .tactile-assessment,
   .tactile-disclosure {
-    --verdict-base: var(--color-verdict-unknown-container);
-    --verdict-ink: var(--color-verdict-unknown-on);
+    --assessment-base: var(--color-assessment-unknown-container);
+    --assessment-ink: var(--color-assessment-unknown-on);
     background: linear-gradient(180deg,
-        color-mix(in srgb, var(--verdict-base), white 14%) 0%,
-        var(--verdict-base) 55%,
-        color-mix(in srgb, var(--verdict-base), black 12%) 100%);
-    color: var(--verdict-ink);
-    border: 1px solid color-mix(in srgb, var(--verdict-base), black 35%);
+        color-mix(in srgb, var(--assessment-base), white 14%) 0%,
+        var(--assessment-base) 55%,
+        color-mix(in srgb, var(--assessment-base), black 12%) 100%);
+    color: var(--assessment-ink);
+    border: 1px solid color-mix(in srgb, var(--assessment-base), black 35%);
     box-shadow:
-      0 4px 0 0 color-mix(in srgb, var(--verdict-base), black 55%),
+      0 4px 0 0 color-mix(in srgb, var(--assessment-base), black 55%),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
     border-radius: 0.75rem;
   }
 
-  .tactile-verdict {
+  .tactile-assessment {
     transition: background 0.15s ease;
   }
 
@@ -377,28 +377,28 @@
      container must not move is the same rule that keeps a card from reading as
      a button, and it is easier to keep when the exception is written down. */
 
-  .tactile-verdict-critical {
-    --verdict-base: var(--color-verdict-critical-container);
-    --verdict-ink: var(--color-verdict-critical-on);
+  .tactile-assessment-critical {
+    --assessment-base: var(--color-assessment-critical-container);
+    --assessment-ink: var(--color-assessment-critical-on);
   }
 
-  .tactile-verdict-caution {
-    --verdict-base: var(--color-verdict-caution-container);
-    --verdict-ink: var(--color-verdict-caution-on);
+  .tactile-assessment-caution {
+    --assessment-base: var(--color-assessment-caution-container);
+    --assessment-ink: var(--color-assessment-caution-on);
   }
 
-  .tactile-verdict-verified {
-    --verdict-base: var(--color-verdict-verified-container);
-    --verdict-ink: var(--color-verdict-verified-on);
+  .tactile-assessment-verified {
+    --assessment-base: var(--color-assessment-verified-container);
+    --assessment-ink: var(--color-assessment-verified-on);
   }
 
   /* ── Disclosure ──────────────────────────────────────────────────────
-     The "Full details and sources" header, wearing the verdict's tone so the
+     The "Full details and sources" header, wearing the assessment's tone so the
      panel reads as one object rather than a banner with a foreign card
      bolted under it.
 
-     It is the one element that takes the verdict surface AND a press state,
-     which is why it is not simply `.tactile-verdict` with a class appended.
+     It is the one element that takes the assessment surface AND a press state,
+     which is why it is not simply `.tactile-assessment` with a class appended.
      The banner is a measurement and must not move; this is operable and does.
      The sink is 2px rather than the button's 4px because a header sits flush
      against the body it opens, and a full-depth press would pull it away from
@@ -410,7 +410,7 @@
   .tactile-disclosure:active {
     transform: translateY(2px);
     box-shadow:
-      0 2px 0 0 color-mix(in srgb, var(--verdict-base), black 55%),
+      0 2px 0 0 color-mix(in srgb, var(--assessment-base), black 55%),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
   }
 
@@ -747,12 +747,12 @@
      translucent, theme-resolvable, and declared by hand like every custom-token
      variant above — an undeclared one generates nothing and the card falls back
      to preflight grey. */
-  .border-verdict-caution\/40 {
-    border-color: color-mix(in srgb, var(--color-verdict-caution) 40%, transparent);
+  .border-assessment-caution\/40 {
+    border-color: color-mix(in srgb, var(--color-assessment-caution) 40%, transparent);
   }
 
-  .border-verdict-verified\/30 {
-    border-color: color-mix(in srgb, var(--color-verdict-verified) 30%, transparent);
+  .border-assessment-verified\/30 {
+    border-color: color-mix(in srgb, var(--color-assessment-verified) 30%, transparent);
   }
 
   .bg-error\/30 {

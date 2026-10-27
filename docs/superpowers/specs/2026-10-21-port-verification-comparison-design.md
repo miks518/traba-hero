@@ -16,9 +16,9 @@ that a scam borrowing a real employer's name is not laundered by that employer's
 record?*
 
 While it was open, `main` moved the same ground in a different direction. The verify
-model now emits **facts** and the **code** assigns the verdict: `channel_match.py` turns
+model now emits **facts** and the **code** assigns the assessment: `channel_match.py` turns
 `printed_channels` / `official_channels` / `government_claim` into a status and an
-`escalation`, and `verdict.py` computes the level and the score. The branch's design
+`escalation`, and `assessment.py` computes the level and the score. The branch's design
 does the opposite — the model owns the level (`_read_risk_level`, `_read_risk_score`),
 owns the identity comparison (`results_entity`, `name_comparison`), and owns the
 corroboration of the scan's findings (`findingCorroborations`).
@@ -55,11 +55,11 @@ ac918e0  docs: record the verification findings decision, and pin the live probe
 8454366  feat(verify): give the verification stage the scan's findings
 ```
 
-| Commit | Worth | Verdict |
+| Commit | Worth | Assessment |
 |---|---|---|
 | `2b34784` | The scan writes **one typed line per channel** and the type it claims. `CONTACT_METHOD` becomes repeatable, `CLAIMED_TYPE` is added. | **Port** |
 | `8f71e25` | `search_planner.py`: entity resolution, planned follow-up queries, result labelling, `VERIFY_SEARCH_MODE`. | **Port** |
-| `8454366`, `50c5931`, `29fcf66` | The scan's findings reach the verifier, and nothing is shown as a finding until the search has confirmed it. | **Already on `main`** as `anomaly_assessments` + `verdict.py`, code-owned. Do not port. |
+| `8454366`, `50c5931`, `29fcf66` | The scan's findings reach the verifier, and nothing is shown as a finding until the search has confirmed it. | **Already on `main`** as `anomaly_assessments` + `assessment.py`, code-owned. Do not port. |
 | `6d8aac4`, `900038f` | The findings reach the verifier; the scan enumerates every channel. | Split: the channel half is in `2b34784` (port), the findings half is `8454366` (skip). |
 | `e3a9639` | The identity comparison as a structured step: `results_entity`, `name_comparison`. | **Do not port as model-owned fields.** The question stays open — see §5. |
 | `ac918e0`, `0a05bbd`, `70eb6b0` | The decision record, the tests that pin it, the live probe. | Rewrite, do not copy — see §4. |
@@ -93,7 +93,7 @@ as-is, because it documents a design `main` has replaced:
 - It states the findings reach the verifier "as facts and **not** as severities".
   **False on `main`** — `_findings_block` sends `[{severity}] {flag}`.
 - It states the three prompt rules (identity, every channel, the level) are in force.
-  **False on `main`** — the level is computed in `verdict.py` and the channel status in
+  **False on `main`** — the level is computed in `assessment.py` and the channel status in
   `channel_match.py`.
 - It points at `name_comparison` and `results_entity`, which are not being ported.
 
@@ -123,7 +123,7 @@ different mechanism, and it is weaker: a scam that borrows a real employer's nam
 asks for nothing unusual is not caught by either.
 
 The branch's answer was to make the model emit `name_comparison: same | differs |
-unclear`. That is a model-owned verdict, and `main`'s direction is facts-not-status:
+unclear`. That is a model-owned assessment, and `main`'s direction is facts-not-status:
 `channel_match.py` is precisely the case of a model-written conclusion that was moved
 into code.
 
@@ -158,7 +158,7 @@ Two additions to the verify result event:
   returned.
 
 The branch's own commit says it plainly: *"Shipped OFF. Nothing here has been shown to
-improve a verdict, and the fixtures that would decide it have not been run."* That
+improve a assessment, and the fixtures that would decide it have not been run."* That
 stays true after the port. The flag exists so the question can be answered later with
 one line of change.
 

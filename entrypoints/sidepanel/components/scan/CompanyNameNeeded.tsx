@@ -10,7 +10,7 @@ import { Icon } from '../common';
  * as one more thing we found out.
  *
  * There is no text input on purpose. A typed company name would flow straight
- * into the verification prompt, which produces a verdict naming a real company.
+ * into the verification prompt, which produces a assessment naming a real company.
  */
 export function CompanyNameNeeded() {
   return (

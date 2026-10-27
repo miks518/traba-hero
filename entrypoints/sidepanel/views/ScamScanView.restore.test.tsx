@@ -61,7 +61,7 @@ describe('restoreScanResult', () => {
     // A job saved before its verification returned stores `loading: true` with
     // no result. Clearing the flag alone leaves the panel claiming a search
     // completed and found nothing — for a search that never ran, and directly
-    // above a verdict about a posting that was never checked against its
+    // above a assessment about a posting that was never checked against its
     // employer. `WhatWeChecked` reads the absence as "could not complete", which
     // asserts neither that the search failed nor that it succeeded.
     const { restoreScanResult } = await import('./ScamScanView');

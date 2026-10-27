@@ -1,6 +1,6 @@
-"""The one-line verdict reason.
+"""The one-line assessment reason.
 
-The report panel's verdict block has two parts: an authored headline derived
+The report panel's assessment block has two parts: an authored headline derived
 from the level, and one sentence saying why, for *this* posting. The headline
 is authored so it cannot drift between runs. This field is the reason it is not
 also authored â€” the reason has to reference what the posting actually said, and
@@ -24,7 +24,7 @@ import pytest
 from app.services.scanner.verification_flow import _read_verify_output
 from app.services.scanner.verification_prompt import (
     VERIFY_RESPONSE_SCHEMA,
-    verdict_reason_is_clean,
+    assessment_reason_is_clean,
 )
 
 
@@ -53,15 +53,15 @@ def _json(**overrides):
 
 
 def test_the_schema_carries_the_reason_and_requires_it():
-    assert "verdict_reason" in VERIFY_RESPONSE_SCHEMA["properties"]
-    assert "verdict_reason" in VERIFY_RESPONSE_SCHEMA["required"]
+    assert "assessment_reason" in VERIFY_RESPONSE_SCHEMA["properties"]
+    assert "assessment_reason" in VERIFY_RESPONSE_SCHEMA["required"]
 
 
 def test_the_schema_caps_the_reason_at_a_length_a_one_line_slot_can_hold():
     """A cap the provider enforces is better than a cap this code truncates to:
     truncation produces a sentence that ends mid-clause, which reads as a bug.
     """
-    prop = VERIFY_RESPONSE_SCHEMA["properties"]["verdict_reason"]
+    prop = VERIFY_RESPONSE_SCHEMA["properties"]["assessment_reason"]
 
     assert prop.get("maxLength") == 140
 
@@ -73,7 +73,7 @@ def test_the_reason_is_read_from_the_json():
     _, _, _, _, _, _, _, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
         '"risk_level": "high", "risk_score": 70, '
-        '"verdict_reason": "This post asks you to send application documents to a third-party site."}'
+        '"assessment_reason": "This post asks you to send application documents to a third-party site."}'
     )
 
     assert reason == "This post asks you to send application documents to a third-party site."
@@ -81,7 +81,7 @@ def test_the_reason_is_read_from_the_json():
 
 def test_an_absent_reason_is_empty_rather_than_an_error():
     """A verification recorded before this field must still render. The
-    headline carries the verdict on its own; the reason is an addition.
+    headline carries the assessment on its own; the reason is an addition.
     """
     _, _, _, _, _, _, _, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
@@ -94,7 +94,7 @@ def test_an_absent_reason_is_empty_rather_than_an_error():
 def test_a_blank_reason_is_empty():
     _, _, _, _, _, _, _, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
-        '"risk_level": "low", "risk_score": 10, "verdict_reason": "   "}'
+        '"risk_level": "low", "risk_score": 10, "assessment_reason": "   "}'
     )
 
     assert reason == ""
@@ -121,11 +121,11 @@ def test_a_reason_breaking_the_tone_rules_is_dropped(reason):
     """The single most visible sentence in the product, and the only one a
     model writes.
 
-    A verdict naming a post a scam is the libel exposure the whole prompt rule
+    A assessment naming a post a scam is the libel exposure the whole prompt rule
     set exists to prevent, and putting it in the panel's headline slot would
     make it the most prominent instance of exactly that.
     """
-    assert verdict_reason_is_clean(reason) is False
+    assert assessment_reason_is_clean(reason) is False
 
 
 @pytest.mark.parametrize(
@@ -145,17 +145,17 @@ def test_an_ordinary_reason_survives_the_screen(reason):
     slot. Screening those would leave the block with nothing but an authored
     headline and no explanation, which is the panel working least.
     """
-    assert verdict_reason_is_clean(reason) is True
+    assert assessment_reason_is_clean(reason) is True
 
 
-def test_a_banned_reason_leaves_the_verdict_intact():
+def test_a_banned_reason_leaves_the_assessment_intact():
     """Degradation, not failure. The level and the checks are unaffected; only
-    the sentence is withheld, so the reader still gets the verdict.
+    the sentence is withheld, so the reader still gets the assessment.
     """
     items, _, _, _, _, level, score, reason, _assessments = _read_verify_output(
         '{"checks": [], "evidence": [], "report": "r", "recommendation": "x", '
         '"risk_level": "critical", "risk_score": 95, '
-        '"verdict_reason": "This is definitely a scam."}'
+        '"assessment_reason": "This is definitely a scam."}'
     )
 
     assert reason == ""
@@ -195,7 +195,7 @@ async def test_the_reason_reaches_the_wire():
         "recommendation": "Ask the recruiter to confirm the address on the company website.",
         "risk_level": "high",
         "risk_score": 70,
-        "verdict_reason": "It sends your documents to a site that is not the employer's own.",
+        "assessment_reason": "It sends your documents to a site that is not the employer's own.",
     })
 
     with patch("app.routers.scan.chat", return_value=payload):
@@ -208,7 +208,7 @@ async def test_the_reason_reaches_the_wire():
             )
 
     assert resp.status_code == 200
-    assert '"verdictReason"' in resp.text
+    assert '"assessmentReason"' in resp.text
     assert "not the employer&#39;s own" in resp.text or "not the employer's own" in resp.text
 
 
@@ -238,7 +238,7 @@ async def test_a_banned_reason_reaches_the_wire_as_empty():
         "recommendation": "x",
         "risk_level": "critical",
         "risk_score": 95,
-        "verdict_reason": "This is definitely a scam.",
+        "assessment_reason": "This is definitely a scam.",
     })
 
     with patch("app.routers.scan.chat", return_value=payload):
@@ -250,14 +250,14 @@ async def test_a_banned_reason_reaches_the_wire_as_empty():
                 json={"company_name": "Acme Corp", "job_summary": "Developer at Acme Corp"},
             )
 
-    assert '"verdictReason": ""' in resp.text
+    assert '"assessmentReason": ""' in resp.text
     assert "definitely a scam" not in resp.text
-    # The model's `risk_level` is no longer the verdict. This response carries
+    # The model's `risk_level` is no longer the assessment. This response carries
     # no usable check and no channel facts, so the code has nothing to score and
-    # emits no verdict. The sentence is withheld and the model's "critical" did
+    # emits no assessment. The sentence is withheld and the model's "critical" did
     # not reach the wire - which is the point of moving the level into code.
-    assert '"verdict": "critical"' not in resp.text
-    assert '"verdict": null' in resp.text
+    assert '"assessment": "critical"' not in resp.text
+    assert '"assessment": null' in resp.text
     assert '"riskLevel"' not in resp.text
 
 
@@ -269,7 +269,7 @@ def test_the_prompt_file_states_the_rule():
 
     prompt = load_verify_prompt()
 
-    assert "verdict_reason" in prompt
+    assert "assessment_reason" in prompt
     assert "one sentence" in prompt.lower()
 
 
@@ -280,5 +280,5 @@ def test_the_fallback_prompt_states_the_rule():
     """
     from app.services.scanner.verification_prompt import _FALLBACK_VERIFY_PROMPT
 
-    assert "verdict_reason" in _FALLBACK_VERIFY_PROMPT
+    assert "assessment_reason" in _FALLBACK_VERIFY_PROMPT
     assert "one sentence" in _FALLBACK_VERIFY_PROMPT.lower()

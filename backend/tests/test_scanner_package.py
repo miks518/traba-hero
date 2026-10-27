@@ -206,9 +206,9 @@ def test_the_package_no_longer_exports_the_retired_calculator_surface():
 
     The module `risk_calculator.py` is now deleted entirely. The arithmetic it
     held (`_posting_risk_from_flags`, `_combine_scores`, `_level_for`,
-    `_refutation_score_from_verify`) moved to `verdict.py` and `establishment.py`,
+    `_refutation_score_from_verify`) moved to `assessment.py` and `establishment.py`,
     and the AHP derivation (`POSTING_SEVERITY_WEIGHTS`, `REFUTATION_WEIGHTS`,
-    `derive_refutation_weights.py`) is gone. The verdict is a decision procedure
+    `derive_refutation_weights.py`) is gone. The assessment is a decision procedure
     over two axes, not a sum of weights.
     """
     scanner = importlib.import_module("app.services.scanner")
@@ -225,7 +225,7 @@ def test_the_package_no_longer_exports_the_retired_calculator_surface():
 
     # The module itself is deleted.
     assert importlib.util.find_spec("app.services.scanner.risk_calculator") is None, (
-        "risk_calculator.py was deleted; the verdict replaced it"
+        "risk_calculator.py was deleted; the assessment replaced it"
     )
 
 

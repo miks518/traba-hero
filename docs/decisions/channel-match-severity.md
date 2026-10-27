@@ -3,7 +3,7 @@
 Owner files: `backend/app/services/scanner/channel_match.py`,
 `backend/VERIFY_PROMPT.md`,
 `backend/app/services/scanner/verification_prompt.py`,
-`verification_flow.py`, `verdict.py`.
+`verification_flow.py`, `assessment.py`.
 
 ---
 
@@ -135,7 +135,7 @@ employer, and it needs a result to stand.
 
 ## The strong-channel floor
 
-`verdict.py` gives a **red** Channel Match with escalation `government` or
+`assessment.py` gives a **red** Channel Match with escalation `government` or
 `lookalike` a floor of `high` (51). One refuted category is normally 25 points,
 which is `low`; that is right for "we could not confirm the channel" and wrong for
 "a government office sends applicants to a domain that is not its own."
@@ -155,15 +155,15 @@ official domain.
 ## What the model no longer writes
 
 The verify schema has seven keys: `checks`, `evidence`, `report`,
-`recommendation`, `verdict_reason`, `anomaly_assessments`, `channel_match`. It
+`recommendation`, `assessment_reason`, `anomaly_assessments`, `channel_match`. It
 does not have `risk_level` or `risk_score`, and the prompt does not ask for a
 Channel Match entry in `checks` (the enum still accepts one so a model that
 ignores the instruction does not fail the whole verification).
 
 The parser still reads `risk_level` and `risk_score` from older or schema-less
 responses, so a stored result remains diagnosable. The flow logs them and does not
-pass them to `code_verdict`. `tests/test_code_verdict.py` fails if the flow stops
-calling `code_verdict` or if the schema starts asking for a level again.
+pass them to `code_assessment`. `tests/test_code_assessment.py` fails if the flow stops
+calling `code_assessment` or if the schema starts asking for a level again.
 
 ---
 
@@ -171,16 +171,16 @@ calling `code_verdict` or if the schema starts asking for a level again.
 
 - `tests/test_channel_match.py` — the rules, the free-provider list, the lookalike
   cases, the combination rule, the source binding, and the card rules.
-- `tests/test_code_verdict.py` — the calculator is live, the model's fields are not
-  the verdict, the strong-channel floor, and the three "unassessed is not low"
+- `tests/test_code_assessment.py` — the calculator is live, the model's fields are not
+  the assessment, the strong-channel floor, and the three "unassessed is not low"
   contracts.
 - `tests/test_channel_match_regressions.py` — the two permanent fixtures through
   `/api/verify`: Knollridges is not "Do not proceed"; Fake CHED is critical and the
   `chred` channel is red. Both mock search and chat at the router boundary. The
   fixtures assert the **headline the reader sees**, not only the level, by reading
-  `verdictCopy.ts`'s own table — the level and the words are a contract, and a test
+  `assessmentCopy.ts`'s own table — the level and the words are a contract, and a test
   that pins one half lets the other half drift into saying "Do not proceed".
-- `entrypoints/sidepanel/components/report/verdictCopy.test.ts` — the other half of
+- `entrypoints/sidepanel/components/report/assessmentCopy.test.ts` — the other half of
   that contract: the level → headline mapping, and that no level below `critical`
   ever tells the reader to stop.
 

@@ -387,7 +387,7 @@ prevent, one layer up.
 
 The query is therefore built from words the **poster wrote**: the named platform
 if any, the payment mechanism, the task shape. `"Shopee GCash daily task"`. This
-cannot smuggle in a verdict, because the poster is the only author.
+cannot smuggle in a assessment, because the poster is the only author.
 
 ### Problem 1: the same fact counted twice
 
@@ -467,7 +467,7 @@ scores 12 and reads "Low Risk", while one `high` finding scores 40 and reads
 of the strongest item is a scoring-design decision, and it has not been made.
 
 It interacts directly with Proposal 3: a posting with a single spurious `high`
-scores 40 on its own, so one false positive moves the verdict by two bands. That
+scores 40 on its own, so one false positive moves the assessment by two bands. That
 is a stronger argument for measuring the misfire rate than the framing defect was.
 
 Options for the double-counting specifically:

@@ -19,7 +19,7 @@
 - **Confirmed claims add exactly 0.** Verification withholds trust; it never grants it.
 - **Query terms come from posting content, never from model-written anomaly labels.** A `high`-severity label is a characterisation; using it as a query term reintroduces the conclusion-in-query bias `search.py` bans.
 - **The employer name is used verbatim.** No corporate-suffix strip, no rewrite, anywhere.
-- **No verdict words from any model output.** Banned: scam, legitimate, suspicious, genuine, fraudulent, honest. Also banned in `finding`: verified, safe, authorized.
+- **No assessment words from any model output.** Banned: scam, legitimate, suspicious, genuine, fraudulent, honest. Also banned in `finding`: verified, safe, authorized.
 - **Legacy paths stay.** `RED FLAG` remains an accepted parse keyword; `EMPLOYER NAME` remains accepted alongside `COMPANY NAME`. Do not remove either.
 - **Preserve `SearchOutcome.ok`/`.results` independence** and the `search_partial` state. Every task touching retrieval must keep both.
 
@@ -319,7 +319,7 @@ Replace the `END JOB SUMMARY`-handling block so the new terminators are skipped 
             result["company_name"] = rest.strip()
         elif kw == "POSTING ANALYSIS":
             # Assessment of the posting's structure, kept separate from the job
-            # summary so the panel can show the verdict and the role separately.
+            # summary so the panel can show the assessment and the role separately.
             section = kw.lower().replace(" ", "_")
             if rest:
                 buf.append(rest)
@@ -749,7 +749,7 @@ def test_green_confirms_and_adds_nothing(prompt):
     ), "green must mean a retrieved source supports the claim"
 
 
-def test_no_verdict_words_in_the_output_rules(prompt):
+def test_no_assessment_words_in_the_output_rules(prompt):
     for word in ("legitimate", "fraudulent", "genuine"):
         assert f"never use {word}" in prompt or f"do not use {word}" in prompt or \
             f"never write {word}" in prompt, (
@@ -1727,7 +1727,7 @@ interface EvidenceSummaryProps {
 /**
  * What the search found, with sources. Renamed from "External Verification":
  * that named the mechanism (external, meaning the web) and implied an actor
- * reaching a verdict. This section reports, and the reader draws the line.
+ * reaching a assessment. This section reports, and the reader draws the line.
  *
  * The heading is derived from state. A section titled "Evidence Summary" over
  * an empty list asserts that evidence was summarised when none was, so the

@@ -1,7 +1,7 @@
 """Prompt for the post-only analysis pass.
 
 This runs when a posting names no employer, so there is nothing to look up and
-the external verifier is skipped. The user still needs a verdict, so the offer is
+the external verifier is skipped. The user still needs a assessment, so the offer is
 analysed on its own terms. The scope is deliberately wider than "is this a
 formatted job ad": much of what reaches a job seeker arrives as a chat message or
 a forwarded paragraph, and those are just as worth assessing.
@@ -18,11 +18,11 @@ OUTPUT RULES (apply to every field, in any language):
 - Do not use absolutes: always, never, definitely, guaranteed, 100%.
 - Plain sentences only inside the values. No markdown, no bullets, no headings, no emoji.
 
-OUTPUT FORMAT: return one JSON object and nothing else, with exactly these keys: "kind", "verdict", "what_it_asks", "what_it_offers", "what_to_check", "is_offer", "codes". Say this even if no output schema is supplied to you — the object is the answer, and the plain-sentence rule above applies to what you write inside it, not to the object wrapping it.
+OUTPUT FORMAT: return one JSON object and nothing else, with exactly these keys: "kind", "assessment", "what_it_asks", "what_it_offers", "what_to_check", "is_offer", "codes". Say this even if no output schema is supplied to you — the object is the answer, and the plain-sentence rule above applies to what you write inside it, not to the object wrapping it.
 
 Field rules:
 - kind: a short noun phrase describing the content, for example "Job advertisement", "Chat message", "Earnings scheme", "Recruitment pitch". Set it to exactly NOT_OFFER only when there is no offer of work or income in the content at all.
-- verdict: one sentence stating what this offer is and whether the reader can proceed safely. If the offer asks the reader for any payment, deposit, or fee, say plainly that it asks for money before work. Do not use the words scam or fraud.
+- assessment: one sentence stating what this offer is and whether the reader can proceed safely. If the offer asks the reader for any payment, deposit, or fee, say plainly that it asks for money before work. Do not use the words scam or fraud.
 - what_it_asks: one sentence stating what the poster asks the reader to do, including any payment, deposit, or personal information requested. Write "Nothing beyond a reply" if the content requests no action, no money, and no personal details.
 - what_it_offers: one sentence stating what the poster says the reader will receive, such as pay, hours, or a position. Write "Not stated" if the content does not say.
 - what_to_check: one sentence naming one concrete thing to confirm, such as the employer's registered name or a written contract before paying anything.
@@ -36,7 +36,7 @@ ANALYZE_OFFER_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
         "kind": {"type": "string"},
-        "verdict": {"type": "string"},
+        "assessment": {"type": "string"},
         "what_it_asks": {"type": "string"},
         "what_it_offers": {"type": "string"},
         "what_to_check": {"type": "string"},
@@ -44,7 +44,7 @@ ANALYZE_OFFER_RESPONSE_SCHEMA = {
         "codes": {"type": "array", "items": {"type": "string"}},
     },
     "required": [
-        "kind", "verdict", "what_it_asks", "what_it_offers", "what_to_check", "is_offer",
+        "kind", "assessment", "what_it_asks", "what_it_offers", "what_to_check", "is_offer",
         "codes",
     ],
     "additionalProperties": False,

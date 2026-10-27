@@ -60,7 +60,7 @@ async def test_early_exit_stops_stream_on_valid_false():
     async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         for piece in [
             "VALID: false\n",
-            "VERDICT_PERCENTAGE: 0\n",
+            "ASSESSMENT_PERCENTAGE: 0\n",
             "ANALYSIS:\nnot a job\nEND ANALYSIS\n",
             "JOB SUMMARY:\nfoo\nEND JOB SUMMARY\n",
         ]:
@@ -91,7 +91,7 @@ async def test_no_early_exit_on_valid_true():
     async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         for piece in [
             "VALID: true\n",
-            "VERDICT_PERCENTAGE: 10\n",
+            "ASSESSMENT_PERCENTAGE: 10\n",
             "END FLAGS\n",
             "ANALYSIS:\nlooks fine\nEND ANALYSIS\n",
             "JOB SUMMARY:\nEngineer at ACME developing web applications.\nApplicants need TypeScript and two years of experience.\nEND JOB SUMMARY\n",
@@ -127,7 +127,7 @@ async def test_partial_valid_false_does_not_trigger_early_exit():
         for piece in [
             "VALID: fal",
             "se\n",
-            "VERDICT_PERCENTAGE: 0\n",
+            "ASSESSMENT_PERCENTAGE: 0\n",
             "END FLAGS\n",
             "ANALYSIS:\nnot a job\nEND ANALYSIS\n",
             "JOB SUMMARY:\nn/a\nEND JOB SUMMARY\n",
@@ -160,7 +160,7 @@ async def test_invalid_skips_email_and_company_search():
     async def fake_stream(messages, max_tokens=None, temperature=None, top_p=None, **kwargs):
         # Model ignores stop instruction and emits full output with VALID: false
         yield "VALID: false\n"
-        yield "VERDICT_PERCENTAGE: 0\n"
+        yield "ASSESSMENT_PERCENTAGE: 0\n"
         yield "END FLAGS\n"
         yield "ANALYSIS:\nnot a job post\nEND ANALYSIS\n"
         yield "JOB SUMMARY:\nn/a\nEND JOB SUMMARY\n"

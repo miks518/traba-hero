@@ -148,7 +148,7 @@ class TestTheGuardrailsSurvivedTheMove:
         """Both decisions are code-owned, and the prompt says so.
 
         The model still writes the report and the recommendation, but the overall
-        level and the Channel Match status come from `verdict.py` and
+        level and the Channel Match status come from `assessment.py` and
         `channel_match.py`. If the prompt asked for either, the schema would drop
         it and the model's answer would carry a field the flow ignores - the
         half-wired shape this split exists to remove.

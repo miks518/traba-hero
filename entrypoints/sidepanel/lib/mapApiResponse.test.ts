@@ -15,7 +15,7 @@ function scanResponse(over: Partial<ApiScanResponse> = {}): ApiScanResponse {
 describe('mapApiResponse and the request class', () => {
   it('carries the class through unchanged', () => {
     // The class is decided by the backend from the posting's own findings.
-    // Dropping it here would leave the panel with a verdict it cannot explain,
+    // Dropping it here would leave the panel with a assessment it cannot explain,
     // and defaulting it would invent a class the backend never reached.
     expect(mapApiResponse(scanResponse({ request_class: 'prohibited' })).requestClass).toBe(
       'prohibited',

@@ -9,7 +9,7 @@ import { mapAnomalyAssessments } from './api';
  * status it may pass through to a lookup table that has no entry for it.
  */
 describe('mapping the assessment list from the verify wire', () => {
-  it('keeps the index, the sentence, and the source of a stale verdict', () => {
+  it('keeps the index, the sentence, and the source of a stale assessment', () => {
     const mapped = mapAnomalyAssessments([
       {
         index: 2,
@@ -46,7 +46,7 @@ describe('mapping the assessment list from the verify wire', () => {
 
   it('preserves absent as undefined and an empty list as an empty list', () => {
     // The panel says different things for "this reading predates the check" and
-    // "the check ran and produced no verdict". Defaulting one to the other makes
+    // "the check ran and produced no assessment". Defaulting one to the other makes
     // one of those notes false.
     expect(mapAnomalyAssessments(undefined)).toBeUndefined();
     expect(mapAnomalyAssessments([])).toEqual([]);

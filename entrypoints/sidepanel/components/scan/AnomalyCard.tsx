@@ -22,8 +22,8 @@ const SEVERITY_STYLES: Record<string, { bg: string; text: string; border: string
   // is the alarm, so it is the one place in the panel that gets full-strength
   // colour.
   high: { bg: 'bg-chip-critical-bg', text: 'text-error', border: 'border-error' },
-  mid: { bg: 'bg-chip-caution-bg', text: 'text-verdict-caution', border: 'border-verdict-caution/40' },
-  low: { bg: 'bg-chip-verified-bg', text: 'text-verdict-verified', border: 'border-verdict-verified/30' },
+  mid: { bg: 'bg-chip-caution-bg', text: 'text-assessment-caution', border: 'border-assessment-caution/40' },
+  low: { bg: 'bg-chip-verified-bg', text: 'text-assessment-verified', border: 'border-assessment-verified/30' },
 };
 
 export function AnomalyCard({ anomaly }: AnomalyCardProps) {

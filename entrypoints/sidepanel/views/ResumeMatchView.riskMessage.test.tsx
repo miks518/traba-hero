@@ -11,7 +11,7 @@
 // The misleading identifier is part of the cause: `suspicious` reads like it
 // means the risky levels, so anyone extending this branch would reasonably
 // assume the dangerous jobs were already handled. The test therefore asserts the
-// message for every verdict, not just that the critical case changed.
+// message for every assessment, not just that the critical case changed.
 
 import { describe, it, expect, afterEach, vi } from 'vitest';import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import React from 'react';
@@ -27,13 +27,13 @@ vi.mock('../lib/api', () => ({
   clearHistory: vi.fn().mockResolvedValue(undefined),
 }));
 
-const job = (verdict: string | null): ScannedJob =>
+const job = (assessment: string | null): ScannedJob =>
   ({
-    id: `job-${verdict}`,
+    id: `job-${assessment}`,
     timestamp: Date.now(),
     scanResult: {
-      verdict,
-      verdicted: verdict !== null,
+      assessment,
+      assessed: assessment !== null,
       isJobPosting: true,
       postingAnalysis: 'A posting.',
       jobSummary: 'A role.',
@@ -51,10 +51,10 @@ const RESUME = {
 };
 
 /** Minimal resume, because the view renders a preview when one is present. */
-function renderWith(verdict: string | null, jobs?: ScannedJob[]) {
+function renderWith(assessment: string | null, jobs?: ScannedJob[]) {
   return render(
     React.createElement(ResumeMatchView, {
-      scannedJobs: jobs ?? [job(verdict)],
+      scannedJobs: jobs ?? [job(assessment)],
       resumeData: RESUME,
       onResumeData: vi.fn(),
       onScanComplete: vi.fn(),
@@ -76,7 +76,7 @@ function expandFirstRow() {
   fireEvent.click(rows[0]);
 }
 
-describe('the per-job matching status is correct for every verdict', () => {
+describe('the per-job matching status is correct for every assessment', () => {
   it('says a stop job is excluded', async () => {
     const { container } = renderWith('stop');
     await act(async () => {
@@ -122,12 +122,12 @@ describe('the per-job matching status is correct for every verdict', () => {
     expect(container.textContent ?? '').toMatch(/Not yet assessed/i);
   });
 
-  it('says out loud when a verdict word came from the previous procedure', async () => {
-    // A stored reading has no request class and no establishment, so its verdict
+  it('says out loud when a assessment word came from the previous procedure', async () => {
+    // A stored reading has no request class and no establishment, so its assessment
     // was mapped from the retired level. Showing that word without saying where
     // it came from would present a legacy label as a decision this system made.
     const legacy = job('caution');
-    legacy.scanResult.verdictRecordedUnder = 'previous-procedure';
+    legacy.scanResult.assessmentRecordedUnder = 'previous-procedure';
 
     const { container } = renderWith('caution', [legacy]);
     await act(async () => {
@@ -151,9 +151,9 @@ describe('the per-job matching status is correct for every verdict', () => {
   });
 });
 
-describe('verdict badges are distinguishable', () => {
+describe('assessment badges are distinguishable', () => {
   /**
-   * The row badge carrying a verdict word — not a filter chip, not a control.
+   * The row badge carrying a assessment word — not a filter chip, not a control.
    * Substring, not exact: the icon inside the badge renders its ligature name as
    * text (`gpp_maybeCaution`), and no other span in the row contains the word.
    */
@@ -173,8 +173,8 @@ describe('verdict badges are distinguishable', () => {
 
   it('Caution wears the caution chip, Note the verified chip', () => {
     // The badge summarises the report banner, whose tone table gives `caution`
-    // the caution tone and `note` the verified one (`verdictCopy.ts`; the same
-    // three-tone decision is documented on the verdict tokens in
+    // the caution tone and `note` the verified one (`assessmentCopy.ts`; the same
+    // three-tone decision is documented on the assessment tokens in
     // `tailwind.config.js`). Red is `stop`'s alone.
     //
     // This test used to grep the row's innerHTML for `text-error` / `text-green`
@@ -193,7 +193,7 @@ describe('verdict badges are distinguishable', () => {
   });
 });
 
-describe('the matching input is the matchable verdicts', () => {
+describe('the matching input is the matchable assessments', () => {
   it('never feeds a stop or caution job to the matcher', async () => {
     const matchResumeStream = vi.fn();
     vi.doMock('../lib/api', () => ({

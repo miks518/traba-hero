@@ -1,56 +1,56 @@
 /**
- * Every word the verdict block and the action block say.
+ * Every word the assessment block and the action block say.
  *
- * **All of it is authored here, in code, and looked up by verdict.** Nothing in
+ * **All of it is authored here, in code, and looked up by assessment.** Nothing in
  * this file may ever be written by a model. That is the whole point of the file
  * existing, and it is not a stylistic preference:
  *
  * 1. **It cannot drift between runs.** A generated phrase is a fresh variance
- *    source on every scan, and verdict stability is a thing this project
+ *    source on every scan, and assessment stability is a thing this project
  *    measures. An authored table makes phrase stability trivially constant, so
- *    the measurement that remains is verdict stability — a better thing to measure,
+ *    the measurement that remains is assessment stability — a better thing to measure,
  *    since a phrase is not comparable across two postings in any case.
  * 2. **It keeps the libel guardrail in code.** These are instructions read by
  *    someone deciding about their own money and documents. Four reviewed strings
  *    cannot assert something the evidence does not support; a model-written
  *    headline can, on any given run, with no acceptable failure rate.
  *
- * Source: `docs/decisions/report-panel-redesign.md` "Verdict phrases are
+ * Source: `docs/decisions/report-panel-redesign.md` "Assessment phrases are
  * authored, not generated"; `docs/superpowers/specs/2026-10-17-report-panel-architecture.md`
  * §3.
  */
 
-import type { Verdict } from '../../types';
+import type { Assessment } from '../../types';
 
 /**
- * Four tones for four verdicts.
+ * Four tones for four assessments.
  *
  * `stop` gets the critical tone (red). `caution` gets the caution tone (amber).
  * `note` gets the verified tone (green) because the employer is confirmed/supported.
  * `clear` gets the verified tone (green) because the request is ordinary.
  * `unknown` gets the unknown tone (grey) for missing employer / in-flight.
  */
-export type VerdictTone = 'critical' | 'caution' | 'verified' | 'unknown';
+export type AssessmentTone = 'critical' | 'caution' | 'verified' | 'unknown';
 
-export interface VerdictCopy {
+export interface AssessmentCopy {
   /** Short imperative instruction. The reader acts on this. */
   headline: string;
-  tone: VerdictTone;
+  tone: AssessmentTone;
 }
 
 /**
- * The phrase table. Four verdicts, four reviewed strings.
+ * The phrase table. Four assessments, four reviewed strings.
  *
  * Written as imperatives addressed to the reader, because the design settles
- * this: *the verdict is a short instruction plus a one-line reason, not a number
+ * this: *the assessment is a short instruction plus a one-line reason, not a number
  * or a level word*. "Proceed" tells a reader what to do; "Low Risk" tells them
  * where they landed — and the latter overclaims when the posting was unchecked.
  *
  * "Do not proceed" is the ace card: it is the headline for `stop` only, and
- * `stop` requires a contradiction. Every other verdict states what was found
+ * `stop` requires a contradiction. Every other assessment states what was found
  * and what the record showed.
  */
-const VERDICT_TABLE: Record<Verdict, VerdictCopy> = {
+const ASSESSMENT_TABLE: Record<Assessment, AssessmentCopy> = {
   stop: {
     headline: 'Do not proceed',
     tone: 'critical',
@@ -70,17 +70,17 @@ const VERDICT_TABLE: Record<Verdict, VerdictCopy> = {
 };
 
 /**
- * The one state with no verdict behind it.
+ * The one state with no assessment behind it.
  *
  * Reached when the posting named no employer, so the employer check could not
  * run. **Not** rendered as a clean result: the posting stage scores zero when a
  * posting raises no indicators, and showing that as reassurance would claim the
  * post was cleared when it was unchecked. This is the panel's answer to the same
  * question `CompanyNameNeeded` answers in prose — that state still exists as its
- * own component, and the banner here only declines to assert a verdict.
+ * own component, and the banner here only declines to assert a assessment.
  */
-export const NO_VERDICT: VerdictCopy = {
-  headline: 'No verdict on this one',
+export const NO_ASSESSMENT: AssessmentCopy = {
+  headline: 'No assessment on this one',
   tone: 'unknown',
 };
 
@@ -88,31 +88,31 @@ export const NO_VERDICT: VerdictCopy = {
  * What the banner says while the employer lookup is still running.
  *
  * The tone is `unknown` rather than the posting stage's own level, on purpose.
- * The scan returns a verdict from the posting alone, but the settled verdict can
+ * The scan returns a assessment from the posting alone, but the settled assessment can
  * move once verification blends in — a posting can read `caution` and settle at
- * `note`. Showing the intermediate value as though it were the verdict is the
+ * `note`. Showing the intermediate value as though it were the assessment is the
  * same overclaim as showing the retired score, in a new place: the reader is told
  * where to stop before anything has checked who is asking.
  *
  * The copy asserts only that a check is in progress, which is the one thing that
- * is true. "We are checking whether this company is real" — not a verdict, and
+ * is true. "We are checking whether this company is real" — not a assessment, and
  * not a reassurance.
  */
-export const VERIFYING: VerdictCopy = {
+export const VERIFYING: AssessmentCopy = {
   headline: 'Checking this company',
   tone: 'unknown',
 };
 
-export function verdictFor(verdict: Verdict | null | undefined): VerdictCopy {
-  if (!verdict) return NO_VERDICT;
-  return VERDICT_TABLE[verdict];
+export function assessmentFor(assessment: Assessment | null | undefined): AssessmentCopy {
+  if (!assessment) return NO_ASSESSMENT;
+  return ASSESSMENT_TABLE[assessment];
 }
 
 /**
  * The two instruction lines in the action block.
  *
- * Authored per verdict family, and keyed to the family rather than the exact
- * verdict on purpose: `stop` needs the reader to stop; `caution` needs the
+ * Authored per assessment family, and keyed to the family rather than the exact
+ * assessment on purpose: `stop` needs the reader to stop; `caution` needs the
  * reader to settle the fee; `note` needs the reader to check the employer's site;
  * `clear` needs the reader to proceed.
  *
@@ -128,16 +128,16 @@ export interface ActionLines {
   secondLead: string;
   secondRest: string;
   /**
-   * The bullet's fill, following the verdict's tone.
+   * The bullet's fill, following the assessment's tone.
    *
    * **Which token, and why it differs per tone.** For critical and verified the
-   * plain token *is* the saturated brand colour, so `bg-verdict-critical` and
-   * `bg-verdict-verified` are the obvious choice. For caution it is not: the
-   * plain `--color-verdict-caution` is the text-safe dark gold `#7c5800`, which
+   * plain token *is* the saturated brand colour, so `bg-assessment-critical` and
+   * `bg-assessment-verified` are the obvious choice. For caution it is not: the
+   * plain `--color-assessment-caution` is the text-safe dark gold `#7c5800`, which
    * exists so body copy clears AA on an amber fill. A 10px dot is not body copy —
    * it needs to read as the caution identity at a glance, and dark gold reads as
-   * brown. So the dot takes `--color-verdict-caution-container`, the `#feb700`
-   * the banner itself is filled with, which is what "matches the verdict colour"
+   * brown. So the dot takes `--color-assessment-caution-container`, the `#feb700`
+   * the banner itself is filled with, which is what "matches the assessment colour"
    * has to mean if the panel is to read as one thing.
    *
    * Unknown takes the plain grey rather than its container. The unknown
@@ -147,57 +147,57 @@ export interface ActionLines {
   bullet: string;
 }
 
-const ACTION_TABLE: Record<Verdict | 'unknown', ActionLines> = {
+const ACTION_TABLE: Record<Assessment | 'unknown', ActionLines> = {
   stop: {
     lead: 'Do not send money or documents.',
     rest: 'Even if the request says the fee is refundable, do not send money or identity documents. Stop the application and do not reply to the recruiter until you have checked the company yourself.',
     secondLead: 'Check the company yourself',
     secondRest: 'through an official channel before you apply for anything.',
-    bullet: 'bg-verdict-critical',
+    bullet: 'bg-assessment-critical',
   },
   caution: {
     lead: 'Ask what the offer asks for and why.',
     rest: 'An offer that asks for something before a contract is the pattern the rules prohibit.',
     secondLead: 'Confirm the employer\'s identity',
     secondRest: 'through an official channel before you send anything.',
-    bullet: 'bg-verdict-caution-container',
+    bullet: 'bg-assessment-caution-container',
   },
   note: {
     lead: 'Check the employer\'s official site for the stated fee.',
     rest: 'The employer is confirmed and the fee is stated on their site.',
     secondLead: 'Proceed with the application',
     secondRest: 'through the company\'s own domain.',
-    bullet: 'bg-verdict-verified',
+    bullet: 'bg-assessment-verified',
   },
   clear: {
     lead: 'Proceed with the application.',
     rest: 'The posting asks for nothing the rules prohibit.',
     secondLead: 'Keep the conversation on the company\'s own domain.',
     secondRest: 'If they switch to a personal email or a messaging app, that is worth asking about before you send anything.',
-    bullet: 'bg-verdict-verified',
+    bullet: 'bg-assessment-verified',
   },
   unknown: {
-    lead: 'No verdict on this one.',
+    lead: 'No assessment on this one.',
     rest: 'The employer was not looked up, so nothing was assessed.',
     secondLead: 'Check the company name',
     secondRest: 'and scan again when you have one.',
-    bullet: 'bg-verdict-unknown',
+    bullet: 'bg-assessment-unknown',
   },
 };
 
 /**
- * The bullet colour when there is no verdict to follow.
+ * The bullet colour when there is no assessment to follow.
  *
  * Neutral, deliberately. `ActionBlock` is asked for a bullet even when the
- * verdict is "no verdict on this one", and an amber bullet there would attach an
+ * assessment is "no assessment on this one", and an amber bullet there would attach an
  * alarm to a state that is an absent measurement rather than a finding — which
- * is the same reason `verdict-unknown` is grey rather than caution.
+ * is the same reason `assessment-unknown` is grey rather than caution.
  */
-export const NO_VERDICT_BULLET = 'bg-verdict-unknown';
+export const NO_ASSESSMENT_BULLET = 'bg-assessment-unknown';
 
-export function actionsFor(verdict: Verdict | null | undefined): ActionLines {
-  if (!verdict) return ACTION_TABLE.unknown;
-  return ACTION_TABLE[verdict];
+export function actionsFor(assessment: Assessment | null | undefined): ActionLines {
+  if (!assessment) return ACTION_TABLE.unknown;
+  return ACTION_TABLE[assessment];
 }
 
 /**

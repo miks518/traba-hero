@@ -4,14 +4,14 @@
 
 **Goal:** Land the two commits of `feat/verification-comparison` that `main` has no
 equivalent of — the scan writing every channel, and the adaptive search planner — on
-top of `main`'s code-owned verdict, without reverting it.
+top of `main`'s code-owned assessment, without reverting it.
 
 **Architecture:** Cherry-pick `2b34784` then `8f71e25` onto `main` in branch order,
 resolving six small conflicts. `2b34784` makes `CONTACT_METHOD` a repeatable typed
 attribute and adds `CLAIMED_TYPE`; `8f71e25` adds `search_planner.py`, a
 `VERIFY_SEARCH_MODE` setting defaulting to `fixed`, and a two-round query issuer in
-`verification_flow.py`. The model-owned verdict, identity fields and corroboration
-fields the branch also carried are **not** ported — `main`'s `verdict.py`,
+`verification_flow.py`. The model-owned assessment, identity fields and corroboration
+fields the branch also carried are **not** ported — `main`'s `assessment.py`,
 `channel_match.py` and `anomaly_assessments` own those, and the identity question is
 recorded in `AGENTS.md`'s contradictions list instead.
 
@@ -35,7 +35,7 @@ is pushed** — `AGENTS.md` authorises committing and withholds pushing.
 - **`format_results` gains two optional parameters** — `entity_name: str = ""` and
   `labels: dict | None = None` — and is **byte-identical to `main`'s output when both
   are omitted**.
-- **The model does not emit the level or the score.** `verdict.py` computes them. Do not
+- **The model does not emit the level or the score.** `assessment.py` computes them. Do not
   reintroduce `_read_risk_level` / `_read_risk_score` into `verification_flow.py`, and do
   not add `risk_level` / `risk_score` to the verify schema.
 - **`include_domains` is sent with `include_domains_mode: "prefer"`, never `restrict`.**
@@ -265,14 +265,14 @@ The record owns the **producer** side. It must state:
   with this name exists, not whether the poster is that employer.
   `channel_match.py` says it does not prove identity. If it is solved, it must be
   solved code-side, as a fact the model reports and code prices — not as a
-  model-written verdict.
+  model-written assessment.
 
 The record must **not** claim any of the following, because none of them is true on
 `main`:
 
 - that the findings reach the verifier "as facts and not as severities"
   (`_findings_block` sends `[{severity}] {flag}`)
-- that the model owns the level or the score (`verdict.py` computes them)
+- that the model owns the level or the score (`assessment.py` computes them)
 - that `name_comparison` or `results_entity` exist
 - that `findingCorroborations` exists (`anomaly_assessments` is main's equivalent)
 
@@ -307,7 +307,7 @@ Append as item 7, after the `escalation` entry:
    `channel_match.py` nor the independent-finding rule, because both compare the
    posting's channels against the employer's own channels and find them equal. The
    branch solved it with a model-written `name_comparison`; that is a model-owned
-   verdict, which is the shape `channel_match.py` exists to remove. **Needs a
+   assessment, which is the shape `channel_match.py` exists to remove. **Needs a
    decision**, and if it is decided it must be decided code-side.
 ```
 
@@ -411,9 +411,9 @@ from .channel_match import (
 )
 from .dependencies import runtime
 from .search_planner import classify_signals, label_results, plan_followups, resolve_entity
-from .verdict import code_verdict
+from .assessment import code_assessment
 from .verification_parser import VerificationParseError
-from .verification_prompt import clean_verdict_reason, expected_categories
+from .verification_prompt import clean_assessment_reason, expected_categories
 ```
 
 **Do not** take the branch's side of this hunk. The branch's side imports
@@ -530,7 +530,7 @@ employer-name query unchanged, and a planner chooses up to two
 follow-ups from what Round 1 actually returned. Same 3-credit ceiling,
 typical cost 1.
 
-Shipped OFF. Nothing here has been shown to improve a verdict, and the
+Shipped OFF. Nothing here has been shown to improve a assessment, and the
 fixtures that would decide it have not been run.
 
 Adding queries does not remove noise. Every merged result now carries
@@ -692,7 +692,7 @@ to two model-proposed, so three credits at basic depth."
 The cherry-pick in Task 3 already brought this file's changes. Read them and confirm
 they describe the shipped behaviour: the two modes, the credit ceiling, the
 `prefer`-not-`restrict` rule, and that a scope is only ever a domain from an earlier
-search. If any sentence describes a model-owned verdict, it does not belong here.
+search. If any sentence describes a model-owned assessment, it does not belong here.
 
 - [ ] **Step 2: Port `docs/gotchas.md`**
 

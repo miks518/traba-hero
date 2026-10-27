@@ -56,8 +56,8 @@ def test_green_confirms_and_adds_nothing(prompt):
     ), "green must mean a retrieved source supports the claim"
 
 
-def test_no_verdict_words_in_the_output_rules(prompt):
-    """Each verdict word must sit on a line that actually prohibits it.
+def test_no_assessment_words_in_the_output_rules(prompt):
+    """Each assessment word must sit on a line that actually prohibits it.
 
     Matched per line rather than as a fixed phrase like "never write
     legitimate", because a rewrite that reads "Never write legitimate,

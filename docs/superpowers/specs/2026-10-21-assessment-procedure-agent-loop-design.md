@@ -1,15 +1,15 @@
-# Design — the verdict procedure, and the agentic loop that feeds it
+# Design — the assessment procedure, and the agentic loop that feeds it
 
 Date: 2026-10-21
 Status: draft for review (rev. 3, after the research and the reviewer's
 answers on 2026-10-21)
-Research: `docs/research/2026-10-21-verdict-grid-research.md`
+Research: `docs/research/2026-10-21-assessment-grid-research.md`
 Supersedes: `docs/scoring.md`, `docs/decisions/scoring-model.md`,
 `docs/decisions/verification-design.md` (the category-status section),
 the token-budget section of `docs/decisions/reasoning-models.md`,
 `docs/superpowers/specs/2026-10-18-adaptive-verification-search.md`
 
-Owner files: `backend/app/services/scanner/verdict.py`,
+Owner files: `backend/app/services/scanner/assessment.py`,
 `risk_calculator.py` (to be retired), `channel_match.py`,
 `verification_flow.py`, `scan_flow.py`, `prompts.py`,
 `verification_prompt.py`, `search.py`, `backend/app/services/lm_client.py`,
@@ -28,7 +28,7 @@ settle, and they are collected in §12.
 
 Three defects, one cause.
 
-**The number is indefensible.** The verdict is computed as
+**The number is indefensible.** The assessment is computed as
 `POSTING_SEVERITY_WEIGHTS` (40/12/4) plus `REFUTATION_WEIGHTS` (25/13/7/4/2/2),
 summed, then banded into `low | moderate | high | critical`. A panelist asks
 "where did you get that number?" and there is no answer, because there is
@@ -39,12 +39,12 @@ have one. **The number comes out.**
 
 **The context is lost in the relay.** The scan model reads the flyer and emits
 fixed slots; the verify model never sees the flyer and reasons over a lossy,
-model-chosen compression of it. So the fact that decided the verdict is often
-not in the room when the verdict is written. In the Fake CHED fixture the
+model-chosen compression of it. So the fact that decided the assessment is often
+not in the room when the assessment is written. In the Fake CHED fixture the
 one-line reason names the fee ("It asks for a fee before it will accept an
 application"), because the fee is what survived the compression — the
 impersonation, which is the fact that matters, was never handed over. (The
-verdict *headline* for `critical` is the fixed string "Do not proceed"; the
+assessment *headline* for `critical` is the fixed string "Do not proceed"; the
 fee appears in the separate one-line reason slot. Both are rewritten here.)
 
 **The false caution.** `channel_match.py` rule 4 makes a free-provider email
@@ -74,15 +74,15 @@ defects above come from, and each role has a hard limit on what it can see.
 | **Prosecutor** | the agent, first turn | **the posting only** | findings: what the posting asks for, what it claims to be | consult the web before the record is open |
 | **Witness** | the agent, later turns | the retrieved record | facts about the employer's own record, each with a source | decide what the facts mean |
 | **Defense** | the employer's own pages, fetched | the employer's site, listings, registry pages | "this employer publishes this role" | — |
-| **Clerk** | `verdict.py` | facts + rules | the verdict label, the exposure, the establishment state, the authored statement | write prose, or judge anything not on the record |
-| **Judge** | the reader | the verdict, the record, the options | whether to apply | — |
+| **Clerk** | `assessment.py` | facts + rules | the assessment label, the exposure, the establishment state, the authored statement | write prose, or judge anything not on the record |
+| **Judge** | the reader | the assessment, the record, the options | whether to apply | — |
 
 Two rules fall out and are load-bearing:
 
 1. **The agent never decides.** It reports what an exhibit says. The code
    decides what that means. This is the rule in
    `docs/decisions/libel-guardrail.md` — every statement traces to the input —
-   and it is what `channel_match.py` and `verdict.py` already do for the
+   and it is what `channel_match.py` and `assessment.py` already do for the
    channel comparison. It is extended, not replaced.
 2. **The prosecutor and the witness are the same model, in the same session,
    separated by time and by tools** — not by two different prompts. The scan
@@ -101,7 +101,7 @@ fix, one level up.
 
 ---
 
-## 3. The verdict procedure
+## 3. The assessment procedure
 
 ### 3.1 The class of the request — what shape is it?
 
@@ -113,7 +113,7 @@ A fee to the employer for a uniform is ordinary; a fee to an agency before a
 contract is prohibited; a fee to a personal account is prohibited. All three
 are "money".
 
-The research note is `docs/research/2026-10-21-verdict-grid-research.md`. It
+The research note is `docs/research/2026-10-21-assessment-grid-research.md`. It
 carries the citations (DMW, DOLE, POEA, NTC, CICC, DOLE Department Order
 No. 141-14, DMW-DC-01-2023, TESDA Circular 023-2020, RA 10173 §11(d), NPC
 Advisory Opinion 2019-034, and Axelsson's base-rate result) and the derivation.
@@ -159,9 +159,9 @@ face of the posting:
    there at 7am", and a gender preference. `OTHER` is the escape valve for a
    finding whose shape is not in the set; it cannot also be a charge, because
    the charge is defined by the shape. `OTHER` becomes a *finding* with no
-   class, and the verdict follows the class of everything else in the posting.
+   class, and the assessment follows the class of everything else in the posting.
    If everything in the posting is `OTHER`, the posting's class is *cannot be
-   classified* and the verdict is a question.
+   classified* and the assessment is a question.
 
 `IMPERSONATES_AUTHORITY` is not a class of request at all. It is a claim
 about *who is asking*, and it is read as an establishment signal (§3.3); it
@@ -201,7 +201,7 @@ find them equal. What catches it is (ii) failing: the employer's own site
 does not list this role. That is `AGENTS.md` contradiction #7, and this is
 where it gets closed.
 
-### 3.3 Establishment is a rule over facts, never a model verdict
+### 3.3 Establishment is a rule over facts, never a model assessment
 
 The agent reports facts about the employer's record. The code turns them into
 the state. Each fact carries the URL it came from:
@@ -238,7 +238,7 @@ The code decides:
    demotes it to `yellow` because the cited `https://ched.gov.ph` was not in
    the retrieved set, and the strong-channel floor never applies. The
    impersonation was detected, written out on the card in plain words ("That
-   is outside the .gov.ph domain"), and scored **zero**; the verdict rested
+   is outside the .gov.ph domain"), and scored **zero**; the assessment rested
    entirely on the two fees. The binding's rule is right for a claim about an
    employer's identity and wrong for a claim the posting makes about itself,
    so the government branch is exempted from it. The reproduction is in
@@ -279,7 +279,7 @@ Authored. Hand-written. Not computed, and not a function of any number.
 | prohibited | NOTE | CAUTION | CAUTION | **STOP** |
 
 **The cells are settled by the research, not by taste.** The derivation and
-the citations are in `docs/research/2026-10-21-verdict-grid-research.md` §6;
+the citations are in `docs/research/2026-10-21-assessment-grid-research.md` §6;
 the reasoning is:
 
 - **`contradicted` is the only path to STOP, and it requires a retrieved
@@ -303,7 +303,7 @@ the reasoning is:
 
 The four worked examples, from the research note:
 
-| Posting | Class | Establishment | Verdict |
+| Posting | Class | Establishment | Assessment |
 |---|---|---|---|
 | Real employer, Gmail address, no demands | ordinary | supported | CLEAR |
 | Employer charges ₱500 for a uniform, stated | ordinary | unknown | CLEAR |
@@ -318,9 +318,9 @@ needs. The fees are in the record and are not in the headline.
 are decided by published rules and by the base-rate constraint, and the
 reasoning is written down rather than asserted.
 
-### 3.5 A CLEAR verdict is a statement about the posting, not about the employer
+### 3.5 A CLEAR assessment is a statement about the posting, not about the employer
 
-A CLEAR verdict never says the employer is safe, and it never says the posting
+A CLEAR assessment never says the employer is safe, and it never says the posting
 asks for nothing if it does. A posting that asks for a ₱500 uniform is CLEAR
 and its statement says so: "They ask for ₱500 for a uniform, and nothing else
 before you start." The statement is a statement about the posting, and every
@@ -344,7 +344,7 @@ hop where context can be lost.
 
 The loop is **not** "let the model be clever". It is one job: **establish
 whether the employer is `confirmed`, `supported`, or `contradicted`.** That is
-the fact the verdict needs and the fact the current pipeline cannot produce,
+the fact the assessment needs and the fact the current pipeline cannot produce,
 because a model reading four search snippets cannot know whether the employer's
 own site lists this role.
 
@@ -466,7 +466,7 @@ The other three limits are new and are the reason the agent cannot run away.
 
 - It may report what a page says, with the page's URL.
 - It may report what the posting says, with a verbatim quote.
-- It may not state a verdict, a level, or a conclusion about the employer.
+- It may not state a assessment, a level, or a conclusion about the employer.
 - **It may not use its own memory as a source.** A claim it believes from
   training is not on the record and cannot be bound to a retrieved URL, so it
   carries no weight. Memory shapes *what to search for*; retrieval is what
@@ -478,30 +478,30 @@ The other three limits are new and are the reason the agent cannot run away.
 
 ## 5. The wire
 
-The verdict vocabulary replaces the level vocabulary. `low | moderate | high |
+The assessment vocabulary replaces the level vocabulary. `low | moderate | high |
 critical` becomes:
 
 ```
 clear | note | caution | stop
 ```
 
-Plus the state that already exists and is not a verdict: **no verdict** (grey)
+Plus the state that already exists and is not a assessment: **no assessment** (grey)
 — the posting named no employer, or the answer could not be read.
 
 The number and its machinery leave the wire entirely:
 
 | Removed | Replaced by |
 |---|---|
-| `riskScore`, `riskScored` | `verdict` (the label) |
-| `scoreBreakdown` | `verdictBreakdown` — the exposure, the establishment state, the rule that fired, and the record |
-| `riskLevel` (wire key and `VerificationResult` field) | `verdict` |
+| `riskScore`, `riskScored` | `assessment` (the label) |
+| `scoreBreakdown` | `assessmentBreakdown` — the exposure, the establishment state, the rule that fired, and the record |
+| `riskLevel` (wire key and `VerificationResult` field) | `assessment` |
 
-`verdictBreakdown` is not a score. It is the clerk's record of how the verdict
+`assessmentBreakdown` is not a score. It is the clerk's record of how the assessment
 was reached:
 
 ```json
 {
-  "verdict": "caution",
+  "assessment": "caution",
   "exposure": "money",
   "exposures": [
     {"code": "FEE_MANDATORY", "label": "Asks applicants to pay a fee",
@@ -514,7 +514,7 @@ was reached:
 ```
 
 The `rule` field names the cell of the grid that fired. It is the thing that
-makes the verdict auditable without a number: it says which fact decided it.
+makes the assessment auditable without a number: it says which fact decided it.
 
 **[SETTLED 2026-10-21] The endpoint shape is (b): a new `/api/assess`
 replaces both, and `/api/scan` and `/api/verify` are deleted.** The three
@@ -588,26 +588,26 @@ established something leaves the state at `unknown`. This is
 
 ## 7. The panel
 
-### 7.1 The verdict, the statement, the options
+### 7.1 The assessment, the statement, the options
 
 Three slots, and they are different in kind:
 
-1. **The verdict** — the label, in a chip: CLEAR / NOTE / CAUTION / STOP.
+1. **The assessment** — the label, in a chip: CLEAR / NOTE / CAUTION / STOP.
 2. **The statement** — one sentence naming what was found, in the reader's
    terms.
 3. **The options** — what the reader can do about it.
 
-**"Do not proceed" is the ace card.** It is the verdict headline for `stop`
+**"Do not proceed" is the ace card.** It is the assessment headline for `stop`
 only, and `stop` requires `contradicted` — hard evidence, like the Commission
 on Higher Learning not being CHED. It is not said for a caution. A product
 that says it for everything says it for nothing.
 
-For the other verdicts the statement is evidentiary, because the reader is the
+For the other assessments the statement is evidentiary, because the reader is the
 judge. Every statement has **two parts** — what the posting asks for, and what
 the record showed — because a statement that says only the second is not
 actionable and one that says only the first is not evidence:
 
-| Verdict | Statement shape |
+| Assessment | Statement shape |
 |---|---|
 | CLEAR | "They ask for ₱500 for a uniform, and nothing else before you start." |
 | NOTE | "They ask for ₱1,500 and do not say who it is paid to. Their site lists this role, but not that fee." |
@@ -618,24 +618,24 @@ The first part is rendered from the finding's structured facts (the amount, the
 fee's recipient, the reason if stated, what kind of documents). The second is
 rendered from the establishment state. Neither is written by the model.
 
-The options block is authored per verdict family and offers the reader's
+The options block is authored per assessment family and offers the reader's
 choices — ask for something in writing, meet at an address they give you, do
 not send money or documents before you have spoken to someone — in the shape
 `VERIFY_PROMPT.md` already describes for the recommendation. It does not decide
 for the reader; it tells them what the stakes are and what they can do.
 
 **[CALL] The statement is rendered by the backend**, from an authored template
-module, with the structured facts substituted. `verdictCopy.ts`'s rule is that
+module, with the structured facts substituted. `assessmentCopy.ts`'s rule is that
 every word is authored in code and looked up — and a template with the amount
 and the fee reason substituted is still authored, because the substituted
 values are structured facts off the record (`amount` from the posting's own
 `PAY` attribute, `reason` from `FEE_REASON`), not model prose. Rendering it
 on the backend keeps the substitution next to the binding that guarantees the
 facts came from the record, and it keeps the frontend from having to trust a
-number it did not compute. `verdictCopy.ts` keeps the verdict→label mapping
-and the options block. The backend module is `backend/app/services/scanner/verdict_copy.py`.
+number it did not compute. `assessmentCopy.ts` keeps the assessment→label mapping
+and the options block. The backend module is `backend/app/services/scanner/assessment_copy.py`.
 
-The model's own `verdict_reason` field — the current one-line reason, which is
+The model's own `assessment_reason` field — the current one-line reason, which is
 where the CHED fee sentence comes from — **is retired**. It is a model-written
 headline, and the whole point of the statement is that it is not.
 
@@ -651,12 +651,12 @@ findings (`anomaly_assessments`, rendered by `AnomalyCards.tsx`).
 attached. The six claim categories survive as **the grouping of the record** —
 they are the questions the record answers, and `WhatWeChecked` keeps its
 structure — but their green/yellow/red statuses go, because a model-written
-status beside a code-owned establishment state would be two verdicts in one
+status beside a code-owned establishment state would be two assessments in one
 panel, and they will disagree.
 
 `stale` survives in meaning and is renamed for the new vocabulary: a finding
 the employer's own record accounts for is **retired** — it is not shown as a
-finding, and it does not count toward the exposure. `verdict.py`'s
+finding, and it does not count toward the exposure. `assessment.py`'s
 `_without_stale` keeps its rule and changes its input: it consumes the
 agent's per-finding status rather than a separate assessment list.
 
@@ -667,29 +667,29 @@ took the author's preference.
 
 ### 7.3 Naming
 
-The product's output is a **verdict**, not an assessment. An assessment is
-advisory; a verdict is the finding the reader acts on. `docs/architecture.md`,
+The product's output is a **assessment**, not an assessment. An assessment is
+advisory; a assessment is the finding the reader acts on. `docs/architecture.md`,
 `Documentation.md`, the panel copy, and the identifiers that carry the word
 get renamed.
 
 **[CALL] The rename is complete, not cosmetic.** `ScanRiskLevel`, `riskLevel`,
 `riskLabel`, `riskDisplay.ts`, `riskAccent.ts`, `riskLevelLabel`,
 `mapApiResponse.riskScored`, `isUnverifiedEmployer`, the `risk_score` /
-`risk_level` wire keys, and the history keys all move to the verdict
-vocabulary. The user said "verdict, rather assessment" and a thesis reads
+`risk_level` wire keys, and the history keys all move to the assessment
+vocabulary. The user said "assessment, rather assessment" and a thesis reads
 better when the code says what the product says. It is mechanical churn and it
 is contained.
 
 **[CALL] Stored history is migrated, not re-derived.** Old scans carry a level
-and no exposure and no establishment, so a new verdict cannot be computed from
+and no exposure and no establishment, so a new assessment cannot be computed from
 them. `scanHistory.ts` gets a migration that maps the old level onto the old
 label and renders it with a note that it was recorded under the previous
-procedure. A stored scan is never silently re-labelled as a new verdict.
+procedure. A stored scan is never silently re-labelled as a new assessment.
 
 ### 7.4 What the panel must not say
 
 - It must not say the employer is safe, legitimate, real, or genuine. The
-  verdict is about the posting, not about the employer's character. `unknown`
+  assessment is about the posting, not about the employer's character. `unknown`
   is not a soft yes.
 - It must not accuse. No "scam", "fake", "fraudulent", "suspicious" beside a
   named employer. `contradicted` is a comparison between the posting and a
@@ -702,18 +702,18 @@ procedure. A stored scan is never silently re-labelled as a new verdict.
 
 | Removed | Note |
 |---|---|
-| `risk_calculator.py` | the weights, the bands, `_combine_scores`, `_level_for`. The whole file. It is **live** today — resurrected on 2026-10-21 as the arithmetic behind `verdict.py`, and recorded as live in `AGENTS.md` contradiction #3 — so its removal is a second reversal, and both `AGENTS.md` and `docs/decisions/scoring-model.md` get a line saying so and why. |
-| `docs/scoring.md` | the bands, the AHP derivations, the anchor, the sensitivity analysis. Superseded by `docs/decisions/verdict-procedure.md`. |
+| `risk_calculator.py` | the weights, the bands, `_combine_scores`, `_level_for`. The whole file. It is **live** today — resurrected on 2026-10-21 as the arithmetic behind `assessment.py`, and recorded as live in `AGENTS.md` contradiction #3 — so its removal is a second reversal, and both `AGENTS.md` and `docs/decisions/scoring-model.md` get a line saying so and why. |
+| `docs/scoring.md` | the bands, the AHP derivations, the anchor, the sensitivity analysis. Superseded by `docs/decisions/assessment-procedure.md`. |
 | `docs/decisions/scoring-model.md` | superseded. |
 | `backend/scripts/derive_refutation_weights.py` | deleted, with a tombstone test. |
 | `POSTING_SEVERITY_WEIGHTS`, `REFUTATION_WEIGHTS`, `MAX_REFUTATION_SCORE` | with the file. |
-| `riskScore`, `riskScored`, `scoreBreakdown` on the wire | replaced by `verdict` and `verdictBreakdown`. |
+| `riskScore`, `riskScored`, `scoreBreakdown` on the wire | replaced by `assessment` and `assessmentBreakdown`. |
 | `entrypoints/sidepanel/lib/scoreBreakdown.ts` | deleted, with a tombstone test. |
-| "40% Risk" in `ResumeMatchView.tsx` | shows the verdict label instead. |
-| `RISK_LEVELS` | replaced by the verdict vocabulary. |
+| "40% Risk" in `ResumeMatchView.tsx` | shows the assessment label instead. |
+| `RISK_LEVELS` | replaced by the assessment vocabulary. |
 | the model's `severity` field | display only. The code carries the meaning. The exposure axis and the grid replace the 40/12/4 ladder. |
-| `offer_prompt.py`'s model-owned `risk_level` | the offer path gets the same procedure. It has no employer, so establishment is `unknown` by construction and exposure carries the whole verdict. This closes contradiction #5 in `AGENTS.md`. |
-| `verification_prompt.py`'s `verdict_reason` | retired (§7.1). |
+| `offer_prompt.py`'s model-owned `risk_level` | the offer path gets the same procedure. It has no employer, so establishment is `unknown` by construction and exposure carries the whole assessment. This closes contradiction #5 in `AGENTS.md`. |
+| `verification_prompt.py`'s `assessment_reason` | retired (§7.1). |
 | `VerificationItem.status` (green/yellow/red) | retired in favour of the four states (§7.2). |
 | `CREDENTIALS_BEFORE_INTERVIEW` | **split** into `APPLICATION_DOCUMENTS` (ordinary) and `ACCOUNT_CREDENTIALS` (prohibited). §3.1, and the research note §4. |
 | `FEE_REASON`, `FEE_RECIPIENT`, `FEE_TIMING` | new extracted facts, on the finding and in the attributes (§3.1). |
@@ -731,7 +731,7 @@ questioned and answered.
 
 Four commits, each one runnable and each one tested.
 
-**Commit 1 — the clerk.** The two-axis procedure, the verdict vocabulary, the
+**Commit 1 — the clerk.** The two-axis procedure, the assessment vocabulary, the
 grid, the authored statements and options. The **existing** pipeline feeds it:
 the scan model still extracts, the verify model still reports what it reports
 today.
@@ -774,7 +774,7 @@ about who is asking — so the panel does not become STOP-heavy.
 
 **Commit 2 — the wire and the panel.** `riskScore`/`scoreBreakdown` removed,
 the panel reads the new vocabulary, the status vocabulary collapses (§7.2),
-the copy is rewritten, the resume-match list shows the verdict instead of a
+the copy is rewritten, the resume-match list shows the assessment instead of a
 percentage, and the history migration lands (§7.3).
 
 **Commit 3 — the agentic loop.** `scan_flow.py` and `verification_flow.py` are
@@ -793,7 +793,7 @@ Commit 3 without commit 4 leaves establishment mostly `unknown`, because
 nothing fetches the employer's pages. Commit 4 before commit 3 has nothing to
 read. The order is forced.
 
-**The branch is `feat/verdict-procedure`, off `main`.** If the corpus shows a
+**The branch is `feat/assessment-procedure`, off `main`.** If the corpus shows a
 regression, the branch is deleted and `main` is untouched. `main` stays
 runnable in every commit above.
 
@@ -805,7 +805,7 @@ runnable in every commit above.
   fixture must fake the new fetch tool at the module boundary, and the
   session-scoped DNS guard must cover it. A fetch that escapes the fake is a
   test failure, not a surprise on a bill.
-- `test_code_verdict.py` — rewritten against the grid. Every cell, and the
+- `test_code_assessment.py` — rewritten against the grid. Every cell, and the
   materiality rule for contradictions.
 - `test_channel_match_regressions.py` — the two permanent fixtures, with
   updated expectations: **Knollridges is CLEAR** (a free email is a fact, not a
@@ -821,10 +821,10 @@ runnable in every commit above.
   The regression asserts that the government branch survives the citation
   binding.
 - **A corpus regression.** The eleven legitimate postings in `jobposts/` and
-  the verdicts in `docs/research/2026-10-21-corpus-baseline.md` §3 are the
+  the assessments in `docs/research/2026-10-21-corpus-baseline.md` §3 are the
   acceptance baseline: no legitimate posting may reach `stop` or `caution`,
-  and every verdict change is explained by a named rule. The baseline is a
-  document, not a test — the postings are images and the verdicts came from
+  and every assessment change is explained by a named rule. The baseline is a
+  document, not a test — the postings are images and the assessments came from
   live runs — so the regression is over *fixtures* transcribed from the
   corpus, with the corpus itself re-measured by hand when the procedure
   changes.
@@ -833,8 +833,8 @@ runnable in every commit above.
 - `backend/scripts/mutation_check.py` — re-pointed at the new rules: break the
   materiality rule, break the grid, break the binding, and assert a test
   catches each.
-- `verdictCopy.test.ts` — the verdict → headline contract, restated for the
-  new vocabulary, plus: **no verdict below `stop` tells the reader to stop.**
+- `assessmentCopy.test.ts` — the assessment → headline contract, restated for the
+  new vocabulary, plus: **no assessment below `stop` tells the reader to stop.**
 - A new fixture: a **real employer whose site does not list the role** and
   whose posting asks for nothing. That is the case contradiction #7 says is
   uncaught today, and it is the case the loop exists to catch.
@@ -842,7 +842,7 @@ runnable in every commit above.
 **[OPEN 1] the corpus.** The acceptance criterion needs three things the design
 does not yet have: a corpus (today `jobposts/` holds two job postings — the
 Fake CHED flyer and one screenshot — and one PDF that is a reference document
-rather than a posting), a "before" verdict per posting, and an ordering
+rather than a posting), a "before" assessment per posting, and an ordering
 across two vocabularies so that "worse" is checkable.
 
 **[CALL] The ordering**, for the criterion to be checkable at all:
@@ -854,7 +854,7 @@ new:    note/clear <  caution   <  stop   <  stop
 
 `low → clear` and `low → note` are the same position; `moderate → caution` is
 a rename, not a worsening; `high` and `critical` both become `stop`. So
-"**no posting may end up with a worse verdict than today**" means: a posting
+"**no posting may end up with a worse assessment than today**" means: a posting
 that was `low` or `moderate` must not become `stop`, and a posting that was
 `high` or `critical` must not become `clear` or `note`.
 
@@ -885,7 +885,7 @@ guessed. Two things follow from the grant and are conditions on it:
   legitimate.
 - **Profiling the employer.** No reputation score, no employer ranking, no
   history. The panel is about one posting.
-- **Replacing the reader's judgement.** The verdict is the finding the reader
+- **Replacing the reader's judgement.** The assessment is the finding the reader
   acts on. The decision to apply is theirs.
 - **A general-purpose agent.** The agent has two tools and one job. It is not a
   browser and it does not plan a research agenda.
@@ -896,7 +896,7 @@ guessed. Two things follow from the grant and are conditions on it:
 
 **Two of the four are closed.** The grid cells (§3.4) are settled by the
 research and by the base-rate constraint — see
-`docs/research/2026-10-21-verdict-grid-research.md` — and the panel's
+`docs/research/2026-10-21-assessment-grid-research.md` — and the panel's
 information architecture (§7.2) and the endpoint shape (§5) were settled by
 the reviewer on 2026-10-21. What remains:
 
@@ -917,13 +917,13 @@ the reviewer on 2026-10-21. What remains:
    writes the final words.
 3. **A caution the reader can act on.** The research says the CAUTION class is
    reserved for the prohibited shapes, which are rare by construction. That
-   makes the CAUTION verdict meaningful — and it also means the *options*
+   makes the CAUTION assessment meaningful — and it also means the *options*
    block for a CAUTION has to carry the weight: what exactly is the reader
    supposed to do about "a fee to a personal account before you start"? The
    options are authored (§7.1), and this is a design question for them.
 
 Questions raised by the builder check and settled here as the author's calls:
-the fee reason does not change the verdict (§3.5), the statement is authored
+the fee reason does not change the assessment (§3.5), the statement is authored
 per cell with the specific facts substituted (§7.1), and the wire's
 `VerificationResult` type is a frontend type while the wire key is
 `riskLevel` inside the SSE payload (§5).
@@ -934,9 +934,9 @@ per cell with the specific facts substituted (§7.1), and the wire's
 
 **Backend — new**
 
-- `backend/app/services/scanner/verdict.py` — rewritten. The procedure, the
+- `backend/app/services/scanner/assessment.py` — rewritten. The procedure, the
   grid, the establishment rules.
-- `backend/app/services/scanner/verdict_copy.py` — the authored statements and
+- `backend/app/services/scanner/assessment_copy.py` — the authored statements and
   options, with the structured facts substituted.
 - `backend/app/services/scanner/establishment.py` — new. The rules that turn
   the agent's reported facts into the four states.
@@ -954,7 +954,7 @@ per cell with the specific facts substituted (§7.1), and the wire's
   rules live in; it gains `FEE_REASON` too, and the two copies must not drift.
 - `backend/app/services/scanner/verification_prompt.py`,
   `backend/VERIFY_PROMPT.md` — the agent's output format and the facts schema.
-  `verdict_reason` leaves the schema.
+  `assessment_reason` leaves the schema.
 - `backend/app/services/scanner/verification_flow.py`,
   `scan_flow.py` — replaced by the loop.
 - `backend/app/services/scanner/scan_result.py` — the scan response shape.
@@ -975,7 +975,7 @@ per cell with the specific facts substituted (§7.1), and the wire's
   `backend/tests/test_scanner_package.py` — the package's symbol list is
   pinned, `risk_calculator` is in it.
 - `backend/app/routers/scan.py` — the endpoint shape (§5).
-- `backend/app/models/schemas.py` — the verdict vocabulary, the new request
+- `backend/app/models/schemas.py` — the assessment vocabulary, the new request
   and response shapes, `FEE_REASON` on `Anomaly`.
 - `backend/app/config.py` — the four agent limits.
 - `backend/app/services/anomaly_codes.py` — the family comment gains the
@@ -983,11 +983,11 @@ per cell with the specific facts substituted (§7.1), and the wire's
 
 **Frontend**
 
-- `entrypoints/sidepanel/components/report/verdictCopy.ts` — the verdict
+- `entrypoints/sidepanel/components/report/assessmentCopy.ts` — the assessment
   vocabulary, the options. Still authored, still looked up.
 - `entrypoints/sidepanel/components/report/ActionBlock.tsx` — reads the
   options, not a directive.
-- `entrypoints/sidepanel/components/report/VerdictBlock.tsx` — the chip and
+- `entrypoints/sidepanel/components/report/AssessmentBlock.tsx` — the chip and
   the statement.
 - `entrypoints/sidepanel/components/report/WhatWeChecked.tsx`,
   `FullDetails.tsx`, `AnomalyCards.tsx`,
@@ -997,19 +997,19 @@ per cell with the specific facts substituted (§7.1), and the wire's
 - `entrypoints/sidepanel/lib/scoreBreakdown.ts` — deleted.
 - `entrypoints/sidepanel/lib/riskDisplay.ts`, `riskAccent.ts` — renamed.
 - `entrypoints/sidepanel/lib/scanHistory.ts` — the migration (§7.3).
-- `entrypoints/sidepanel/views/ResumeMatchView.tsx` — the verdict instead of
+- `entrypoints/sidepanel/views/ResumeMatchView.tsx` — the assessment instead of
   a percentage, and the filter categories (§14).
 
 **Docs**
 
-- `docs/research/2026-10-21-verdict-grid-research.md` — the research behind
+- `docs/research/2026-10-21-assessment-grid-research.md` — the research behind
   §3.1 and §3.4: the Philippine red-flag taxonomy, the legal tests, the
   base-rate argument, and the citations.
 - `docs/research/2026-10-21-corpus-baseline.md` — the measured "before"
   column for the thirteen postings in `jobposts/`, the false-positive rate,
   the unscored Fake CHED impersonation and its reproduction, and the
   controlled-pair corpus the true-positive side needs.
-- `docs/decisions/verdict-procedure.md` — new decision record. The two axes,
+- `docs/decisions/assessment-procedure.md` — new decision record. The two axes,
   the grid, the materiality rule, the burden of proof, and why the score is
   gone.
 - `docs/scoring.md`, `docs/decisions/scoring-model.md` — deleted.

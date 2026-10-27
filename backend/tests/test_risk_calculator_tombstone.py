@@ -1,7 +1,7 @@
 """Tombstone for test_risk_model.py.
 
 The AHP-derived weights and the two-stage risk model they powered are deleted.
-`risk_calculator.py` and `docs/scoring.md` went with them. The verdict is a
+`risk_calculator.py` and `docs/scoring.md` went with them. The assessment is a
 decision procedure over two axes (what the posting asks for vs. what the record
 shows about who is asking), not a sum of weights. `scripts/derive_refutation_weights.py`
 is also deleted.

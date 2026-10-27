@@ -67,37 +67,37 @@ export function isUnverifiedEmployer({
   return !companyName || companyName.trim().length === 0;
 }
 
-/** The verdicts that put the evidence above the prose. */
-export const ELEVATED_VERDICTS = ['stop', 'caution'] as const;
+/** The assessments that put the evidence above the prose. */
+export const ELEVATED_ASSESSMENTS = ['stop', 'caution'] as const;
 
 /** Just the fields a decision about layout depends on. */
 export interface ElevationInput {
-  verdict: 'clear' | 'note' | 'caution' | 'stop' | null;
+  assessment: 'clear' | 'note' | 'caution' | 'stop' | null;
   verificationLoading?: boolean;
   offerAnalysisLoading?: boolean;
 }
 
 /**
- * True when a settled stop or caution verdict should lead with the evidence.
+ * True when a settled stop or caution assessment should lead with the evidence.
  *
- * Waiting for the verdict to settle is the point of the `loading` checks. The
- * scan returns a posting-stage verdict, then external verification blends an
+ * Waiting for the assessment to settle is the point of the `loading` checks. The
+ * scan returns a posting-stage assessment, then external verification blends an
  * employer score into it, so a posting can read "caution" and settle at
  * "note". Reordering on the intermediate value would move the reader's
  * evidence out from under them and then put it back.
  *
- * A failed verification still promotes, because the posting stage's verdict is
+ * A failed verification still promotes, because the posting stage's assessment is
  * real and the evidence is already known — what is missing is the employer
- * lookup, not the anomalies. An unverdicted result never promotes: "Unverified"
+ * lookup, not the anomalies. An unassessed result never promotes: "Unverified"
  * is an absent measurement, not a high one.
  */
 export function shouldElevateEvidence({
-  verdict,
+  assessment,
   verificationLoading,
   offerAnalysisLoading,
 }: ElevationInput): boolean {
   if (verificationLoading || offerAnalysisLoading) return false;
-  return verdict === 'stop' || verdict === 'caution';
+  return assessment === 'stop' || assessment === 'caution';
 }
 
 /**

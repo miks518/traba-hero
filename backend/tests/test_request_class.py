@@ -1,12 +1,12 @@
 """What a posting asks for, classified against the rules that govern it.
 
 The classifier is a pure function over facts on the face of the posting. It
-exists because the verdict needs a stable input that is not a model's opinion:
+exists because the assessment needs a stable input that is not a model's opinion:
 a fee to the employer for a uniform and a fee to a personal GCash account are
 both "a fee", and only the first is ordinary.
 
 The rules and their citations are in
-`docs/research/2026-10-21-verdict-grid-research.md` §4.
+`docs/research/2026-10-21-assessment-grid-research.md` §4.
 """
 
 from app.services.scanner.request_class import (

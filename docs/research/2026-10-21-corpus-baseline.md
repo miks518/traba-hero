@@ -2,9 +2,9 @@
 
 Date: 2026-10-21
 Runs against: `main` at `451d7b4`
-Produces: the "before" column the verdict procedure is measured against
-Related: `docs/superpowers/specs/2026-10-21-verdict-procedure-agent-loop-design.md`,
-`docs/research/2026-10-21-verdict-grid-research.md`
+Produces: the "before" column the assessment procedure is measured against
+Related: `docs/superpowers/specs/2026-10-21-assessment-procedure-agent-loop-design.md`,
+`docs/research/2026-10-21-assessment-grid-research.md`
 
 ---
 
@@ -18,7 +18,7 @@ budget of roughly 20–30 credits against the monthly free tier.
 
 **One caveat that matters for the thesis: the configured model is
 `dots-studio/dots-3-note-preview:free`.** Everything below is a measurement of
-*this* model inside *this* pipeline. The verdict procedure is code-owned, so
+*this* model inside *this* pipeline. The assessment procedure is code-owned, so
 its output should be far less model-dependent than what is measured here — but
 the false-positive rate quoted in §4 is a rate for this model, and it should be
 quoted as such.
@@ -113,7 +113,7 @@ employers, and both are now told "Proceed with caution".
 This is the finding the whole exercise was aimed at, and it is worse than a
 missing detection: the detection happens and is discarded.
 
-The live run's verdict breakdown for `fakeched.png`:
+The live run's assessment breakdown for `fakeched.png`:
 
 ```
 posting_score      80     (two FEE_MANDATORY findings, 40 + 40)
@@ -121,7 +121,7 @@ verification_score None   (the employer check refuted nothing)
 channel_escalation  ''     (no strong channel rule fired)
 channel_floor      false  (the strong-channel floor was not applied)
 risk_level     critical
-verdict_reason  "The posting asks for a mandatory processing fee and a registration fee."
+assessment_reason  "The posting asks for a mandatory processing fee and a registration fee."
 ```
 
 And the Channel Match card the reader is shown — **amber**, with escalation
@@ -152,7 +152,7 @@ Then `_bind_to_retrieved` demotes it. Its rule: an item with no bound
 claim nobody could confirm. The Channel Match item's citation was
 `https://ched.gov.ph`, and it was **not in the retrieved set** — so the
 demotion applies. The escalation string survives (`government`), which is why
-the card still carries the word, and `verdict.py`'s `_strong_channel_rule`
+the card still carries the word, and `assessment.py`'s `_strong_channel_rule`
 requires `status == "red"`, so the strong-channel floor never applies either.
 
 Reproduced offline, both worlds, no provider calls:
@@ -222,7 +222,7 @@ from that only because they use Messenger and no address at all.
 card: *"The posting names a San Fernando, Pampanga branch at a local market,
 but the company's own Facebook page lists a different venue at Robinsons
 Starmills Pampanga."* Minute Burger has 600+ stores. A franchise listing one
-venue does not contradict a posting that names another. The verdict reason the
+venue does not contradict a posting that names another. The assessment reason the
 reader gets is *"The posting directs applicants to a meeting spot that does not
 match the venue listed on the company's official Facebook page"* — a warning
 about a 600-store chain, on a legitimate posting, from a card worth 4 points.
@@ -230,7 +230,7 @@ about a 600-store chain, on a legitimate posting, from a card worth 4 points.
 **A misattributed employer.** `randomjob3.png` is a Cafe France flyer for a
 branch inside Mega Caltex. The scan's `COMPANY` slot became **"Mega Caltex in
 Metro Manila"** — a shopping mall, not the employer. Every subsequent stage
-checked the wrong entity, and the verdict reason says the posting's email
+checked the wrong entity, and the assessment reason says the posting's email
 "is not confirmed as belonging to Mega Caltex". The verify model *noticed* —
 its report says the same address is used for Cafe France — and could not act
 on it, because the employer was fixed in an earlier slot.
@@ -301,7 +301,7 @@ calls at all:
 
 ```python
 from app.services.scanner.verification_flow import _read_channel_item, _bind_to_retrieved
-from app.services.scanner.verdict import code_verdict
+from app.services.scanner.assessment import code_assessment
 
 cm = {
   "printed_channels": ["hrm06@ched.gov.ph", "recruitment.chred@outlook.com",
@@ -317,7 +317,7 @@ anoms = [{"flag": "processing fee", "severity": "high", "code": "FEE_MANDATORY"}
 item = _read_channel_item({"channel_match": cm}, frozenset({"https://www.facebook.com/chedregion6"}))
 bound, _ = _bind_to_retrieved([item], [], frozenset({"https://www.facebook.com/chedregion6"}))
 print(bound[0].status, bound[0].escalation)      # yellow government
-print(code_verdict(anoms, bound, [])[:2])        # (80, 'critical')
+print(code_assessment(anoms, bound, [])[:2])        # (80, 'critical')
 ```
 
 `assess_channel_match` on the same facts returns `red`/`government`/`strong`

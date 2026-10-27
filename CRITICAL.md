@@ -77,16 +77,16 @@
 ---
 
 ### [~] Task 2.3: Defamation-Safe AI Output
-- **Objective:** Stop the assistant from asserting accusations it cannot support, so the tool informs job seekers without exposing its developers to cyber-libel claims. Tighten the system prompts and field rules across all endpoints, and stop the UI from presenting numbers and verdicts the system never measured.
+- **Objective:** Stop the assistant from asserting accusations it cannot support, so the tool informs job seekers without exposing its developers to cyber-libel claims. Tighten the system prompts and field rules across all endpoints, and stop the UI from presenting numbers and assessments the system never measured.
 - **Backend Changes (`backend/`):**
   - Add a shared observational rule set to every prompt: report only what the input states, declare unknowns as unknown, never infer intent, never name a company or person as a scam/fraud/criminal, and drop hedging and absolutes.
   - Fix verification status semantics so absence of a result is `yellow` (not confirmed) rather than `red`; reserve `red` for a negative fact a provided search result actually states.
   - Remove dead or contradictory prompt text: "check the job post online" (the scan endpoint has no tool, so it licensed fabrication), the unused `COMPANY NAME` output field, and the `RISK_SCORE`/`RISK_LEVEL` block the server computes itself and discards.
   - Reclassify a missing employer name as a low-severity stated fact instead of "a strong scam indicator", and ask the model to check logos and letterheads for a name before concluding there is none.
 - **Frontend Changes (`entrypoints/sidepanel/`):**
-  - Never present a risk number the system did not measure. The score is built in two stages and blended server-side: the posting's own indicators (always available) and the external employer check (only when a name exists), 60/40. A stage that did not run is absent, not zero, so an unlookable posting keeps its own verdict.
+  - Never present a risk number the system did not measure. The score is built in two stages and blended server-side: the posting's own indicators (always available) and the external employer check (only when a name exists), 60/40. A stage that did not run is absent, not zero, so an unlookable posting keeps its own assessment.
   - Widen the scanner beyond formatted job adverts to all offers of work or income, including chat messages, forwarded paragraphs, and recruitment pitches. `VALID: false` now means the content offers no work or income at all.
-  - Add a post-only analysis flow for offers that name no employer: `POST /api/analyze-offer` produces a verdict from the offer's own content, so the user is never left without one.
+  - Add a post-only analysis flow for offers that name no employer: `POST /api/analyze-offer` produces a assessment from the offer's own content, so the user is never left without one.
   - De-escalate user-facing copy that asserted conclusions ("Risk Protection Active", "Verified safe opportunity", "Treat this as high-risk", "Issue Found") to state findings instead.
   - Migrate stored scan history so previously synthesised scores are cleared on load rather than displayed as findings.
 - **Verification:** `python -m pytest tests/ -v` (160 pass, fully offline), `npm run compile`, `npm test`, `npm run build`. Live pipeline confirmed manually by the developer (scan completes, employer name extracted, verification runs, score returned). The systematic output-quality checklist in `UNFINISHED-WORK.md` is still outstanding and must be run by the developer — it needs live provider calls.
@@ -124,7 +124,7 @@
 ### [ ] Task 4.1: Misclassification / False Positive Reporting
 - **Objective:** Allow users to report incorrect risk scores or false positives.
 - **Frontend Changes (`entrypoints/sidepanel/components/`):**
-  - Add a "Report Incorrect Verdict" button to `ScanResult.tsx`.
+  - Add a "Report Incorrect Assessment" button to `ScanResult.tsx`.
   - Create a simple modal (`ReportModal.tsx`) allowing users to select a feedback reason (e.g., "Legitimate company marked as scam" or "Scam missed").
 - **Backend Changes (`backend/app/routers/report.py`):**
   - Create endpoint `POST /api/report` to log misclassifications anonymously for future prompt tuning.

@@ -1,4 +1,4 @@
-"""The verdict is a decision procedure over two axes, and it carries no number.
+"""The assessment is a decision procedure over two axes, and it carries no number.
 
 The score was a sum of weights over categories. Nothing about "37" describes a
 posting, and the panelist who asks where the number came from has no answer that
@@ -11,7 +11,7 @@ everything, and only one of them can produce `stop`.
 
 These tests are the guard on that shape. The grid is asserted cell by cell,
 because a decision table that drifts by one cell is the kind of defect that reads
-as a plausible verdict.
+as a plausible assessment.
 """
 
 import ast
@@ -21,7 +21,7 @@ import pytest
 
 from app.models.schemas import VerificationItem
 from app.services.scanner.establishment import Establishment
-from app.services.scanner.verdict import VERDICTS, code_verdict
+from app.services.scanner.assessment import ASSESSMENTS, code_assessment
 
 APP = Path(__file__).resolve().parents[1] / "app"
 SCANNER = APP / "services" / "scanner"
@@ -46,15 +46,15 @@ def _channel(status: str = "confirmed", escalation: str = "match") -> Verificati
 
 
 def _decide(request_class: str, state: str) -> str:
-    verdict, _ = code_verdict(
+    assessment, _ = code_assessment(
         [], [], request_class=request_class, establishment=Establishment(state)
     )
-    return verdict
+    return assessment
 
 
-class TestTheVerdictVocabulary:
-    def test_the_verdicts_are_a_closed_set(self):
-        assert VERDICTS == ("clear", "note", "caution", "stop")
+class TestTheAssessmentVocabulary:
+    def test_the_assessments_are_a_closed_set(self):
+        assert ASSESSMENTS == ("clear", "note", "caution", "stop")
 
 
 class TestTheGrid:
@@ -88,7 +88,7 @@ class TestTheGrid:
 
     def test_a_prohibited_request_at_an_unknown_employer_is_caution(self):
         """The request is one the rules prohibit, and nobody has established who
-        is asking. That is a warning, not a verdict.
+        is asking. That is a warning, not a assessment.
         """
         assert _decide("prohibited", "unknown") == "caution"
 
@@ -108,14 +108,14 @@ class TestTheGrid:
 class TestOnlyAContradictionStops:
     def test_a_contradicted_employer_stops_whatever_the_request(self):
         for request_class in ("ordinary", "unclassified", "prohibited"):
-            verdict, breakdown = code_verdict(
+            assessment, breakdown = code_assessment(
                 [],
                 [],
                 request_class=request_class,
                 establishment=Establishment("contradicted", reason="The domain is not the agency's."),
             )
 
-            assert verdict == "stop"
+            assert assessment == "stop"
             assert breakdown["establishment"]["state"] == "contradicted"
 
     def test_unknown_never_rises_above_a_note_on_its_own(self):
@@ -137,29 +137,29 @@ class TestOnlyAContradictionStops:
 
 class TestTheBreakdownCarriesNoNumber:
     def test_no_key_names_a_score(self):
-        _verdict, breakdown = code_verdict(
+        _assessment, breakdown = code_assessment(
             [], [], request_class="prohibited", establishment=Establishment("unknown")
         )
 
         offenders = [key for key in breakdown if "score" in key.lower()]
-        assert offenders == [], f"the verdict still carries a score: {offenders}"
+        assert offenders == [], f"the assessment still carries a score: {offenders}"
 
     def test_the_breakdown_names_the_rule_that_decided(self):
         """The record has to be readable on its own. A reader who asks why the
         panel says caution gets a rule name and two states, not a number.
         """
-        verdict, breakdown = code_verdict(
+        assessment, breakdown = code_assessment(
             [], [], request_class="prohibited", establishment=Establishment("unknown")
         )
 
-        assert breakdown["verdict"] == verdict
+        assert breakdown["assessment"] == assessment
         assert breakdown["exposure"] == "prohibited"
         assert breakdown["establishment"]["state"] == "unknown"
         assert breakdown["rule"] == "prohibited_at_unestablished_employer"
 
     def test_the_breakdown_records_the_evidence_it_read(self):
         item = _channel(status="contradicted", escalation="government")
-        _verdict, breakdown = code_verdict(
+        _assessment, breakdown = code_assessment(
             [],
             [item],
             request_class="ordinary",
@@ -179,27 +179,27 @@ class TestTheProvisionalEstablishment:
 
     def test_a_government_or_lookalike_channel_is_a_contradiction(self):
         for escalation in ("government", "lookalike"):
-            verdict, _ = code_verdict(
+            assessment, _ = code_assessment(
                 [], [_channel(status="contradicted", escalation=escalation)], request_class="ordinary"
             )
 
-            assert verdict == "stop"
+            assert assessment == "stop"
 
     def test_a_matching_channel_confirms_the_employer(self):
-        verdict, breakdown = code_verdict(
+        assessment, breakdown = code_assessment(
             [],
             [_channel(status="confirmed", escalation="match")],
             request_class="prohibited",
         )
 
         assert breakdown["establishment"]["state"] == "confirmed"
-        assert verdict == "note"
+        assert assessment == "note"
 
     def test_a_green_company_existence_supports_the_employer(self):
         item = VerificationItem(
             label="Company Existence", status="confirmed", explanation="A real firm."
         )
-        _verdict, breakdown = code_verdict([], [item], request_class="prohibited")
+        _assessment, breakdown = code_assessment([], [item], request_class="prohibited")
 
         assert breakdown["establishment"]["state"] == "supported"
 
@@ -210,19 +210,19 @@ class TestTheProvisionalEstablishment:
         item = VerificationItem(
             label="Reputation", status="contradicted", explanation="A result contradicts it."
         )
-        _verdict, breakdown = code_verdict([], [item], request_class="ordinary")
+        _assessment, breakdown = code_assessment([], [item], request_class="ordinary")
 
         assert breakdown["establishment"]["state"] == "unknown"
 
     def test_an_empty_record_establishes_nothing(self):
-        _verdict, breakdown = code_verdict([], [], request_class="ordinary")
+        _assessment, breakdown = code_assessment([], [], request_class="ordinary")
 
         assert breakdown["establishment"]["state"] == "unknown"
 
 
 class TestTheFlowStillCallsIt:
-    def test_the_verification_flow_calls_the_code_verdict(self):
-        assert "code_verdict" in _calls_in(SCANNER / "verification_flow.py")
+    def test_the_verification_flow_calls_the_code_assessment(self):
+        assert "code_assessment" in _calls_in(SCANNER / "verification_flow.py")
 
     def test_the_verify_schema_no_longer_asks_the_model_for_a_level(self):
         from app.services.scanner.verification_prompt import VERIFY_RESPONSE_SCHEMA
@@ -238,7 +238,7 @@ class TestTheFlowStillCallsIt:
 class TestUnassessedIsNotLow:
     """The behaviour that made retiring the first calculator worthwhile.
 
-    A scan has read a document and seen no evidence, so it carries no verdict.
+    A scan has read a document and seen no evidence, so it carries no assessment.
     `None` is the honest value and the frontend already renders it.
     """
 

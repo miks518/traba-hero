@@ -1,8 +1,8 @@
 # Research — what a job post should have to do before the panel raises its voice
 
 Date: 2026-10-21
-Supports: `docs/superpowers/specs/2026-10-21-verdict-procedure-agent-loop-design.md` §3
-Question asked: the verdict grid's cells were proposed from intuition. The
+Supports: `docs/superpowers/specs/2026-10-21-assessment-procedure-agent-loop-design.md` §3
+Question asked: the assessment grid's cells were proposed from intuition. The
 reviewer declined to sign off on them and asked for evidence. This is that
 evidence, and it changed the design.
 
@@ -223,7 +223,7 @@ posting ask for". It is **which class the request falls into**, where the
 classes are defined by the published rules and the classes are decided from
 facts on the face of the posting:
 
-| Class | Test | Verdict weight |
+| Class | Test | Assessment weight |
 |---|---|---|
 | **ordinary** | a shape the Philippine rules permit and PH hiring does routinely: free email, messenger application, biodata and 2×2 photos, medical and uniform costs charged by the employer, no experience needed, no formal process | no charge |
 | **cannot be classified** | the shape is real but the facts that decide it are not stated — a fee whose recipient is not stated, a meeting place that is not named | a question |
@@ -257,7 +257,7 @@ Reading the three rows:
 
 - **CLEAR** means "nothing in this posting is a shape that would put your money
   or documents at risk". It does **not** mean the employer is safe, and the
-  statement must not claim it is: a CLEAR verdict on a posting that asks for a
+  statement must not claim it is: a CLEAR assessment on a posting that asks for a
   ₱500 uniform fee has to say that the fee is for a uniform, because the
   statement is a statement about the posting.
 - **NOTE** means "here is a question you can settle in a minute". A fee whose
@@ -270,7 +270,7 @@ Reading the three rows:
 
 The three worked examples:
 
-| Posting | Class | Establishment | Verdict | Statement |
+| Posting | Class | Establishment | Assessment | Statement |
 |---|---|---|---|---|
 | Real employer, Gmail address, no demands | ordinary | supported | CLEAR | "This posting asks you for nothing before you start." |
 | Employer charges ₱500 for a uniform, stated | ordinary | unknown | CLEAR | "They ask for ₱500 for a uniform, and nothing else before you start." |
@@ -297,7 +297,7 @@ and are not in the headline.
 5. **The establishment axis is a modulator.** `contradicted` is the only path
    to STOP, and `unknown` alone never rises above a question.
 6. **The statement is about the posting, not about the employer.** A CLEAR
-   verdict never says the employer is safe.
+   assessment never says the employer is safe.
 
 ## 8. What the research did not settle
 

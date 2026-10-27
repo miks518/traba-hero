@@ -106,7 +106,7 @@ class TestBuildVerifyPrompt:
 
         They used to be excluded because the model was asked only what the
         search showed about the employer. That left the anomaly cards with no
-        evidence verdict at all. They now go in as a numbered, delimited block,
+        evidence assessment at all. They now go in as a numbered, delimited block,
         labelled as the posting's claims rather than facts about the employer,
         and the prompt tells the model not to let them decide the six
         categories.
@@ -708,7 +708,7 @@ class TestVerifyOutputReading:
 
 
 class TestRegistrationCategoryWeighting:
-    """The old scoring system (`risk_calculator`) is deleted. The verdict is a
+    """The old scoring system (`risk_calculator`) is deleted. The assessment is a
     decision procedure over two axes, not a sum of weights.
 
     These tests now verify that the old scoring functions are gone, and that the
@@ -932,10 +932,10 @@ class TestSearchOutcomeReachesTheClient:
                 })
 
         assert resp.status_code == 200
-        # The wire now sends verdictBreakdown with the new verdict breakdown.
-        # The top-level verdict is null.
-        assert '"verdict": null' in resp.text
-        assert '"verdictBreakdown":' in resp.text
+        # The wire now sends assessmentBreakdown with the new assessment breakdown.
+        # The top-level assessment is null.
+        assert '"assessment": null' in resp.text
+        assert '"assessmentBreakdown":' in resp.text
         assert '"scoreBreakdown"' not in resp.text
         assert '"riskLevel"' not in resp.text
         assert '"riskScore"' not in resp.text
@@ -1313,7 +1313,7 @@ async def test_verify_stops_early_when_no_company_name():
         assert "Cannot verify company name" in body
         assert "no_company_name" in body
         # The key is present and empty. That is how the client tells "the check
-        # ran and could not carry a verdict" from "this reading predates the
+        # ran and could not carry a assessment" from "this reading predates the
         # check"; absence would make a live no-employer scan look like history.
         assert '"anomaly_assessments": []' in body
 
@@ -1361,14 +1361,14 @@ async def test_verify_failsafe_when_a_readable_response_carries_no_checks():
         assert '"type": "result"' in body
         assert "No structured findings could be read" in body
         assert "Company Existence" in body
-        # This used to assert `verdictBreakdown: 0` on the reasoning that "a verdict
+        # This used to assert `assessmentBreakdown: 0` on the reasoning that "a assessment
         # always exists". It no longer does, and the reason is the point: the
         # response was readable and carried nothing, so the model reached no
         # level, and 0 was the ladder's way of saying the same thing while
         # printing a reassuring figure. A failsafe card whose whole content is
         # "we could not read the answer" must not also carry a calm number.
-        assert '"verdict": null' in body
-        assert '"verdictBreakdown":' in body
+        assert '"assessment": null' in body
+        assert '"assessmentBreakdown":' in body
         assert '"scoreBreakdown"' not in body
         assert '"riskLevel"' not in body
         assert '"riskScore"' not in body
@@ -1517,7 +1517,7 @@ class TestTheModelAuthoredQueriesReachTheSearch:
         """A client predating the field sends neither.
 
         Rejecting one spelling of a missing input with a 422 would fail a whole
-        verification over a detail that carries no verdict.
+        verification over a detail that carries no assessment.
         """
         resp, issued = await self._post({"company_name": "Tanika"})
 

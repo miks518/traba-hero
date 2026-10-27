@@ -20,7 +20,7 @@ an in-module Python fallback that must stay in step.
 
 > **Partly superseded, 2026-10-21.** This plan was never executed as written. `main`
 > moved the same ground in the opposite direction: the model emits facts and the code
-> assigns the verdict (`channel_match.py`, `verdict.py`), and the findings reach the
+> assigns the assessment (`channel_match.py`, `assessment.py`), and the findings reach the
 > verifier as `anomaly_assessments` rather than as a severity-free claims block. The
 > decision record this plan creates — `docs/decisions/verification-findings.md` — was
 > **not** created; it is superseded by
@@ -66,7 +66,7 @@ with the test that covers it and the task that owns it.
    show the reasoning rather than an empty bullet. *(Task 1, step 3.)*
 3. **An anomaly whose `reasoning` contains a word the prompt bans.** It must be
    passed verbatim — the block is data — and it must not reach the panel's headline,
-   which `clean_verdict_reason` already screens. *(Task 1, step 3, for the block;
+   which `clean_assessment_reason` already screens. *(Task 1, step 3, for the block;
    existing `test_citation_binding.py` covers the headline.)*
 4. **Twenty anomalies of 2,000 characters each.** The request model bounds them; the
    prompt builder must not silently truncate or drop entries. *(Task 1, step 3.)*
@@ -157,7 +157,7 @@ with the test that covers it and the task that owns it.
   def test_a_request_with_no_findings_produces_no_block(self):
       req = VerifyRequest(company_name="ACME")
       prompt = _build_verify_prompt(req, "=== SEARCH RESULTS FOR: ACME ===\ntext\n=== END SEARCH ===")
-      assert "context, not a verdict" not in prompt
+      assert "context, not a assessment" not in prompt
 
   def test_the_findings_block_does_not_open_a_gated_category(self):
       """The block gives context; it does not add to the reportable set.
@@ -226,14 +226,14 @@ with the test that covers it and the task that owns it.
   # cannot weigh it against what the results show, and a scan that found a
   # mandatory fee is silently discarded by a clean employer record.
   FINDINGS_HEADER = (
-      "What a first reading of the posting found (context, not a verdict):"
+      "What a first reading of the posting found (context, not a assessment):"
   )
 
   # The note that closes the block.
   #
   # Three constraints, each load-bearing:
   #
-  #   * "not a verdict" and "they are not findings about the employer" keep the
+  #   * "not a assessment" and "they are not findings about the employer" keep the
   #     stage's contract: it reports on the employer. Without them the model
   #     answers about the posting and the six categories stop meaning anything.
   #   * "a finding must say what the results show about the posting's claim"

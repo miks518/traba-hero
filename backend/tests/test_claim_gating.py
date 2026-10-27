@@ -159,7 +159,7 @@ class TestThePromptAsksForTheGatedSet:
 class TestScoringUnchangedByGating:
     """Gating must not quietly become scoring. These lock both.
 
-    The old scoring system (`risk_calculator`) is deleted. The verdict is a decision
+    The old scoring system (`risk_calculator`) is deleted. The assessment is a decision
     procedure over two axes, not a sum of weights. The tests below verified the
     old refutation scoring behavior and are kept as documentation of what was
     removed. They are now tombstones asserting the old functions are gone.

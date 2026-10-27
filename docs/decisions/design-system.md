@@ -44,13 +44,13 @@ reads as a shaded label.
 **`.tactile-disclosure`** is the sole case where a tone-filled surface and a press state
 meet, and it is worth naming because the rule above says they never do.
 
-The "Full details and sources" header takes the verdict banner's fill so the panel
+The "Full details and sources" header takes the assessment banner's fill so the panel
 reads as one object, and it is operable, so it moves. Splitting it therefore meant
-**sharing the surface rules with `.tactile-verdict` and adding the press separately** —
+**sharing the surface rules with `.tactile-assessment` and adding the press separately** —
 a shared selector list for the gradient, border, extrusion and highlight, then a
 `:active` rule of its own. Two classes, one surface, no duplicated colour derivation.
 
-It is not `.tactile-verdict` with a class appended, because `.tactile-verdict`
+It is not `.tactile-assessment` with a class appended, because `.tactile-assessment`
 deliberately has no press: the banner reports a measurement, and a banner that sank
 under the reader's thumb would read as a control. **The press belongs to the
 disclosure and the surface is borrowed; reversing that pairing is the bug to watch

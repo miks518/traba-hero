@@ -1,4 +1,4 @@
-"""The authored statements and options for each verdict.
+"""The authored statements and options for each assessment.
 
 The panel never shows model prose. Every word is in code and looked up, like the
 panel's own copy. The statement is rendered from structured facts off the record
@@ -12,7 +12,7 @@ is the one thing the libel guardrail cannot tolerate.
 
 No statement contains an accusation and no statement contains a hedge — no
 "likely", "appears", "suggests", "may", "might", "could". The same word ban
-`clean_verdict_reason` applies, because the same reader-facing risk applies.
+`clean_assessment_reason` applies, because the same reader-facing risk applies.
 """
 
 from __future__ import annotations
@@ -88,13 +88,13 @@ def _establishment_phrase(establishment: Establishment) -> str:
 
 
 def statement(
-    verdict: str,
+    assessment: str,
     *,
     request_class: str,
     establishment: Establishment,
     facts: StatementFacts,
 ) -> str:
-    """Render the panel's one-sentence statement for a verdict.
+    """Render the panel's one-sentence statement for a assessment.
 
     Two parts: what the posting asks for, and what the record showed.
     """
@@ -116,21 +116,21 @@ def statement(
     # Build the second part: what the record showed
     record = est
 
-    if verdict == "clear":
+    if assessment == "clear":
         # Clear: ordinary request, no contradiction
         text = f"The posting {ask}. {record}"
-    elif verdict == "note":
+    elif assessment == "note":
         # Note: request is prohibited or unclassified but employer is confirmed/supported
         if request_class == "prohibited":
             text = f"The posting {ask}. The employer is confirmed and the fee is stated on their site."
         else:
             text = f"The posting {ask}. {record} The record supports the employer's identity."
-    elif verdict == "caution":
+    elif assessment == "caution":
         # Caution: prohibited request at unknown employer. The ask may be a fee,
         # a task, documents, or credentials — so the sentence names what the
         # posting asks for rather than presuming a fee.
         text = f"The posting {ask}. The employer has not been established — settle what the offer asks for first."
-    elif verdict == "stop":
+    elif assessment == "stop":
         # Stop: contradicted employer
         text = f"The posting {ask}. The communication is not from the employer it names. {record} This is a contradicted impersonation."
     else:
@@ -139,24 +139,24 @@ def statement(
     return _check_no_hedges(text)
 
 
-def options(verdict: str) -> tuple[str, ...]:
-    """Return the reader's options for a verdict family.
+def options(assessment: str) -> tuple[str, ...]:
+    """Return the reader's options for a assessment family.
 
     Options are choices, not orders. They offer what the reader can do next.
     """
-    if verdict == "clear":
+    if assessment == "clear":
         return ("Proceed with the application",)
-    if verdict == "note":
+    if assessment == "note":
         return (
             "Check the employer's official site for the stated fee",
             "Confirm the application process directly with the employer",
         )
-    if verdict == "caution":
+    if assessment == "caution":
         return (
             "Ask the poster to confirm what they are asking for and why",
             "Confirm the employer's identity through an official channel first",
         )
-    if verdict == "stop":
+    if assessment == "stop":
         return (
             "Do not send money or documents",
             "Report the posting to the platform and the agency it impersonates",

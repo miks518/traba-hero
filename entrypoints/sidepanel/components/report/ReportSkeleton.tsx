@@ -18,15 +18,15 @@ export interface ReportSkeletonProps {
  * **It mirrors the report, not the old loader.** The loader was a centred
  * circle and three lines, which told the reader that something was happening but
  * not what was coming. This draws the same slots in the same order as
- * `ReportPanel` — subject, verdict, instructions, findings, details — so the
+ * `ReportPanel` — subject, assessment, instructions, findings, details — so the
  * panel does not jump when the real content lands and the reader can see the
  * shape of the answer while they wait.
  *
- * **Grey and pulsing, never a verdict colour.** A skeleton in the critical red
+ * **Grey and pulsing, never a assessment colour.** A skeleton in the critical red
  * would assert a severity before anything was measured, which is the failure the
  * whole panel is built to avoid. The fill is the grey container scale:
  * `surface-container-highest` bars on `surface-container-high` wells, including
- * the card that will become the verdict banner.
+ * the card that will become the assessment banner.
  *
  * The two unbuilt slots — "Was this accurate?" and "Report this post" — are
  * deliberately absent. A skeleton is a promise about what is coming; drawing a
@@ -60,7 +60,7 @@ export function ReportSkeleton({ progressPercent, cardCount = 2 }: ReportSkeleto
         </div>
       </section>
 
-      {/* Verdict banner. Tall and neutral; the real one carries the colour. */}
+      {/* Assessment banner. Tall and neutral; the real one carries the colour. */}
       <section
         className="rounded-xl border border-outline-variant/30 bg-surface-container-high p-4 flex flex-col gap-3"
         aria-hidden

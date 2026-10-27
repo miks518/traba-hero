@@ -267,7 +267,7 @@ class TestResolve:
         assert entity.names_differ is False
 
     def test_an_aggregator_is_not_taken_as_the_entity_domain(self):
-        """A wrong domain produces a wrong query, not a wrong verdict.
+        """A wrong domain produces a wrong query, not a wrong assessment.
 
         Which is why the denylist exists at all, and why it is tested rather than
         trusted.

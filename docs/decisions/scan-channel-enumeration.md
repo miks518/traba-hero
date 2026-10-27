@@ -135,7 +135,7 @@ is the answer, so "government | private company | …" is read as "government".
 - `channel_match.py`'s seven rules and the `escalation` string each fires
 - the free-provider list, the lookalike comparison, and the combination rule
 - the binding of `channel_match.source_url` against the retrieved set
-- the strong-channel floor in `verdict.py`
+- the strong-channel floor in `assessment.py`
 
 This record does not restate them. The two meet at one place: the scan writes the
 channels, and `channel_match.py` compares them.
@@ -156,7 +156,7 @@ posting's channels against the employer's own channels and find them equal.
 
 The branch `feat/verification-comparison` answered this with a model-written
 `name_comparison` — `same` / `differs` / `unclear` — and a `results_entity` field
-naming the organisation the results describe. That is a model-owned verdict, which is
+naming the organisation the results describe. That is a model-owned assessment, which is
 precisely the shape `channel_match.py` exists to remove: a model that can be satisfied
 by a rule without performing the comparison. It was not ported.
 

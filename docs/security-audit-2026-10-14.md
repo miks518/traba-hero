@@ -3,7 +3,7 @@
 **Date:** 2026-10-14
 **Scope:** `backend/` at commit `ea28f95`
 **Method:** coverage-led audit (Cloudflare `security-audit-skill`, `quick` profile)
-**Verdict state:** every finding is `needs_validation` — see [Why nothing is confirmed](#why-nothing-is-confirmed)
+**Assessment state:** every finding is `needs_validation` — see [Why nothing is confirmed](#why-nothing-is-confirmed)
 
 This is a record of an audit run, kept for context. It is not a design document
 and it does not describe planned work. The full artifacts — coverage ledger,

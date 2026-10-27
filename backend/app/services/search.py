@@ -463,7 +463,7 @@ def search(
     if depth not in _VALID_DEPTHS:
         # A typo would have the provider reject the request, and the user would
         # be told a company cannot be looked up. Log it, then use the fallback
-        # so a cost setting cannot become a verdict.
+        # so a cost setting cannot become a assessment.
         if provider_name in ("keenable", "keeenable"):
             fallback = "basic"
         else:

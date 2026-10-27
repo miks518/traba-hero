@@ -17,13 +17,13 @@ export interface JobMatchListProps {
  */
 function scoreColor(score: number): string {
   if (score >= 70) return 'text-secondary';
-  if (score >= 40) return 'text-verdict-caution';
+  if (score >= 40) return 'text-assessment-caution';
   return 'text-error';
 }
 
 function scoreBarColor(score: number): string {
   if (score >= 70) return 'bg-secondary';
-  if (score >= 40) return 'bg-verdict-caution';
+  if (score >= 40) return 'bg-assessment-caution';
   return 'bg-error';
 }
 

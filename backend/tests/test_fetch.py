@@ -1,6 +1,6 @@
 """The fetch tool refuses to touch anything private, and truncates honestly.
 
-Task 14 of the verdict-procedure plan. The suite is offline (conftest's DNS
+Task 14 of the assessment-procedure plan. The suite is offline (conftest's DNS
 guard refuses every non-loopback name), so the one test that needs a successful
 fetch fakes the two boundaries this module owns — the resolver and the HTTP GET
 — exactly as the offline suite fakes Tavily at `app.services.search.httpx.post`.

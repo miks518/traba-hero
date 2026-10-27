@@ -51,7 +51,7 @@ These are decisions, not options for the builder:
   where the severity chip will be, and a box with a loading ring under the card
   says the finding is being confirmed against public sources.
 - **Every detected anomaly stays on the report.** Nothing is silently dropped.
-  The card carries the evidence verdict and the final severity once verification
+  The card carries the evidence assessment and the final severity once verification
   settles.
 - **Grey means a public source about this employer accounts for it, and the
   anomaly is stale.** Example: the posting says the fee is for a medical test and
@@ -85,10 +85,10 @@ These are decisions, not options for the builder:
   the retrieved evidence and the posting's own stated details.
 - The report shows the finding immediately, with a neutral checking state while
   the evidence is being gathered.
-- The report shows one evidence verdict per anomaly, with the source where
-  there is one, and a final severity that follows that verdict.
+- The report shows one evidence assessment per anomaly, with the source where
+  there is one, and a final severity that follows that assessment.
 - Failure states are explicit and never read as a clean result.
-- Stored history keeps the verdicts it had; old scans without verdicts do not
+- Stored history keeps the assessments it had; old scans without assessments do not
   pretend to have them.
 - The existing scoring does not gain a new number in the client. The model's
   risk level remains the model's.
@@ -98,16 +98,16 @@ These are decisions, not options for the builder:
 - Changing the anomaly taxonomy or the risk bands.
 - Adding searches. The verify stage uses the results it already retrieved.
 - A separate "dismissed anomalies" section. Every anomaly stays in one list, and
-  its verdict says what happened.
-- A client-side judgement of whether an anomaly is real. The verdict comes from
-  the backend; the client only maps the verdict to the chip.
+  its assessment says what happened.
+- A client-side judgement of whether an anomaly is real. The assessment comes from
+  the backend; the client only maps the assessment to the chip.
 - Replacing the section heading. It stays "Anomalies detected" and counts the
   cards shown, because every card is an anomaly the scan detected. The evidence
   strip is what says whether it held up.
 
 ---
 
-## 5. The verdict model
+## 5. The assessment model
 
 Three values, reused from the existing verification vocabulary:
 
@@ -115,7 +115,7 @@ Three values, reused from the existing verification vocabulary:
 |---|---|---|---|
 | `stale` | **Stale** (grey) | A retrieved source about this employer accounts for what the posting states. The finding no longer stands. | Yes |
 | `red` | **Contradicted** | A retrieved source states something different from what the posting states. | Yes |
-| `yellow` | **Not confirmed** | No source settled it, no employer was named, the search failed, or no verdict was returned. | No |
+| `yellow` | **Not confirmed** | No source settled it, no employer was named, the search failed, or no assessment was returned. | No |
 
 The panel sentence under the label is the model's `finding`, in one plain
 sentence, naming what the source states. The source link is the source the
@@ -129,10 +129,10 @@ it is about.
 
 `stale` and `red` are not statements that the employer is safe or dangerous.
 They describe the relationship between one posting detail and one retrieved
-source. The verdict is about one posting detail, not a clean record for the
+source. The assessment is about one posting detail, not a clean record for the
 employer.
 
-### The severity chip follows the verdict
+### The severity chip follows the assessment
 
 The scan's severity is input to the check, not the chip the reader sees first.
 The chip moves through four states:
@@ -140,9 +140,9 @@ The chip moves through four states:
 | State | Chip | When |
 |---|---|---|
 | Waiting | **Checking** (neutral, outline) | Verification is in flight for this anomaly. |
-| Stale | **Stale** (grey) | The verdict is `stale`. The evidence accounted for it and the finding no longer stands. |
-| Red | The scan's severity — **Critical** / **Serious** / **Minor** | The verdict is `red`. The finding stands, with the scan's weight. |
-| Amber | **Unconfirmed** (amber) | No employer, a failed search, no verdict, or an unreadable one. |
+| Stale | **Stale** (grey) | The assessment is `stale`. The evidence accounted for it and the finding no longer stands. |
+| Red | The scan's severity — **Critical** / **Serious** / **Minor** | The assessment is `red`. The finding stands, with the scan's weight. |
+| Amber | **Unconfirmed** (amber) | No employer, a failed search, no assessment, or an unreadable one. |
 
 `Checking` is not a severity. It says the severity is not known yet. The card
 must not tint its border, chip, or accent with the scan's severity while in that
@@ -161,13 +161,13 @@ asked for a second severity judgement.
 ### Why a stale card is still shown
 
 The anomaly was detected. Hiding it would erase the fact that the system looked
-at it and found an ordinary explanation. Keeping it with a grey `Stale` verdict
+at it and found an ordinary explanation. Keeping it with a grey `Stale` assessment
 tells the reader what was considered and why it did not end the reading. It also
 keeps the count honest: what the scan detected is what the scan detected.
 
 ### The default is amber, never stale
 
-A missing verdict, an unreadable one, an out-of-range index, or a `stale`/`red`
+A missing assessment, an unreadable one, an out-of-range index, or a `stale`/`red`
 without a source all become amber. Absence is never evidence in the reader's
 favour. This is the same rule the rest of the verification stage already obeys.
 
@@ -247,7 +247,7 @@ anomalyAssessmentRun?: boolean;
 `api.ts` must preserve absence versus emptiness: `undefined` when the wire key is
 missing (an old backend), `[]` when the key is present and empty (a new backend
 that returned no assessments). The hook sets the marker from that distinction.
-Without it, a pre-feature scan would claim a verdict was sought and not recorded,
+Without it, a pre-feature scan would claim a assessment was sought and not recorded,
 which is false for those scans.
 
 ### More anomalies than the request can carry
@@ -275,7 +275,7 @@ strict as it is today.
 - A numbered block of the posting's findings, each with its flag, reasoning,
   severity, code and quote, clearly marked as the posting's claims rather than
   facts about the employer.
-- The rules for the three verdicts, mirroring the claim-check rules already in
+- The rules for the three assessments, mirroring the claim-check rules already in
   the prompt:
   - `stale` only when a result **about this employer** supports the posting's
     stated explanation. A general page about the practice — a clinic's standard
@@ -315,14 +315,14 @@ The model is told to weigh the assessed findings in its `risk_level`:
   a fee with no account, and the level should say so.
 - A finding a source contradicts is a strong signal and may raise the level.
 - A finding that is amber — no source, a failed search, a general page, or no
-  verdict — never lowers the level. Absence is not evidence in the reader's
+  assessment — never lowers the level. Absence is not evidence in the reader's
   favour, and a general practice page is not evidence about this employer.
-- A stale verdict lowers only by accounting for the finding it is attached to.
+- A stale assessment lowers only by accounting for the finding it is attached to.
   It is not a clean record for the employer and must not be read as one.
 
 This is a deliberate difference from the arithmetic asymmetry in
 `docs/decisions/scoring-model.md`: that rule kept a clean employer record from
-subtracting from a posting score. Here the stale verdict is about the posting's
+subtracting from a posting score. Here the stale assessment is about the posting's
 own finding, confirmed by the employer, so it is allowed to move the level. The
 decision record needs an amendment saying so.
 
@@ -342,14 +342,14 @@ decision record needs an amendment saying so.
 The labeled-text fallback cannot carry this array. It returns no assessments,
 so every anomaly becomes amber "not checked". That is a declared degradation,
 not a silent empty result, and it matches how the fallback already returns no
-`risk_level` and no `verdict_reason`.
+`risk_level` and no `assessment_reason`.
 
 ---
 
 ## 8. States and failure states
 
 The card is rendered whenever the scan has at least one anomaly. There is no
-waiting condition that hides it. The verdict comes from the first applicable
+waiting condition that hides it. The assessment comes from the first applicable
 source:
 
 | Situation | Card state |
@@ -358,7 +358,7 @@ source:
 | Verification returned an assessment for this anomaly | That assessment: stale/red/amber strip and the severity from §5. |
 | No employer was named, so verification never ran | amber "Not checked — this post names no employer, so there was nothing to search. Shown so you notice it." |
 | Verification failed or the request aborted | amber "Not checked — the employer search did not finish." |
-| Verification ran, but this anomaly got no assessment | amber "Not checked — no evidence verdict was recorded for this finding." |
+| Verification ran, but this anomaly got no assessment | amber "Not checked — no evidence assessment was recorded for this finding." |
 | There were more findings than one verification can carry | amber "Not checked — there were more findings than one search can check. Shown so you notice it." |
 | A stored scan from before this feature | amber "Not checked — this reading was saved before findings were checked against evidence." |
 
@@ -463,7 +463,7 @@ gray pulsing shape:
 1. **Job metadata** — two short bars (timestamp and title) and one longer bar
    (employer). The scanning progress text can sit in the timestamp slot, since
    that is the same line and weight.
-2. **Verdict banner** — one tall rounded block with a short headline bar and a
+2. **Assessment banner** — one tall rounded block with a short headline bar and a
    longer reason bar, matching the banner's padding and radius.
 3. **What to do now** — a card with a short heading bar and two or three
    checkbox-and-line rows.
@@ -484,8 +484,8 @@ Rules:
   inside every block.
 - The skeleton is `aria-busy="true"` with an accessible label such as "Reading
   the job post", so it is not a wall of silent shapes.
-- The shapes do not use the verdict or severity colours. A gray banner must not
-  read as a verdict, and a gray anomaly chip must not read as `Checking` on a
+- The shapes do not use the assessment or severity colours. A gray banner must not
+  read as a assessment, and a gray anomaly chip must not read as `Checking` on a
   real card.
 - The skeleton yields to the real report as soon as the scan result lands. It is
   only for the initial scan; verification uses the per-card confirming box and
@@ -499,10 +499,10 @@ Rules:
 
 - `ScanResult.anomalies` is where the assessments live after verification.
   `applyResult` merges the assessed list and writes it to history, so a reopened
-  scan shows the same verdicts.
+  scan shows the same assessments.
 - `restoreScanResult` keeps assessments and `anomalyAssessmentRun` untouched.
 - A stored scan without assessments shows the amber "saved before this was
-  checked" note. It does not invent a verdict.
+  checked" note. It does not invent a assessment.
 - The existing `verificationLoading` / `verificationError` promotion in
   `restoreScanResult` is unchanged. A job saved mid-verification still restores
   as "could not be completed", and its anomalies show amber.
@@ -511,10 +511,10 @@ Rules:
 
 ## 11. Guardrails
 
-- **The verdict cannot outrun the source.** Stale and red require a URL that was
-  actually retrieved. An unbound citation demotes the verdict to amber, exactly
+- **The assessment cannot outrun the source.** Stale and red require a URL that was
+  actually retrieved. An unbound citation demotes the assessment to amber, exactly
   as an unbacked `red` check is demoted today.
-- **No employer named means no verdict, and the card says so.** It does not
+- **No employer named means no assessment, and the card says so.** It does not
   reuse the absence of a company as a finding about the posting.
 - **A stale or red sentence is shown only with its source.** The source is the
   reader's check on the sentence. A yellow sentence may stand alone because it
@@ -523,7 +523,7 @@ Rules:
 - **The model does not rewrite the anomaly.** The card's title, description and
   quote remain the scan's. The assessment is a separate sentence, so the scan's
   wording cannot be quietly upgraded by the verify stage.
-- **No severity before the verdict.** `Checking` is the only state the card may
+- **No severity before the assessment.** `Checking` is the only state the card may
   show while the check is in flight. The scan's severity is sent to the backend
   as context and is not painted on the card until the check settles.
 - **No new score in the client.** The risk level and score remain what the
@@ -531,7 +531,7 @@ Rules:
   chip mapping is presentation, not scoring.
 - **The section is present from the start, but it does not assert a result.**
   The heading and the cards appear with the scan, because detection is done. The
-  verdict and severity wait for the check.
+  assessment and severity wait for the check.
 
 ---
 
@@ -567,20 +567,20 @@ The same-entity rule the verification categories already use applies here. A
 general page can make a fee look ordinary in the abstract; it cannot say that
 this employer charges it, and a stale card next to a named employer would read
 as the second claim. The prompt says so explicitly, and the fixture set needs a
-case where the only support is a general page and the verdict is amber.
+case where the only support is a general page and the assessment is amber.
 
 ### 13.2 May a stale finding lower the risk level? — yes
 
 Resolved: yes, when the source accounts for the finding and the source is about
 this employer. A fee the employer's own material names as a medical-test fee can
-stop reading as high risk. Amber never lowers, and a stale verdict does not
+stop reading as high risk. Amber never lowers, and a stale assessment does not
 amount to a clean record for the employer.
 
 This is recorded in §7 as a deliberate difference from the arithmetic asymmetry
 in `docs/decisions/scoring-model.md`, and that decision record gets an
 amendment when the change ships.
 
-### 13.3 May the card be visible before the verdict? — yes, with no severity
+### 13.3 May the card be visible before the assessment? — yes, with no severity
 
 Resolved: the card shows immediately with a neutral `Checking` chip and a
 confirming box. The alternative — hide the cards until verification settles —
@@ -591,7 +591,7 @@ at all. The severity is what waits, not the finding.
 
 Resolved: `stale → Stale` (grey), `red → the scan's severity`, `amber →
 Unconfirmed`, waiting → `Checking`. The mapping is derived in the client from
-the verdict, so it cannot disagree with the strip. The verify model does not
+the assessment, so it cannot disagree with the strip. The verify model does not
 emit a second severity.
 
 "Amber is the warning sign of unconfirmed" is the rule behind `Unconfirmed`; it

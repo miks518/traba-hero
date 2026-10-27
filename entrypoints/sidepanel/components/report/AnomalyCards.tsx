@@ -56,7 +56,7 @@ const STRIP: Record<
     cls: 'status-card-caution',
     label: 'Not confirmed',
     icon: 'question_mark',
-    iconCls: 'text-verdict-caution',
+    iconCls: 'text-assessment-caution',
   },
 };
 
@@ -86,7 +86,7 @@ function displayState(
  *
  * A failed lookup and a missing employer override an assessment left over from
  * an earlier run: the current reading did not complete, and the card says so
- * rather than presenting the previous verdict as current.
+ * rather than presenting the previous assessment as current.
  */
 function resolvedAssessment(
   anomaly: Anomaly,
@@ -123,12 +123,12 @@ function resolvedAssessment(
   if (props.assessmentRun) {
     return {
       status: 'unknown',
-      finding: 'No evidence verdict was recorded for this finding.',
+      finding: 'No evidence assessment was recorded for this finding.',
     };
   }
   return {
     status: 'unknown',
-    finding: 'This reading has no evidence verdict. It may have been saved before findings were checked.',
+    finding: 'This reading has no evidence assessment. It may have been saved before findings were checked.',
   };
 }
 
@@ -145,12 +145,12 @@ function resolvedAssessment(
  * confirmed`, waiting → `Checking`. The mapping is derived here, so the chip
  * cannot disagree with the strip above it. The scan's severity is not rendered
  * as the chip: it is the model's pricing of a category, and the whole point of
- * moving the verdict into code is that the state comes from the evidence.
+ * moving the assessment into code is that the state comes from the evidence.
  *
  * **Grey is not green.** A stale finding is retired, not a clean record for the
  * employer, and this card never uses the verified colour.
  *
- * **No finding is silently dropped.** A finding that is missing a verdict, that
+ * **No finding is silently dropped.** A finding that is missing a assessment, that
  * was too numerous to check, or that belongs to a failed lookup stays on screen
  * with an amber note saying which.
  *

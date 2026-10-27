@@ -147,7 +147,7 @@ export function WhatWeChecked({
           data-state="partial"
           className="tactile-card bg-surface-container-lowest border border-outline-variant/20 rounded-lg p-4 flex items-start gap-2"
         >
-          <Icon name="warning" className="text-verdict-caution mt-0.5 shrink-0" />
+          <Icon name="warning" className="text-assessment-caution mt-0.5 shrink-0" />
           <p className="text-body-sm text-on-surface-variant leading-relaxed min-w-0">
             {result?.queriesFailed && result?.queriesIssued
               ? `${result.queriesFailed} of ${result.queriesIssued} searches failed, `
@@ -250,9 +250,9 @@ export function WhatWeChecked({
         `verification_flow.py`, and then the skip in that test.
       */}
       {result?.debugSearchRaw && result.debugSearchRaw.length > 0 && (
-        <details className="rounded-lg border border-verdict-caution/40 bg-chip-caution-bg">
+        <details className="rounded-lg border border-assessment-caution/40 bg-chip-caution-bg">
           <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer">
-            <Icon name="warning" className="text-verdict-caution" />
+            <Icon name="warning" className="text-assessment-caution" />
             <span className="text-label-sm font-bold text-on-surface">
               Raw Tavily response (debug)
             </span>
@@ -261,7 +261,7 @@ export function WhatWeChecked({
           <div className="flex flex-col gap-3 px-3 pb-3">
             {result.debugSearchRaw.map((entry, i) => (
               <div key={i} className="flex flex-col gap-1 min-w-0">
-                <span className="text-label-sm font-bold text-verdict-caution break-all">
+                <span className="text-label-sm font-bold text-assessment-caution break-all">
                   {entry.query}
                 </span>
                 <pre className="text-[10px] leading-relaxed text-on-surface-variant bg-surface-container-lowest rounded p-2 overflow-x-auto max-h-72 whitespace-pre-wrap break-all">

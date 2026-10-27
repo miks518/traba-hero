@@ -29,9 +29,9 @@ from .search_planner import (
     resolve_entity,
     search_query_is_safe,
 )
-from .verdict import code_verdict
+from .assessment import code_assessment
 from .verification_parser import VerificationParseError
-from .verification_prompt import clean_recommendation, clean_verdict_reason, expected_categories
+from .verification_prompt import clean_recommendation, clean_assessment_reason, expected_categories
 
 
 log = logging.getLogger("trabahero")
@@ -273,7 +273,7 @@ def _read_anomaly_assessments(
     anomaly_count: int,
     allowed: frozenset[str],
 ) -> list[AnomalyAssessment]:
-    """Read the verify model's verdicts on the numbered posting findings.
+    """Read the verify model's assessments on the numbered posting findings.
 
     The same source-binding rule as `_bind_to_retrieved` applies, for the same
     reason: a `stale` or `red` is a statement about a named employer and is shown
@@ -283,7 +283,7 @@ def _read_anomaly_assessments(
 
     Out-of-range and duplicate indices are dropped rather than renumbered. The
     client resolves `index` against the list it sent; inventing an entry for a
-    finding that was not assessed would attach a verdict to the wrong claim.
+    finding that was not assessed would attach a assessment to the wrong claim.
     Missing assessments are left missing, and the client renders its own amber
     "not checked" sentence for them.
     """
@@ -311,7 +311,7 @@ def _read_anomaly_assessments(
             log.warning("[verify] Ignoring anomaly assessment with a boolean index: %r", raw_index)
             continue
         # `int(1.5)` is 1 and `int("1.0")` raises; accepting the float would
-        # attach a verdict to the neighbouring finding. The schema says integer,
+        # attach a assessment to the neighbouring finding. The schema says integer,
         # but the labeled-text path has no schema, so this is the control.
         if isinstance(raw_index, str):
             if not raw_index.strip().isdigit():
@@ -400,7 +400,7 @@ def _read_verify_output(
     JSON is the intended shape, but the provider may still answer with prose if
     it does not support structured outputs, so the labeled-text parser remains as
     a fallback rather than being deleted. Returns (items, report, recommendation,
-    used_json, evidence, risk_level, risk_score, verdict_reason,
+    used_json, evidence, risk_level, risk_score, assessment_reason,
     anomaly_assessments).
 
     `anomaly_count` is the number of findings the request sent, which is what
@@ -469,7 +469,7 @@ def _read_verify_output(
         # object, any model-written Channel Match check is discarded: its status
         # is the thing this split exists to stop trusting. An older response with
         # no facts object keeps its check for compatibility, and the flow demotes
-        # it to yellow before the verdict.
+        # it to yellow before the assessment.
         if payload.get("channel_match") is not None:
             items = [item for item in items if item.label != "Channel Match"]
             channel_item = _read_channel_item(payload, allowed_urls)
@@ -480,7 +480,7 @@ def _read_verify_output(
         return (
             bound_items,
             str(payload.get("report") or ""),
-            # Screened like the verdict reason: the recommendation is
+            # Screened like the assessment reason: the recommendation is
             # model-written prose read by someone deciding about their own
             # money, and an accusation in it is the same exposure in a longer
             # slot. A rejected text sends the panel to its authored fallback.
@@ -489,7 +489,7 @@ def _read_verify_output(
             bound_evidence,
             _read_risk_level(payload.get("risk_level")),
             _read_risk_score(payload.get("risk_score")),
-            clean_verdict_reason(payload.get("verdict_reason")),
+            clean_assessment_reason(payload.get("assessment_reason")),
             _read_anomaly_assessments(payload, anomaly_count, allowed_urls),
         )
 
@@ -512,12 +512,12 @@ def _read_verify_output(
     # labeled-text format has no place to carry a level, so nothing was assessed.
     # The panel renders null as Unverified and excludes it from resume matching.
     # Likewise empty for the reason: the labeled-text fallback has no
-    # VERDICT_REASON section, and the block degrades to its authored headline
+    # ASSESSMENT_REASON section, and the block degrades to its authored headline
     # rather than the parser inventing a reason from the report prose.
     #
     # The labeled-text format has no anomaly assessment section either, so the
     # list is empty. The key still reaches the wire, which is how the client
-    # tells "this backend ran the check and could not carry a verdict" from
+    # tells "this backend ran the check and could not carry a assessment" from
     # "this reading predates the check" â€” both render amber, with different
     # notes, and neither invents a stale finding.
     return bound_items, report, recommendation, False, [], None, None, "", []
@@ -573,19 +573,19 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # request that cannot be classified) already asks for something the
             # rules prohibit, and that does not need an employer to be true: the
             # task-to-earn pattern is the posting's own text. Those get a partial
-            # verdict — caution or note — with an unknown establishment, rather
-            # than "no verdict", so the reader is not told nobody assessed a
+            # assessment — caution or note — with an unknown establishment, rather
+            # than "no assessment", so the reader is not told nobody assessed a
             # posting that announces itself. An ordinary request with no employer
-            # still gets no verdict: there is nothing to judge it against.
+            # still gets no assessment: there is nothing to judge it against.
             from .establishment import Establishment
-            from .verdict_copy import StatementFacts, statement as render_statement
+            from .assessment_copy import StatementFacts, statement as render_statement
 
             if request_class in ("prohibited", "unclassified"):
                 establishment = Establishment(
                     "unknown",
                     "Nothing in the record establishes who is behind the posting.",
                 )
-                risk_level, breakdown = code_verdict(
+                risk_level, breakdown = code_assessment(
                     req.anomalies or [],
                     items,
                     [],
@@ -594,7 +594,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 )
                 risk_score = None
 
-                # The statement is authored from the verdict and the structured facts,
+                # The statement is authored from the assessment and the structured facts,
                 # the same way the normal path builds it.
                 fee_recipient = ""
                 fee_reason = ""
@@ -616,7 +616,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                     fee_reason=fee_reason,
                     documents=documents,
                 )
-                verdict_text = render_statement(
+                assessment_text = render_statement(
                     risk_level,
                     request_class=request_class,
                     establishment=establishment,
@@ -625,17 +625,17 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             else:
                 risk_level = None
                 risk_score = None
-                breakdown = {"verdict": None, "level_source": None}
-                verdict_text = ""
+                breakdown = {"assessment": None, "level_source": None}
+                assessment_text = ""
 
             yield runtime.get_sse()({"type": "result", "data": {
                 "items": [item.model_dump() for item in items],
                 "report": report,
                 "recommendation": recommendation,
-                "verdict": risk_level,
-                "verdictBreakdown": breakdown,
-                "verdictReason": "",
-                "verdictText": verdict_text,
+                "assessment": risk_level,
+                "assessmentBreakdown": breakdown,
+                "assessmentReason": "",
+                "assessmentText": assessment_text,
                 "request_class": request_class,
                 "search_ok": False,
                 "search_error": "No employer name was given, so nothing was searched.",
@@ -647,7 +647,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 "scheme_queries": [],
                 # No employer means no search, so no finding could have been
                 # checked. The key is present and empty, which the client reads
-                # as "the check did not produce a verdict" rather than as a
+                # as "the check did not produce a assessment" rather than as a
                 # saved reading from before the check existed.
                 "anomaly_assessments": [],
                 # The same reason, for the same reason. `rounds` is what the
@@ -881,7 +881,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         )
         (
             items, report, recommendation, used_json, evidence, model_risk_level,
-            model_risk_score, verdict_reason, anomaly_assessments,
+            model_risk_score, assessment_reason, anomaly_assessments,
         ) = _read_verify_output(
             final_text,
             allowed_urls=retrieved_urls,
@@ -960,7 +960,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             # empty result as zero.
             failsafe = True
 
-        # The verdict is code-owned and it has no number. The model's own
+        # The assessment is code-owned and it has no number. The model's own
         # `risk_level` and `risk_score` were already not inputs; they are still
         # read by `_read_verify_output` so an old provider response is
         # diagnosable in the log.
@@ -972,11 +972,11 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             risk_level = None
             risk_score = None
             breakdown: dict = {
-                "verdict": None,
+                "assessment": None,
                 "level_source": None,
             }
         else:
-            risk_level, breakdown = code_verdict(
+            risk_level, breakdown = code_assessment(
                 active_anomalies,
                 items,
                 anomaly_assessments,
@@ -988,22 +988,22 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
 
         if model_risk_level is not None or model_risk_score is not None:
             log.info(
-                "[verify] Ignored model risk fields for the verdict: level=%s score=%s; code verdict=%s rule=%s",
+                "[verify] Ignored model risk fields for the assessment: level=%s score=%s; code assessment=%s rule=%s",
                 model_risk_level,
                 model_risk_score,
                 risk_level,
                 breakdown.get("rule"),
             )
 
-        log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, rule=%s, verdict=%s", len(items), len(report), len(recommendation), breakdown.get("rule"), risk_level)
+        log.info("[verify] Parsed items=%d, report_len=%d, rec_len=%d, rule=%s, assessment=%s", len(items), len(report), len(recommendation), breakdown.get("rule"), risk_level)
         if items:
             log.info("[verify] Items: %s", items)
         if report:
             log.info("[verify] Report: %s", report[:200])
         if recommendation:
             log.info("[verify] Recommendation: %s", recommendation[:200])
-        if verdict_reason:
-            log.info("[verify] Verdict reason: %s", verdict_reason)
+        if assessment_reason:
+            log.info("[verify] Assessment reason: %s", assessment_reason)
         assessed = {assessment.index for assessment in anomaly_assessments}
         missing = [
             index for index in range(1, len(req.anomalies) + 1)
@@ -1023,10 +1023,10 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 len(req.anomalies),
             )
 
-        # The statement is authored from the verdict and the structured facts.
+        # The statement is authored from the assessment and the structured facts.
         # The backend owns the copy; the model never writes it.
         from .establishment import establishment_from_record
-        from .verdict_copy import StatementFacts, statement as render_statement
+        from .assessment_copy import StatementFacts, statement as render_statement
 
         establishment = establishment_from_record(items)
 
@@ -1052,8 +1052,8 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             fee_reason=fee_reason,
             documents=documents,
         )
-        verdict_text = render_statement(
-            risk_level,  # risk_level is the verdict string
+        assessment_text = render_statement(
+            risk_level,  # risk_level is the assessment string
             request_class=request_class,
             establishment=establishment,
             facts=facts,
@@ -1064,10 +1064,10 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             "evidence": evidence,
             "report": report,
             "recommendation": recommendation,
-            "verdict": risk_level,
-            "verdictBreakdown": breakdown,
-            "verdictReason": verdict_reason,
-            "verdictText": verdict_text,
+            "assessment": risk_level,
+            "assessmentBreakdown": breakdown,
+            "assessmentReason": assessment_reason,
+            "assessmentText": assessment_text,
             "request_class": request_class,
             # Always present, possibly empty. See the no-company event above for
             # why absence and an empty list are different states to the client.

@@ -111,7 +111,7 @@ async function consumeSseStream(
         });
       } else if (event.type === 'result') {
         const data = event.data as ApiScanResponse;
-        // The wire now carries the verdict vocabulary directly.
+        // The wire now carries the assessment vocabulary directly.
         return { ...data };
       } else if (event.type === 'error') {
         throw new Error(String(event.error ?? 'Scan failed'));
@@ -395,13 +395,13 @@ async function consumeSseStreamMatch(
 
 export interface OfferAnalysis {
   kind: string;
-  verdict: string;
+  assessment: string;
   what_it_asks: string;
   what_it_offers: string;
   what_to_check: string;
   is_offer: boolean;
-  verdict_level?: 'clear' | 'note' | 'caution' | 'stop' | null;
-  verdictBreakdown?: Record<string, unknown>;
+  assessment_level?: 'clear' | 'note' | 'caution' | 'stop' | null;
+  assessmentBreakdown?: Record<string, unknown>;
 }
 
 export interface OfferStreamResult {
@@ -412,7 +412,7 @@ export interface OfferStreamResult {
 /**
  * Post-only analysis. Used when a posting names no employer, so external
  * verification cannot run. Assesses the offer on its own terms and returns a
- * verdict, so the user is never left without one.
+ * assessment, so the user is never left without one.
  */
 export async function analyzeOfferStream(
   text: string,
@@ -532,7 +532,7 @@ export interface VerifyContext {
 }
 
 export interface VerifyStreamResult {
-  result?: VerificationResult & { verdict?: string; verdictBreakdown?: Record<string, unknown>; verdictText?: string };
+  result?: VerificationResult & { assessment?: string; assessmentBreakdown?: Record<string, unknown>; assessmentText?: string };
   timedOut?: boolean;
 }
 
@@ -549,7 +549,7 @@ export interface WireAnomalyAssessment {
  *
  * `undefined` means the key was absent, which the panel reads as "this reading
  * predates the check". `[]` means the key was present and empty, which means the
- * check ran and produced no verdict. Those two produce different amber notes, so
+ * check ran and produced no assessment. Those two produce different amber notes, so
  * the distinction is preserved rather than defaulted away.
  *
  * A status outside the closed set degrades to `unknown`. The backend already
@@ -642,9 +642,9 @@ export async function verifyJobStream(
             evidence?: VerificationResult['evidence'];
             report: string;
             recommendation: string;
-            verdict?: string;
-            verdictBreakdown?: Record<string, unknown>;
-            verdictText?: string;
+            assessment?: string;
+            assessmentBreakdown?: Record<string, unknown>;
+            assessmentText?: string;
             requestClass?: string;
             request_class?: string;
             no_company_name?: boolean;
@@ -669,7 +669,7 @@ export async function verifyJobStream(
              * rest of that dict is untouched legacy. Read both spellings so the
              * client does not depend on which one the backend happened to keep.
              */
-            verdictReason?: string;
+            assessmentReason?: string;
           };
           return {
             result: {
@@ -680,10 +680,10 @@ export async function verifyJobStream(
               // Empty string rather than dropped: the backend already screens
               // what may appear here, and an absent value is what the panel reads
               // as "no reason to show".
-              verdictReason: data.verdictReason ?? '',
-              verdict: data.verdict as 'clear' | 'note' | 'caution' | 'stop' | undefined,
-              verdictBreakdown: data.verdictBreakdown,
-              verdictText: data.verdictText,
+              assessmentReason: data.assessmentReason ?? '',
+              assessment: data.assessment as 'clear' | 'note' | 'caution' | 'stop' | undefined,
+              assessmentBreakdown: data.assessmentBreakdown,
+              assessmentText: data.assessmentText,
               requestClass: data.requestClass ?? data.request_class,
               searchOk: data.search_ok,
               searchError: data.search_error,

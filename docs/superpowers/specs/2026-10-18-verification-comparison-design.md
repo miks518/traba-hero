@@ -6,8 +6,8 @@ Reverses: `verification_prompt.py:_build_verify_prompt` — "the posting's anoma
 used to be sent as well, and both are actively harmful here"
 
 > **Partly superseded, 2026-10-21.** `main` moved the same ground in the opposite
-> direction: the model emits facts and the code assigns the verdict
-> (`channel_match.py`, `verdict.py`), and the findings reach the verifier as
+> direction: the model emits facts and the code assigns the assessment
+> (`channel_match.py`, `assessment.py`), and the findings reach the verifier as
 > `anomaly_assessments` rather than as a severity-free claims block. The decision
 > record this design names — `docs/decisions/verification-findings.md` — was **not
 > created**; it is superseded by `docs/decisions/scan-channel-enumeration.md` and
@@ -102,7 +102,7 @@ in a docstring that could be quoted at a panel:
 > as tolerable."*
 
 That asymmetry was never applied to the **level** — and the level is the only one of
-the two the panel shows. The 0–100 score was retired; `riskLevel` is the verdict,
+the two the panel shows. The 0–100 score was retired; `riskLevel` is the assessment,
 the banner, the headline, and the elevation test. The rule the codebase believes and
 enforces on a number nobody sees is not enforced on the number everybody does.
 
@@ -148,7 +148,7 @@ The scan's judgement is the thing under examination; its observations are the in
 
 The block text, in the prompt:
 
-> WHAT A FIRST READING OF THE POSTING FOUND (context, not a verdict):
+> WHAT A FIRST READING OF THE POSTING FOUND (context, not a assessment):
 > \- *Asks applicants to pay a processing fee*: The posting asks for money up front.
 >
 > These are observations about the posting, made before anything was searched. They
@@ -437,7 +437,7 @@ demonstrated on the case that motivated it.
 ## What this design does not claim
 
 It does not claim the CHED case is solved. It removes the two mechanisms that made
-the verdict wrong — the verifier's blindness to the findings, and the prompt rule
+the assessment wrong — the verifier's blindness to the findings, and the prompt rule
 that told it to forgive — and it does so in a way that can be tested offline. Whether
 that is enough is one live scan away, and until that scan runs, this is a change
 with a plausible mechanism rather than a demonstrated fix.

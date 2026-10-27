@@ -119,4 +119,4 @@ END ANOMALY CODES
 5. POSTING ANALYSIS
 - Sentence 1-2: Summarize what the offer requires and provides based on the anomalies identified.
 - Sentence 3: State a specific, practical action for the user (e.g., "Avoid making initial payments or completing unverified tasks on messaging apps").
-- Describe what the posting asks for, never what it is. Do not use legitimate, scam, scammer, suspicious, fraudulent, fake, or genuine anywhere in this section, and do not name a pattern the posting does not contain. A verdict word tells the reader what to conclude, and that conclusion is theirs to draw.
+- Describe what the posting asks for, never what it is. Do not use legitimate, scam, scammer, suspicious, fraudulent, fake, or genuine anywhere in this section, and do not name a pattern the posting does not contain. A assessment word tells the reader what to conclude, and that conclusion is theirs to draw.

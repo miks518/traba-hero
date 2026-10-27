@@ -20,7 +20,7 @@ import type { VerificationItem, VerificationResult } from '../../types';
  * These tests pin the four things that made that possible, so it cannot come
  * back quietly: the sentences render, the libel filter is shared rather than
  * reimplemented, the disclosure survives when the sentences are the only thing
- * behind it, and it wears the verdict's tone.
+ * behind it, and it wears the assessment's tone.
  */
 
 afterEach(cleanup);
@@ -371,12 +371,12 @@ describe('each check group is a card tinted by its own status', () => {
   });
 });
 
-describe('the disclosure wears the verdict tone', () => {
+describe('the disclosure wears the assessment tone', () => {
   it.each([
-    ['critical', 'tactile-verdict-critical'],
-    ['caution', 'tactile-verdict-caution'],
-    ['verified', 'tactile-verdict-verified'],
-    ['unknown', 'tactile-verdict-unknown'],
+    ['critical', 'tactile-assessment-critical'],
+    ['caution', 'tactile-assessment-caution'],
+    ['verified', 'tactile-assessment-verified'],
+    ['unknown', 'tactile-assessment-unknown'],
   ] as const)('takes %s as %s', (tone, cls) => {
     const { container } = render(
       React.createElement(FullDetails, { result: result({ report: 'x' }), tone }),
@@ -392,7 +392,7 @@ describe('the disclosure wears the verdict tone', () => {
       React.createElement(FullDetails, { result: result({ report: 'x' }) }),
     );
     expect(container.querySelector('[data-role="full-details-toggle"]')?.className).toContain(
-      'tactile-verdict-unknown',
+      'tactile-assessment-unknown',
     );
   });
 });

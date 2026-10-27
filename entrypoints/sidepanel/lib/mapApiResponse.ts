@@ -3,7 +3,7 @@ import type {
   Anomaly,
   IconName,
   ScanResult,
-  Verdict,
+  Assessment,
 } from '../types';
 import { isUnverifiedEmployer } from './riskDisplay';
 
@@ -20,11 +20,11 @@ const SEVERITY_ICONS: Record<string, IconName> = {
 };
 
 /**
- * The verdict word as prose, for history entries and anything else that needs a
+ * The assessment word as prose, for history entries and anything else that needs a
  * label rather than a token.
  */
-export function verdictLabel(verdict: Verdict | null | undefined): string {
-  switch (verdict) {
+export function assessmentLabel(assessment: Assessment | null | undefined): string {
+  switch (assessment) {
     case 'clear': return 'Proceed';
     case 'note': return 'Note';
     case 'caution': return 'Caution';
@@ -43,10 +43,10 @@ export function verdictLabel(verdict: Verdict | null | undefined): string {
  * private function cannot be tested. See `UNFINISHED-WORK.md`, "Scan-mapping
  * tests".
  *
- * Nothing here computes anything the backend did not send. The verdict and
+ * Nothing here computes anything the backend did not send. The assessment and
  * breakdown come from the backend's decision grid. The one derived value is
  * `unverifiedEmployer`, and it is a *suppression*, not a measurement: it
- * suppresses a verdict the system cannot support.
+ * suppresses a assessment the system cannot support.
  */
 export function mapApiResponse(data: ApiScanResponse): ScanResult {
   const isJobPosting = data.valid;
@@ -59,8 +59,8 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
 
   const hasCritical = flags.some((f) => f.severity === 'high');
 
-  // The verdict comes from the backend's decision grid.
-  const verdict: Verdict | null = data.verdict ?? null;
+  // The assessment comes from the backend's decision grid.
+  const assessment: Assessment | null = data.assessment ?? null;
 
   const anomalies: Anomaly[] = flags.map((f, i) => ({
     id: `anomaly-${i}`,
@@ -81,14 +81,14 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
   }));
 
   return {
-    verdict,
-    verdictLabel: verdictLabel(verdict),
+    assessment,
+    assessmentLabel: assessmentLabel(assessment),
     // Copied through, never defaulted: `''` means the scan reported no class,
     // which is a missing input rather than an ordinary posting.
     requestClass: data.request_class || undefined,
-    verdicted: verdict !== null,
-    verdictBreakdown: data.verdict_breakdown || undefined,
-    verdictText: data.verdict_text || undefined,
+    assessed: assessment !== null,
+    assessmentBreakdown: data.assessment_breakdown || undefined,
+    assessmentText: data.assessment_text || undefined,
     riskDescription: '',
     unverifiedEmployer: isUnverifiedEmployer({
       isJobPosting,

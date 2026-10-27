@@ -59,13 +59,13 @@ it deliberates over. Raise it only if dense small print starts scanning badly.
 |---|---|---|
 | `ReportPanel.tsx` | — | The slot stack, and the promotion restatement below |
 | `JobMeta.tsx` | 1–2 | Scan time, role, employer. **No provenance line** — see below |
-| `VerdictBlock.tsx` | 3 | Tone container + **authored** headline. Replaces `RiskGauge` |
+| `AssessmentBlock.tsx` | 3 | Tone container + **authored** headline. Replaces `RiskGauge` |
 | `ActionBlock.tsx` | 4 | Two authored instruction lines. The share chips and report control are absent |
-| `AnomalyCards.tsx` | 5 | One card per finding: code pill, quote well, and the evidence verdict strip. **Checking / Stale / Contradicted / Unconfirmed** — see below |
+| `AnomalyCards.tsx` | 5 | One card per finding: code pill, quote well, and the evidence assessment strip. **Checking / Stale / Contradicted / Unconfirmed** — see below |
 | `WhatWeChecked.tsx` | 7 | **Asserts checks ran.** Heading derived from state — see below. **Labels only** |
 | `FullDetails.tsx` | 8 | **Shows what retrieval returned,** including each check's `explanation`. Split from §7 for the reason below |
 | `ReportFooter.tsx` | 10 | Disclaimer, ruleset version. No scan id — no field carries one |
-| `verdictCopy.ts` | 3, 4, 8 | Every authored string. **Nothing here may be model-written** |
+| `assessmentCopy.ts` | 3, 4, 8 | Every authored string. **Nothing here may be model-written** |
 | `checkPresentation.ts` | 7, 8 | The three groups and the per-status icon. **Shared, because both slots render the same checks** |
 
 `ScamScanView.tsx` is now a composition of this panel plus the capture
@@ -74,7 +74,7 @@ mapping in `lib/mapApiResponse.ts`.
 
 `ReportSkeleton.tsx` is the initial-scan placeholder, not a report slot: it
 mirrors the order and proportions above with grey `animate-pulse` blocks and
-yields to the real panel as soon as the scan lands. It never uses a verdict
+yields to the real panel as soon as the scan lands. It never uses a assessment
 colour and never draws the unbuilt controls. Verification uses the per-card
 confirming box, not a second skeleton.
 
@@ -138,9 +138,9 @@ condition would have withdrawn the disclosure holding the only explanation of th
 contradiction. Explanations are now a third reason to render.
 
 **§8 wears the banner's tone.** `ReportPanel` resolves `(verifying ? VERIFYING :
-verdictFor(level)).tone` once and passes it down, so the panel reads as one object
+assessmentFor(level)).tone` once and passes it down, so the panel reads as one object
 rather than a banner with a foreign card under it. `tactile-disclosure` shares the
-verdict surface rules with `tactile-verdict` and adds the press state the banner must
+assessment surface rules with `tactile-assessment` and adds the press state the banner must
 not have — a banner is a measurement and does not move; a disclosure is operable and
 does. See `docs/decisions/design-system.md`.
 
@@ -175,7 +175,7 @@ into the block above it with nothing marking where it began.
 
 The old scheme moved a **pair of sibling groups** — evidence up, prose down — so
 the evidence rose above the posting analysis. The new stack is a **single fixed
-order** with the verdict and instructions already at the top, so there is nothing
+order** with the assessment and instructions already at the top, so there is nothing
 above them to promote.
 
 **Promotion now means the neutral context drops below the findings.** On a settled
@@ -206,7 +206,7 @@ degradation that matters more than its happy path.
 
 | Slot | Field | Degradation |
 |---|---|---|
-| One-line verdict reason | `verificationResult.verdictReason` | Absent leaves a banner carrying only its authored headline, which is complete on its own. Suppressed entirely while the lookup is running, so the banner's wording and what sits under it cannot go out of step |
+| One-line assessment reason | `verificationResult.assessmentReason` | Absent leaves a banner carrying only its authored headline, which is complete on its own. Suppressed entirely while the lookup is running, so the banner's wording and what sits under it cannot go out of step |
 | Anomaly `code` pill | `anomalies[].code` | Absent is **not** `OTHER`. `OTHER` is the escape valve and is shown, because its frequency is the drift signal the taxonomy exists to produce; absent means a scan predating the field |
 | Quote block per anomaly | `anomalies[].quote` | Absent degrades the card to its explanation. An empty quotation block would read as "the posting said nothing here", which is a claim about the posting rather than about our screening |
 
@@ -223,7 +223,7 @@ path it is located as well. Screening a quote leaves the finding intact and the
 card renders its explanation, which is the honest degradation; a fabricated quote
 is never rendered.
 
-#### The anomaly evidence verdict
+#### The anomaly evidence assessment
 
 `Anomaly.assessment` is optional, and absence is a real state rather than a
 `stale`. One of four card states is derived in the client:
@@ -237,7 +237,7 @@ is never rendered.
 - **Contradicted** — red `status-card-critical` strip; the chip keeps the scan's
   severity. A source states something different from the posting.
 - **`Unconfirmed`** — amber chip and `status-card-caution` strip. No employer,
-  a failed lookup, a missing verdict, or results that did not settle it.
+  a failed lookup, a missing assessment, or results that did not settle it.
 
 `stale` and `red` are shown only with a bound retrieved URL. The parser demotes
 an unbacked one to `yellow`, and the card repeats the rule as a last guard
@@ -266,9 +266,9 @@ capture action, and only while a high or critical level is settled.
 | `backend/app/services/scanner/verification_prompt.py` | Loads `VERIFY_PROMPT.md`, owns the response schema and search-context formatters |
 | `backend/app/services/scanner/verification_parser.py` | Fallback labeled-text parser |
 | `backend/app/services/scanner/channel_match.py` | Channel Match facts, free-provider detection, lookalike detection, and the code-owned severity |
-| `backend/app/services/scanner/verdict.py` | The code-owned final level: posting findings + refutation score, with the strong-channel floor |
+| `backend/app/services/scanner/assessment.py` | The code-owned final level: posting findings + refutation score, with the strong-channel floor |
 | `backend/app/services/scanner/offer_prompt.py`, `offer_parser.py`, `offer_flow.py` | Post-only analysis for offers naming no employer; its own endpoint and parser so it cannot break the scan or verify paths |
-| `backend/app/services/scanner/risk_calculator.py` | Weights and two-stage arithmetic behind `verdict.py` — see `docs/scoring.md` |
+| `backend/app/services/scanner/risk_calculator.py` | Weights and two-stage arithmetic behind `assessment.py` — see `docs/scoring.md` |
 | `backend/app/config.py` | Settings via pydantic-settings, loads from `backend/.env` |
 | `backend/app/rate_limit.py` | Rate limiting — see `docs/decisions/security-boundaries.md` |
 | `backend/app/ai_limiter.py` | Concurrency control (semaphore + queue depth) |
@@ -325,9 +325,9 @@ After a successful scan, the backend adds `verification_context` to the scan res
 
 If no company name is found, `verification_context` is absent and the frontend never
 calls `/api/verify`; it calls `POST /api/analyze-offer` instead, which assesses the offer
-on its own terms and returns a verdict. **Both paths produce a level, but they are not
+on its own terms and returns a assessment. **Both paths produce a level, but they are not
 the same kind of level, and the difference is deliberate.** The verify path's level is
-computed in `verdict.py` from the posting's findings and the retrieved evidence. The
+computed in `assessment.py` from the posting's findings and the retrieved evidence. The
 offer path's level is the model's own reading, because that path has no employer to look
 up, no anomalies to price, and no retrieval to contradict anything — the prompt says so
 in as many words. It is a separate design, not an oversight, and it carries the same
@@ -337,12 +337,12 @@ into code; the offer path has not been revisited.
 
 On the verify path, a source that accounts for a finding removes that finding from the
 posting score, a source that contradicts one adds to the refutation score, and an
-unresolved finding never lowers it. The final number is computed in `verdict.py`; the
+unresolved finding never lowers it. The final number is computed in `assessment.py`; the
 verify model does not return `risk_level` or `risk_score`.
 
 The verify prompt carries the scan's findings as a numbered block, plus a 4,000-character
 excerpt of `job_summary` as context. It returns `anomaly_assessments`, one per finding.
-`stale` and `red` require a retrieved URL; an unbacked verdict is demoted to `yellow`.
+`stale` and `red` require a retrieved URL; an unbacked assessment is demoted to `yellow`.
 The five status-bearing category checks stay evidence-only: the findings are labelled as
 the posting's claims and may not make a category green or red. Channel Match is not one of
 those status-bearing checks; the model reports its facts in a `channel_match` object and
@@ -499,7 +499,7 @@ raised with it.**
   exported but has no caller), so this state is never about a missing image. It is about
   the captured region not containing a logo, letterhead or sender name.
 - There is **no text input** for the company name. A typed name would flow straight into
-  the verification prompt, which produces a verdict naming a real company; guidance only,
+  the verification prompt, which produces a assessment naming a real company; guidance only,
   by decision.
 - **The anomaly cards are present before verification and never hidden.** While the
   lookup runs they show `Checking` with no severity; a no-employer or failed lookup shows
@@ -539,14 +539,14 @@ are inline Tailwind utilities and each carries its own.
 
 **Restated, not kept.** The old scheme moved a pair of sibling groups so the
 evidence rose above the posting analysis. The new stack is a **single fixed
-order** with the verdict and the instructions already at the top, so there is
+order** with the assessment and the instructions already at the top, so there is
 nothing above them to promote.
 
 ```
 (old) Normal:        Gauge -> Posting Analysis -> Job Summary -> [shots] -> [Anomalies - Offer - Evidence]
 (old) High/Critical: Gauge -> [Anomalies - Offer - Evidence] -> Posting Analysis -> Job Summary -> [shots]
 
-(new) Always:    Job meta -> Verdict -> What to do now -> Findings -> Context -> Footer
+(new) Always:    Job meta -> Assessment -> What to do now -> Findings -> Context -> Footer
 (new) Elevated:  the same, with Context moved below Findings
 ```
 
@@ -578,7 +578,7 @@ nothing above them to promote.
 - **Colour is chrome, not prose.** `riskAccent()` tints the primary capture
   button, and only while a high or critical level is settled. **Body prose has no
   entry on purpose**: long blocks of red or amber on a light surface are the
-  hardest thing on the panel to read, and this is where someone reads a verdict
+  hardest thing on the panel to read, and this is where someone reads a assessment
   carefully enough to act on it. The accent is temporary by construction - it
   rides on the displayed result, which `resetAll()` already clears when a new
   element is picked.
@@ -586,7 +586,7 @@ nothing above them to promote.
   along with the ring's `ring-breathe` keyframes and the `--ring-glow-color`
   property they read. The number still exists in the backend for the level bands,
   resume matching and `score_breakdown`, but the panel renders a short authored
-  instruction from `verdictCopy.ts`, looked up by level, so it cannot drift between
+  instruction from `assessmentCopy.ts`, looked up by level, so it cannot drift between
   runs and keeps the libel guardrail in code. See
   `docs/decisions/report-panel-redesign.md`.
 ### Filter categories (`ResumeMatchView`)

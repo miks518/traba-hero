@@ -1,6 +1,6 @@
 """Whether the record establishes who is doing the asking.
 
-The verdict has two axes, and this is the second one. The first is what the
+The assessment has two axes, and this is the second one. The first is what the
 posting asks for (`request_class`); this module decides how far the record got in
 showing that the entity behind the posting is the entity it names.
 
@@ -16,7 +16,7 @@ Four states, in the vocabulary the reader is shown:
   entity's. This is the only state that can produce `stop`.
 
 **This mapping is provisional.** Part 4 replaces it with a real decision over the
-employer record. It is here in Part 2 so the verdict has a second axis to read,
+employer record. It is here in Part 2 so the assessment has a second axis to read,
 and it is deliberately built from facts the code already owns: a channel
 escalation and a category status. No model output enters.
 
@@ -41,7 +41,7 @@ CONTRADICTING_ESCALATIONS = frozenset({"government", "lookalike"})
 
 @dataclass(frozen=True)
 class Establishment:
-    """The second axis of the verdict.
+    """The second axis of the assessment.
 
     `reason` is shown to the reader as the record's finding, so it states what was
     compared and what came back, never a conclusion about the poster.

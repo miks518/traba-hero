@@ -8,7 +8,7 @@ import {
   type VerifyContext,
 } from '../lib/api';
 import { compressImage } from '../lib/imageUtils';
-import { mapApiResponse, verdictLabel } from '../lib/mapApiResponse';
+import { mapApiResponse, assessmentLabel } from '../lib/mapApiResponse';
 import { shouldElevateEvidence, type VerificationRun } from '../lib/riskDisplay';
 import type { Anomaly, AnomalyAssessment, ScanResult, ScannedJob } from '../types';
 
@@ -48,15 +48,15 @@ export function selectVerifiableIndices(anomalies: Anomaly[]): number[] {
 }
 
 /**
- * Attach the verdicts to the findings they were about.
+ * Attach the assessments to the findings they were about.
  *
  * The verify request may carry a capped subset, so `assessment.index` is
  * relative to `selected`, not to the full list. An omitted finding gets an
- * amber "too many findings" verdict only when the check actually ran; if it did
+ * amber "too many findings" assessment only when the check actually ran; if it did
  * not, the card's own honest note is better than inventing a reason. A selected
- * finding without a new verdict has any earlier verdict cleared, so the card
- * renders its amber "no verdict recorded" note rather than an old reading
- * presented as this one's. A check that did not run leaves a stored verdict
+ * finding without a new assessment has any earlier assessment cleared, so the card
+ * renders its amber "no assessment recorded" note rather than an old reading
+ * presented as this one's. A check that did not run leaves a stored assessment
  * alone.
  */
 export function mergeAnomalyAssessments(
@@ -79,9 +79,9 @@ export function mergeAnomalyAssessments(
     if (assessment) return { ...anomaly, assessment };
     if (assessmentRun) {
       // The current check ran. A selected finding it did not answer must not
-      // keep the verdict from an earlier run: that is the previous reading
+      // keep the assessment from an earlier run: that is the previous reading
       // presented as this one's. Clearing it lets the card say "no evidence
-      // verdict was recorded". A finding the request did not carry gets the
+      // assessment was recorded". A finding the request did not carry gets the
       // cap note instead, for the same reason.
       return {
         ...anomaly,
@@ -93,7 +93,7 @@ export function mergeAnomalyAssessments(
             },
       };
     }
-    // The check did not run: keep a stored verdict if this scan already has one.
+    // The check did not run: keep a stored assessment if this scan already has one.
     return anomaly;
   });
 }
@@ -256,21 +256,21 @@ export function useScanSession({
                 offerAnalysisLoading: false,
                 offerAnalysis: {
                   kind: raw.kind,
-                  verdict: raw.verdict,
+                  assessment: raw.assessment,
                   whatItAsks: raw.what_it_asks,
                   whatItOffers: raw.what_it_offers,
                   whatToCheck: raw.what_to_check,
                   isOffer: raw.is_offer,
                 },
-                // The offer path now carries a code-owned verdict, the same way
-                // verify does. Adopt it so the verdict block and action block
-                // render a reading instead of "No verdict on this one".
-                ...(raw.verdict_level
+                // The offer path now carries a code-owned assessment, the same way
+                // verify does. Adopt it so the assessment block and action block
+                // render a reading instead of "No assessment on this one".
+                ...(raw.assessment_level
                   ? {
-                      verdicted: true,
-                      verdict: raw.verdict_level,
-                      verdictLabel: verdictLabel(raw.verdict_level),
-                      verdictBreakdown: raw.verdictBreakdown,
+                      assessed: true,
+                      assessment: raw.assessment_level,
+                      assessmentLabel: assessmentLabel(raw.assessment_level),
+                      assessmentBreakdown: raw.assessmentBreakdown,
                     }
                   : {}),
               }
@@ -280,7 +280,7 @@ export function useScanSession({
         setScanResult((prev) => (prev ? { ...prev, offerAnalysisLoading: false } : null));
       }
     } catch (e) {
-      // The verdict comes from the indicators already found in the scan, so a
+      // The assessment comes from the indicators already found in the scan, so a
       // failed analysis pass costs the explanation, not the reading.
       console.error('[analyze-offer] Error:', e);
       setScanResult((prev) => (prev ? { ...prev, offerAnalysisLoading: false } : null));
@@ -320,7 +320,7 @@ export function useScanSession({
 
         if (verifyResult.result) {
           const result = verifyResult.result;
-          // Verdict and score are adopted independently, and deliberately. Gating
+          // Assessment and score are adopted independently, and deliberately. Gating
           // both on the score meant a response carrying a level but no score had
           // its level silently discarded and fell back to whatever was on screen —
           // and the colour, the headline and the elevation test all key off the
@@ -330,7 +330,7 @@ export function useScanSession({
           // has neither would keep a stale level on screen after a verification
           // that failed. A missing value means missing.
           const prev = scanResultRef.current;
-          const nextVerdict = result.verdict ?? null;
+          const nextAssessment = result.assessment ?? null;
           const assessmentRun = result.anomalyAssessmentRun === true;
           const mergedAnomalies = mergeAnomalyAssessments(
             prev?.anomalies ?? [],
@@ -348,10 +348,10 @@ export function useScanSession({
               // scan's severity, and the card derives the chip from this.
               anomalies: mergedAnomalies,
               anomalyAssessmentRun: assessmentRun,
-              verdicted: nextVerdict !== null,
-              verdict: nextVerdict,
-              verdictLabel: verdictLabel(nextVerdict),
-              verdictBreakdown: result.verdictBreakdown,
+              assessed: nextAssessment !== null,
+              assessment: nextAssessment,
+              assessmentLabel: assessmentLabel(nextAssessment),
+              assessmentBreakdown: result.assessmentBreakdown,
             },
             jobId,
           );
@@ -628,12 +628,12 @@ export function useScanSession({
   })();
 
   /**
-   * A settled stop or caution verdict drops the neutral context below the
+   * A settled stop or caution assessment drops the neutral context below the
    * findings. Derived from the same decision the panel's colour comes from, so
    * the emphasis and the tone can never disagree about whether this is dangerous.
    */
   const elevate = shouldElevateEvidence({
-    verdict: scanResult?.verdict ?? null,
+    assessment: scanResult?.assessment ?? null,
     verificationLoading: scanResult?.verificationLoading,
     offerAnalysisLoading: scanResult?.offerAnalysisLoading,
   });

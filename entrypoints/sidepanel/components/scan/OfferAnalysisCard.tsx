@@ -8,7 +8,7 @@ export interface OfferAnalysisCardProps {
 }
 
 /**
- * The verdict for an offer that names no employer, so external verification
+ * The assessment for an offer that names no employer, so external verification
  * could not run. Everything here comes from the offer's own content — no
  * statement about a company it does not name.
  */
@@ -45,7 +45,7 @@ export function OfferAnalysisCard({ analysis, loading }: OfferAnalysisCardProps)
         )}
       </div>
 
-      <p className="text-body-sm text-on-surface leading-relaxed">{analysis.verdict}</p>
+      <p className="text-body-sm text-on-surface leading-relaxed">{analysis.assessment}</p>
 
       <div className="flex flex-col gap-2">
         {rows.filter((r) => r.value && r.value.toLowerCase() !== 'not stated').map((row) => (

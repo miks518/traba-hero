@@ -67,7 +67,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 **Target Users:** Filipino job seekers browsing online job boards (e.g., JobStreet, Indeed, Facebook Jobs).
 
-**Core Value Proposition:** Safety through Simplicity — one click should be enough to get a safety verdict.
+**Core Value Proposition:** Safety through Simplicity — one click should be enough to get a safety assessment.
 
 **Two principles shape the whole system:**
 
@@ -229,7 +229,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 | **Priority** | Critical |
 | **Component** | `lm_client.py`, `services/scanner/`, `SYSTEM_PROMPT.md`, `verification_prompt.py` |
 
-**Description:** The backend shall use an AI model to analyze job postings for fraud indicators and produce a structured verdict. External verification runs on a separate `/api/verify` endpoint using 2–5 Tavily searches + one AI call.
+**Description:** The backend shall use an AI model to analyze job postings for fraud indicators and produce a structured assessment. External verification runs on a separate `/api/verify` endpoint using 2–5 Tavily searches + one AI call.
 
 **Acceptance Criteria:**
 - AC-01: The AI model receives the job posting content (image and/or text) with a system prompt.
@@ -676,7 +676,7 @@ as 2 and 5.
 - AC-05: The backend runs on FastAPI with async support.
 - AC-06: `/api/verify` accepts a `VerifyRequest` with `company_name`, `job_summary`, and `anomalies`. It returns `items`, `evidence`, `report`, `recommendation`, `search_ok`, `search_error`, and the score breakdown.
 - AC-07: `/api/verify` logs the raw AI response and parsed results for debugging.
-- AC-08: `/api/analyze-offer` is called when a posting names no employer, so the user still receives a verdict on what the post asks for.
+- AC-08: `/api/analyze-offer` is called when a posting names no employer, so the user still receives a assessment on what the post asks for.
 - AC-09: If the scan result has no `verification_context` (missing company name), `/api/verify` is never called. See FR-31.
 
 ---
@@ -781,7 +781,7 @@ as 2 and 5.
 | **Priority** | High |
 | **Component** | `CompanyNameNeeded.tsx`, `OfferAnalysisCard.tsx`, `RiskGauge.tsx`, `riskDisplay.ts` |
 
-**Description:** A posting that names no employer cannot be looked up. The system shall say so plainly, ask for the name, and still deliver a verdict on the offer itself.
+**Description:** A posting that names no employer cannot be looked up. The system shall say so plainly, ask for the name, and still deliver a assessment on the offer itself.
 
 **Acceptance Criteria:**
 - AC-01: When `isValidJob && !companyName`, `/api/verify` is not called and `CompanyNameNeeded` replaces the verification section entirely.
@@ -789,7 +789,7 @@ as 2 and 5.
 - AC-03: The panel states what was and was not checked, and says explicitly that it is **not a warning about the post** — a fact about our own output rather than a claim about how common nameless posts are.
 - AC-04: The panel tells the reader to pick the part of the page showing a logo, letterhead, or sender name and scan again.
 - AC-05: Scans are always screenshots, so this state is never about a missing image. It is about the captured region not containing an employer name.
-- AC-06: **There is no text input for the company name.** A typed name flows straight into the verification prompt, which produces a verdict naming a real company. Guidance only, by decision.
+- AC-06: **There is no text input for the company name.** A typed name flows straight into the verification prompt, which produces a assessment naming a real company. Guidance only, by decision.
 - AC-07: `/api/analyze-offer` still assesses the offer on its own terms, so the user receives what the post asks for, what it offers, and what to check.
 - AC-08: The risk gauge shows "Unverified" (FR-08, AC-09) rather than a score, because the employer was never checked.
 
@@ -813,7 +813,7 @@ as 2 and 5.
 - AC-07: The action bar remains pinned to the bottom of the panel. `order` applies to every sibling of the flex column, so the bar and the capture preview carry explicit order values ahead of neither the promoted nor the demoted group.
 - AC-08: The risk level is reflected in the chrome — the verification section's header, border, and surface, and the primary action button — using semantic design tokens, never a literal colour value.
 - AC-08b: **A risk accent may only change the primary action's colour, never its shape.** The button keeps its hard-shadow depth, gradient, top highlight, and `:active` press; a high or critical result moves the accent's base colour rather than replacing the button's class. The affordance is not part of the risk message, and a primary action that changes shape at the same moment it changes message is harder to trust and harder to aim at.
-- AC-09: **Body prose is never recoloured by risk level.** Long blocks of red or amber on a light surface are the hardest thing on the panel to read, and the panel is where a reader reads a verdict carefully enough to act on it.
+- AC-09: **Body prose is never recoloured by risk level.** Long blocks of red or amber on a light surface are the hardest thing on the panel to read, and the panel is where a reader reads a assessment carefully enough to act on it.
 - AC-10: The accent applies only while a result is displayed and is removed automatically when a new element is picked, with no timer of its own.
 
 ---
@@ -1092,7 +1092,7 @@ interface ScanResult {
   isJobPosting: boolean;
   companyName?: string | null;    // the employer the reader would work for
   jobSummary?: string;            // what the role is
-  postingAnalysis?: string;       // the verdict on the posting
+  postingAnalysis?: string;       // the assessment on the posting
   scoreBreakdown?: ScoreBreakdown;
   verificationResult?: VerificationResult;
   verificationLoading?: boolean;
@@ -1287,7 +1287,7 @@ Assesses an offer that names no employer, so there is nothing to look up. One AI
 }
 ```
 
-**Response:** SSE stream carrying `kind`, `verdict`, `what_it_asks`, `what_it_offers`, `what_to_check`, and `is_offer`.
+**Response:** SSE stream carrying `kind`, `assessment`, `what_it_asks`, `what_it_offers`, `what_to_check`, and `is_offer`.
 
 ---
 
@@ -1345,5 +1345,5 @@ Assesses an offer that names no employer, so there is nothing to look up. One AI
 
 *Notes on this revision (0.4.0 → 0.5.0): a settled high or critical score now promotes the evidence above the prose and tints the panel chrome (FR-32); the verification recommendation is addressed to a job seeker rather than assigning a registry lookup; the scan prompt's severity list no longer offers a missing employer as an example of a low-severity flag, which had been scoring nameless postings at 4; and a scanned job's stored result is replaced when verification lands, so a history entry no longer disagrees with the panel about the same posting.*
 
-*Earlier revision (0.3.0 → 0.4.0): web search moved from DuckDuckGo scraping to the Tavily API; the SEC-only registration check was widened to "Official Registration"; the AI-provided `VERDICT_PERCENTAGE` score was replaced by the two-stage posting/verification blend; a missing employer name became a distinct state rather than an anomaly; search relevance was fixed by the `country` boost and a suffix strip rather than by category tokens; the credit knobs became environment values; and the temporary search debug surface (`/api/debug/search`, `SearchRawPanel`, `SearchOutcome.raw_response`) was removed once the ranking fix was confirmed by a real run.*
+*Earlier revision (0.3.0 → 0.4.0): web search moved from DuckDuckGo scraping to the Tavily API; the SEC-only registration check was widened to "Official Registration"; the AI-provided `ASSESSMENT_PERCENTAGE` score was replaced by the two-stage posting/verification blend; a missing employer name became a distinct state rather than an anomaly; search relevance was fixed by the `country` boost and a suffix strip rather than by category tokens; the credit knobs became environment values; and the temporary search debug surface (`/api/debug/search`, `SearchRawPanel`, `SearchOutcome.raw_response`) was removed once the ranking fix was confirmed by a real run.*
 

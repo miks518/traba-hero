@@ -1,4 +1,4 @@
-"""The authored statements and options for each verdict.
+"""The authored statements and options for each assessment.
 
 The panel never shows model prose. Every word is in code and looked up, like the
 panel's own copy. The statement is rendered from structured facts off the record
@@ -12,7 +12,7 @@ is the one thing the libel guardrail cannot tolerate.
 
 No statement contains an accusation and no statement contains a hedge — no
 "likely", "appears", "suggests", "may", "might", "could". The same word ban
-`clean_verdict_reason` applies, because the same reader-facing risk applies.
+`clean_assessment_reason` applies, because the same reader-facing risk applies.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from __future__ import annotations
 import pytest
 
 from app.services.scanner.establishment import Establishment
-from app.services.scanner.verdict_copy import StatementFacts, statement, options
+from app.services.scanner.assessment_copy import StatementFacts, statement, options
 
 
 class TestClearStatements:
@@ -173,6 +173,6 @@ class TestOptions:
         assert len(opts) >= 1
         assert any("do not send" in o.lower() or "money" in o.lower() or "document" in o.lower() for o in opts)
 
-    def test_unknown_verdict_returns_empty(self):
-        opts = options("not_a_verdict")
+    def test_unknown_assessment_returns_empty(self):
+        opts = options("not_a_assessment")
         assert opts == ()

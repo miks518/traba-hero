@@ -142,10 +142,10 @@ employer through an official channel".
 
 **The ban appears in the field rule itself, not only in the prompt preamble**, because a
 long prompt drifts and the field rule is what the model weights when writing the
-verdict. It also gives the allowed phrasing — describe what the posting asks for, not
+assessment. It also gives the allowed phrasing — describe what the posting asks for, not
 what it is.
 
-A verdict naming a post a scam is the libel exposure the whole prompt rule set exists
+A assessment naming a post a scam is the libel exposure the whole prompt rule set exists
 to prevent.
 
 ---

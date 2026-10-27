@@ -7,10 +7,10 @@ Do NOT perform your own searches. Do NOT output tool calls or function calls. On
 Respond strictly using this labeled section format:
 
 VALID: true
-VERDICT_PERCENTAGE: 0
+ASSESSMENT_PERCENTAGE: 0
 END FLAGS
 ANALYSIS:
-1-2 short sentences. State the verdict and the single most important reason.
+1-2 short sentences. State the assessment and the single most important reason.
 END ANALYSIS
 JOB SUMMARY:
 Include job title, company, key requirements, AND all contact details found in the posting (phone numbers, email addresses, website URLs, social media handles). These details are needed for verification.
@@ -18,7 +18,7 @@ END JOB SUMMARY
 
 Field rules:
 - VALID: true if this is a genuine job posting or job advertisement, false if it is not.
-- VERDICT_PERCENTAGE: integer from 0 (completely legitimate/safe) to 100 (definite scam). For legitimate jobs, this should be low (e.g. 0-25).
+- ASSESSMENT_PERCENTAGE: integer from 0 (completely legitimate/safe) to 100 (definite scam). For legitimate jobs, this should be low (e.g. 0-25).
 - RED FLAGS:
   * CRITICAL: If the job posting is legitimate or has NO red flags, DO NOT output any RED FLAG lines. Keep the flags section empty by immediately outputting END FLAGS.
   * ONLY output a RED FLAG line if a concrete scam indicator or high-risk issue is genuinely found in the scanned posting.

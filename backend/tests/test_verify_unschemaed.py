@@ -169,13 +169,13 @@ class TestTheOfferPathSharesTheDefect:
         assert "JSON" in ANALYZE_OFFER_SYSTEM_PROMPT
 
     def test_the_offer_prompt_names_every_key(self):
-        for key in ("kind", "verdict", "what_it_asks", "what_it_offers", "what_to_check", "is_offer"):
+        for key in ("kind", "assessment", "what_it_asks", "what_it_offers", "what_to_check", "is_offer"):
             assert key in ANALYZE_OFFER_SYSTEM_PROMPT, key
 
     def test_a_fenced_offer_object_is_still_read(self):
         payload = json.dumps({
             "kind": "Recruitment pitch",
-            "verdict": "The offer asks for a processing fee before any interview.",
+            "assessment": "The offer asks for a processing fee before any interview.",
             "what_it_asks": "A 500 peso processing fee sent by GCash before an interview.",
             "what_it_offers": "A work-from-home office assistant role.",
             "what_to_check": "The employer's registered business name.",

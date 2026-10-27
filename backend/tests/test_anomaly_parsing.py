@@ -464,7 +464,7 @@ class TestProseIsNotAKeyword:
     the sentence in `attributes`, which `build_scheme_queries` then turned into
     a wasted credit on a query nothing can succeed at, and -- because a matched
     keyword always closes the section first -- it truncated POSTING ANALYSIS at
-    that line. The verdict the reader is told to act on lost its second half
+    that line. The assessment the reader is told to act on lost its second half
     with nothing anywhere reporting it.
 
     The colon is optional in `_SECTION_RE` for every key, so requiring one would
@@ -486,7 +486,7 @@ class TestProseIsNotAKeyword:
 
         assert result["attributes"] == {}
 
-    def test_the_verdict_is_not_truncated_at_one_of_them(self):
+    def test_the_assessment_is_not_truncated_at_one_of_them(self):
         """The headline symptom: "Part 2 -- the action" simply disappeared.
 
         Asserted on the *last* sentence, not the first. A parser that stored the
@@ -529,7 +529,7 @@ class TestProseIsNotAKeyword:
         """`in_attributes` is cleared by the next keyword, not just by the marker.
 
         An implementation that cleared it only on `END ATTRIBUTES` would keep
-        harvesting for the rest of the response, including the verdict.
+        harvesting for the rest of the response, including the assessment.
 
         Parametrised over **both** ways the block can end. The first version of
         this test used `END ATTRIBUTES`, which is the one closing a

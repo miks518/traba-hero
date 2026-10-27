@@ -189,10 +189,10 @@ class TestTheFlowTellsTheTwoEmptyResultsApart:
         assert resp.status_code == 200
         assert '"type": "result"' in resp.text
         assert "No structured findings could be read" in resp.text
-        # A verdict still exists: the unreadable verification contributes
+        # A assessment still exists: the unreadable verification contributes
         # nothing, and the posting's own score stands.
-        assert '"verdictBreakdown":' in resp.text
-        assert '"verdict": null' in resp.text
+        assert '"assessmentBreakdown":' in resp.text
+        assert '"assessment": null' in resp.text
         assert '"riskLevel"' not in resp.text
         assert '"riskScore"' not in resp.text
         assert '"scoreBreakdown"' not in resp.text

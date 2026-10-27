@@ -1,4 +1,4 @@
-import type { Anomaly, ScanResult, ScannedJob, Verdict } from '../types';
+import type { Anomaly, ScanResult, ScannedJob, Assessment } from '../types';
 
 /**
  * How many scans are kept.
@@ -78,11 +78,11 @@ export function updateScannedJob(
  *
  * **The vocabulary, and why the result is marked.** A stored scan carries a
  * level — `low`/`moderate`/`high`/`critical` — and no request class and no
- * establishment, so the new verdict cannot be *computed* from it: the two inputs
+ * establishment, so the new assessment cannot be *computed* from it: the two inputs
  * the grid reads are simply not in the record. It is mapped to the nearest
  * reader-facing word instead, and the entry is stamped
- * `verdictRecordedUnder: 'previous-procedure'` so nothing presents a legacy
- * level as a verdict this system reached. That stamp is the difference between
+ * `assessmentRecordedUnder: 'previous-procedure'` so nothing presents a legacy
+ * level as a assessment this system reached. That stamp is the difference between
  * a migration and a silent re-labelling.
  *
  * The mapped word is deliberately the harsher of the two neighbours: a stored
@@ -111,34 +111,34 @@ export function migrateScannedJobs(stored: unknown): ScannedJob[] {
       ? { ...(rest as unknown as ScanResult), anomalies: legacyFlags as Anomaly[] }
       : (rest as unknown as ScanResult);
 
-    // Map a legacy level onto the nearest verdict word, and mark it as legacy.
+    // Map a legacy level onto the nearest assessment word, and mark it as legacy.
     // The two inputs the grid reads are not in a stored record, so this is a
-    // label and never a computed verdict.
-    if (legacyRiskLevel !== undefined && renamed.verdict === undefined) {
-      const mapping: Record<string, { verdict: Verdict; label: string }> = {
-        critical: { verdict: 'stop', label: 'Do not proceed' },
-        high: { verdict: 'stop', label: 'Do not proceed' },
-        moderate: { verdict: 'caution', label: 'Caution' },
-        low: { verdict: 'clear', label: 'Proceed' },
+    // label and never a computed assessment.
+    if (legacyRiskLevel !== undefined && renamed.assessment === undefined) {
+      const mapping: Record<string, { assessment: Assessment; label: string }> = {
+        critical: { assessment: 'stop', label: 'Do not proceed' },
+        high: { assessment: 'stop', label: 'Do not proceed' },
+        moderate: { assessment: 'caution', label: 'Caution' },
+        low: { assessment: 'clear', label: 'Proceed' },
       };
       const mapped = mapping[legacyRiskLevel as string];
       if (mapped) {
-        renamed.verdict = mapped.verdict;
-        renamed.verdictLabel = mapped.label;
-        renamed.verdicted = true;
-        renamed.verdictRecordedUnder = 'previous-procedure';
+        renamed.assessment = mapped.assessment;
+        renamed.assessmentLabel = mapped.label;
+        renamed.assessed = true;
+        renamed.assessmentRecordedUnder = 'previous-procedure';
       }
     }
 
-    if (renamed.verdicted === true) return { ...job, scanResult: renamed };
+    if (renamed.assessed === true) return { ...job, scanResult: renamed };
 
     return {
       ...job,
       scanResult: {
         ...renamed,
-        verdicted: false,
-        verdict: null,
-        verdictLabel: 'Not Assessed',
+        assessed: false,
+        assessment: null,
+        assessmentLabel: 'Not Assessed',
       },
     };
   });

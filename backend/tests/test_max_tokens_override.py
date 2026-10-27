@@ -58,7 +58,7 @@ class TestResolveMaxTokens:
         assert s.resolve_max_tokens("verify") == 2048
 
     def test_a_non_numeric_override_falls_back(self):
-        """A typo costs recall, not a verdict — same rule as the search depth."""
+        """A typo costs recall, not a assessment — same rule as the search depth."""
         s = Settings(_env_file=None, ai_max_tokens=2048, ai_max_tokens_verify="lots")
 
         assert s.resolve_max_tokens("verify") == 2048

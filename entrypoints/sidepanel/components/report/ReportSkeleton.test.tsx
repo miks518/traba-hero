@@ -10,8 +10,8 @@ afterEach(cleanup);
  *
  * The old loader was a centred circle and a spinner. It said something was
  * happening, not what was coming. This one mirrors the report's slot order, and
- * the assertions here are mostly about what it refuses to draw: a verdict
- * colour, a verdict headline, or a control the panel does not yet ship.
+ * the assertions here are mostly about what it refuses to draw: a assessment
+ * colour, a assessment headline, or a control the panel does not yet ship.
  */
 describe('the report skeleton', () => {
   it('mirrors the report rather than the old loader', () => {
@@ -21,12 +21,12 @@ describe('the report skeleton', () => {
     expect(root?.getAttribute('aria-busy')).toBe('true');
     expect(root?.getAttribute('aria-label')).toContain('Reading');
     expect(root?.textContent).toContain('Scanning… 42%');
-    // More than the old loader's three lines: subject, verdict, actions,
+    // More than the old loader's three lines: subject, assessment, actions,
     // findings and details all have a shape.
     expect(root?.querySelectorAll('.animate-pulse').length).toBeGreaterThan(15);
   });
 
-  it('uses grey only, never a verdict colour', () => {
+  it('uses grey only, never a assessment colour', () => {
     const { container } = render(React.createElement(ReportSkeleton, { progressPercent: 10 }));
     const root = container.querySelector('[data-role="report-skeleton"]');
 
@@ -41,13 +41,13 @@ describe('the report skeleton', () => {
     expect(root?.querySelector('.bg-surface-container-highest')).toBeTruthy();
   });
 
-  it('asserts no verdict while the scan is still running', () => {
+  it('asserts no assessment while the scan is still running', () => {
     const { container } = render(React.createElement(ReportSkeleton, { progressPercent: 0 }));
     const text = container.textContent ?? '';
 
     expect(text).not.toContain('Do not proceed');
     expect(text).not.toContain('Looks safe');
-    expect(text).not.toContain('No verdict');
+    expect(text).not.toContain('No assessment');
   });
 
   it('does not promise slots the report does not ship', () => {

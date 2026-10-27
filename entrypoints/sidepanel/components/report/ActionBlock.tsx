@@ -1,10 +1,10 @@
 ﻿import React from 'react';
 import { Icon } from '../common';
-import { actionsFor, shareChipsFor, NO_VERDICT_BULLET } from './verdictCopy';
-import type { Verdict } from '../../types';
+import { actionsFor, shareChipsFor, NO_ASSESSMENT_BULLET } from './assessmentCopy';
+import type { Assessment } from '../../types';
 
 export interface ActionBlockProps {
-  verdict: Verdict | null;
+  assessment: Assessment | null;
   codes?: string[];
   /**
    * The verify stage's recommendation, written for this posting.
@@ -15,7 +15,7 @@ export interface ActionBlockProps {
    * string here is guarded prose about *this* posting — what the results showed
    * and one step the reader can take. The authored table is the fallback for
    * the states verification did not reach: no run yet, an error, a rejected
-   * recommendation. The bullet follows the verdict's tone in both branches —
+   * recommendation. The bullet follows the assessment's tone in both branches —
    * colour is code-owned, never model-written.
    */
   recommendation?: string;
@@ -26,17 +26,17 @@ export interface ActionBlockProps {
    * retrieved evidence to draw on — only the posting's own words. Its
    * `what_to_check` is the concrete step the reader can take, and it is the
    * text the action block should show in place of the authored table, which
-   * is keyed to the verdict family alone and cannot refer to this posting.
+   * is keyed to the assessment family alone and cannot refer to this posting.
    */
   whatToCheck?: string;
 }
 
 export function ActionBlock(props: ActionBlockProps) {
-  const { verdict, codes, recommendation, whatToCheck } = props;
-  const actions = actionsFor(verdict);
+  const { assessment, codes, recommendation, whatToCheck } = props;
+  const actions = actionsFor(assessment);
   const chips = shareChipsFor(codes);
 
-  const bullet = verdict ? actions.bullet : NO_VERDICT_BULLET;
+  const bullet = assessment ? actions.bullet : NO_ASSESSMENT_BULLET;
 
   // Verify owns the text when it ran; the offer pass owns it when there was no
   // employer to look up. Either way the authored table is the fallback for the

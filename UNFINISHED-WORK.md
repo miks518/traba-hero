@@ -81,7 +81,7 @@ screen explaining what contradicted what.
 - **The early return now counts explanations**, so a `red` whose citation
   `_bind_to_retrieved` stripped no longer withdraws the disclosure holding the only
   sentence explaining it.
-- **The disclosure wears the verdict's tone** via `.tactile-disclosure`, which shares
+- **The disclosure wears the assessment's tone** via `.tactile-disclosure`, which shares
   the banner's surface rules and adds the 2px press the banner must not have.
 - **16 tests** in `FullDetails.test.tsx`, including the one that asserts both slots
   hide the same `yellow` Reputation. No backend change and **no AI call** — the field
@@ -130,7 +130,7 @@ Found by the developer on 2026-10-18, on a live run. **Not fixed.**
 "What to do now" as *"Keep the conversation on the company's own domain."* — the
 **proceed** copy — beside a finding saying the post asks for money up front.
 
-**Why.** `actionsFor()` in `components/report/verdictCopy.ts` returns the `stop`
+**Why.** `actionsFor()` in `components/report/assessmentCopy.ts` returns the `stop`
 copy only when `level === 'high' || level === 'critical'`. So that scan's level
 came back `low` or `moderate`. **The advice is keyed to the model-emitted level,
 which is the least reliable field on the panel.**
@@ -177,7 +177,7 @@ Shipped 2026-10-18 (`feat(panel)`, merged to `main`). Architecture:
 `docs/superpowers/specs/2026-10-17-report-panel-architecture.md`. Component map:
 `docs/architecture.md` § The report panel.
 
-**Built:** the slot stack, the authored verdict table, the action block, the
+**Built:** the slot stack, the authored assessment table, the action block, the
 anomaly cards with rule code and quoted span, `WhatWeChecked` split into three
 groups, the Full-details disclosure, the footer.
 
@@ -200,7 +200,7 @@ and the ring's dead keyframes. Nothing on the panel prints a figure.
 
 **Still open from the architecture spec §8**, none of it started:
 
-1. Three or four verdict phrases, or two? Currently four (one per level), with
+1. Three or four assessment phrases, or two? Currently four (one per level), with
    `low` and `moderate` sharing the caution tone.
 2. Does the Notes layer get populated, or ship empty? Nothing produces a note
    today, and an empty designed slot is an invitation to fill it with form.
@@ -276,9 +276,9 @@ Code is integrated, the offline gates pass, and the developer has confirmed the
 live path works. What remains is the formal output-quality pass below and the
 outstanding tests.
 
-### A verdict always exists now
+### A assessment always exists now
 
-Gating the verdict on the employer check was the wrong model: the product
+Gating the assessment on the employer check was the wrong model: the product
 analyses **offers**, and an employer name is only a secondary input. Scanning is
 now also wider than formatted job adverts — chat messages, forwarded paragraphs,
 and "earn by doing X" pitches are in scope, with `VALID: false` reserved for
@@ -294,13 +294,13 @@ content that offers no work or income at all.
   **`REFUTATION_WEIGHTS` are a judgement call, not a measurement** — see the
   Known risks below and `SCORING-SOURCES.md` §11.
 - **`POST /api/analyze-offer`** (SSE, 5/min) is the no-employer path. One AI call,
-  no search. It returns `KIND` / `VERDICT` / `WHAT IT ASKS` / `WHAT IT OFFERS` /
+  no search. It returns `KIND` / `ASSESSMENT` / `WHAT IT ASKS` / `WHAT IT OFFERS` /
   `WHAT TO CHECK`, parsed by a new `offer_parser.py`. Rendered by
   `OfferAnalysisCard`.
 - It runs **only** when no employer was found. When one was found the existing
   scan + verify data is combined instead, so the common path costs no extra call.
 - Unparseable analysis degrades to a generic failsafe, never an error. The score
-  never depends on this pass, so a failure costs the explanation, not the verdict.
+  never depends on this pass, so a failure costs the explanation, not the assessment.
 - `InvalidContentError` is now "Nothing To Assess" and names the content it
   accepts, so a rejected chat message reads as a scope note rather than a bug.
 
@@ -368,11 +368,11 @@ explicitly excluded. Watch for false positives there.
 |---|---|---|---|---|
 | 1 | Obvious fee scam ("pay a 500 peso processing fee to start") | Exactly one `high`: names the fee request. No claim about the employer. | Reputation `red` only if a result actually describes a report; `yellow` otherwise | Score from posting + employer |
 | 2 | Legitimate posting using a Gmail address | **Zero** flags. Gmail is explicitly not a flag. | Green where results support it | Score from posting + employer |
-| 3 | Real posting that names no employer | Exactly one `low`: "Company name not stated" | `/api/analyze-offer` runs instead; verdict from the offer itself | Score from the posting alone |
+| 3 | Real posting that names no employer | Exactly one `low`: "Company name not stated" | `/api/analyze-offer` runs instead; assessment from the offer itself | Score from the posting alone |
 | 3b | Same posting, but the name is only in the logo | Employer name pulled from the logo, no company-name flag | Verification runs normally | Score from posting + employer |
 | 4 | A restaurant menu or an article | `VALID: false` and nothing else | n/a | n/a |
 | 5 | Deliberately ambiguous posting with a vague employer | At most a `mid`, or zero | Yellow-heavy | Score from posting + employer |
-| 6 | A chat message: "Earn 5k/day, pay 500 fee to register" | `VALID: true` plus the fee flag | `/api/analyze-offer`; verdict must name the requested payment | Score from the posting alone |
+| 6 | A chat message: "Earn 5k/day, pay 500 fee to register" | `VALID: true` plus the fee flag | `/api/analyze-offer`; assessment must name the requested payment | Score from the posting alone |
 | 7 | A forwarded recruitment paragraph naming no employer | `VALID: true` | `/api/analyze-offer` | Score from the posting alone |
 
 Also confirm:
@@ -436,7 +436,7 @@ cut it.
 
 **Why it cannot ship now.** A click with nowhere to go is worse than no control: it
 reads as a working feature and silently discards the only signal that would tell us
-the verdict taxonomy is wrong. This is the same failure as the score — presenting a
+the assessment taxonomy is wrong. This is the same failure as the score — presenting a
 measurement that was never taken.
 
 **What is missing, concretely.** There is no persistence layer of any kind.
@@ -468,7 +468,7 @@ implementation is wrong:**
 - **A three-way control, not two.** "Yes / No" forces every uncertain reader into a
   bucket and biases any rate we publish toward confirmation. It needs a third
   "Partly" or "Not sure". The design as drawn has two options and should change.
-- **The rating is only interpretable against the codes, not the verdict.** Store the
+- **The rating is only interpretable against the codes, not the assessment.** Store the
   anomaly code set alongside it. A bare "this was wrong" cannot say which code was
   wrong, and the per-code false-negative rate in `§6.3` is the number worth having.
   The retired numeric score made this impossible to reconstruct; codes are what make

@@ -33,7 +33,7 @@ run's Round 1 results for the CHED flyer were:
 
 No Iloilo, no CHED, no Magsaysay Village. So `shares_identifier` is false, row 1
 never fires, no domain query is issued, and the verifier receives the same results
-it already had. The whole planner would run and the verdict would not move.
+it already had. The whole planner would run and the assessment would not move.
 
 The proposal's own fixture (§7 test 1, "address shared") assumes the one thing
 that is false precisely when the design is needed: the failure mode is that Round 1
@@ -143,7 +143,7 @@ comes back yellow because the results describe US accreditors.
 ## Non-goals
 
 - Domain age, certificate history, direct page fetching. Round 0 leaves hooks.
-- **Changing the verdict logic.** This changes what evidence is gathered. The
+- **Changing the assessment logic.** This changes what evidence is gathered. The
   resolver picks questions; the verify prompt makes the call and nothing else does.
 
 ## Design
@@ -281,7 +281,7 @@ never spent on a duplicate of the anchor query when the planner had better uses.
 
 1. `VERIFY_SEARCH_MODE=fixed|adaptive`, default **`fixed`**.
 2. Flag off reproduces today's behaviour exactly — asserted by test.
-3. Run the fixtures in both modes against saved model outputs. Compare verdicts and
+3. Run the fixtures in both modes against saved model outputs. Compare assessments and
    credits.
 4. Switch the default only when adaptive is at least as good on every fixture and
    within the ceiling.
@@ -324,7 +324,7 @@ Round 1's results.
 ## Risks
 
 - The entity-domain heuristic can pick an aggregator. Contained: a wrong domain
-  produces a wrong scoped query, not a wrong verdict.
+  produces a wrong scoped query, not a wrong assessment.
 - Sequential rounds add one round trip of latency. **Round 2 runs in parallel.**
 - **Nothing here is shown to improve accuracy yet.** The fixtures decide, and the
   live run has not been repeated with this design.
@@ -367,4 +367,4 @@ renders it, so the "what was looked up" surface is still the one the panel shows
 Wiring it up is frontend work and its wording is the developer's to write.
 
 **`VERIFY_SEARCH_MODE` ships as `fixed`.** Nothing here has been shown to improve a
-verdict. No live run has been made against this design.
+assessment. No live run has been made against this design.

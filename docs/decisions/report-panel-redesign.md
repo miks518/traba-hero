@@ -21,7 +21,7 @@ before building any of this.** This record holds only the decisions.
 
 ## What is settled and must be preserved
 
-- **The verdict is a short instruction to the reader plus a one-line reason**, not a
+- **The assessment is a short instruction to the reader plus a one-line reason**, not a
   number or a level word.
 - **Evidence sits in a "Why we think so" block that quotes the posting** and highlights
   the quoted span.
@@ -41,13 +41,13 @@ looks calm.** Keep all of that.
 
 ---
 
-## Verdict phrases are authored, not generated
+## Assessment phrases are authored, not generated
 
 Four `ScanRiskLevel` values, four reviewed strings, looked up — never written by the
 model. Three reasons:
 
 1. **It cannot drift between runs.** A generated phrase would be a fresh variance source
-   on every scan, and Phase 6.2 measures verdict stability.
+   on every scan, and Phase 6.2 measures assessment stability.
 2. **It makes phrase stability trivially 100%**, so the measured quantity is level
    stability — a better thing to measure, since a phrase is not comparable across two
    postings in any case.
@@ -101,7 +101,7 @@ is built survive only in the "Reader feedback capture" entry of the deprecated
 
 ---
 
-## Anomaly verdicts are not severities, and the cards do not wait
+## Anomaly assessments are not severities, and the cards do not wait
 
 The finding card is present from the moment the scan lands and is never hidden while
 verification runs. The scan's severity is input to the evidence check, not the chip the
@@ -112,11 +112,11 @@ reader sees first.
 | Checking | The verify request is in flight | Neutral `Checking` chip, no severity colour, a confirming box with a ring |
 | Stale | A retrieved source about this employer accounts for the finding | Grey `Stale` chip and grey strip, the source linked |
 | Contradicted | A retrieved source states something different | Red strip, the scan's severity chip, the source linked |
-| Unconfirmed | No employer, a failed lookup, no verdict, or results that did not settle it | Amber `Unconfirmed` chip and amber strip |
+| Unconfirmed | No employer, a failed lookup, no assessment, or results that did not settle it | Amber `Unconfirmed` chip and amber strip |
 
 `Stale` is grey, not green. A retired finding is not a clean employer record, and green
 is the six category checks' pass colour. The verify model does not emit a second
-severity: the client derives the chip from the verdict, so the chip and the strip cannot
+severity: the client derives the chip from the assessment, so the chip and the strip cannot
 disagree.
 
 **No finding is dropped.** The omitted cards from the 20-finding request cap stay on
@@ -126,7 +126,7 @@ failed lookup each get their own amber sentence rather than a spinner or an inve
 `Stale`.
 
 The initial-scan loader is a report skeleton, not the old circular pulse. It mirrors the
-panel's slot order with grey `animate-pulse` shapes, uses no verdict colour, and yields to
+panel's slot order with grey `animate-pulse` shapes, uses no assessment colour, and yields to
 the real panel as soon as the scan lands. It does not draw the unbuilt controls.
 
 ---
@@ -134,7 +134,7 @@ the real panel as soon as the scan lands. It does not draw the unbuilt controls.
 ## Promotion is restated, not deleted
 
 The current scheme reorders a **pair of sibling groups** on a high or critical score. The
-new design has a **single fixed order** with the verdict and actions already on top, so
+new design has a **single fixed order** with the assessment and actions already on top, so
 there is nothing above them to promote.
 
 **Promotion now means the neutral context drops below the findings.** On a dangerous

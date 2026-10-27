@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The verify stage assesses each scan anomaly against retrieved evidence, and the report shows the finding immediately with a neutral checking state, then a grey `Stale`, red `Contradicted`, or amber `Unconfirmed` verdict.
+**Goal:** The verify stage assesses each scan anomaly against retrieved evidence, and the report shows the finding immediately with a neutral checking state, then a grey `Stale`, red `Contradicted`, or amber `Unconfirmed` assessment.
 
 **Architecture:** Extend `VerifyAnomaly` with `code`/`quote`, add a numbered findings block and eight-key output to the verify prompt, parse `anomaly_assessments` in `_read_verify_output`, and return it on the verify SSE result. On the client, merge assessments into `ScanResult.anomalies`, derive the display chip from the assessment, render a confirming box while `verificationLoading`, and replace the old loader with a grey pulsing report skeleton.
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Default test suite stays fully offline. Never call OpenRouter/Tavily without permission.
-- Verdict statuses on the anomaly wire are `stale`, `yellow`, `red`. Do not use `green` for anomaly assessments; the six check categories still use green/yellow/red.
+- Assessment statuses on the anomaly wire are `stale`, `yellow`, `red`. Do not use `green` for anomaly assessments; the six check categories still use green/yellow/red.
 - `stale` and `red` require a bound retrieved source. Missing/unbound becomes `yellow`.
 - No severity is shown while verification is in flight; `Checking` is not a severity.
 - Display severity mapping: `stale → Stale`, `red → scan severity`, `yellow → Unconfirmed`, checking → `Checking`.
@@ -25,7 +25,7 @@
 
 - A live scan with no employer: cards must show amber `Unconfirmed` immediately, never a spinner.
 - A verification that fails: cards must stop spinning and show amber; do not reuse the sticky `verifying` prop.
-- A saved scan from before this feature: no invented `stale`; show amber with an honest "no verdict recorded" note.
+- A saved scan from before this feature: no invented `stale`; show amber with an honest "no assessment recorded" note.
 - A source URL outside the retrieved set: `stale`/`red` must demote to `yellow`, not render an unbound citation.
 - More than 20 anomalies: the verify request must not 422; omitted cards must still render with amber.
 
@@ -203,7 +203,7 @@ Pass `checking={Boolean(result.verificationLoading)}`, `needsCompanyName`, `veri
 
 - [x] **Step 1: Build the skeleton**
 
-Mirror the report order: metadata, verdict banner, action card, two anomaly cards, checks card, full-details button. Use `bg-surface-container-high animate-pulse`, semantic spacing, `aria-busy="true"`, and `aria-label="Reading the job post"`. Show "Scanning… N%" in the metadata slot.
+Mirror the report order: metadata, assessment banner, action card, two anomaly cards, checks card, full-details button. Use `bg-surface-container-high animate-pulse`, semantic spacing, `aria-busy="true"`, and `aria-label="Reading the job post"`. Show "Scanning… N%" in the metadata slot.
 
 - [x] **Step 2: Replace the old loader**
 
@@ -227,7 +227,7 @@ Delete the circular pulse block in `ScamScanView.tsx` and render `<ReportSkeleto
 
 - [x] **Step 1: Add frontend tests**
 
-Checking state shows `Checking` and the ring, no `Critical`; stale shows `Stale` and the source; red shows the scan severity; amber shows `Unconfirmed`; no employer shows amber without a ring; failed verification shows amber without a ring; old scan shows amber; skeleton renders the six regions and no verdict colours.
+Checking state shows `Checking` and the ring, no `Critical`; stale shows `Stale` and the source; red shows the scan severity; amber shows `Unconfirmed`; no employer shows amber without a ring; failed verification shows amber without a ring; old scan shows amber; skeleton renders the six regions and no assessment colours.
 
 - [x] **Step 2: Update docs**
 
@@ -253,7 +253,7 @@ Do not weaken the offline guards or delete a failing assertion to make the suite
 ## Status (2026-10-20)
 
 Implemented. `npm run compile` passes; the frontend suite is 32 files / 239 tests; the
-targeted backend suite (anomaly assessment, verify, fallback, citation binding, verdict
+targeted backend suite (anomaly assessment, verify, fallback, citation binding, assessment
 reason, prompt file) is 192 passed. The full backend suite's only failures are the nine
 pre-existing scan-prompt drift findings above. No live provider calls were made and the
 default suite stayed offline.
@@ -263,7 +263,7 @@ default suite stayed offline.
 ## Self-review
 
 - Spec §2/§5/§8/§9/§13 are covered by Tasks 1, 2, 4, 5.
-- The "no severity before verdict" rule is Task 4 Step 2/3.
+- The "no severity before assessment" rule is Task 4 Step 2/3.
 - The "source required" rule is Task 2 Step 2.
 - The >20 cap is Task 3 Step 4.
 - The failure/no-employer/old-scan states are Task 4 Step 2/5 and Task 6 Step 1.

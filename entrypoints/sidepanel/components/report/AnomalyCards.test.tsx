@@ -2,13 +2,13 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import React from 'react';
 import { AnomalyCards } from './AnomalyCards';
-import { VerdictBlock } from './VerdictBlock';
+import { AssessmentBlock } from './AssessmentBlock';
 import { mapApiResponse } from '../../lib/mapApiResponse';
 import type { Anomaly, ApiScanResponse } from '../../types';
 
 /**
  * The three slots the backend reopened: the rule code, the posting's own words,
- * and the one-line verdict reason.
+ * and the one-line assessment reason.
  *
  * Each of these was rendered as *absent* while its field did not exist, and each
  * comes back with a degradation that matters more than the happy path. The
@@ -122,16 +122,16 @@ describe("the posting's own words", () => {
   });
 });
 
-describe('the one-line verdict reason', () => {
+describe('the one-line assessment reason', () => {
   it('shows a reason beside the authored headline', () => {
     render(
-      React.createElement(VerdictBlock, {
-        verdict: 'stop',
+      React.createElement(AssessmentBlock, {
+        assessment: 'stop',
         reason: 'This post asks you to pay a fee before you are hired.',
       }),
     );
-    const headline = document.querySelector('[data-role="verdict-headline"]');
-    const reason = document.querySelector('[data-role="verdict-reason"]');
+    const headline = document.querySelector('[data-role="assessment-headline"]');
+    const reason = document.querySelector('[data-role="assessment-reason"]');
     expect(headline?.textContent).toBe('Do not proceed');
     expect(reason?.textContent).toContain('pay a fee');
   });
@@ -140,31 +140,31 @@ describe('the one-line verdict reason', () => {
     // A banner carrying only its authored headline is complete — the instruction
     // stands on its own — so an absent reason must not leave a gap that reads as
     // something withheld.
-    render(React.createElement(VerdictBlock, { verdict: 'caution' }));
-    expect(document.querySelector('[data-role="verdict-headline"]')?.textContent).toBe(
+    render(React.createElement(AssessmentBlock, { assessment: 'caution' }));
+    expect(document.querySelector('[data-role="assessment-headline"]')?.textContent).toBe(
       'Caution — settle what the offer asks for first',
     );
-    expect(document.querySelector('[data-role="verdict-reason"]')).toBeNull();
+    expect(document.querySelector('[data-role="assessment-reason"]')).toBeNull();
   });
 
   it('shows no reason while the lookup is still running', () => {
-    // The intermediate verdict is not the verdict, so nothing that reads as a
+    // The intermediate assessment is not the assessment, so nothing that reads as a
     // conclusion sits under it either.
     render(
-      React.createElement(VerdictBlock, {
-        verdict: 'caution',
+      React.createElement(AssessmentBlock, {
+        assessment: 'caution',
         verifying: true,
         reason: 'This post asks you to pay a fee.',
       }),
     );
-    expect(document.querySelector('[data-role="verdict-reason"]')).toBeNull();
-    expect(document.querySelector('[data-role="verdict-headline"]')?.textContent).toBe(
+    expect(document.querySelector('[data-role="assessment-reason"]')).toBeNull();
+    expect(document.querySelector('[data-role="assessment-headline"]')?.textContent).toBe(
       'Checking this company',
     );
   });
 });
 
-describe('the evidence verdict on a finding', () => {
+describe('the evidence assessment on a finding', () => {
   it('checks without asserting a severity while the lookup runs', () => {
     // The finding is visible from the moment the scan lands, but nothing about
     // its final weight is: the scan's severity is what verification may change.
@@ -219,7 +219,7 @@ describe('the evidence verdict on a finding', () => {
 
   it('shows the evidence state, not the scan severity, when a source contradicts the finding', () => {
     // The scan weighed this finding `high`, and that is not what the chip says.
-    // Pricing a finding from the model's severity is the pattern the verdict
+    // Pricing a finding from the model's severity is the pattern the assessment
     // moved into code to remove; the chip reports what the evidence found.
     const { container } = render(
       React.createElement(AnomalyCards, {
@@ -327,10 +327,10 @@ describe('the evidence verdict on a finding', () => {
     const ran = render(
       React.createElement(AnomalyCards, { anomalies: [anomaly()], assessmentRun: true }),
     );
-    expect(ran.container.textContent).toContain('No evidence verdict was recorded');
+    expect(ran.container.textContent).toContain('No evidence assessment was recorded');
   });
 
-  it('lets the checking state override a verdict left from an earlier run', () => {
+  it('lets the checking state override a assessment left from an earlier run', () => {
     const { container } = render(
       React.createElement(AnomalyCards, {
         anomalies: [
@@ -370,12 +370,12 @@ describe('the wire mapping', () => {
     expect(mapped.anomalies[1].quote).toBeUndefined();
   });
 
-  it('synthesises no verdict when the backend sent none', () => {
-    // The standing rule. A verdict would render as an assessment the system never made.
+  it('synthesises no assessment when the backend sent none', () => {
+    // The standing rule. A assessment would render as an assessment the system never made.
     const mapped = mapApiResponse(
-      scanResponse({ verdict: undefined }),
+      scanResponse({ assessment: undefined }),
     );
-    expect(mapped.verdict).toBeNull();
-    expect(mapped.verdicted).toBe(false);
+    expect(mapped.assessment).toBeNull();
+    expect(mapped.assessed).toBe(false);
   });
 });

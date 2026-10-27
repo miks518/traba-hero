@@ -12,7 +12,7 @@ conclusion returns pages that appear to corroborate it.
 That rule used to live in the scan prompts alone, with the queries model-authored
 and unfiltered in code. `search_query_is_safe` in `search_planner.py` drops a
 query carrying a conclusion word before it is ever issued — and since the
-verdict-procedure work it runs **in every mode**: the adaptive planner applies
+assessment-procedure work it runs **in every mode**: the adaptive planner applies
 it to the queries it chooses, the fixed mode applies it to the scan model's
 proposals where they are issued (before the cap), and the agent's tool calls
 are filtered at the parser (`agent_protocol.parse_tool_calls`). The earlier

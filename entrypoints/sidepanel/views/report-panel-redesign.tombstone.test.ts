@@ -28,7 +28,7 @@
  *
  *   1. On a settled high or critical level, does `data-group="context"` land below
  *      `data-group="findings"` — and on anything else, above it? Promotion is
- *      *restated* rather than kept: the new stack has the verdict and the
+ *      *restated* rather than kept: the new stack has the assessment and the
  *      instructions at the top, so there is nothing above them to promote, and
  *      what promotion now means is the neutral context dropping below the
  *      findings.
@@ -41,7 +41,7 @@
  *   3. Are both groups still mounted across a level change, so a collapsed
  *      disclosure does not re-expand itself?
  *
- * Also untested, and load-bearing: `verdictCopy.ts` and `WhatWeChecked`'s derived
+ * Also untested, and load-bearing: `assessmentCopy.ts` and `WhatWeChecked`'s derived
  * heading are new code. The score-line tests that were deleted asserted that no
  * figure appears anywhere on the panel and that it never tells a reader their
  * employer was unchecked after a lookup that confirmed everything. Those are
@@ -61,7 +61,7 @@ const report = (...parts: string[]) =>
 
 /** Modules the report panel replaced. None may come back. */
 const RETIRED: Array<[string, string]> = [
-  ['RiskGauge', 'drew the magnitude arc from `riskScore`; replaced by the verdict banner'],
+  ['RiskGauge', 'drew the magnitude arc from `riskScore`; replaced by the assessment banner'],
   ['AnomaliesList', 'replaced by `AnomalyCards`, which owns its own section heading'],
   ['EvidenceSummary', 'split across `WhatWeChecked` and `FullDetails`, per architecture §7.1'],
   ['VerificationCard', 'folded into the Verified / Contradicted / Could-not-verify lines'],
@@ -89,7 +89,7 @@ describe('the retired report components', () => {
 describe('what replaced them', () => {
   it.each([
     'ReportPanel',
-    'VerdictBlock',
+    'AssessmentBlock',
     'ActionBlock',
     'AnomalyCards',
     'WhatWeChecked',

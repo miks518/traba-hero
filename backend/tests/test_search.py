@@ -497,7 +497,7 @@ class TestSearchSettingsAreConfigurable:
 
         Tavily would reject a malformed domain, and a rejected search is
         reported to the user as a company that cannot be looked up. A typo in
-        a recall setting must not become a verdict.
+        a recall setting must not become a assessment.
         """
         captured = self._capture(
             monkeypatch, tavily_exclude_domains="quora.com, scammy, reddit.com"

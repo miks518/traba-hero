@@ -38,7 +38,7 @@ each slot is already settled in the HTML and is not re-litigated here.
 | 0 | App chrome | Trabahero, History, Settings | Exists today |
 | 1 | Scan meta | When this was scanned | `ScannedJob.timestamp` |
 | 2 | Subject line | Title, employer, where and when it was posted | §2.1 — **the "posted 2 days ago on a job board" half has no source** |
-| 3 | **Verdict block** | Tone container: eyebrow, headline, one-line reason | §3 |
+| 3 | **Assessment block** | Tone container: eyebrow, headline, one-line reason | §3 |
 | 4 | **Action block** | What to do now + what not to share + report control | §4 |
 | 5 | **Anomalies** | Count, then one card per finding | §5 |
 | 6 | **Notes** | Non-findings | §6 |
@@ -69,13 +69,13 @@ message. The HTML infers it from the design of the placeholder. Do not implement
 this part until there is a real source — inferring it would be the same move as the
 retired score, presenting an unmeasured figure as an observation.
 
-### 3. The verdict block
+### 3. The assessment block
 
 The most consequential slot, and the one with a real design decision in it.
 
 | Part | Binds to | Mark |
 |---|---|---|
-| Eyebrow "Verdict" | authored | — |
+| Eyebrow "Assessment" | authored | — |
 | Tone container | `riskLevel` → token | **DERIVED** |
 | Headline | `riskLevel` → **authored phrase** | **AUTHORED** — see below |
 | One-line reason | — | **NEEDS FIELD** |
@@ -85,14 +85,14 @@ so the panel carries a table of four short imperative phrases and looks the leve
 This is deliberate and load-bearing:
 
 - **It cannot drift between runs.** A generated phrase would be a fresh variance
-  source on every scan, and Phase 6.2 measures verdict stability.
+  source on every scan, and Phase 6.2 measures assessment stability.
 - **It makes phrase stability trivially 100%**, so the real measurement is level
   stability. That is a better thing to be measuring — a level is a coarse label, and
   a phrase is not comparable across two postings in any case.
 - **It keeps the libel guardrail in code.** Four reviewed strings cannot assert
   something the evidence does not support. A model-written headline can, on any run.
 
-**Three shapes, not four.** The four levels are not four parallel verdicts:
+**Three shapes, not four.** The four levels are not four parallel assessments:
 `low` and `moderate` are both *"proceed, with something to check"* and should read as
 a family, the way `critical` and `high` share a tone container. Designing eight
 distinct phrases for four levels would make the panel look more precise than the
@@ -108,7 +108,7 @@ and let the container grow.
 
 | Part | Binds to | Mark |
 |---|---|---|
-| 2 action lines | **authored**, keyed to verdict family × top code family | — |
+| 2 action lines | **authored**, keyed to assessment family × top code family | — |
 | "Do not share" chips | **authored**, keyed to the code families present | — |
 | Report control | opens a job board / mailto | **NEEDS** — no target exists |
 
@@ -152,7 +152,7 @@ the set it claims to come from.
 
 **`flag` becomes the phrase, and that is a change of job.** It is currently whatever
 prose the model chose. Under the code set it becomes a lookup: code → authored phrase.
-Authored for the same reason the verdict is authored — the phrase is read by a job
+Authored for the same reason the assessment is authored — the phrase is read by a job
 seeker deciding about money, and it must not vary between two runs of the same scan.
 
 ### 6. Notes
@@ -264,7 +264,7 @@ buildable panel. Four new fields on existing objects, no new endpoints.
 | 3 | `unavailable_reason` | verification item | Distinguishes "checked, found nothing" from "could not check", per category. |
 | 4 | `retrieved_at` | evidence | Makes the disclosure's promise true. |
 | 5 | `scan_id` | scan response | Join key for gold set, feedback, and logs. |
-| 6 | short verdict reason | verify + offer responses | The one-line slot has no source today. |
+| 6 | short assessment reason | verify + offer responses | The one-line slot has no source today. |
 
 **On the anomaly `severity` field.** Under the code set the design in
 `2026-10-17-anomaly-code-set.md` §5 removes it, because per-instance severity is
@@ -280,22 +280,22 @@ field wearing the same name, and it should be renamed rather than reused.
 The HTML draws three states. The panel has **eight**, and all eight exist in code
 today. A slot that is undefined in a state must be **absent**, not empty.
 
-| State | Verdict | Anomalies | Checks | Special |
+| State | Assessment | Anomalies | Checks | Special |
 |---|---|---|---|---|
 | Critical / high, employer verified | instruction | populated | populated | — |
 | Moderate | instruction | populated | populated | — |
 | Low, checks ran | instruction | usually empty | populated | — |
-| **No employer named** | *no verdict* | populated or empty | **absent** | `CompanyNameNeeded`. Dashed border. States what was *not* checked and that it is not a warning about the post. |
+| **No employer named** | *no assessment* | populated or empty | **absent** | `CompanyNameNeeded`. Dashed border. States what was *not* checked and that it is not a warning about the post. |
 | **Verification failed** | posting-only, stated as such | populated | **absent** | Must say the employer was not looked up, not that the employer is clean. |
 | **Search partial** | as above | populated | populated, with `queriesFailed` of `queriesIssued` | Coverage is genuinely thinner. Say so. |
-| **`VALID: false`** | *no verdict* | **absent** | **absent** | "Nothing To Assess" — names what the product accepts. |
+| **`VALID: false`** | *no assessment* | **absent** | **absent** | "Nothing To Assess" — names what the product accepts. |
 | **Offline** | no call made | **absent** | **absent** | `OfflineBanner`, outside the report. |
 
 Two of these are load-bearing for honesty rather than layout:
 
 **No-employer-named is not a low-risk result.** The posting stage scores 0 when a
 posting raises no indicators, and the employer was never checked. Rendering that as
-"nothing found" would claim the posting was cleared. The panel must show no verdict
+"nothing found" would claim the posting was cleared. The panel must show no assessment
 at all, which is what `CompanyNameNeeded` already does.
 
 **A failed verification still promotes.** `shouldElevateEvidence()` gates on
@@ -311,7 +311,7 @@ The difference is worth stating because the two will collide.
 
 The current scheme reorders a **pair of sibling groups** — evidence up, analysis down
 — on a high or critical score. This design has a **single fixed order**, and the
-verdict plus actions already occupy the top. There is nothing above them to promote.
+assessment plus actions already occupy the top. There is nothing above them to promote.
 
 What promotion should mean here instead: **the neutral context drops below the
 findings.** On a high or critical result, slots 6, 7 and 8 (Notes, What we checked,
@@ -332,13 +332,13 @@ and copy change over a working pipeline, not a rebuild. Two slots are genuinely 
 
 | Old component | Lines | New slot | Action |
 |---|---|---|---|
-| `RiskGauge.tsx` | 321 | **§3 verdict block** | **Replaced.** The magnitude arc is gone — no number is shown. The gauge's `onShowEvidence` behaviour folds into slot 8's disclosure. |
+| `RiskGauge.tsx` | 321 | **§3 assessment block** | **Replaced.** The magnitude arc is gone — no number is shown. The gauge's `onShowEvidence` behaviour folds into slot 8's disclosure. |
 | — | — | **§3 one-line reason** | **NEW. The only genuinely new content in the panel.** |
 | `ScanActions.tsx` | 116 | §4 action block | Regrouped. Rescan / re-capture stay; the "what to share" chips are new and are keyed to code family. |
 | `AnomaliesList.tsx` + `AnomalyCard.tsx` | 106 | §5 anomalies | **Same content, new layout** — per-card quote block added. |
 | `EvidenceSummary.tsx` | 319 | **§7 what we checked** + **§8 full details** | **Split in two.** See below. |
 | `VerificationCard.tsx` | 104 | folded into §7 | The per-category cards become the *Verified* / *Could not verify* lines. |
-| `OfferAnalysisCard.tsx` | 57 | §3 + §4, offer variant | The no-employer path keeps its own verdict, action, and check framing. |
+| `OfferAnalysisCard.tsx` | 57 | §3 + §4, offer variant | The no-employer path keeps its own assessment, action, and check framing. |
 | `PostingAnalysis.tsx` | 49 | — | **Removed from the panel.** Its observational rule and word ban survive in the prompt; only the rendering goes. |
 | `JobSummary.tsx` | 41 | — | **Removed from the panel, kept in the backend.** `job_summary` stays on the wire because the match tab consumes it. The panel simply stops rendering it. |
 | `CompanyNameNeeded.tsx` | 36 | §11 no-employer state | Unchanged. Dashed border, states what was not checked. |
@@ -382,7 +382,7 @@ Against the map above, the honest tally:
 
 So the panel work is mostly rearrangement. **The backend work in §4 is the real
 critical path**, and none of it is optional — without `code` and `quote` the new
-anomaly card and the new verdict line cannot render at all.
+anomaly card and the new assessment line cannot render at all.
 
 ---
 
@@ -393,7 +393,7 @@ anomaly card and the new verdict line cannot render at all.
    verification prompt, or composed from the code set? The second is reproducible and
    costs no tokens; the first reads better and drifts. This is the one decision that
    most shapes slot 3.
-2. **Three or four verdict phrases** — or two, given §3's argument that `low` and
+2. **Three or four assessment phrases** — or two, given §3's argument that `low` and
    `moderate` are one family?
 3. **Does the Notes layer get populated at all** in the first build, or does it ship
    empty and stay empty until there is something honest to put in it? An empty
@@ -416,12 +416,12 @@ panel work; step 4 is the panel and is blocked on steps 1–2.
 1. **Anomaly `code` + `quote`** (§4 items 1–2). The prompt gains the code enum and a
    verbatim-span requirement; the parser reads both; `Anomaly` gains `code?` and
    `quote?`. *Both optional on read* so stored history keeps rendering.
-2. **Short verdict reason** (§4 item 6). Capped field on the verify and offer
+2. **Short assessment reason** (§4 item 6). Capped field on the verify and offer
    schemas, plus the authored phrase table in the panel.
 3. **`unavailable_reason`, `retrieved_at`, `scan_id`** (§4 items 3–5). Independent of
    each other and of 1–2; batch them because each is small.
 4. **Panel restructure** — delete `RiskGauge` / `PostingAnalysis` / `JobSummary`,
-   reorder, split `EvidenceSummary`, build the verdict block.
+   reorder, split `EvidenceSummary`, build the assessment block.
 5. **Promote restatement** (§6) — context drops below findings.
 6. **The four undrawn states** (§11).
 
