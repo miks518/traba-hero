@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   scanScreenshotStream: vi.fn(),
   verifyJobStream: vi.fn(),
   analyzeOfferStream: vi.fn(),
-  ApiRequestError: class extends Error {},
+  ApiRequestError: class extends Error { },
   captureElementRegion: vi.fn(),
   messageHandler: null as null | ((m: unknown) => void),
 }));
@@ -105,7 +105,7 @@ async function renderView(onScanComplete?: (job: unknown) => void) {
 describe('the capture prompt survives the first pick', () => {
   it('announces the multi-pick limit before anything is captured', async () => {
     await renderView();
-    expect(screen.getByText(/You can pick up to 4 images/)).toBeTruthy();
+    expect(screen.getByText(/Select a job post from the page to scan and assess for anomalies. You can pick up to 4 images/)).toBeTruthy();
     expect(screen.getByRole('button', { name: /Pick a Job Post/ })).toBeTruthy();
   });
 
@@ -113,7 +113,7 @@ describe('the capture prompt survives the first pick', () => {
     await renderView();
     await pickOnce();
 
-    expect(screen.getByText(/You can pick up to 4 images/)).toBeTruthy();
+    expect(screen.getByText(/Select a job post from the page to scan and assess for anomalies. You can pick up to 4 images/)).toBeTruthy();
     expect(screen.getByRole('button', { name: /Pick More/ })).toBeTruthy();
   });
 
@@ -122,7 +122,7 @@ describe('the capture prompt survives the first pick', () => {
     await pickOnce();
     await pickOnce();
 
-    expect(screen.getByText(/You can pick up to 4 images/)).toBeTruthy();
+    expect(screen.getByText(/Select a job post from the page to scan and assess for anomalies. You can pick up to 4 images/)).toBeTruthy();
     // Both captures are on the pad, so the scan button counts them.
     expect(screen.getByRole('button', { name: /Scan \(2\)/ })).toBeTruthy();
   });
@@ -144,6 +144,6 @@ describe('the capture prompt survives the first pick', () => {
     });
 
     await waitFor(() => expect(onScanComplete).toHaveBeenCalled(), { timeout: 3000 });
-    expect(screen.queryByText(/You can pick up to 4 images/)).toBeNull();
+    expect(screen.queryByText(/Select a job post from the page to scan and assess for anomalies. You can pick up to 4 images/)).toBeNull();
   });
 });

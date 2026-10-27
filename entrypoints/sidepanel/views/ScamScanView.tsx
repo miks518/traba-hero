@@ -258,7 +258,7 @@ export function ScamScanView({
         <div className="flex flex-col gap-2">
           <h2 className="text-headline-sm font-headline text-on-surface">Job Scan</h2>
           <p className="text-body-sm text-on-surface-variant">
-            {`You can pick up to ${MAX_SCREENSHOTS} images.`}
+            {`Select a job post from the page to scan and assess for anomalies. You can pick up to ${MAX_SCREENSHOTS} images.`}
           </p>
         </div>
       )}
@@ -328,9 +328,8 @@ export function ScamScanView({
             {screenshots.map((ss, i) => (
               <div
                 key={i}
-                className={`relative rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container cursor-pointer group ${
-                  screenshots.length === 1 ? 'max-h-80' : 'aspect-square'
-                }`}
+                className={`relative rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-container cursor-pointer group ${screenshots.length === 1 ? 'max-h-80' : 'aspect-square'
+                  }`}
                 onClick={() => setLightboxIndex(i)}
               >
                 <img
