@@ -4,6 +4,7 @@ import {
   PICK_ELEMENT_LABEL,
   PICK_ELEMENT_ACTIVE_LABEL,
   PICK_ELEMENT_CANCEL_LABEL,
+  PICK_MORE_LABEL,
   PICK_AGAIN_LABEL,
 } from '../../data/content';
 import type { Accent } from '../../lib/riskAccent';
@@ -18,6 +19,17 @@ export interface ScanActionsProps {
   isCropActive?: boolean;
   isCropActivating?: boolean;
   afterScan?: boolean;
+  /**
+   * At least one image is captured and waiting to be scanned.
+   *
+   * The primary button then reads "Pick More" instead of "Pick a Job Post":
+   * the first capture is no longer ahead of the reader, so the button should
+   * say what pressing it does now — add another image to the set — rather than
+   * describe a step that already happened. Losing to `afterScan` and the
+   * picker states is deliberate: "Pick again" and "Cancel Selection" name the
+   * moment the reader is actually in.
+   */
+  hasScreenshots?: boolean;
   disabled?: boolean;
   /**
    * Risk colour for the primary button, for as long as a result is on screen.
@@ -44,6 +56,7 @@ export function ScanActions({
   isCropActive = false,
   isCropActivating = false,
   afterScan = false,
+  hasScreenshots = false,
   disabled = false,
   accent,
   advancedScan = false,
@@ -95,7 +108,9 @@ export function ScanActions({
               ? PICK_ELEMENT_CANCEL_LABEL
               : afterScan
                 ? PICK_AGAIN_LABEL
-                : PICK_ELEMENT_LABEL}
+                : hasScreenshots
+                  ? PICK_MORE_LABEL
+                  : PICK_ELEMENT_LABEL}
         </button>
 
         {!afterScan && (

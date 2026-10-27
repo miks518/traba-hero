@@ -13,8 +13,14 @@ import { shouldElevateEvidence, type VerificationRun } from '../lib/riskDisplay'
 import { findingTier } from '../lib/findingTiers';
 import type { Anomaly, AnomalyAssessment, ScanResult, ScannedJob } from '../types';
 
-/** How many screenshots one scan may carry. */
-const MAX_SCREENSHOTS = 4;
+/**
+ * How many screenshots one scan may carry.
+ *
+ * Exported because the scan prompt quotes it: "You can pick up to N images"
+ * must read the same number the pad enforces, or the product asserts a limit
+ * it does not have.
+ */
+export const MAX_SCREENSHOTS = 4;
 
 /**
  * How many findings one verify request may carry.

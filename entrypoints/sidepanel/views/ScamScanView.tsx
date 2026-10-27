@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ReportPanel, ReportSkeleton } from '../components/report';
 import { ScanActions, PickerButton } from '../components/scan';
 import { Icon, ToastContainer, useToastManager } from '../components/common';
-import { useScanSession, restoreScanResult } from '../hooks/useScanSession';
+import { useScanSession, restoreScanResult, MAX_SCREENSHOTS } from '../hooks/useScanSession';
 import { riskAccent } from '../lib/riskAccent';
 import type { ScanProgress, VerifyContext } from '../lib/api';
 import type { ScannedJob, ScanResult } from '../types';
@@ -233,7 +233,15 @@ export function ScamScanView({
     handleScan,
   } = session;
 
-  const showEmptyState = !hasScanned && screenshots.length === 0;
+  /**
+   * The capture prompt, not an empty state. It used to vanish the moment one
+   * image was captured, which left the reader with a thumbnail grid and no
+   * sign that more images were allowed — the multi-pick limit was announced
+   * only before the first pick, exactly when it mattered least. It now stays
+   * for the whole pre-scan stretch and drops out only when there is something
+   * to read (the report) or something in flight (the skeleton).
+   */
+  const showScanPrompt = !hasScanned && !isLoading;
   const showReport = hasScanned && scanResult !== null;
 
   return (
@@ -246,11 +254,11 @@ export function ScamScanView({
         </div>
       )}
 
-      {showEmptyState && (
+      {showScanPrompt && (
         <div className="flex flex-col gap-2">
           <h2 className="text-headline-sm font-headline text-on-surface">Job Scan</h2>
           <p className="text-body-sm text-on-surface-variant">
-            Pick a job post from the page to check for anomalies.
+            {`You can pick up to ${MAX_SCREENSHOTS} images.`}
           </p>
         </div>
       )}
@@ -299,6 +307,7 @@ export function ScamScanView({
         isCropActive={cropActive}
         isCropActivating={cropActivating}
         afterScan={hasScanned}
+        hasScreenshots={screenshots.length > 0}
         disabled={isLoading}
         advancedScan={session.advancedScan}
         onAdvancedScanChange={session.setAdvancedScan}

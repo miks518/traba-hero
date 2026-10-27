@@ -21,5 +21,6 @@ export const APPLY_LABEL = 'Apply with Match';
 export const PICK_ELEMENT_LABEL = 'Pick a Job Post';
 export const PICK_ELEMENT_ACTIVE_LABEL = 'Selecting...';
 export const PICK_ELEMENT_CANCEL_LABEL = 'Cancel Selection';
+export const PICK_MORE_LABEL = 'Pick More';
 export const PICK_AGAIN_LABEL = 'Pick again';
 export const ELEMENT_SELECTED_LABEL = 'Post Selected';

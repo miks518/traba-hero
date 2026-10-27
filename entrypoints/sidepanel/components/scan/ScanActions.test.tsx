@@ -9,8 +9,8 @@ afterEach(cleanup);
 function button(): HTMLElement {
   // The icon renders a ligature as text, so the accessible name is
   // "touch_appPick a Job Post" rather than the label alone. The label also
-  // varies with picker state.
-  return screen.getByRole('button', { name: /Pick a Job Post|Pick again|Cancel Selection/ });
+  // varies with picker state and with whether images are already captured.
+  return screen.getByRole('button', { name: /Pick a Job Post|Pick More|Pick again|Cancel Selection/ });
 }
 
 describe('ScanActions risk accent', () => {
@@ -68,6 +68,31 @@ describe('ScanActions risk accent', () => {
     // the loudest thing on the button.
     render(React.createElement(ScanActions, { accent: riskAccent('red'), isPickerActive: true }));
     expect(button().className).toContain('hover:bg-error/30');
+  });
+});
+
+
+describe('the primary button label', () => {
+  it('reads "Pick a Job Post" while nothing is captured', () => {
+    render(React.createElement(ScanActions, {}));
+    expect(screen.getByRole('button', { name: /Pick a Job Post/ })).toBeTruthy();
+  });
+
+  it('reads "Pick More" once an image is captured and waiting', () => {
+    // The first capture is behind the reader, so the button should name the
+    // action that remains: adding another image to the set.
+    render(React.createElement(ScanActions, { hasScreenshots: true }));
+    expect(screen.getByRole('button', { name: /Pick More/ })).toBeTruthy();
+  });
+
+  it('keeps "Cancel Selection" over "Pick More" while the picker is open', () => {
+    render(React.createElement(ScanActions, { hasScreenshots: true, isPickerActive: true }));
+    expect(screen.getByRole('button', { name: /Cancel Selection/ })).toBeTruthy();
+  });
+
+  it('keeps "Pick again" over "Pick More" after a scan', () => {
+    render(React.createElement(ScanActions, { hasScreenshots: true, afterScan: true }));
+    expect(screen.getByRole('button', { name: /Pick again/ })).toBeTruthy();
   });
 });
 
