@@ -114,6 +114,8 @@ const FILTER_CHIPS: {
   id: JobFilterCategory;
   title: string;
   icon: IconName;
+  /** The icon's own colour, constant across active and idle. */
+  color: string;
   active: string;
   idle: string;
   badge: string;
@@ -122,6 +124,8 @@ const FILTER_CHIPS: {
     id: 'all',
     title: 'All jobs',
     icon: 'work',
+    // Follows the button: the "all" filter is neutral, not an assessment.
+    color: '',
     active: 'bg-surface-container-high text-on-surface shadow-sm',
     idle: 'text-on-surface-variant hover:bg-surface-container',
     badge: 'bg-surface-container-highest text-on-surface-variant',
@@ -130,6 +134,7 @@ const FILTER_CHIPS: {
     id: 'clear',
     title: 'Proceed',
     icon: 'verified',
+    color: 'text-icon-verified',
     active: 'chip-verified shadow-sm',
     idle: 'text-icon-verified hover:bg-surface-container',
     badge: 'chip-verified',
@@ -138,6 +143,7 @@ const FILTER_CHIPS: {
     id: 'caution',
     title: 'Caution',
     icon: 'gpp_maybe',
+    color: 'text-icon-caution',
     active: 'chip-caution shadow-sm',
     idle: 'text-icon-caution hover:bg-surface-container',
     badge: 'chip-caution',
@@ -146,6 +152,7 @@ const FILTER_CHIPS: {
     id: 'stop',
     title: 'Do not proceed',
     icon: 'gpp_bad',
+    color: 'text-icon-critical',
     active: 'chip-critical shadow-sm',
     idle: 'text-icon-critical hover:bg-surface-container',
     badge: 'chip-critical',
@@ -369,7 +376,7 @@ export function ResumeMatchView({
 
         {scannedJobs.length > 0 && (
           <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant/20 mt-1">
-            {FILTER_CHIPS.map(({ id, title, icon, active, idle, badge }) => {
+            {FILTER_CHIPS.map(({ id, title, icon, color, active, idle, badge }) => {
               const count =
                 id === 'all'
                   ? scannedJobs.length
@@ -383,7 +390,11 @@ export function ResumeMatchView({
                     filterCategory === id ? active : idle
                   }`}
                 >
-                  <Icon name={icon} className="text-[1.25rem]" />
+                  {/* The icon carries its own assessment colour, constant across
+                      active and idle: `chip-caution` sets the button's text ink
+                      to the dark gold meant for text on the pale fill, which
+                      read the Caution icon as brown when selected. */}
+                  <Icon name={icon} className={`text-[1.25rem] ${color}`} />
                   {count > 0 && (
                     <span
                       className={`absolute -top-0.5 -right-0.5 min-w-[1rem] h-[1rem] flex items-center justify-center px-0.5 rounded-full text-[0.5rem] font-bold ${badge}`}
