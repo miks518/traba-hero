@@ -443,6 +443,7 @@ GUARDRAILS = (
     # no way of knowing the employer lookup had already run.
     ("the employer lookup is named", 'with the words "company or employer"'),
     ("a query must not repeat the employer lookup", "never write a query asking whether the company exists"),
+    ("the query budget is four", "at most four"),
     ("queries target what a general lookup cannot settle", "what a general lookup cannot settle"),
     ("location is an element worth querying", "the location, branch or address the posting names"),
     ("similar postings are an element worth querying", "the same work posted elsewhere"),

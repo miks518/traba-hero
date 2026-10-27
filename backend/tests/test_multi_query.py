@@ -156,6 +156,45 @@ class TestTheEmployerQuery:
         assert not any("philippines" in q.lower() for q in build_queries("Tanika"))
 
 
+class TestTheLocationQuery:
+    """The second static query: the employer, at the place the posting names.
+
+    It used to be the scan model's first suggested query. A model proposing
+    fresh each run does not always propose it, so a claim the posting makes
+    verbatim was covered on the model's whim - and the model's slots are better
+    spent on the angles only it can judge. Static, the claim is checked every
+    time, which is what makes the Location/Branch card's evidence comparable
+    across scans of the same posting.
+    """
+
+    def test_a_stated_location_earns_the_query(self):
+        assert build_queries("Tanika", "Maingate Terminal, Binan") == [
+            "Tanika company or employer",
+            "Tanika Maingate Terminal, Binan",
+        ]
+
+    def test_a_missing_location_earns_nothing(self):
+        """No location, no query - never `"<company> "`.
+
+        An empty location is the posting having said nothing, and a query built
+        from an empty string is the employer lookup spent a second time on the
+        same name.
+        """
+        assert build_queries("Tanika") == ["Tanika company or employer"]
+        assert build_queries("Tanika", "") == ["Tanika company or employer"]
+        assert build_queries("Tanika", "   ") == ["Tanika company or employer"]
+
+    def test_the_location_is_used_verbatim(self):
+        """The same no-rewrite rule the employer name carries.
+
+        Every rewrite between the posting and the provider is a chance to
+        search a different place than the one named.
+        """
+        assert build_queries("Acme Corp", "12 Katipunan Ave., QC")[1].endswith(
+            "12 Katipunan Ave., QC"
+        )
+
+
 class TestThePhilippinesIsNowCarriedByTheRequest:
     """The overcorrection of deleting the suffix.
 

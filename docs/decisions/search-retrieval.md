@@ -5,35 +5,59 @@ decision. Nothing here is dormant behaviour waiting to be cleaned up.
 
 ---
 
-## One query per verification
+## Two static queries per verification, then the model's own
 
-`build_queries()` issues **exactly one** query per verification:
-`"<company> company or employer"`.
+`build_queries(company, location)` issues:
+
+1. `"<company> company or employer"` — always.
+2. `"<company> <location>"` — **only when the posting states a location.** The
+   location is the scan's own `LOCATION` attribute, verbatim. A missing location
+   produces no query, never `"<company> "`: an empty location is the posting
+   having said nothing, and a query built from nothing is the employer lookup
+   spent a second time on the same name.
 
 The `or employer` reads as a boolean, so a business writing itself either way is
-matched. **The employer name is used verbatim — no part of it is rewritten.**
+matched. **The employer name is used verbatim — no part of it is rewritten.** The
+location follows the same no-rewrite rule.
 
-The query used to be paired with `registration certificate` and
+The location query used to be the scan model's first suggested query. A model
+proposing fresh each run does not always propose it — a claim the posting makes
+verbatim was covered on the model's whim, which is also why the same posting
+could verify differently from one scan to the next. Static, the claim is checked
+every time, and the model's slots are free for the angles only it can judge. The
+scan prompt says so: a model proposal that literally repeats a static query
+(case-insensitive, whole string) is dropped where the queries are issued
+(`verification_flow.py`), before any credit is spent — a differently-worded
+angle on the same target is a different question and keeps its slot.
+
+The employer query used to be paired with `registration certificate` and
 `reviews complaints`. Both are gone: a general company query returns the employer's
 own pages, a PESO listing and a job board post in one result set, where two targeted
 queries starved each other.
 
 **The traded cost is real.** `Official Registration` and `Reputation` now depend on
-that one query surfacing the right page rather than asking for it by name.
+the static queries and the model's proposals surfacing the right page rather than
+asking for it by name.
 
-### Credit cost: 1 to 3 per verification, not 2 to 5
+### Credit cost: 2 to 6 per verification, not 1 to 3
 
-One query is the employer's own; the rest are the scan model's, capped at
-`MAX_SEARCH_QUERIES = 2`. The cap is enforced **in `verification_flow.py` as well as
+Two queries are static; the rest are the scan model's, capped at
+`MAX_SEARCH_QUERIES = 4`. The cap is enforced **in `verification_flow.py` as well as
 in the parser** — a client that is not this extension can post a longer list, and a
-malformed request is not a reason to spend six credits silently.
+malformed request is not a reason to spend credits silently.
+
+Keenable's 100,000-credit monthly budget is what moved the ceiling from three
+requests to six; the per-query result count moved the other way (see the knobs
+below), because the merged list is prompt text.
 
 ### `build_scheme_queries()`, `CHECKABLE_ATTRIBUTES`, `_with_country` and `_squeeze` are deleted, not dormant
 
 The queries are model-authored now, so anything that rebuilt them from `attributes`
 would be a second and stale source. `TestTheSchemeQueryBuilderIsDeleted` in
 `test_multi_query.py` is the tombstone. **A function left in the module is a trap for
-the next reader.**
+the next reader.** (The static location query is built in `build_queries` itself, from
+the `LOCATION` attribute — it is a template over a claim the posting made, not a
+rebuild of what the model proposed.)
 
 ### The corporate-suffix strip is gone, and it was wrong
 
@@ -94,9 +118,9 @@ both halves: the query text carries no country, and the request body carries the
 
 ## Category coverage, and what each check gave up
 
-**Company Existence shares the one employer query.** It was the original single query,
+**Company Existence shares the employer query.** It was the original single query,
 and a general company query ranks the employer's own site and job boards first, which
-proves existence. Existence is now read off that one query's results alongside whatever
+proves existence. Existence is now read off that query's results alongside whatever
 the model proposed.
 
 **The traded cost is recorded in `test_multi_query.py`:** an employer with no
@@ -118,7 +142,9 @@ requests, not three model calls.
 
 `merge_results()` dedupes on canonical URL — `_canonical_url()` drops the scheme,
 `www.`, query and trailing slash — keeping the higher-scoring copy, sorts by score,
-and caps at `TAVILY_MAX_RESULTS * 2`.
+and caps at `MERGED_RESULTS_CAP` (12) — six queries at three results each return up
+to eighteen rows, and the cap trims the tail by score so the prompt stays inside
+the reasoning model's budget.
 
 Dedupe is not tidiness: the employer's own site appears in more than one result set,
 and every result is prompt text competing for a budget shared with the model's
@@ -297,22 +323,23 @@ change.
   a company that cannot be looked up, so **a typo in a cost setting must never become
   a assessment.**
 - A blank country is dropped from the request rather than sent as `""`.
-- **Credits are per *request*.** A verification issues the single employer query plus
-  at most two follow-ups, so `basic` costs 1–3 credits and `advanced` 2–6 — which is
-  not what the knob's own name suggests, and is why `basic` remains the default. Where
-  the two follow-ups come from depends on `VERIFY_SEARCH_MODE`: in `fixed` they are the
+- **Credits are per *request*.** A verification issues two static queries (the
+  employer; the location when the posting states one) plus at most four
+  follow-ups, so `basic` costs 2–6 credits and `advanced` 4–12 — which is
+  not what the knob's own name suggests. Where
+  the follow-ups come from depends on `VERIFY_SEARCH_MODE`: in `fixed` they are the
   scan model's proposals, in `adaptive` they are chosen by a planner from what Round 1
-  returned. **The ceiling is the same either way**; the typical cost is 1 in both,
-  because the model rarely proposes two.
+  returned. **The ceiling is the same either way**; the typical cost sits near the
+  bottom, because the model rarely proposes its full share.
 - **Credits are per request, not per result, so every other recall lever is free.**
   `max_results`, `chunks_per_source`, `country`, `exclude_domains` and
   `include_domains_mode` all change what comes back at the same 1-or-2 credit cost.
   Only `search_depth` moves the price, and only a second `POST /search` adds another
   charge — the API takes a single `query` per request, so "several queries" means
   several requests. The documented sub-query pattern would have tripled the monthly
-  verification count on a 1,000-credit budget, and it is the wrong shape for this
+  verification count on a tight budget, and it is the wrong shape for this
   product: the query is deliberately unadorned so no category bias is introduced, and
-  three queries' worth of chunks would crowd out a reasoning model already sharing
+  six queries' worth of chunks would crowd out a reasoning model already sharing
   `AI_MAX_TOKENS` with its own answer.
 
 ---

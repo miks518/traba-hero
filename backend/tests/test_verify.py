@@ -1083,15 +1083,15 @@ async def test_verify_sse_stream_format():
 
 
 class TestTheQueryBudget:
-    """One employer query plus up to two the scan model proposed.
+    """Two static queries - the employer, and the location when the posting
+    names one - plus up to four the scan model proposed.
 
     The merged result set is what the model judges, so these tests are about what
     the flow does with the outcomes - not about the query strings, which
     `test_multi_query.py` covers.
 
     The count is one of the few things here that is arithmetic rather than
-    judgement, and it is pinned because it is a deployment cost: the free tier
-    is 1,000 credits a month.
+    judgement, and it is pinned because it is a deployment cost.
     """
 
     AI = json.dumps({
@@ -1105,18 +1105,21 @@ class TestTheQueryBudget:
         "recommendation": "Ask them to confirm the address in writing.",
     })
 
-    async def _verify(self, client, search_side_effect, chat_response=None, model_queries=None):
+    async def _verify(self, client, search_side_effect, chat_response=None, model_queries=None, attributes=None):
         from unittest.mock import patch as _patch
         with (
             _patch("app.routers.scan.search", side_effect=_cycled(search_side_effect)) as search,
             _patch("app.routers.scan.chat", return_value=chat_response or self.AI),
         ):
+            body = {
+                "company_name": "Acme Corp",
+                "job_summary": "Developer at Acme Corp",
+                "search_queries": model_queries or [],
+            }
+            if attributes is not None:
+                body["attributes"] = attributes
             async with AsyncClient(transport=transport, base_url="http://test") as c:
-                resp = await c.post("/api/verify", json={
-                    "company_name": "Acme Corp",
-                    "job_summary": "Developer at Acme Corp",
-                    "search_queries": model_queries or [],
-                })
+                resp = await c.post("/api/verify", json=body)
         return resp, search
 
     @pytest.mark.asyncio
@@ -1154,11 +1157,83 @@ class TestTheQueryBudget:
         assert issued[1:] == ["Acme Corp branch", "Acme Corp permit"]
 
     @pytest.mark.asyncio
-    async def test_the_budget_is_capped_here_and_not_only_in_the_parser(self):
-        """The parser caps at 2, but this endpoint accepts a list of any length.
+    async def test_a_stated_location_earns_a_second_static_query(self):
+        """The location query is code-built from the posting's own claim.
 
-        A client that is not this extension can post five, and a malformed
-        request is not a reason to spend six credits silently - so the cap is
+        It used to be the scan model's first suggested query, and a model
+        proposing fresh each run does not always propose it — a claim the
+        posting makes verbatim was covered on the model's whim. Static, it is
+        the check the posting's own `LOCATION` attribute always earns.
+        """
+        from app.services.search import SearchOutcome, SearchResult
+
+        hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
+        resp, search = await self._verify(
+            None, [hits] * 2,
+            attributes={"LOCATION": "Katipunan Ave, Quezon City"},
+        )
+
+        assert search.call_count == 2
+        issued = [c.args[0] for c in search.call_args_list]
+        assert issued == [
+            "Acme Corp company or employer",
+            "Acme Corp Katipunan Ave, Quezon City",
+        ]
+        assert '"queries_issued": 2' in resp.text
+
+    @pytest.mark.asyncio
+    async def test_a_missing_location_runs_no_location_query(self):
+        """No location, no query — never `"<company> "`.
+
+        An empty location is the posting having said nothing, and a query built
+        from an empty string is the employer lookup spent a second time on the
+        same name.
+        """
+        from app.services.search import SearchOutcome, SearchResult
+
+        hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
+        _, search = await self._verify(
+            None, [hits],
+            attributes={"CONTACT_METHOD": "email | jobs@acme.ph"},
+        )
+
+        issued = [c.args[0] for c in search.call_args_list]
+        assert issued == ["Acme Corp company or employer"]
+
+    @pytest.mark.asyncio
+    async def test_a_model_query_repeating_a_static_one_is_dropped(self):
+        """A credit on a page set already retrieved is a wasted slot.
+
+        The static queries are template-built, so only a literal repeat is a
+        repeat: the comparison is the whole string, case-insensitively, and a
+        differently-worded angle on the same target keeps its slot.
+        """
+        from app.services.search import SearchOutcome, SearchResult
+
+        hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
+        _, search = await self._verify(
+            None, [hits] * 3,
+            attributes={"LOCATION": "Katipunan Ave"},
+            model_queries=[
+                "ACME CORP COMPANY OR EMPLOYER",
+                "Acme Corp Katipunan Ave",
+                "Acme Corp permit number",
+            ],
+        )
+
+        issued = [c.args[0] for c in search.call_args_list]
+        assert issued == [
+            "Acme Corp company or employer",
+            "Acme Corp Katipunan Ave",
+            "Acme Corp permit number",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_the_budget_is_capped_here_and_not_only_in_the_parser(self):
+        """The parser caps at 4, but this endpoint accepts a list of any length.
+
+        A client that is not this extension can post ten, and a malformed
+        request is not a reason to spend credits silently - so the cap is
         enforced where the money is spent, not only where the text is parsed.
         """
         from app.services.search import SearchOutcome, SearchResult
@@ -1166,14 +1241,14 @@ class TestTheQueryBudget:
         hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)
         _, search = await self._verify(
             None, [hits] * 9,
-            model_queries=["one", "two", "three", "four", "five"],
+            model_queries=["one", "two", "three", "four", "five", "six"],
         )
 
-        assert search.call_count == 3, "the employer query plus two model queries"
+        assert search.call_count == 5, "the employer query plus four model queries"
 
     @pytest.mark.asyncio
     async def test_the_cap_cannot_be_bought_by_omitting_the_employer_query(self):
-        """The overcorrection: cap the total, not the model's share."""
+        """The overcorrection: cap the model's share, not the total."""
         from app.services.search import SearchOutcome, SearchResult
 
         hits = SearchOutcome(results=[SearchResult("Acme", "https://example.ph/acme", "s", 0.8)], ok=True)

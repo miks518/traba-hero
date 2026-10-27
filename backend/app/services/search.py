@@ -226,16 +226,17 @@ def _parse_domains(raw: str) -> list[str]:
     return seen
 
 
-def build_queries(company: str) -> list[str]:
-    """The one query issued for the employer itself.
+def build_queries(company: str, location: str = "") -> list[str]:
+    """The static queries issued before the model's own are considered.
 
-    `company or employer` is deliberate. It reads as a boolean to a search
-    engine, so a business writing itself "Tanika Company", "Tanika Employer" or
-    neither is matched either way - the employer name is often the only handle
-    a small Philippine business has, and a wrong guess at its suffix is a query
-    that returns nothing. It used to be paired with `registration certificate`
-    and `reviews complaints`, but two targeted queries each starved the others:
-    a general company query is what surfaces the employer's own pages, a PESO
+    **The employer query** is `"<company> company or employer"`. The
+    `or employer` reads as a boolean to a search engine, so a business writing
+    itself "Tanika Company", "Tanika Employer" or neither is matched either
+    way - the employer name is often the only handle a small Philippine
+    business has, and a wrong guess at its suffix is a query that returns
+    nothing. It used to be paired with `registration certificate` and
+    `reviews complaints`, but two targeted queries each starved the others: a
+    general company query is what surfaces the employer's own pages, a PESO
     listing and a job board post in one result set, and those are the pages the
     prompt judges for existence, registration and channel match.
 
@@ -256,6 +257,15 @@ def build_queries(company: str) -> list[str]:
     it, because every rewrite is a chance to search a different company than the
     one named.
 
+    **The location query** is `"<company> <location>"`, issued only when the
+    posting actually states a location. It used to be the scan model's first
+    suggested query, and a model proposing fresh each run does not always
+    propose it - a claim the posting makes verbatim was being covered on the
+    model's whim. Now it is static, and the model's slots are free for the
+    angles only it can judge. **A missing location produces no query**, never
+    `"<company> "`: an empty location is the posting having said nothing, and
+    searching for nothing is how a name-only query gets spent twice.
+
     The Philippines is no longer appended. `country` on the search request
     already biases ranking toward Philippine results, so the suffix was the same
     signal applied twice - and appending it to every query spent characters
@@ -265,7 +275,11 @@ def build_queries(company: str) -> list[str]:
     list for a single AI call, so this is one request, not one model call.
     """
     name = company.strip()
-    return [f"{name} company or employer"]
+    queries = [f"{name} company or employer"]
+    place = (location or "").strip()
+    if place:
+        queries.append(f"{name} {place}")
+    return queries
 
 
 
@@ -317,6 +331,15 @@ def merge_results(*result_sets: list[SearchResult], cap: int | None = None) -> l
                 best[key] = result
     merged = sorted(best.values(), key=lambda r: r.score, reverse=True)
     return merged[:cap] if cap and cap > 0 else merged
+
+
+# The ceiling on the merged result list the verify prompt reads. Six queries at
+# three results each return up to eighteen rows; the employer's own pages repeat
+# across queries and `merge_results` dedupes them, and this cap trims the tail
+# by score. It exists to bound prompt size — every row is text the reasoning
+# model shares `AI_MAX_TOKENS` with — not to limit recall, which is why it
+# scales with the query budget rather than staying at the old ×2.
+MERGED_RESULTS_CAP = 12
 
 
 def _normalise(payload) -> list[SearchResult]:

@@ -505,7 +505,7 @@ async function consumeSseStreamOffer(
  * the one check that can detect an impersonation — would have nothing to
  * reason about.
  *
- * `search_queries` are the searches the scan model proposed, capped at 2. They
+ * `search_queries` are the searches the scan model proposed, capped at 4. They
  * are issued alongside the one query the backend builds from the employer name.
  * Dropping them leaves every verification running on a single query, reported
  * as an ordinary lookup with no error anywhere — which is how the previous

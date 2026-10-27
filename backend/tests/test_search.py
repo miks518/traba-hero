@@ -302,7 +302,7 @@ class TestSettingsDefaultTestsIgnoreTheLocalEnvFile:
         disagreeing.write_text("TAVILY_MAX_RESULTS=9\n", encoding="utf-8")
 
         assert Settings(_env_file=disagreeing).tavily_max_results == 9
-        assert class_settings(monkeypatch).tavily_max_results == 4
+        assert class_settings(monkeypatch).tavily_max_results == 3
 
     def test_a_real_environment_variable_still_overrides_the_default(self, monkeypatch):
         """`_env_file=None` skips the file, not the environment.
@@ -511,12 +511,13 @@ class TestSearchSettingsAreConfigurable:
         more results costs nothing. What it costs is context: every snippet
         becomes prompt text for a model that draws its reasoning from the same
         `AI_MAX_TOKENS` budget that has to hold the answer, and a truncated
-        reasoning phase can come back with nothing at all. Four is the ceiling
-        that keeps the verification answer room to exist.
+        reasoning phase can come back with nothing at all. The budget moved to
+        query count instead - up to six queries a verification - so three per
+        query is the ceiling that keeps the verification answer room to exist.
         """
         from app.config import Settings
 
-        assert class_settings(monkeypatch).tavily_max_results == 4
+        assert class_settings(monkeypatch).tavily_max_results == 3
 
     def test_max_results_is_still_configurable(self, monkeypatch):
         import app.services.search as mod

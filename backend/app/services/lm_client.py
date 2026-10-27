@@ -363,7 +363,12 @@ _QUERY_PLACEHOLDERS = {
     "", "none", "n/a", "na", "nothing", "none found", "no query", "not applicable", "-",
 }
 
-MAX_SEARCH_QUERIES = 2
+# The model's proposals, capped. Two static queries (the employer lookup and,
+# when the posting names one, the location) run alongside these, so a ceiling
+# of four puts a verification at six requests. A client that is not this
+# extension can post a longer list; the cap in `verification_flow` enforces the
+# same number where the queries are issued.
+MAX_SEARCH_QUERIES = 4
 
 # The keys an ATTRIBUTES block is read for, and the keys `_SECTION_RE` also
 # matches anywhere in the response. They are ordinary English words the model

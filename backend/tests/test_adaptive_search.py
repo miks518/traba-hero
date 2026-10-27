@@ -170,6 +170,7 @@ class TestFixedModeIsUnchanged:
 
         assert _queries(recorder) == [
             "Commission for High Learning company or employer",
+            "Commission for High Learning Magsaysay Village, La Paz, Iloilo City",
             "one thing",
             "another thing",
         ]
@@ -306,24 +307,29 @@ class TestAdaptiveMode:
         assert len(recorder.calls) == 1, _queries(recorder)
 
     @pytest.mark.asyncio
-    async def test_the_ceiling_is_three_credits(self, monkeypatch):
-        """Anchor plus at most two follow-ups, whatever the model proposed."""
+    async def test_the_ceiling_is_four_requests(self, monkeypatch):
+        """Two static queries plus at most two planned follow-ups."""
         recorder = Recorder(default=_ok(*ROUND1))
         _adaptive(monkeypatch)
         with patch("app.routers.scan.search", recorder):
             await _post({**CHED_BODY, "search_queries": ["a", "b", "c", "d"]})
 
-        assert len(recorder.calls) <= 3, _queries(recorder)
+        assert len(recorder.calls) <= 4, _queries(recorder)
 
     @pytest.mark.asyncio
     async def test_a_failed_anchor_plans_no_follow_up(self, monkeypatch):
-        """Credits are never spent against a provider that just failed."""
+        """Credits are never spent against a provider that just failed.
+
+        Both static queries are attempted - they are independent lookups, and
+        the location one failing is its own fact - and neither result plans a
+        follow-up.
+        """
         recorder = Recorder(default=SearchOutcome(ok=False, error="TAVILY_API_KEY is not configured."))
         _adaptive(monkeypatch)
         with patch("app.routers.scan.search", recorder):
             resp = await _post(CHED_BODY)
 
-        assert len(recorder.calls) == 1, _queries(recorder)
+        assert len(recorder.calls) == 2, _queries(recorder)
         assert '"search_ok": false' in resp.text
 
     @pytest.mark.asyncio

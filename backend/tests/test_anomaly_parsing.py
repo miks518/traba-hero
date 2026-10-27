@@ -213,11 +213,11 @@ class TestPostingAttributes:
         It was deleted in 413a2cd for the right reason - parsed, capped, shipped
         on `ScanResponse`, and read by nothing - which is not the same as it
         being a bad idea. `VerifyRequest.search_queries` now carries it to
-        `/api/verify`, which issues it in place of the scheme queries this
-        module used to build.
+        `/api/verify`, which issues it beside the static queries this flow
+        builds.
 
-        The cap is 2 rather than the old 3, because one request is spent on the
-        employer itself and the free tier is 1,000 credits a month.
+        The cap is 4: two static queries (the employer, and the location when
+        the posting names one) plus these is the six-request verification.
         """
         raw = (
             "VALID: true\nSEARCH QUERIES:\n"
@@ -226,20 +226,22 @@ class TestPostingAttributes:
         )
         result = _parse_custom(raw)
 
-        assert result["search_queries"] == ["Tanika branch", "Tanika permit"]
+        assert result["search_queries"] == [
+            "Tanika branch", "Tanika permit", "Tanika third",
+        ]
         # The employer path must still work beside it, or this would pass for a
         # parser that simply stopped reading everything.
         assert result["company_name"] == "Tanika"
 
-    def test_the_cap_is_two(self):
-        """Three would make the employer query a fourth request."""
+    def test_the_cap_is_four(self):
+        """Two static queries plus these is the six-request verification."""
         raw = (
             "VALID: true\nSEARCH QUERIES:\n"
-            "QUERY: one\nQUERY: two\nQUERY: three\n"
+            "QUERY: one\nQUERY: two\nQUERY: three\nQUERY: four\nQUERY: five\n"
             "END SEARCH QUERIES\n"
         )
 
-        assert len(_parse_custom(raw)["search_queries"]) == 2
+        assert len(_parse_custom(raw)["search_queries"]) == 4
 
     def test_a_placeholder_is_not_a_query(self):
         """The model answering "none" is answering the format, not proposing a

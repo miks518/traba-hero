@@ -100,17 +100,17 @@ SCAN_FIELD_RULES = """Field rules:
 * JOB_TITLE is the role as the posting names it, at the detail it uses: "Project Technical Staff I", "Barangay Health Worker", "Intern". Write what the posting calls the job, not a summary of the duties and not the salary. It exists so a later stage can look for this specific role on the employer's own site, which a generic employer lookup cannot do.
   * REGISTERED_AS is only for a registration the posting claims about itself - a permit number, a licence, "we are a registered company". Write what it says, exactly. Do not write one from a registry you know about; only the posting's own claim is a claim.
 - SEARCH QUERIES:
-  * Propose at most two searches, on the QUERY lines. More than two is wasted: only the first two are run.
-  * A general lookup of the employer is already run for you and is not one of your lines: the employer's name with the words "company or employer". It returns this business's own pages, its listings, and its job posts. So never write a query asking whether the company exists, what it is called, or whether it is registered. That repeats it, and you would spend both queries on pages you have already seen and leave nothing for something only you can ask.
+  * Propose at most four searches, on the QUERY lines. More than four is wasted: only the first four are run.
+  * Two lookups have already run for you: the employer's name with the words "company or employer", and - when the posting names one - a search for the location, branch or address the posting names together with the employer. So never write a query asking whether the company exists, what it is called, whether it is registered, or whether it is where it says it is. That repeats them, and you would spend queries on pages you have already seen and leave nothing for something only you can ask.
   * Spend them on what a general lookup cannot settle. Usually one of:
-    - the location, branch or address the posting names, with the employer. A general lookup says where the business says it is, not whether that matches where it tells applicants to go.
     - the same work posted elsewhere: the role, the tasks, the reward. This is the only way to find other postings of the same offer, and the only thing Similar Offers can be judged from.
     - a number the posting quotes, such as a permit or licence, when it is something a search can look up.
-  * Write a query for something the posting actually states, or for other postings of the same work. A posting naming no location produces no location query.
+    - anything else the posting states that a search can check - a registration body it names, a client company, a training provider.
+  * Write a query for something the posting actually states, or for other postings of the same work.
   * A query may look for what the posting claims. Name the claim and the employer together, so the search is about that employer's claim and not about the claim in general.
   * Never put a conclusion in a query. Do not use scam, fraud, fraudulent, fake, suspicious, or legitimate. A query carrying one returns pages chosen because they contain that word, which then look like confirmation of an accusation the query already made up. Search for the thing itself: the permit number, the branch, the address, the account name.
   * Use the poster's words for the part being checked, not your summary of it.
-  * If both your queries would look for the same kind of thing, write only one.
+  * If two of your queries would look for the same kind of thing, write only one.
   * If nothing in the posting is worth a search, write no QUERY lines at all rather than writing none.
 - EMPLOYER NAME: the name of the company that would employ the reader, exactly as it is written in the content, and nothing else on the line â€” no "the", no role, no explanation, no separator, and never two names joined by a slash or an "and".
   * A staffing or manpower agency is NOT the employer when the posting is for work at some other company. In "Vikings / Silvergreen Manpower Services Corporation is hiring", Silvergreen is the recruiter and Vikings is where the reader would work: output "Vikings". If the posting is for the agency's own staff, the agency is the employer and you output the agency name.

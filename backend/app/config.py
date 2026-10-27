@@ -61,13 +61,17 @@ class Settings(BaseSettings):
 
     # ── Tavily (default) ─────────────────────────────────────────────────────
     tavily_api_key: str = ""
-    tavily_max_results: int = 4
+    # Three per query, not more: with up to six queries a verification returns
+    # up to eighteen rows, and every row is prompt text against `AI_MAX_TOKENS`.
+    # The budget moved to query count instead.
+    tavily_max_results: int = 3
     tavily_search_depth: str = "basic"
 
     # ── Keenable (alternative) ───────────────────────────────────────────────
     # Sign up: https://keeenable.com — check their pricing for credits.
     keenable_api_key: str = ""
-    keenable_max_results: int = 4
+    # Same ceiling as Tavily's, for the same reason.
+    keenable_max_results: int = 3
     keenable_search_depth: str = "basic"
     # Keenable has no country-ranking parameter, so geography is applied on the
     # query text instead: the configured country is appended to queries that do

@@ -81,14 +81,14 @@ END ANOMALY CODES
 - EMPLOYER NAME: the exact client or employer name offering the work, and nothing else on the line. If a recruitment agency posts for another business, name the client business - in "Vikings / Silvergreen Manpower Services is hiring", Silvergreen is the recruiter and Vikings is where the reader would work. If no employer is named anywhere in the text, logo, or letterhead, output exactly `Not stated`; missing info is reported there, never as an anomaly.
 
 4. SEARCH QUERIES
-- At most two queries. A general lookup of the employer has already run for you - the employer's name with the words "company or employer" - so never write a query asking whether the company exists, what it is called, or whether it is registered.
+- At most four queries. Two lookups have already run for you: the employer's name with the words "company or employer", and - when the posting names one - a search for the location, branch or address the posting names together with the employer. So never write a query asking whether the company exists, what it is called, whether it is registered, or whether it is where it says it is.
 - Spend your queries on what a general lookup cannot settle:
-  * the location, branch or address the posting names, with the employer - whether where it tells applicants to go matches what the posting says;
   * the same work posted elsewhere: the role, the tasks, the reward - the only way to find other postings of the same offer, and the only thing Similar Offers can be judged from;
-  * a number the posting quotes, such as a permit or licence, when a search can look it up.
-- Write a query for something the posting actually states, or for other postings of the same work. A posting naming no location produces no location query.
+  * a number the posting quotes, such as a permit or licence, when a search can look it up;
+  * anything else the posting states that a search can check - a registration body it names, a client company, a training provider.
+- Write a query for something the posting actually states, or for other postings of the same work.
 - Never put a conclusion in a query: no scam, fraud, fraudulent, fake, suspicious, or legitimate. A query carrying one returns pages chosen because they contain that word, which then look like confirmation of an accusation the query already made up. Search for the thing itself, in the poster's words.
-- If both queries would look for the same kind of thing, write only one. If nothing in the posting is worth a search, write no QUERY lines at all.
+- If two queries would look for the same kind of thing, write only one. If nothing in the posting is worth a search, write no QUERY lines at all.
 
 5. POSTING ANALYSIS
 - Sentence 1-2: what the offer requires and provides, based on the anomalies you reported. If you reported none, say the posting states nothing alarming - do not pad a clean posting into a warning.

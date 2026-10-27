@@ -10,6 +10,7 @@ from app.models.schemas import (
     VerifyRequest,
 )
 from app.services.lm_client import MAX_SEARCH_QUERIES
+from app.services.search import _canonical_url, MERGED_RESULTS_CAP
 from app.services.search import _canonical_url
 
 from .channel_match import (
@@ -661,31 +662,38 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             return
 
         yield runtime.get_sse()({"type": "progress", "percent": 10, "stage": "Searching company info"})
-        # One anchor query, then the model's own proposals. One flat result set,
-        # one model call. Neither family carries a category suffix: the model
-        # sorts the merged results into the categories itself, so nothing here
-        # decides what a result is.
+        # Two static queries, then the model's own proposals. One flat result
+        # set, one model call. Neither family carries a category suffix: the
+        # model sorts the merged results into the categories itself, so nothing
+        # here decides what a result is.
         #
-        # The anchor query finds what is published about the employer. It used
-        # to be two queries, because one could not serve every category â€”
-        # `"<company> Philippines"` ranks the employer's own site first, and
-        # those pages do not state registration numbers. `build_queries` now
-        # returns one: `"<company> company or employer"`, which surfaces the
-        # employer's own pages, a PESO listing and a job board post in one
-        # result set. The two targeted rankings it replaced were starving each
-        # other, and `Official Registration` and `Reputation` now depend on the
-        # one query surfacing the right page rather than asking for it by name.
+        # The employer query finds what is published about the employer:
+        # `"<company> company or employer"` surfaces the employer's own pages, a
+        # PESO listing and a job board post in one result set. It also finds
+        # nothing when a scam borrows a real company's name, because the real
+        # company's reputation is clean, which is exactly why the impersonation
+        # is invisible to it.
         #
-        # It also finds nothing when a scam borrows a real company's name,
-        # because the real company's reputation is clean, which is exactly why
-        # the impersonation is invisible to it. The model's proposed queries
-        # name a detail the posting itself stated, so they reach the pages that
-        # pair the claim with the employer making it.
+        # The location query - issued only when the posting states a location -
+        # pins the check the posting makes verbatim: whether the employer is
+        # where it says it is. It used to be the scan model's first suggested
+        # query, and a model proposing fresh each run does not always propose
+        # it. Static, the claim is checked every time.
+        #
+        # The model's proposed queries name a detail the posting itself stated,
+        # so they reach the pages that pair the claim with the employer making
+        # it.
         #
         # `getattr` because the request may predate the field: a client that
         # never sends `attributes` must produce no scheme query, not an
         # AttributeError halfway through the stream.
-        company_queries = runtime.get_build_queries()(company)
+        company_queries = runtime.get_build_queries()(
+            company,
+            # The location query fires only when the posting states one. An
+            # empty location is the posting having said nothing, and a query
+            # built from nothing is the employer lookup spent a second time.
+            location=str((getattr(req, "attributes", None) or {}).get("LOCATION") or ""),
+        )
         # The model's own proposals, in place of the scheme queries this used to
         # build from `attributes`. Read off the request rather than off the
         # response, because the extension is what carries them across.
@@ -702,6 +710,15 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         model_queries = [
             q for q in (str(raw).strip() for raw in (getattr(req, "search_queries", None) or []))
             if q and search_query_is_safe(q)
+        ]
+        # A model proposal that repeats a static query is a credit spent on a
+        # page set already retrieved. Case-insensitive on the whole string: the
+        # static queries are template-built, so only a literal repeat is a
+        # repeat — a differently-worded angle on the same target is a different
+        # question and keeps its slot.
+        model_queries = [
+            q for q in model_queries
+            if q.lower() not in {c.lower() for c in company_queries}
         ][:MAX_SEARCH_QUERIES]
         collected: list = []
         # TEMPORARY DIAGNOSTIC. The provider's raw body per query, so the panel
@@ -752,10 +769,16 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 })
 
         # â”€â”€ Round 1: the employer-name query. One credit, identical in both modes.
+        # -- Round 1: the static queries. Sequential in both modes: the employer
+        # lookup and the location lookup go out one at a time, the way the single
+        # anchor query always did - the SSE events are emitted above before this
+        # is awaited, which keeps the event order identical to the requests.
+        # The adaptive planner's follow-up round is the concurrent one, because
+        # that round only exists once its questions are known.
         for query in company_queries:
             yield runtime.get_sse()({"type": "search", "query": query, "round": 1})
         first_collected, first_failures, first_raw, first_per_query = await _issue(
-            _query_rows(company_queries)
+            _query_rows(company_queries), concurrent=False
         )
         collected.extend(first_collected)
         failures.extend(first_failures)
@@ -807,10 +830,11 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             }
         else:
             # The `fixed` path: whatever the scan model proposed, unscoped, with
-            # no round between them. Up to two queries of one kind rather than
+            # no round between them. Up to four queries of one kind rather than
             # a second round, because nothing here was chosen from a result â€”
             # which is the whole difference between the modes. The ceiling is
-            # the anchor plus these, so three credits at `basic` depth.
+            # the two static queries plus these, so six requests at `basic`
+            # depth.
             for i, query in enumerate(model_queries, len(company_queries) + 1):
                 yield runtime.get_sse()({"type": "search", "query": query, "round": i})
             rest_collected, rest_failures, rest_raw, rest_per_query = await _issue(
@@ -850,7 +874,14 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
         # shared with the model's reasoning. Capped so the merged list cannot
         # outgrow what one query produced by much.
         merged = runtime.get_merge_results()(
-            *collected, cap=settings.tavily_max_results * 2
+            *collected,
+            # Twelve, not `per-query × 2`: six queries at three results each
+            # return up to eighteen rows, and a ×2 cap would keep six of them —
+            # most of the widened budget trimmed on the way into the prompt.
+            # Twelve is ~2 per query after dedupe, which the old budget's
+            # effective density already was, and is the ceiling that keeps the
+            # verification answer room inside `AI_MAX_TOKENS`.
+            cap=MERGED_RESULTS_CAP,
         )
         search_context = runtime.get_format_results()(
             merged, company, ok, first_error, entity_name, labels

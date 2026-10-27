@@ -440,7 +440,7 @@ reads the results, so structured output is safe.
 | `AI_REASONING_ENABLED`, `AI_REASONING_MAX_TOKENS`, `AI_REASONING_EFFORT` | Reasoning-model controls |
 | `AI_MAX_CONCURRENT`, `AI_MAX_QUEUE_DEPTH` | Concurrency limits |
 | `TAVILY_API_KEY` | Tavily search key; free tier is 1,000 credits/month, no card |
-| `TAVILY_MAX_RESULTS` | Results requested per verification (default 4) |
+| `TAVILY_MAX_RESULTS` | Results requested per query (default 3) |
 | `TAVILY_SEARCH_DEPTH` | `basic` \| `advanced`, default `basic` |
 | `TAVILY_COUNTRY` | Default `philippines`; blank disables the boost |
 | `TAVILY_EXCLUDE_DOMAINS` | Domains to drop from the result set; defaults to `wikipedia.org` |
@@ -475,7 +475,8 @@ rejection.**
 
 Free in credits — cost is per *request* — but every snippet is prompt text for a model
 sharing `AI_MAX_TOKENS` with its own reasoning, **so raise it only if `AI_MAX_TOKENS` is
-raised with it.**
+raised with it.** Three per query across up to six queries is the shipped shape; the
+merged list is capped at `MERGED_RESULTS_CAP` (12) regardless.
 
 ---
 
