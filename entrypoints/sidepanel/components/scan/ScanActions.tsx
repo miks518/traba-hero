@@ -29,6 +29,9 @@ export interface ScanActionsProps {
    * next scan rather than the one on screen.
    */
   accent?: Accent;
+  /** The Advanced-scan toggle's state and setter, owned by the session. */
+  advancedScan?: boolean;
+  onAdvancedScanChange?: (value: boolean) => void;
 }
 
 export function ScanActions({
@@ -43,6 +46,8 @@ export function ScanActions({
   afterScan = false,
   disabled = false,
   accent,
+  advancedScan = false,
+  onAdvancedScanChange,
 }: ScanActionsProps) {
   const handlePickToggle = () => {
     if (isPickerActive) {
@@ -115,7 +120,52 @@ export function ScanActions({
           </button>
         )}
       </div>
+
+      {advancedScanToggle(advancedScan, onAdvancedScanChange, disabled)}
     </div>
+  );
+}
+
+/**
+ * The Advanced-scan toggle, below the scan controls.
+ *
+ * **What it actually does, said plainly.** On: the scan model's reasoning is
+ * turned on for this one request, so the prompt's do-not-flag rules are
+ * deliberated over instead of skimmed — the difference that retired a false
+ * positive on an ordinary DM application. The cost is minutes, which is the
+ * disclaimer's job to name before the reader commits.
+ *
+ * Rendered by a function rather than inline so the scan controls above stay
+ * one visual block: the toggle is a setting, not a second action.
+ */
+function advancedScanToggle(
+  advancedScan: boolean,
+  onAdvancedScanChange: ((value: boolean) => void) | undefined,
+  disabled: boolean,
+) {
+  if (!onAdvancedScanChange) return null;
+  return (
+    <label
+      data-role="advanced-scan"
+      className={`mt-2 flex items-start gap-2 px-0.5 ${disabled ? 'opacity-60' : 'cursor-pointer'}`}
+    >
+      <input
+        type="checkbox"
+        checked={advancedScan}
+        disabled={disabled}
+        onChange={(e) => onAdvancedScanChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 shrink-0 rounded accent-[var(--color-secondary)]"
+      />
+      <span className="min-w-0">
+        <span className="block text-label-md font-label font-semibold text-on-surface leading-tight">
+          Advanced scan
+        </span>
+        <span className="block text-[11px] text-on-surface-variant leading-snug">
+          The model thinks through the posting before answering, for a more
+          careful read. It might take a few minutes.
+        </span>
+      </span>
+    </label>
   );
 }
 

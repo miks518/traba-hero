@@ -150,7 +150,7 @@ async def scan(req: ScanRequest, request: Request):
         await ai_limiter.acquire()
         stream = None
         try:
-            stream = _scan_event_stream(messages, original_text="", endpoint="scan-image")
+            stream = _scan_event_stream(messages, original_text="", endpoint="scan-image", thinking=req.thinking)
             async for event in stream:
                 yield event
         finally:
@@ -181,7 +181,7 @@ async def scan_text(req: ScanTextRequest, request: Request):
         await ai_limiter.acquire()
         stream = None
         try:
-            stream = _scan_event_stream(messages, company_data=None, original_text=req.text, endpoint="scan-text")
+            stream = _scan_event_stream(messages, company_data=None, original_text=req.text, endpoint="scan-text", thinking=req.thinking)
             async for event in stream:
                 yield event
         finally:
@@ -299,6 +299,6 @@ async def analyze_offer(req: AnalyzeOfferRequest, request: Request):
 
     log.info("[analyze-offer] Assessing %d chars of content", len(text))
     return StreamingResponse(
-        analyze_offer_event_stream(text, req.company_name or "", req.anomalies or []),
+        analyze_offer_event_stream(text, req.company_name or "", req.anomalies or [], thinking=req.thinking),
         media_type="text/event-stream",
     )

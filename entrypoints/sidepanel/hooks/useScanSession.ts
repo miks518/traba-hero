@@ -204,6 +204,31 @@ export function useScanSession({
   const [scannedAt, setScannedAt] = useState<string | null>(null);
   const [jobTitle, setJobTitle] = useState<string | null>(null);
 
+  /**
+   * The Advanced-scan toggle.
+   *
+   * On: the scan model's reasoning is turned on for this one request, so the
+   * prompt's do-not-flag rules are actually deliberated over — the difference
+   * that retired a false positive on an ordinary DM application. The cost is
+   * time, which the checkbox's disclaimer names. Persisted, because a reader
+   * who chose it once chose it for the session.
+   */
+  const [advancedScan, setAdvancedScanState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('trabahero.advancedScan') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const setAdvancedScan = useCallback((value: boolean) => {
+    setAdvancedScanState(value);
+    try {
+      localStorage.setItem('trabahero.advancedScan', value ? 'true' : 'false');
+    } catch {
+      // Private mode or full storage: the setting just does not persist.
+    }
+  }, []);
+
   const abortRef = useRef<AbortController | null>(null);
   const verifyAbortRef = useRef<AbortController | null>(null);
 
@@ -254,6 +279,8 @@ export function useScanSession({
         controller.signal,
         (p) => setProgress(p),
         anomalies,
+        90000,
+        advancedScan,
       );
 
       if (result.data) {
@@ -475,6 +502,8 @@ export function useScanSession({
           setProgress(p);
           onScanProgressChange?.(p);
         },
+        240000,
+        advancedScan,
       );
 
       if (result.timedOut) {
@@ -668,6 +697,8 @@ export function useScanSession({
     elevate,
     elevationRule:
       (scanResult?.assessmentBreakdown as { rule?: string } | undefined)?.rule,
+    advancedScan,
+    setAdvancedScan,
     handleScreenshotReady,
     removeScreenshot,
     resetAll,

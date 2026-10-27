@@ -33,25 +33,39 @@ def _log_sent_config(model: str, eff_max_tokens: int, structured: bool) -> None:
     )
 
 
-def _reasoning_params() -> dict:
+def _reasoning_params(thinking: bool | None = None) -> dict:
     """Build OpenRouter's normalized `reasoning` body, or {} when not configured.
 
     Reasoning models otherwise draw deliberation from the same max_tokens budget
     that has to hold the answer: with a 2048 cap the model spent the entire
     budget reasoning and returned no content at all. Three ways to stop that:
 
-      enabled: false      turn reasoning off entirely â€” the cleanest option
+      enabled: false      turn reasoning off entirely — the cleanest option
       effort: low         reduce it at the source
       max_tokens: N       cap it (truncating can make a provider re-attempt)
 
     `enabled: false` wins over the other two, because the provider rejects a
     disabled reasoning combined with a high effort level, so sending them
     together risks a 400 for no benefit.
+
+    `thinking` is the per-request override the frontend's Advanced-scan toggle
+    sends. It wins over the settings for that one request: `True` turns
+    reasoning on even when the deployment defaults it off, `False` turns it off
+    even when the deployment defaults it on, and `None` (the default for every
+    caller that does not carry the toggle) keeps the configured behaviour.
     """
+    if thinking is True:
+        reasoning: dict = {"enabled": True}
+        if settings.ai_reasoning_effort:
+            reasoning["effort"] = settings.ai_reasoning_effort
+        return {"reasoning": reasoning}
+    if thinking is False:
+        return {"reasoning": {"enabled": False}}
+
     if settings.ai_reasoning_enabled is False:
         return {"reasoning": {"enabled": False}}
 
-    reasoning: dict = {}
+    reasoning = {}
     if settings.ai_reasoning_enabled is True:
         reasoning["enabled"] = True
     if settings.ai_reasoning_max_tokens and settings.ai_reasoning_max_tokens > 0:
@@ -81,11 +95,11 @@ def _structured_output_body(schema: dict, name: str) -> dict:
     }
 
 
-def _request_extra_body(structured: dict | None) -> dict:
+def _request_extra_body(structured: dict | None, thinking: bool | None = None) -> dict:
     """Assemble the extra request body, omitting anything the provider rejected."""
     body: dict = {}
     if "reasoning" not in _unsupported_params:
-        reasoning = _reasoning_params()
+        reasoning = _reasoning_params(thinking)
         if reasoning:
             body.update(reasoning)
     if structured and "structured" not in _unsupported_params:
@@ -184,6 +198,7 @@ async def _create_completion(**kwargs):
     not recognised at all and took the whole request down.
     """
     structured = kwargs.pop("_structured", None)
+    thinking = kwargs.pop("_thinking", None)
     # A parameter already found unsupported is not sent again: a second request
     # must not re-pay for the same discovery. `_request_extra_body` does this for
     # reasoning and structured because they travel inside it; these travel as
@@ -194,7 +209,7 @@ async def _create_completion(**kwargs):
     _log_sent_config(kwargs.get("model", "?"), kwargs.get("max_tokens", "?"), bool(structured))
     attempted: set[str] = set()
     while True:
-        extra_body = _request_extra_body(structured)
+        extra_body = _request_extra_body(structured, thinking)
         try:
             return await _get_client().chat.completions.create(extra_body=extra_body or None, **kwargs)
         except Exception as e:  # noqa: BLE001
@@ -730,6 +745,7 @@ async def chat(
     top_p: float | None = None,
     response_format: dict | None = None,
     endpoint: str = "",
+    thinking: bool | None = None,
 ) -> str:
     model = settings.resolve_model(endpoint) or "local-model"
     eff_temp = temperature if temperature is not None else settings.ai_temperature
@@ -743,6 +759,7 @@ async def chat(
         top_p=eff_top_p,
         max_tokens=eff_max_tokens,
         _structured=response_format,
+        _thinking=thinking,
     )
     content = (completion.choices[0].message.content or "").strip()
     if not content:
@@ -949,6 +966,7 @@ async def chat_stream_pieces(
     temperature: float | None = None,
     top_p: float | None = None,
     endpoint: str = "",
+    thinking: bool | None = None,
 ):
     """Async generator yielding each content delta from the AI provider as it arrives.
 
@@ -971,6 +989,7 @@ async def chat_stream_pieces(
         top_p=eff_top_p,
         max_tokens=eff_max_tokens,
         stream=True,
+        _thinking=thinking,
     )
 
     notes: list[str] = []

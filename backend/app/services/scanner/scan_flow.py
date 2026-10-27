@@ -11,7 +11,7 @@ from .dependencies import runtime
 log = logging.getLogger("trabahero")
 
 
-async def _scan_event_stream(messages: list, max_tokens: int | None = None, company_data: dict | None = None, original_text: str = "", endpoint: str = "scan") -> str:
+async def _scan_event_stream(messages: list, max_tokens: int | None = None, company_data: dict | None = None, original_text: str = "", endpoint: str = "scan", thinking: bool | None = None) -> str:
     """Stream an AI scan, emitting SSE progress events and a final result.
 
     Early-exits the AI stream as soon as a complete ``VALID: false`` line is
@@ -26,7 +26,7 @@ async def _scan_event_stream(messages: list, max_tokens: int | None = None, comp
     valid_seen = False
     try:
         deadline = _time.monotonic() + 300.0
-        stream = runtime.get_chat_stream()(messages, max_tokens=max_tokens, endpoint="scan")
+        stream = runtime.get_chat_stream()(messages, max_tokens=max_tokens, endpoint="scan", thinking=thinking)
         try:
             async for piece in stream:
                 if _time.monotonic() > deadline:

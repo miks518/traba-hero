@@ -127,7 +127,7 @@ EXPECTED_SIGNATURES = {
     "_language_instruction": "(language: str) -> str",
     "_scan_response": "(result: dict, company_name: str = '') -> app.models.schemas.ScanResponse",
     "_sse": "(data: dict) -> str",
-    "_scan_event_stream": "(messages: list, max_tokens: int | None = None, company_data: dict | None = None, original_text: str = '', endpoint: str = 'scan') -> str",
+    "_scan_event_stream": "(messages: list, max_tokens: int | None = None, company_data: dict | None = None, original_text: str = '', endpoint: str = 'scan', thinking: bool | None = None) -> str",
     "_resume_event_stream": "(messages: list, max_tokens: int | None = None, endpoint: str = 'resume') -> str",
     "_match_event_stream": "(messages: list, max_tokens: int | None = None, endpoint: str = 'match') -> str",
 }

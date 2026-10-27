@@ -131,6 +131,7 @@ export async function scanScreenshotStream(
   externalSignal: AbortSignal,
   onProgress: (progress: ScanProgress) => void,
   timeoutMs = 240000,
+  thinking = false,
 ): Promise<ScanStreamResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -143,7 +144,7 @@ export async function scanScreenshotStream(
     const res = await fetch(`${API_BASE}/api/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
-      body: JSON.stringify({ images_base64: imagesBase64 }),
+      body: JSON.stringify({ images_base64: imagesBase64, thinking }),
       signal: controller.signal,
     });
 
@@ -170,6 +171,7 @@ export async function scanTextStream(
   externalSignal: AbortSignal,
   onProgress: (progress: ScanProgress) => void,
   timeoutMs = 240000,
+  thinking = false,
 ): Promise<ScanStreamResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -182,7 +184,7 @@ export async function scanTextStream(
     const res = await fetch(`${API_BASE}/api/scan-text`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, thinking }),
       signal: controller.signal,
     });
 
@@ -421,6 +423,7 @@ export async function analyzeOfferStream(
   onProgress: (progress: ScanProgress) => void,
   anomalies: unknown[] = [],
   timeoutMs = 90000,
+  thinking = false,
 ): Promise<OfferStreamResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -433,7 +436,7 @@ export async function analyzeOfferStream(
     const res = await fetch(`${API_BASE}/api/analyze-offer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
-      body: JSON.stringify({ text, company_name: companyName, anomalies }),
+      body: JSON.stringify({ text, company_name: companyName, anomalies, thinking }),
       signal: controller.signal,
     });
 

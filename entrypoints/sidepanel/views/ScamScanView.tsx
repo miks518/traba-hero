@@ -300,6 +300,8 @@ export function ScamScanView({
         isCropActivating={cropActivating}
         afterScan={hasScanned}
         disabled={isLoading}
+        advancedScan={session.advancedScan}
+        onAdvancedScanChange={session.setAdvancedScan}
         /*
           The primary action takes the level's colour only while that level is
           settled and dangerous. Scoped to the displayed result, which is what makes

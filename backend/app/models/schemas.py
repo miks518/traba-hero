@@ -144,6 +144,11 @@ class ScanRequest(BaseModel):
     # cheapest door open: one call, one enormous image.
     image_base64: str = Field(default="", max_length=MAX_IMAGE_BASE64)
     language: str = "english"
+    # The Advanced-scan toggle. `True` turns the model's reasoning on for this
+    # one request, whatever the deployment's `AI_REASONING_ENABLED` says. It
+    # costs minutes, not credits - the disclaimer on the checkbox is the honest
+    # label for that.
+    thinking: bool = False
 
 
 class Anomaly(BaseModel):
@@ -244,12 +249,17 @@ class ScanResponse(BaseModel):
 class ScanTextRequest(BaseModel):
     text: str = Field(..., max_length=50_000)
     language: str = "english"
+    # The Advanced-scan toggle, same meaning as on `ScanRequest`.
+    thinking: bool = False
 
 
 class AnalyzeOfferRequest(BaseModel):
     text: str = Field(..., max_length=50_000)
     company_name: str = ""
     language: str = "english"
+    # The Advanced-scan toggle, same meaning as on `ScanRequest`. The offer pass
+    # is the scan pipeline's no-employer branch, so the toggle follows it.
+    thinking: bool = False
     # The scan's findings, forwarded so the offer pass can compute a request
     # class from them rather than only from the codes the model emits. The
     # model's codes are a second opinion; the scan's anomalies are the

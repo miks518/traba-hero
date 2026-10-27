@@ -27,7 +27,7 @@ FAILSAFE = {
 }
 
 
-async def analyze_offer_event_stream(text: str, company_name: str = "", anomalies: list = None) -> AsyncIterator[str]:
+async def analyze_offer_event_stream(text: str, company_name: str = "", anomalies: list = None, thinking: bool | None = None) -> AsyncIterator[str]:
     if anomalies is None:
         anomalies = []
     limiter = runtime.get_ai_limiter()
@@ -44,6 +44,7 @@ async def analyze_offer_event_stream(text: str, company_name: str = "", anomalie
             messages,
             response_format=runtime.get_analyze_offer_response_format(),
             endpoint="offer",
+            thinking=thinking,
         )
         log.info("[analyze-offer] Raw model output (%d chars): %s", len(final_text), final_text[:800])
 
