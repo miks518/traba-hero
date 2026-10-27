@@ -195,7 +195,7 @@ class TestTheGuardrailsSurvivedTheMove:
         written."""
         low = text.lower()
         assert "this applies to this category only" in low
-        assert "the other five have a finding worth stating" in low
+        assert "the other four have a finding worth stating" in low
 
     def test_an_empty_finding_is_not_a_way_to_skip_a_real_one(self):
         """The failure mode of an instruction the model can satisfy cheaply: it
@@ -244,10 +244,18 @@ class TestTheGuardrailsSurvivedTheMove:
     def test_it_says_absence_is_never_red(self):
         assert "Absence of a result is NEVER red" in text
 
-    def test_it_keeps_registration_broader_than_the_sec(self):
+    def test_the_prompt_does_not_still_ask_for_a_registration_check(self):
+        """Tombstone for the retired category.
+
+        `Official Registration` was removed because the search never sought its
+        evidence: a gated card over a generic result set answered "not
+        confirmed" by construction. Its absence is pinned, in both copies via
+        the fallback-equality test above, so it cannot drift back in as a
+        half-remembered rule.
+        """
         low = text.lower()
-        for body in ("dti", "peza", "boi", "local government unit"):
-            assert body in low, body
+        for body in ("official registration", "dti", "peza", "boi"):
+            assert body not in low, body
 
     def test_the_recommendation_is_addressed_to_a_job_seeker(self):
         """A reader needs a way to respond to an offer, not a compliance task."""

@@ -240,11 +240,13 @@ def build_queries(company: str, location: str = "") -> list[str]:
     listing and a job board post in one result set, and those are the pages the
     prompt judges for existence, registration and channel match.
 
-    That costs the two targeted rankings. `Official Registration` and
-    `Reputation` now depend on the one query surfacing the right page rather
-    than asking for it by name. A company with neither a filing nor any review
-    is found by neither, which reports yellow on existence - the smallest
-    employers, the ones this product exists for.
+    That costs the two targeted rankings. `Reputation` now depends on the
+    queries surfacing the right page rather than asking for it by name. A
+    company with neither a filing nor any review is found by neither, which
+    reports yellow on existence - the smallest employers, the ones this product
+    exists for. (`Official Registration` rode on the same results until the
+    category was retired - it was the one check whose evidence no query sought,
+    so the card answered "not confirmed" by construction.)
 
     The name is used **verbatim**. It used to be stripped of a trailing
     Corporation/Corp/Inc/Co/LLC, on the reasoning that a generic legal form

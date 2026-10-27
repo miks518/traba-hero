@@ -375,7 +375,7 @@ gating instruction, the posting's own stated claims (`attributes`), a bounded
 (`anomalies`) — then the search results. The findings carry the scan's taxonomy code and
 quote, and they are labelled as untrusted posting claims rather than facts
 about the employer; the model returns one `anomaly_assessments` entry per numbered
-finding. The findings never decide one of the six category statuses — the categories are
+finding. The findings never decide one of the five category statuses - the categories are
 tested against the results alone. What the model may and may not say about a finding is
 in `docs/decisions/verification-design.md`, and what the code does with the answer is in
 `docs/decisions/report-panel-redesign.md`.

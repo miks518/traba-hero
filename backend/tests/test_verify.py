@@ -123,7 +123,7 @@ class TestBuildVerifyPrompt:
         assert "UNIQUE_FLAG_MARKER Fee" in prompt
         assert "1. UNIQUE_FLAG_MARKER Fee" in prompt
         assert "=== POSTING FINDINGS" in prompt
-        assert "Do not let them decide the six category statuses" in prompt
+        assert "Do not let them decide the five category statuses" in prompt
         assert "found a site" in prompt
         # The findings come before the results, so the model reads the results
         # with the claims it has to settle already in view.
@@ -361,41 +361,33 @@ class TestFormatResults:
 
 
 class TestRegistrationCategory:
-    """Registration is broader than the SEC.
+    """Retired 2026-10-27.
 
-    A Philippine company can hold a DTI, PEZA, BOI or LGU business registration
-    and never file with the SEC. Scoring "no SEC number" as inconclusive about a
-    company that does hold a registration is a false negative, and one that
-    makes the card useless rather than merely cautious.
+    `Official Registration` was removed because the search never sought its
+    evidence: the `registration certificate` query went when the budget was
+    three credits, and the gated card over a generic result set answered "not
+    confirmed" by construction. These tests are the tombstone: the category is
+    out of the schema enum, out of the prompt, and out of the gating table, and
+    a stored result carrying the old label still parses (the parser accepts any
+    label) even though no new response can produce it.
     """
 
-    def test_schema_offers_official_registration_not_sec(self):
-        from app.services.scanner.verification_prompt import VERIFY_RESPONSE_SCHEMA
+    def test_schema_does_not_offer_official_registration(self):
+        from app.services.scanner.verification_prompt import (
+            VERIFY_CLAIM_CATEGORIES,
+            VERIFY_RESPONSE_SCHEMA,
+        )
 
         enum = VERIFY_RESPONSE_SCHEMA["properties"]["checks"]["items"]["properties"]["category"]["enum"]
-        assert "Official Registration" in enum
-        assert "SEC Registration" not in enum
+        assert "Official Registration" not in enum
+        assert set(enum) == set(VERIFY_CLAIM_CATEGORIES)
 
-    def test_prompt_names_the_registries_beyond_sec(self):
+    def test_prompt_names_no_registries(self):
         from app.services.scanner.verification_prompt import VERIFY_SYSTEM_PROMPT
 
         low = VERIFY_SYSTEM_PROMPT.lower()
-        for registry in ("sec", "dti", "peza", "boi"):
-            assert registry in low, f"{registry} must be named as a valid registry"
-
-    def test_prompt_says_a_non_sec_registration_still_counts(self):
-        from app.services.scanner.verification_prompt import VERIFY_SYSTEM_PROMPT
-
-        low = VERIFY_SYSTEM_PROMPT.lower()
-        assert any(
-            phrase in low
-            for phrase in (
-                "any government registry",
-                "does not have to be an sec",
-                "any of these counts",
-                "sec, dti, peza",
-            )
-        ), "a DTI or PEZA registration must satisfy the category on its own"
+        for registry in ("official registration", "dti", "peza", "boi"):
+            assert registry not in low, f"{registry} must be gone from the prompt"
 
     def test_all_three_categories_are_present(self):
         """The schema must enumerate exactly the claim categories, no more.
@@ -618,9 +610,9 @@ class TestVerifyOutputReading:
         return json.dumps({
             "checks": [
                 {
-                    "category": "Official Registration",
+                    "category": "Company Existence",
                     "status": "confirmed",
-                    "finding": "SEC registration number CS201500123, per the companieshouse.ph listing",
+                    "finding": "Listed as CAISHEN MARKETING SERVICES, INC., registration CS201500123, per the companieshouse.ph listing",
                     "source_title": "CAISHEN MARKETING SERVICES, INC. - companieshouse.ph",
                     "source_url": "https://companieshouse.ph/acme",
                 },
@@ -657,7 +649,7 @@ class TestVerifyOutputReading:
             self._payload(), allowed_urls=self._allowed()
         )
         assert used_json is True
-        reg = next(i for i in items if i.label == "Official Registration")
+        reg = next(i for i in items if i.label == "Company Existence")
         assert isinstance(reg, VerificationItem)
         assert reg.status == "confirmed"
         assert "CS201500123" in reg.explanation
@@ -724,7 +716,7 @@ class TestRegistrationCategoryWeighting:
         from app.services.scanner.verification_prompt import VERIFY_CLAIM_CATEGORIES
         from app.services.scanner.verification_parser import EXPECTED_CATEGORIES
 
-        assert "Official Registration" in EXPECTED_CATEGORIES
+        assert "Official Registration" not in EXPECTED_CATEGORIES
         # Derived from the prompt's tuple rather than restated. Three places
         # naming the categories is how they drifted apart once already, and the
         # gap this closes is only meaningful if the two lists are the same list.
@@ -1097,11 +1089,11 @@ class TestTheQueryBudget:
     AI = json.dumps({
         "checks": [
             {"category": "Company Existence", "status": "confirmed", "finding": "A business by that name operates at 12 Katipunan Ave.", "source_title": "Acme", "source_url": "https://example.ph/acme"},
-            {"category": "Official Registration", "status": "confirmed", "finding": "Registered with the SEC as CS201500123.", "source_title": "SEC listing", "source_url": "https://example.ph/sec"},
+            {"category": "Location / Branch", "status": "confirmed", "finding": "The employer's own page places it at 12 Katipunan Ave.", "source_title": "Acme", "source_url": "https://example.ph/acme"},
             {"category": "Reputation", "status": "unknown", "finding": "The results do not mention this category.", "source_title": "", "source_url": ""},
         ],
         "evidence": [{"title": "Acme", "url": "https://example.ph/acme", "snippet": "Staffing firm."}],
-        "report": "The results show a registered business.",
+        "report": "The results show the business at the address the posting names.",
         "recommendation": "Ask them to confirm the address in writing.",
     })
 
@@ -1744,11 +1736,12 @@ class TestTheScanResponseCarriesItsAttributesToRetrieval:
     async def test_a_claimed_permit_survives_the_whole_leg(self):
         """Started from model text, not a hand-written dict.
 
-        `Official Registration` is asked only when the posting claims a
-        registration, so this attribute is what fires that gate. Written as a
-        dictionary it would pass while the parser silently dropped the key - and
-        the category would be unfireable in production while looking tested, the
-        same shape of failure as the schema -> prompt leg above.
+        `REGISTERED_AS` is the posting's own claim about itself, and it is
+        quoted back in the verification's claims block even though the
+        registration *category* was retired - a claim on the face of the posting
+        is carried whether or not a check tests it. Written as a dictionary it
+        would pass while the parser silently dropped the key - the same shape of
+        failure as the schema -> prompt leg above.
         """
         from app.services.lm_client import _parse_custom
         from app.services.scanner import _scan_response

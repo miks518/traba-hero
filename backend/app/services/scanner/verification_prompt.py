@@ -51,9 +51,18 @@ PROMPT_PATH = Path(__file__).resolve().parents[3] / "VERIFY_PROMPT.md"
 # verification stored before the rename carries the old label, and an unweighted
 # label scores zero rather than defaulting, so without the alias every scan in a
 # user's history would quietly lose the points this category contributes.
+# "Official Registration" was retired 2026-10-27, not aliased: it is the one
+# category whose evidence the search never sought. The `registration certificate`
+# query was dropped when the budget was three credits, and the category stayed
+# on life support - gated on the posting asserting `REGISTERED_AS`, then tested
+# against a result set no query had aimed at registration. "Not confirmed" was
+# the honest answer and the useless one: a small employer's SEC filing is often
+# unindexed, a business is not required to be registered to hire honestly, and
+# the impersonation shape (a fake "CHED") is caught by CLAIMED_TYPE=government
+# plus Channel Match, not by a registration lookup. Company Existence carries
+# the identity question. See `docs/decisions/verification-design.md`.
 VERIFY_CLAIM_CATEGORIES = (
     "Company Existence",
-    "Official Registration",
     "Location / Branch",
     "Channel Match",
     "Reputation",
@@ -62,12 +71,12 @@ VERIFY_CLAIM_CATEGORIES = (
 
 # Which attribute, when the posting states it, makes a category testable.
 #
-# The prompt used to ask for all six unconditionally and tell the model to
+# The prompt used to ask for all of them unconditionally and tell the model to
 # report `yellow` where the posting said nothing — so a scan of a posting with no
 # location produced a "Location / Branch" card reading "the posting stated
 # nothing to check". That is the same defect as an "Evidence Summary" heading
 # over an empty list: a container asserting a check that was never made, which
-# the reader cannot tell from a finding by its shape. It also spends six cards of
+# the reader cannot tell from a finding by its shape. It also spends five cards of
 # output tokens on a reasoning model that draws from the same budget as its
 # answer, and this project has failed once already from budget exhaustion.
 #
@@ -76,7 +85,6 @@ VERIFY_CLAIM_CATEGORIES = (
 # settle the question.
 _CATEGORY_REQUIRES = {
     "Company Existence": (),
-    "Official Registration": ("REGISTERED_AS",),
     "Location / Branch": ("LOCATION",),
     "Channel Match": ("CONTACT_METHOD", "MEETING_SPOT"),
     "Reputation": (),
@@ -114,7 +122,7 @@ def _gating_instructions(req) -> str:
 
     Naming the omitted categories is the load-bearing part. Saying nothing about
     them reads as "not required", which is the opposite of what is meant — and a
-    model asked for six categories and told about three will return six.
+    model asked for five categories and told about three will return five.
     """
     expected = expected_categories(req)
     omitted = [c for c in VERIFY_CLAIM_CATEGORIES if c not in expected]
@@ -176,21 +184,20 @@ OUTPUT RULES:
 
 OUTPUT FORMAT: return one JSON object and nothing else, with exactly seven keys: "checks", "evidence", "report", "recommendation", "assessment_reason", "anomaly_assessments", "channel_match". A "checks" entry has "category", "status", "finding", "source_title", "source_url". An "evidence" entry has "title", "url", "snippet". An "anomaly_assessments" entry has "index", "status", "finding", "source_title", "source_url". A "channel_match" entry has "printed_channels", "official_channels", "government_claim", "finding", "source_title", "source_url". Do not return a risk level or a risk score; the server computes both. Say this even if no output schema is supplied - the object is the answer, and the plain-sentence rule applies to what you write inside it, not to the object wrapping it.
 
-CATEGORIES. The request names which of these to report and which to omit, and the request wins: these six are the vocabulary, not a quota. Report the ones you are told to report and no others. Never invent a category outside this list. Where the request says to omit a category, the posting made no such claim — write no entry for it, and no placeholder, empty, or "not stated" finding.
+CATEGORIES. The request names which of these to report and which to omit, and the request wins: these five are the vocabulary, not a quota. Report the ones you are told to report and no others. Never invent a category outside this list. Where the request says to omit a category, the posting made no such claim - write no entry for it, and no placeholder, empty, or "not stated" finding.
 
 1. "Company Existence" — the results show a business operating under the searched name.
-2. "Official Registration" — a result shows registration with a Philippine government body. Registration with the SEC, DTI, PEZA, BOI, a local government unit business permit, or a government portal listing each satisfies this on its own; SEC is not the only body that counts. Give the registration or permit number when a result states one.
-3. "Location / Branch" — the location or branch the posting named matches one the results place this employer at.
-4. "Channel Match" — the address, phone number, email domain, website, or messaging account the posting directs applicants to, compared with the one the company's own results use.
+2. "Location / Branch" — the location or branch the posting named matches one the results place this employer at.
+3. "Channel Match" — the address, phone number, email domain, website, or messaging account the posting directs applicants to, compared with the one the company's own results use.
    Do not decide a status for this category and do not put it in "checks". Report the facts in "channel_match":
    - printed_channels: every email address, phone number, website, or messaging account the posting tells applicants to send applications or questions to, copied exactly. Include all of them, including one that looks official.
    - official_channels: every email address, phone number, website, or messaging account the company's own results use, copied exactly. Cite the result that shows them in source_title and source_url. If the results do not show one, leave both lists empty.
    - government_claim: true only when the posting presents the employer itself as a government agency, office, or instrumentality. A posting that mentions a government client, a government-issued ID, or a government office it is not applying to work for is false.
    - channel_match finding: one plain sentence naming what the posting names and what the results show. Do not write a status word, a conclusion, or the words green, yellow, or red.
    A different channel is not automatically a contradiction. A free email address is ordinary in Philippine job postings. The server compares the lists and assigns the status: a government office using a domain outside .gov.ph, or a domain that imitates the company's own, is a contradiction; a free email address at a company the results confirm is not. Do not write a Channel Match entry in "checks"; the "channel_match" object is the only place this category is reported.
-5. "Reputation" — a result describes a scam report, fraud warning, formal complaint, or employee experience.
-   If no result mentions reviews, complaints, or employee experience for this company, leave the `finding` for this category EMPTY rather than writing that none were found. An absence restated as a sentence puts the words "scam" and "fraud" next to a named company to report nothing, which is what the rules above exist to prevent, and it tells the reader nothing they can act on. This applies to this category only: the other five have a finding worth stating when the results are empty, because the finding is about the employer's footprint rather than about the absence of reviews. If any result does describe a complaint or an employee experience, write what it states — the empty finding is for the case where there is nothing, never a way to avoid writing it.
-6. "Similar Offers" — a result describes this specific offer: the tasks, orders, or referrals the posting names and the reward it offers. A page about earning offers in general establishes nothing about this posting, and cannot make this category red.
+4. "Reputation" — a result describes a scam report, fraud warning, formal complaint, or employee experience.
+   If no result mentions reviews, complaints, or employee experience for this company, leave the `finding` for this category EMPTY rather than writing that none were found. An absence restated as a sentence puts the words "scam" and "fraud" next to a named company to report nothing, which is what the rules above exist to prevent, and it tells the reader nothing they can act on. This applies to this category only: the other four have a finding worth stating when the results are empty, because the finding is about the employer's footprint rather than about the absence of reviews. If any result does describe a complaint or an employee experience, write what it states — the empty finding is for the case where there is nothing, never a way to avoid writing it.
+5. "Similar Offers" — a result describes this specific offer: the tasks, orders, or referrals the posting names and the reward it offers. A page about earning offers in general establishes nothing about this posting, and cannot make this category red.
 
 STATUS:
 - Decide each status against all the results you were given, not against the results that look relevant to that category on their own. A contradiction is a relation BETWEEN two facts — the posting states one, the results show another — and neither half is contradictory by itself. Read across categories as well as within them: one category's green and another category's red are both true at once, and the second does not disappear because the first is reassuring.
@@ -558,7 +565,7 @@ def _findings_block(req: VerifyRequest) -> str:
 
     The findings are the claims the evidence is asked to settle. They are
     delimited and labelled as untrusted posting claims, and the prompt tells the
-    model to keep them out of the six category decisions: a finding is not a
+    model to keep them out of the five category decisions: a finding is not a
     fact about the employer, and letting one decide `Channel Match` would turn a
     posting-stage observation into a verification conclusion.
 
@@ -574,7 +581,7 @@ def _findings_block(req: VerifyRequest) -> str:
         FINDINGS_HEADER,
         "Assess each numbered finding against the search results below. These are "
         "claims about the posting, not facts about the employer. Do not let them "
-        "decide the six category statuses; the categories are tested only against "
+        "decide the five category statuses; the categories are tested only against "
         "the results.",
         "",
     ]
@@ -629,7 +636,7 @@ def _build_verify_prompt(req: VerifyRequest, search_context: str = "") -> str:
     own material goes in for two narrower jobs, both of which the model cannot
     do without it.
 
-    **Attributes are the claims the six categories test.** `VERIFY_PROMPT.md`
+    **Attributes are the claims the five categories test.** `VERIFY_PROMPT.md`
     defines three of them — Location / Branch, Channel Match, Similar Offers —
     as claims the posting made, and each tests a claim it can only see here.
     Without this block `Channel Match` reports yellow on every posting, because

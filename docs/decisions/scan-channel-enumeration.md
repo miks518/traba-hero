@@ -97,8 +97,9 @@ something the planner reads as two channels.
 
 ## What `CLAIMED_TYPE` does, and does not, do
 
-**It opens no category.** `expected_categories` is unchanged. `CLAIMED_TYPE` does
-not cause `Official Registration` or any other check to be asked for.
+**It opens no category.** `expected_categories` is unchanged by `CLAIMED_TYPE`:
+categories open on the claims the posting states, and with `Official Registration`
+retired none of them is opened by a claimed type.
 
 **It reaches two readers, and the second one matters.**
 

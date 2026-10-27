@@ -27,9 +27,9 @@ file needs a restart**, exactly as with the other three prompts.
 
 ---
 
-## Exactly six claim categories
+## Exactly five claim categories
 
-**Company Existence**, **Official Registration**, **Location / Branch**,
+**Company Existence**, **Location / Branch**,
 **Channel Match**, **Reputation**, **Similar Offers**.
 
 - The first three were the old category list.
@@ -40,13 +40,27 @@ file needs a restart**, exactly as with the other three prompts.
   already establishes whether a name was present, and the endpoint cannot run at all
   without one.
 - "Scam Reports" + "Social Reputation" were merged into Reputation.
+- **"Official Registration" was retired on 2026-10-27**, and it is the one removal that
+  was not a rename or a merge. It was the only category whose evidence the search never
+  sought: the `registration certificate` query went when the budget was three credits,
+  the category was gated on the posting asserting `REGISTERED_AS`, and the check then
+  ran against a result set no query had aimed at registration — so "not confirmed" was
+  the honest answer *by construction*, not a finding. A small employer's SEC filing is
+  often unindexed, and a business is not required to be registered to hire honestly,
+  so unconfirmed carried no information either way. The impersonation shape the
+  category was thought to serve — a fake "CHED" — is caught by `CLAIMED_TYPE=government`
+  plus Channel Match's government-domain rule, not by a registration lookup. Company
+  Existence carries the identity question. `REGISTERED_AS` survives as a scan attribute
+  (the posting's own claim, quoted back in the verification's claims block); only the
+  check category is gone. A stored result carrying the old label still parses and
+  renders — the parser accepts any label — but no new response can produce one.
 
-**Forbidding a seventh is load-bearing:** the score is a fixed weight table, so an
+**Forbidding a sixth is load-bearing:** the score is a fixed weight table, so an
 invented category has no weight and silently vanishes.
 
 ### Channel Match is reported as facts, not a status
 
-Five categories carry a status in `checks`. Channel Match does not. The model
+Four categories carry a status in `checks`. Channel Match does not. The model
 returns a top-level `channel_match` object with `printed_channels`,
 `official_channels`, `government_claim`, `finding`, `source_title` and
 `source_url`, and `channel_match.py` assigns the status:
@@ -97,7 +111,7 @@ excerpt of `job_summary` (4,000 characters) as context. It returns
   Unknown statuses, blank findings, duplicate indices and indices outside
   `1..len(anomalies)` are dropped rather than renumbered.
 
-**The findings block is not a second source of evidence for the six categories.**
+**The findings block is not a second source of evidence for the five categories.**
 It is labelled as the posting's claims, and the prompt forbids a finding from
 making a category green or red. A fee demand must not push `Reputation` red, and
 a finding the results account for must not push `Similar Offers` green. Without
@@ -145,20 +159,21 @@ response with no usable check does the same. Undefined is not `low`.
 
 ---
 
-## Registration is not the same as the SEC
+## Registration is not the same as the SEC — and then retired
 
 The category was `SEC Registration` until a test showed a company holding a DTI/PEZA/BOI/LGU
 registration being reported as inconclusive.
 
-It is now `Official Registration`, and the prompt names SEC, DTI, PEZA, BOI, a local
+It became `Official Registration`, and the prompt named SEC, DTI, PEZA, BOI, a local
 government unit business permit and government portal listings as equally valid.
 
 **Scoring "no SEC number" against a company that has a DTI registration is a false
 negative that made the card useless rather than merely cautious.**
 
-`risk_calculator` maps the legacy `SEC Registration` label to the same weight, and
-`verification_parser._LEGACY_LABELS` keeps stored results from logging a phantom missing
-category.
+**The category was retired on 2026-10-27** — see "Exactly five claim categories" above
+for the reasoning. `verification_parser._LEGACY_LABELS` still maps the legacy
+`SEC Registration` label forward, and the parser accepts any label, so a stored result
+carrying either old name still parses and renders.
 
 ---
 
@@ -201,9 +216,11 @@ It also logs `[verify] Parsed N of M anomaly assessments; missing indices: ...`
 when the model omits a finding. A missing assessment is not filled in; the card
 renders its own amber "no assessment recorded" note.
 
-`risk_calculator`'s weight table knows the six canonical labels plus the legacy
-`SEC Registration`. **Any other legacy label such as "Scam Reports" parses and renders
-but scores zero, because an unweighted label is silence rather than a default.**
+The retired labels — `risk_calculator`'s weight table knew the six canonical labels
+plus the legacy `SEC Registration` — are history: the parser accepts any label, so a
+stored result carrying one parses and renders. **Any other legacy label such as "Scam
+Reports" parses and renders but carries no assessment weight, because an unweighted
+label is silence rather than a default.**
 
 ---
 

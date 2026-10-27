@@ -35,9 +35,11 @@ The employer query used to be paired with `registration certificate` and
 own pages, a PESO listing and a job board post in one result set, where two targeted
 queries starved each other.
 
-**The traded cost is real.** `Official Registration` and `Reputation` now depend on
+**The traded cost is real.** `Reputation` now depends on
 the static queries and the model's proposals surfacing the right page rather than
-asking for it by name.
+asking for it by name. (`Official Registration` depended on it too, until the
+category was retired on 2026-10-27 — it was the one check whose evidence no query
+sought. See `docs/decisions/verification-design.md`.)
 
 ### Credit cost: 2 to 6 per verification, not 1 to 3
 
@@ -127,11 +129,13 @@ the model proposed.
 footprint the query surfaces reports `yellow` on existence, which is the smallest
 employers — the ones this product exists for.
 
-**`Official Registration` and `Reputation` no longer have a query of their own.** They
-used to, and were deliberately narrowed and merged as the query set grew. Both now
-depend on one query and at most two model proposals surfacing the right page, rather
-than on a query naming the document it wanted. This is the cost of dropping to three
-credits per verification.
+**`Reputation` no longer has a query of its own.** It
+used to, and was deliberately narrowed and merged as the query set grew. It now
+depends on the static queries and the model's proposals surfacing the right page,
+rather than on a query naming the document it wanted. (`Official Registration` had
+the same dependence until the category was retired on 2026-10-27 — the search never
+sought its evidence, so the card answered "not confirmed" by construction. See
+`docs/decisions/verification-design.md`.)
 
 ---
 

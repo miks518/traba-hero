@@ -29,7 +29,7 @@ Detail lives in `docs/`. Each fact is stated in exactly one place.
 | `docs/decisions/search-retrieval.md` | Queries, credits, country boost, exclude-domains, `search_partial`, untrusted result text, the two `VERIFY_SEARCH_MODE` modes, the per-query scope |
 | `docs/decisions/libel-guardrail.md` | Every prompt rule, and the three failure shapes they were written against |
 | `docs/decisions/scoring-model.md` | Why the blend was replaced, why subtraction would be equally wrong, the dead function |
-| `docs/decisions/verification-design.md` | The six claim categories, `Official Registration`, `finding` + source schema |
+| `docs/decisions/verification-design.md` | The five claim categories, `finding` + source schema |
 | `docs/decisions/scan-channel-enumeration.md` | What the scan writes: repeatable `CONTACT_METHOD`, `CLAIMED_TYPE`, the separator contract with the planner |
 | `docs/decisions/channel-match-severity.md` | Channel Match facts, the free-email / government / lookalike / combination rules, the strong-channel floor |
 | `docs/decisions/security-boundaries.md` | Removed auth, rate-limit identity, CORS, body ceiling, citation binding |

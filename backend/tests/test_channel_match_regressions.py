@@ -158,11 +158,11 @@ def _fake_ched_payload() -> dict:
                 "source_url": "https://ched.gov.ph",
             },
             {
-                "category": "Official Registration",
-                "status": "green",
-                "finding": "The results show the office on the CHED official site.",
-                "source_title": "CHED Regional Office VI",
-                "source_url": "https://ched.gov.ph",
+                "category": "Similar Offers",
+                "status": "yellow",
+                "finding": "The results do not mention this category.",
+                "source_title": "",
+                "source_url": "",
             },
             {
                 "category": "Location / Branch",
@@ -263,11 +263,11 @@ def _two_channel_payload() -> dict:
                 "source_url": "https://ched.gov.ph",
             },
             {
-                "category": "Official Registration",
-                "status": "green",
-                "finding": "The results show the office on the CHED official site.",
-                "source_title": "CHED Regional Office VI",
-                "source_url": "https://ched.gov.ph",
+                "category": "Similar Offers",
+                "status": "yellow",
+                "finding": "The results do not mention this category.",
+                "source_title": "",
+                "source_url": "",
             },
         ],
         "evidence": [

@@ -17,11 +17,16 @@ Three problems in one:
   the same budget as its answer, and this project has already failed once from
   budget exhaustion.
 
-`Official Registration` is gated rather than removed. Asked unconditionally it is
-almost always yellow, because a small employer has no findable registration —
-and the prompt separately forbids telling the reader to check a registry, so the
-fact is retrieved and then unusable. But a posting that *asserts* it is
-registered has made a checkable claim, and that is worth testing.
+`Official Registration` was retired outright on 2026-10-27, superseding the
+"gated rather than removed" call this file used to record. Gating kept it alive
+on a results set no query had aimed at registration — the `registration
+certificate` query was dropped when the budget was three credits — so a posting
+that *asserted* a registration got a card whose honest answer was "not
+confirmed" by construction. A small employer's SEC filing is often unindexed,
+a business is not required to be registered to hire honestly, and the
+impersonation shape (a fake "CHED") is caught by `CLAIMED_TYPE=government` plus
+Channel Match. Company Existence carries the identity question. See
+`docs/decisions/verification-design.md`.
 """
 
 import pytest
@@ -62,14 +67,6 @@ class TestEachCategoryIsGatedByItsClaim:
         assert "Similar Offers" not in expected_categories(req())
         assert "Similar Offers" in expected_categories(req(PAY="300 daily"))
 
-    def test_registration_needs_the_posting_to_assert_it(self):
-        # This is what keeps the category alive rather than deleted: a scam is
-        # exactly the thing that claims to be a registered business.
-        assert "Official Registration" not in expected_categories(req())
-        assert "Official Registration" in expected_categories(
-            req(REGISTERED_AS="DTI permit no. 12345")
-        )
-
     def test_every_category_is_reachable(self):
         """A gate that can never open is a deleted category with extra steps."""
         reachable = expected_categories(
@@ -78,7 +75,6 @@ class TestEachCategoryIsGatedByItsClaim:
                 CONTACT_METHOD="personal Gmail",
                 MEETING_SPOT="Maingate Terminal",
                 PAY="300 daily",
-                REGISTERED_AS="DTI permit no. 12345",
             )
         )
         assert reachable == set(VERIFY_CLAIM_CATEGORIES)
@@ -128,14 +124,13 @@ class TestThePromptAsksForTheGatedSet:
 
     def test_a_post_with_every_claim_is_told_to_report_everything(self):
         # No omissions, so no DO NOT REPORT block at all - and no "report all
-        # six", which would re-introduce reporting a category with nothing to test.
+        # five", which would re-introduce reporting a category with nothing to test.
         prompt = _build_verify_prompt(
             req(
                 LOCATION="Pampanga",
                 CONTACT_METHOD="personal Gmail",
                 MEETING_SPOT="Maingate Terminal",
                 PAY="300 daily",
-                REGISTERED_AS="DTI permit 12345",
             ),
             "RESULTS",
         )

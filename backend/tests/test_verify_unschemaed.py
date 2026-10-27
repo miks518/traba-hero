@@ -34,9 +34,9 @@ UNSCHEMALED_JSON = json.dumps({
             "source_url": "https://example.ph/acme",
         },
         {
-            "category": "Official Registration",
+            "category": "Location / Branch",
             "status": "yellow",
-            "finding": "The provided results do not mention a registration for this company.",
+            "finding": "The provided results do not place the company at a branch.",
             "source_title": "",
             "source_url": "",
         },
@@ -107,7 +107,7 @@ class TestUnschemaedOutputIsRead:
 
         assert used_json is True
         assert [i.label for i in items] == [
-            "Company Existence", "Official Registration", "Reputation",
+            "Company Existence", "Location / Branch", "Reputation",
         ]
 
     def test_a_fenced_object_is_read(self):
