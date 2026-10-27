@@ -6,22 +6,27 @@ import {
 } from './useScanSession';
 import type { Anomaly } from '../types';
 
-function anomaly(id: string, severity: Anomaly['severity'] = 'low'): Anomaly {
+function anomaly(id: string, code?: string): Anomaly {
   return {
     id,
     title: `Finding ${id}`,
     description: `Description ${id}`,
     icon: 'warning',
-    severity,
+    ...(code !== undefined ? { code } : {}),
   };
 }
 
 describe('choosing which findings one verify request carries', () => {
-  it('caps at the backend limit and keeps the highest severity', () => {
-    // A low-severity formatting note must not take the place of a serious
-    // finding when the request can only carry twenty.
+  it('caps at the backend limit and keeps the findings that demand something from the reader', () => {
+    // A formatting note or an ordinary applicant packet must not take the
+    // place of a fee demand when the request can only carry twenty. The rank
+    // is the finding's taxonomy code, not a model judgement — see
+    // `docs/decisions/scan-severity-removal.md`.
     const anomalies = Array.from({ length: 25 }, (_, index) =>
-      anomaly(String(index), index === 24 ? 'high' : index === 23 ? 'mid' : 'low'),
+      anomaly(
+        String(index),
+        index === 24 ? 'FEE_MANDATORY' : index === 23 ? 'DOCUMENTS_VIA_THIRD_PARTY' : undefined,
+      ),
     );
 
     const selected = selectVerifiableIndices(anomalies);
@@ -36,8 +41,28 @@ describe('choosing which findings one verify request carries', () => {
   });
 
   it('keeps every finding when there are fewer than the cap', () => {
-    const selected = selectVerifiableIndices([anomaly('a'), anomaly('b', 'high')]);
+    const selected = selectVerifiableIndices([anomaly('a'), anomaly('b', 'FEE_MANDATORY')]);
     expect(selected).toEqual([0, 1]);
+  });
+
+  it('keeps a money demand and an identity exposure over ordinary packets', () => {
+    // The order the cap protects: what the posting asks the reader to give
+    // up. A fee demand and a documents-via-third-party finding survive the cap;
+    // the ordinary applicant packet and the uncoded notes do not.
+    const anomalies = [
+      anomaly('packet', 'APPLICATION_DOCUMENTS'),
+      anomaly('documents', 'DOCUMENTS_VIA_THIRD_PARTY'),
+      ...Array.from({ length: 22 }, (_, i) => anomaly(`note-${i}`)),
+      anomaly('fee', 'FEE_MANDATORY'),
+    ];
+    const selected = selectVerifiableIndices(anomalies);
+
+    expect(selected).toHaveLength(MAX_VERIFY_ANOMALIES);
+    expect(selected).toContain(1);
+    expect(selected).toContain(24);
+    // The uncoded notes rank below both; only the early ones fit, so a late
+    // note is what the cap drops.
+    expect(selected).not.toContain(23);
   });
 });
 

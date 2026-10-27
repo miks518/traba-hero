@@ -56,7 +56,6 @@ function result(over: Partial<ScanResult> = {}): ScanResult {
     assessmentBreakdown: undefined,
     scanningTarget: 'Scanned Element',
     anomalies: [],
-    flagsCritical: false,
     isJobPosting: true,
     riskDescription: '',
     ...over,
@@ -165,7 +164,9 @@ describe('migrateScannedJobs renames the findings field', () => {
     const next = migrateScannedJobs(legacy());
 
     expect(next[0].scanResult.anomalies).toHaveLength(1);
-    expect(next[0].scanResult.anomalies[0].severity).toBe('high');
+    expect(next[0].scanResult.anomalies[0].title).toBe(
+      'Asks applicants to pay a processing fee',
+    );
   });
 
   it('maps a stored level onto the nearest assessment word', () => {

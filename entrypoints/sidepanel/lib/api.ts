@@ -523,7 +523,6 @@ export interface VerifyContext {
   anomalies?: {
     flag: string;
     reasoning: string;
-    severity: string;
     code?: string;
     quote?: string;
   }[];

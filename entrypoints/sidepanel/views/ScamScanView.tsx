@@ -58,9 +58,10 @@ export interface ScamScanViewProps {
  * retired. `job_summary` stays on the wire because the Match tab consumes it.
  *
  * Nothing was renamed to make the change smaller. `anomalies` is still
- * `anomalies` and the legacy severity ladder is still `low`/`mid`/`high` on the
- * wire — `docs/decisions/anomaly-terminology.md` records that those paths are
- * deliberate.
+ * `anomalies` and the legacy finding vocabulary is still accepted on the wire
+ * (`docs/decisions/anomaly-terminology.md` records that those paths are
+ * deliberate); the scan itself no longer carries a severity
+ * (`docs/decisions/scan-severity-removal.md`).
  */
 export function ScamScanView({
   onScanComplete,

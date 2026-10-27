@@ -6,18 +6,21 @@ import type {
   Assessment,
 } from '../types';
 import { isUnverifiedEmployer } from './riskDisplay';
+import { findingTier } from './findingTiers';
 
 /**
- * Which icon each severity renders. The severity names are the wire's
- * (`low`/`mid`/`high`), not the panel's — the rename to `anomalies` moved the
- * *category* name, not this field, and `docs/decisions/anomaly-terminology.md`
- * records that the legacy paths are deliberate.
+ * Which icon each finding renders, derived from its taxonomy code — the thing
+ * the scan actually carries. The scan has no severity to map (`docs/decisions/
+ * scan-severity-removal.md`), so a finding that asks the reader for money or
+ * account access gets the warning icon and every other finding the info icon.
+ * The tiers are shared with the cap ranking and the card colour.
  */
-const SEVERITY_ICONS: Record<string, IconName> = {
-  low: 'info',
-  mid: 'warning',
-  high: 'warning',
-};
+function iconForCode(code?: string): IconName {
+  // No code at all renders the warning icon, as every finding did before the
+  // taxonomy existed — an unknown finding is not known to be minor.
+  if (!code) return 'warning';
+  return findingTier(code) === 3 ? 'warning' : 'info';
+}
 
 /**
  * The assessment word as prose, for history entries and anything else that needs a
@@ -57,8 +60,6 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
   const flags =
     data.anomalies ?? (data as { red_flags?: typeof data.anomalies }).red_flags ?? [];
 
-  const hasCritical = flags.some((f) => f.severity === 'high');
-
   // The assessment comes from the backend's decision grid.
   const assessment: Assessment | null = data.assessment ?? null;
 
@@ -66,8 +67,7 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
     id: `anomaly-${i}`,
     title: f.flag,
     description: f.reasoning,
-    icon: SEVERITY_ICONS[f.severity] || 'warning',
-    severity: f.severity as Anomaly['severity'],
+    icon: iconForCode(f.code),
     // Copied through, never defaulted to a value. `''` means the response
     // carried no code, which is a different claim from `OTHER` — the model
     // deliberately answering the escape valve — and the panel shows a pill only
@@ -97,7 +97,6 @@ export function mapApiResponse(data: ApiScanResponse): ScanResult {
     }),
     scanningTarget: 'Scanned Element',
     anomalies,
-    flagsCritical: hasCritical,
     isJobPosting,
     companyName: data.company_name || null,
     secRegistration: data.sec_registration || [],

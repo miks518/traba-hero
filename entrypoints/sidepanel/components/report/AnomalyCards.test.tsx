@@ -25,7 +25,7 @@ function anomaly(over: Partial<Anomaly> = {}): Anomaly {
     title: 'Asks applicants for a processing fee',
     description: 'The post asks for money up front.',
     icon: 'warning',
-    severity: 'high',
+    code: 'FEE_MANDATORY',
     ...over,
   };
 }
@@ -217,15 +217,15 @@ describe('the evidence assessment on a finding', () => {
     expect(link?.textContent).toContain('Careers');
   });
 
-  it('shows the evidence state, not the scan severity, when a source contradicts the finding', () => {
-    // The scan weighed this finding `high`, and that is not what the chip says.
-    // Pricing a finding from the model's severity is the pattern the assessment
-    // moved into code to remove; the chip reports what the evidence found.
+  it('shows the evidence state, not a model judgement, when a source contradicts the finding', () => {
+    // The scan carried this finding with a fee-demand code, and that is not
+    // what the chip says. Pricing a finding from the model's own weight is the
+    // pattern the assessment moved into code to remove; the chip reports what
+    // the evidence found.
     const { container } = render(
       React.createElement(AnomalyCards, {
         anomalies: [
           anomaly({
-            severity: 'high',
             assessment: {
               status: 'contradicted',
               finding: 'The employer states on its own page that no fee is charged.',
@@ -357,8 +357,8 @@ describe('the wire mapping', () => {
     const mapped = mapApiResponse(
       scanResponse({
         anomalies: [
-          { flag: 'Fee', reasoning: 'why', severity: 'high', code: 'FEE_MANDATORY', quote: 'a fee' },
-          { flag: 'Old', reasoning: 'why', severity: 'low' },
+          { flag: 'Fee', reasoning: 'why', code: 'FEE_MANDATORY', quote: 'a fee' },
+          { flag: 'Old', reasoning: 'why' },
         ],
       }),
     );

@@ -10,6 +10,7 @@ import {
 import { compressImage } from '../lib/imageUtils';
 import { mapApiResponse, assessmentLabel } from '../lib/mapApiResponse';
 import { shouldElevateEvidence, type VerificationRun } from '../lib/riskDisplay';
+import { findingTier } from '../lib/findingTiers';
 import type { Anomaly, AnomalyAssessment, ScanResult, ScannedJob } from '../types';
 
 /** How many screenshots one scan may carry. */
@@ -19,17 +20,26 @@ const MAX_SCREENSHOTS = 4;
  * How many findings one verify request may carry.
  *
  * Equal to the backend's `MAX_VERIFY_ANOMALIES`; exceeding it is a 422, so the
- * client has to cap before sending. The cap keeps the highest-severity
- * findings, because losing a serious finding to a low-severity formatting note
+ * client has to cap before sending. The cap keeps the findings that ask the
+ * reader to give something up — a fee, a deposit, account access — over
+ * ordinary-hiring notes, because losing a money demand to a formatting note
  * would understate the reading. The omitted cards stay on screen with their own
  * amber note.
  */
 export const MAX_VERIFY_ANOMALIES = 20;
 
-const SEVERITY_RANK: Record<string, number> = { high: 3, mid: 2, low: 1 };
+/**
+ * The cap's ranking, by the taxonomy `code` the finding already carries.
+ *
+ * The tiers live in `lib/findingTiers.ts` — shared with the card icon and the
+ * card colour, so the three cannot disagree about which finding is which kind.
+ */
+export function codeRank(anomaly: Pick<Anomaly, 'code'>): number {
+  return findingTier(anomaly.code);
+}
 
 /**
- * The original indices to send, highest severity first, capped.
+ * The original indices to send, strongest code first, capped.
  *
  * Returned in ascending original order so the numbered findings block reads in
  * the same order as the cards. The verify model's 1-based indices then map
@@ -39,7 +49,7 @@ export function selectVerifiableIndices(anomalies: Anomaly[]): number[] {
   return anomalies
     .map((anomaly, index) => ({
       index,
-      rank: SEVERITY_RANK[anomaly.severity ?? 'mid'] ?? 2,
+      rank: codeRank(anomaly),
     }))
     .sort((a, b) => b.rank - a.rank || a.index - b.index)
     .slice(0, MAX_VERIFY_ANOMALIES)
@@ -102,7 +112,6 @@ function toVerifyFinding(anomaly: Anomaly) {
   return {
     flag: anomaly.title,
     reasoning: anomaly.description,
-    severity: anomaly.severity ?? '',
     code: anomaly.code,
     quote: anomaly.quote,
   };
@@ -343,9 +352,9 @@ export function useScanSession({
             {
               verificationResult: result,
               verificationLoading: false,
-              // The cards' final severity lives on the findings, not in the
-              // verification result. `stale` retires a finding, `red` keeps the
-              // scan's severity, and the card derives the chip from this.
+              // The cards' final state lives on the findings, not in the
+              // verification result. `stale` retires a finding, and the card
+              // derives its chip from the assessment the evidence produced.
               anomalies: mergedAnomalies,
               anomalyAssessmentRun: assessmentRun,
               assessed: nextAssessment !== null,

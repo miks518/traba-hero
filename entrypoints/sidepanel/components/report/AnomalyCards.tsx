@@ -64,11 +64,12 @@ const STRIP: Record<
  * The card's display state.
  *
  * **The scan's severity is not the answer.** It used to be: a finding the
- * evidence contradicted kept the severity the scan had weighed it at, so the
- * panel's chip was priced by the same model judgement the rest of the design
- * moved into code. The state now comes from the evidence alone — `stale`,
- * `contradicted`, `unknown` — and the scan's severity still feeds the summary
- * count. `Checking` is its own state and carries no state word at all.
+ * evidence contradicted kept the weight the scan had priced it at, so the
+ * panel's chip was a model judgement the rest of the design moved into code.
+ * The state now comes from the evidence alone — `stale`, `contradicted`,
+ * `unknown` — and the scan no longer emits a severity at all
+ * (`docs/decisions/scan-severity-removal.md`). `Checking` is its own state and
+ * carries no state word at all.
  */
 function displayState(
   checking: boolean,

@@ -75,9 +75,9 @@ export interface NavTab {
  * Something in a posting that differs from the ordinary case.
  *
  * Named for what it is rather than what it is taken to mean: "red flag" was a
- * conclusion delivered as a category label, so a low-severity note about
- * formatting was announced with the same force as a request for an advance fee.
- * Severity carries the weight; this only says the posting differs.
+ * conclusion delivered as a category label, so a formatting note was announced
+ * with the same force as a request for an advance fee. The posting differs —
+ * what that means is decided by the evidence, here, not by the scan.
  */
 export interface AnomalyAssessment {
   /**
@@ -114,7 +114,6 @@ export interface Anomaly {
   title: string;
   description: string;
   icon: IconName;
-  severity?: 'low' | 'mid' | 'high';
   /**
    * The taxonomy ID from the backend's `ANOMALY_CODES`, or `OTHER` when the
    * model's answer fell outside the set, or `undefined` for a scan recorded
@@ -302,7 +301,6 @@ export interface ScanResult {
   offerAnalysis?: OfferAnalysis;
   offerAnalysisLoading?: boolean;
   anomalies: Anomaly[];
-  flagsCritical: boolean;
   isJobPosting: boolean;
   companyName?: string | null;
   secRegistration?: { company_name: string; sec_no: string; status: string; date_approved: string }[];
@@ -384,7 +382,6 @@ export interface ApiScanResponse {
   anomalies: {
     flag: string;
     reasoning: string;
-    severity: string;
     /** Taxonomy ID from the backend's `ANOMALY_CODES`, or `OTHER`. See `Anomaly.code`. */
     code?: string;
     /** A screened verbatim span of the posting. See `Anomaly.quote`. */
