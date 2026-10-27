@@ -43,8 +43,10 @@ The provisions that carry the defense:
   covered by the applicable provisions of these rules."* The government's own rulebook
   names the medium the product watches.
 - **§4–6 (Qualification, disqualification, requirements).** A local agency needs P1,000,000
-  capital, a 50 m² office, NBI clearances, bonds (§11), and a signed undertaking that it
-  *"shall not collect any fees whatsoever from the applicants"* (§6(5)(c)).
+  capital, a 50 m² office, NBI clearances, and a signed undertaking that it *"shall not
+  collect any fees whatsoever from the applicants"* (§6(5)(c)). The money trail on approval:
+  P5,000 filing fee (§6/§9), P15,000 license fee plus **P50,000 cash and P100,000 surety
+  bonds** (§11), license valid three years (§12).
 - **§35 (Fees and charges).** *"No fees whatsoever shall be collected neither deducted from
   the salaries or wages of the workers."* The agency may charge the **employer** a service
   fee and transportation, *"and shall in no case be deducted from the worker's salary."*
@@ -57,6 +59,13 @@ The provisions that carry the defense:
   *"offers or promises **for a fee** employment to two or more persons shall be deemed so
   engaged."* It also lists the unlawful acts (false notices or information, misrepresentation,
   jobs harmful to public health or morality, contract substitution to the worker's prejudice).
+- **§41 (Placement procedures).** Recruits receive Pre-Employment Orientation on their
+  rights, and the agency prepares a Standard Employment Contract. For domestic workers,
+  the verification runs **both ways**: *"The agency shall require the employer to submit
+  clearance from the Barangay Office and the National Bureau of Investigation or
+  **Philippine National Police**"* (§41(5)(a)) — a literal PNP citation inside the DOLE
+  order, and the precedent that legitimate recruitment checks the other party, not just
+  the applicant.
 - **§43–50 (Enforcement).** DOLE's anti-illegal-recruitment program, complaint venue (§45),
   surveillance (§46), cease-and-desist orders (§47–48), and referral of criminal actions to
   the prosecutor (§50).
@@ -174,7 +183,7 @@ lookalike `chred-region6.org` maps to:
 |---|---|---|
 | **DOLE** — Bureau of Local Employment / Anti-Illegal Recruitment Branch | Licenses local agencies (DO 141-14), runs surveillance, cease-and-desist, criminal referrals (§43–50); AIRB co-prosecutes overseas cases with DOJ (RA 10022 §5) | FULL TEXT (DO 141-14; RA 10022) |
 | **DMW** (formerly POEA, RA 11641) | Regulates overseas recruitment; public warnings to verify licensed agencies and avoid social-media/messaging-app job offers | SECOND-HAND (DMW news release snippet) |
-| **PNP** — Anti-Cybercrime Group | Online job/task scam advisories; MOU with social platforms for investigation | SECOND-HAND (PIA, Inquirer, ABS-CBN) |
+| **PNP** — Anti-Cybercrime Group | Online job/task scam advisories; MOU with social platforms for investigation. Also named inside DO 141-14 itself: §41(5)(a) requires barangay + NBI-or-PNP clearance of employers of domestic workers | FULL TEXT (DO 141-14 §41(5)); SECOND-HAND (PIA, Inquirer, ABS-CBN) |
 | **DILG / LGUs** | MAIN (Migrant Advisory and Information Network) and OFW help desks as frontline units vs. illegal recruitment and trafficking; DILG–DMW MOA (April 2026 push) | SECOND-HAND (DILG news). **Statutory root is FULL TEXT:** RA 10022 §23(d) obliges LGUs to establish OFW help desks linked to the licensed-agency database |
 | **SEC** | Warns against job-offer/"tasking and recharging" scams that are really investment/pyramid recruitment | SECOND-HAND |
 | **BSP** | Money-muling warnings under AFASA | SECOND-HAND (BusinessMirror, 2026-06-22) |
