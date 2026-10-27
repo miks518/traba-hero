@@ -127,7 +127,7 @@ export function ScanActions({
 }
 
 /**
- * The Advanced-scan toggle, below the scan controls.
+ * The Advanced-scan setting, below the scan controls.
  *
  * **What it actually does, said plainly.** On: the scan model's reasoning is
  * turned on for this one request, so the prompt's do-not-flag rules are
@@ -135,8 +135,11 @@ export function ScanActions({
  * positive on an ordinary DM application. The cost is minutes, which is the
  * disclaimer's job to name before the reader commits.
  *
- * Rendered by a function rather than inline so the scan controls above stay
- * one visual block: the toggle is a setting, not a second action.
+ * **The two-tier rule decides the shapes here** (DESIGN.md, "Hard shadow"):
+ * the row holds information — a container, so it wears the tactile-card slab
+ * and never presses; the operable element is the switch, a button, and the
+ * press lives on it. The switch itself is DESIGN.md's Toggle Switch
+ * component: 40x24, accent checked state, knob slides on 200ms.
  */
 function advancedScanToggle(
   advancedScan: boolean,
@@ -145,47 +148,11 @@ function advancedScanToggle(
 ) {
   if (!onAdvancedScanChange) return null;
   return (
-    // The whole row is a card, like the panel's notice blocks — a bare native
-    // checkbox read as unstyled HTML pasted under a tactile button. The fill
-    // on toggle is the row itself: border and wash shift with the state over
-    // 200ms, which is the "fill animation" the first version lacked.
-    <label
+    <div
       data-role="advanced-scan"
-      className={`mt-3 flex items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors duration-200 ${
-        disabled ? 'opacity-60' : 'cursor-pointer'
-      } ${
-        advancedScan
-          ? 'border-secondary/30 bg-secondary/10'
-          : 'border-outline-variant/20 bg-surface-container-lowest'
-      }`}
+      className="tactile-card mt-3 flex items-center gap-3 rounded-lg border border-outline-variant/20 bg-surface-container-lowest px-3 py-2.5"
     >
-      {/* sr-only input + a drawn box: a native checkbox has no fill animation
-          to transition, and accent-color alone cannot animate. The input keeps
-          the semantics and the keyboard; the box is drawn and driven by the
-          same state, so they can never disagree. */}
-      <input
-        type="checkbox"
-        checked={advancedScan}
-        disabled={disabled}
-        onChange={(e) => onAdvancedScanChange(e.target.checked)}
-        className="peer sr-only"
-      />
-      <span
-        aria-hidden
-        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all duration-200 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-secondary ${
-          advancedScan
-            ? 'border-secondary bg-secondary'
-            : 'border-outline-variant bg-surface-container-low'
-        }`}
-      >
-        <Icon
-          name="check"
-          className={`text-sm leading-none text-on-secondary transition-all duration-200 ${
-            advancedScan ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
-          }`}
-        />
-      </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="block text-label-md font-label font-semibold text-on-surface leading-tight">
           Advanced scan
         </span>
@@ -194,7 +161,28 @@ function advancedScanToggle(
           careful read. It might take a few minutes.
         </span>
       </span>
-    </label>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={advancedScan}
+        aria-label="Advanced scan"
+        disabled={disabled}
+        data-role="advanced-switch"
+        onClick={() => onAdvancedScanChange(!advancedScan)}
+        className={`relative h-6 w-10 shrink-0 rounded-full transition-all duration-200 active:scale-95 ${
+          disabled ? 'opacity-60' : 'cursor-pointer'
+        } ${
+          advancedScan ? 'bg-secondary' : 'bg-surface-container-highest'
+        }`}
+      >
+        <span
+          aria-hidden
+          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full transition-transform duration-200 ${
+            advancedScan ? 'translate-x-4 bg-on-secondary' : 'translate-x-0 bg-outline'
+          }`}
+        />
+      </button>
+    </div>
   );
 }
 export default ScanActions;
