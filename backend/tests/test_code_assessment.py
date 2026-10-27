@@ -252,7 +252,6 @@ class TestUnassessedIsNotLow:
                     {
                         "flag": "Asks for a fee",
                         "reasoning": "r",
-                        "severity": "high",
                     }
                 ],
                 "job_summary": "s",

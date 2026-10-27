@@ -2,22 +2,18 @@
 
 `SYSTEM_PROMPT.md` and `SCAN_FORMAT_BLOCK` both emit `ANOMALY:`. The parser
 recognises it as a section keyword, so a scan that produces anomalies still
-scores them. These tests exist because the rename touched a parser that is
-already known to be order-sensitive and to swallow sections when a marker is
+carries them into the verification stage. These tests exist because the parser
+is already known to be order-sensitive and to swallow sections when a marker is
 misspelled — the failure is silent, showing a clean posting rather than an error.
 """
 
 from app.services.lm_client import _parse_custom
 
 
-def _score(flags):
-    return None if flags == [] else flags[0]
-
-
 def test_the_new_anomaly_keyword_parses():
     raw = (
         "VALID: true\n"
-        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee | high\n"
+        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee\n"
         "END ANOMALIES\n"
         "EMPLOYER NAME: Acme\n"
         "END JOB SUMMARY"
@@ -27,7 +23,7 @@ def test_the_new_anomaly_keyword_parses():
     assert result is not None
     assert len(result["anomalies"]) == 1
     assert result["anomalies"][0]["flag"] == "Asks applicants to pay a processing fee"
-    assert result["anomalies"][0]["severity"] == "high"
+    assert result["anomalies"][0]["reasoning"] == "The post asks for a fee"
     assert result["company_name"] == "Acme"
 
 
@@ -51,7 +47,7 @@ def test_the_plural_form_also_parses():
     `ANOMALIES:` is accepted so a model that pluralises is not silently read as
     a posting with no findings.
     """
-    result = _parse_custom("VALID: true\nANOMALIES: Asks for money | A fee | high\n")
+    result = _parse_custom("VALID: true\nANOMALIES: Asks for money | A fee\n")
 
     assert result is not None
     assert len(result["anomalies"]) == 1
@@ -62,20 +58,33 @@ def test_a_pre_rename_scan_still_parses():
 
     History holds scans captured under the old keyword, and a reader opening an
     old entry should see its findings rather than a posting that looks clean.
+    Old lines carried a trailing severity; the parser reads the reasoning and
+    ignores the rest.
     """
     result = _parse_custom("VALID: true\nRED FLAG: Asks for money | A fee | high\n")
 
     assert result is not None
     assert len(result["anomalies"]) == 1
-    assert result["anomalies"][0]["severity"] == "high"
+    assert result["anomalies"][0]["reasoning"] == "A fee"
+
+
+def test_a_legacy_three_part_line_parses_with_the_reasoning_intact():
+    """A model that kept the old severity habit still yields a finding.
+
+    The prompt asks for two slots, but a third one must not corrupt the
+    reasoning or resurrect a field the wire no longer carries.
+    """
+    result = _parse_custom("VALID: true\nANOMALY: Asks for money | A fee | high\n")
+
+    assert result["anomalies"][0]["reasoning"] == "A fee"
+    assert "severity" not in result["anomalies"][0]
 
 
 class TestPlaceholdersDoNotBecomeFindings:
     """A model told "no anomalies" often answers with a placeholder line.
 
-    A placeholder that survives parsing becomes a finding about nothing, and it
-    carries a severity, so it adds to the score. Both spellings are listed
-    because a model asked for one may answer with either.
+    A placeholder that survives parsing becomes a finding about nothing. Both
+    spellings are listed because a model asked for one may answer with either.
     """
 
     def test_a_placeholder_value_is_dropped(self):
@@ -88,21 +97,21 @@ class TestPlaceholdersDoNotBecomeFindings:
             "Legitimate",
             "No red flags detected",
         ):
-            result = _parse_custom(f"VALID: true\nANOMALY: {value} | r | high\n")
+            result = _parse_custom(f"VALID: true\nANOMALY: {value} | r\n")
             assert result["anomalies"] == [], f"{value!r} was read as a finding"
 
     def test_a_placeholder_prefix_is_dropped(self):
         """The check is a prefix test, because a model may add words.
 
         "No anomalies were found in this posting" is the same statement as "No
-        anomalies", and an exact-match list would score it at high severity.
+        anomalies", and an exact-match list would let it through.
         """
         for value in (
             "No anomalies were found in this posting",
             "No significant anomalies identified",
             "No red flags present",
         ):
-            result = _parse_custom(f"VALID: true\nANOMALY: {value} | r | high\n")
+            result = _parse_custom(f"VALID: true\nANOMALY: {value} | r\n")
             assert result["anomalies"] == [], f"{value!r} was read as a finding"
 
     def test_a_real_anomaly_is_not_dropped(self):
@@ -114,18 +123,24 @@ class TestPlaceholdersDoNotBecomeFindings:
         evidence.
         """
         result = _parse_custom(
-            "VALID: true\nANOMALY: No visible evidence of a money request | The post describes duties only | low\n"
+            "VALID: true\nANOMALY: No visible evidence of a money request | The post describes duties only\n"
         )
 
         assert len(result["anomalies"]) == 1
-        assert result["anomalies"][0]["severity"] == "low"
 
 
-def test_severity_is_still_inferred_when_omitted():
-    """Unchanged behaviour, kept because the rename moved the branch it sits in."""
-    result = _parse_custom("VALID: true\nANOMALY: Asks for an upfront fee | Pay before work | high\n")
+def test_the_parsed_anomaly_carries_no_severity():
+    """Tombstone for the severity field.
 
-    assert result["anomalies"][0]["severity"] == "high"
+    The scan's high/mid/low ladder was removed because nothing downstream
+    decided anything by it — see `docs/decisions/scan-severity-removal.md`.
+    The parser must not quietly keep emitting a key the schema dropped, or a
+    reader would reasonably conclude the number still means something.
+    """
+    result = _parse_custom("VALID: true\nANOMALY: Asks for an upfront fee | Pay before work\n")
+
+    assert result["anomalies"], "the finding itself must still parse"
+    assert "severity" not in result["anomalies"][0]
 
 
 class TestPostingAttributes:

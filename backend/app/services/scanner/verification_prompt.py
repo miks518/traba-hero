@@ -581,10 +581,9 @@ def _findings_block(req: VerifyRequest) -> str:
     for i, finding in enumerate(findings, 1):
         flag = _neutralise(str(getattr(finding, "flag", "") or ""))
         reasoning = _neutralise(str(getattr(finding, "reasoning", "") or ""))
-        severity = _neutralise(str(getattr(finding, "severity", "") or "")) or "unknown"
         code = _neutralise(str(getattr(finding, "code", "") or ""))
         quote = _neutralise(str(getattr(finding, "quote", "") or ""))
-        lines.append(f"{i}. [{severity}] {flag}")
+        lines.append(f"{i}. {flag}")
         if reasoning:
             lines.append(f"   Why the scan flagged it: {reasoning}")
         if code:

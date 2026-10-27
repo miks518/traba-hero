@@ -235,13 +235,11 @@ def _fake_ched_request() -> dict:
             {
                 "flag": "Mandatory application fee",
                 "reasoning": "The poster says a P1,500 application fee is required.",
-                "severity": "high",
                 "code": "FEE_MANDATORY",
             },
             {
                 "flag": "Mandatory seminar fee",
                 "reasoning": "The poster says an P800 seminar fee is required.",
-                "severity": "high",
                 "code": "FEE_MANDATORY",
             },
         ],
@@ -329,7 +327,6 @@ def _two_channel_request() -> dict:
             {
                 "flag": "Mandatory application fee",
                 "reasoning": "The poster says a P1,500 application fee is required.",
-                "severity": "high",
                 "code": "FEE_MANDATORY",
             }
         ],
@@ -518,7 +515,6 @@ async def test_a_fee_plus_a_free_email_is_high_but_not_do_not_proceed():
                 {
                     "flag": "Mandatory application fee",
                     "reasoning": "The poster asks for a fee.",
-                    "severity": "high",
                     "code": "FEE_MANDATORY",
                 }
             ],
@@ -579,7 +575,6 @@ async def test_a_stale_fee_does_not_escalate_a_free_email():
                 {
                     "flag": "Mandatory application fee",
                     "reasoning": "The poster asks for a fee.",
-                    "severity": "high",
                     "code": "FEE_MANDATORY",
                 }
             ],
@@ -640,7 +635,6 @@ async def test_a_dropped_citation_cannot_put_the_official_domain_on_a_red_card()
                 {
                     "flag": "Vague employer",
                     "reasoning": "The office name is not on the site.",
-                    "severity": "mid",
                 }
             ],
         },

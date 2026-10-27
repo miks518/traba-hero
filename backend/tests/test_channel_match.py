@@ -59,10 +59,9 @@ FAKE_CHED = ChannelFacts(
 
 def _anomaly(
     flag: str = "Asks for a fee",
-    severity: str = "high",
     code: str = "",
 ) -> Anomaly:
-    return Anomaly(flag=flag, reasoning="r", severity=severity, code=code)
+    return Anomaly(flag=flag, reasoning="r", code=code)
 
 
 class TestTheFactsAreReadTolerantly:

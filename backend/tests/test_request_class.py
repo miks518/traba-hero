@@ -188,7 +188,7 @@ def test_a_scan_carries_its_request_class():
         {
             "valid": True,
             "anomalies": [
-                {"flag": "Asks for a fee", "reasoning": "A fee", "severity": "high",
+                {"flag": "Asks for a fee", "reasoning": "A fee",
                  "code": "FEE_MANDATORY"},
             ],
             "attributes": {"COMPANY": "Acme"},

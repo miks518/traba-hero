@@ -372,8 +372,8 @@ Verification design — categories, schema, and why the file is the source of tr
 **What `_build_verify_prompt` sends** is five blocks, in order: the employer name, the
 gating instruction, the posting's own stated claims (`attributes`), a bounded
 `job_summary` excerpt, and the findings a first reading of the posting already produced
-(`anomalies`) — then the search results. The findings carry the scan's own severity,
-code and quote, and they are labelled as untrusted posting claims rather than facts
+(`anomalies`) — then the search results. The findings carry the scan's taxonomy code and
+quote, and they are labelled as untrusted posting claims rather than facts
 about the employer; the model returns one `anomaly_assessments` entry per numbered
 finding. The findings never decide one of the six category statuses — the categories are
 tested against the results alone. What the model may and may not say about a finding is
@@ -520,8 +520,8 @@ the posting was cleared when the employer was never checked at all.
 `isJobPosting && !companyName && anomalyCount === 0`; the gauge renders the same empty-ring
 shape as an unscored result, **so no figure is displayed that was not measured.**
 
-An anomaly is real evidence about the posting, so it is scored on severity instead, and a
-named employer is verified normally.
+An anomaly is real evidence about the posting, and a named employer is verified normally.
+The scan carries no severity for anything — see `docs/decisions/scan-severity-removal.md`.
 
 **The unverified ring is the neutral `outline` grey, not amber** — amber is the
 `moderate` level, and borrowing it would read as a mid risk score rather than an unchecked

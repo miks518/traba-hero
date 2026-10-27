@@ -114,14 +114,14 @@ class TestBuildVerifyPrompt:
         req = VerifyRequest(
             company_name="ACME",
             job_summary="UNIQUE_JOB_SUMMARY_MARKER cook role",
-            anomalies=[VerifyAnomaly(flag="UNIQUE_FLAG_MARKER Fee", reasoning="r", severity="high")],
+            anomalies=[VerifyAnomaly(flag="UNIQUE_FLAG_MARKER Fee", reasoning="r")],
         )
         prompt = _build_verify_prompt(req, "=== SEARCH RESULTS FOR: ACME ===\nfound a site\n=== END SEARCH ===")
 
         assert "UNIQUE_JOB_SUMMARY_MARKER" in prompt
         assert "JOB POSTING SUMMARY" in prompt
         assert "UNIQUE_FLAG_MARKER Fee" in prompt
-        assert "1. [high] UNIQUE_FLAG_MARKER Fee" in prompt
+        assert "1. UNIQUE_FLAG_MARKER Fee" in prompt
         assert "=== POSTING FINDINGS" in prompt
         assert "Do not let them decide the six category statuses" in prompt
         assert "found a site" in prompt

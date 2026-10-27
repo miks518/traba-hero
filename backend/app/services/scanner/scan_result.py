@@ -24,11 +24,9 @@ def _anomalies(flags: list) -> list[Anomaly]:
         if not name:
             continue
         reasoning = str(f.get("reasoning") or "").strip()
-        severity = str(f.get("severity") or "").strip().lower()
         out.append(Anomaly(
             flag=name,
             reasoning=reasoning,
-            severity=severity or "mid",
             query_ref=str(f.get("query_ref") or "").strip(),
             # Normalised here rather than only in the parser: this is the last
             # gate before the wire, and a caller that builds the dict itself

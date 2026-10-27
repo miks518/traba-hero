@@ -62,9 +62,9 @@ def test_a_code_line_before_the_next_anomaly_does_not_carry_backwards():
     that reads as plausible output.
     """
     result = _parse(
-        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee | high",
+        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee",
         "CODE: FEE_MANDATORY",
-        "ANOMALY: Sends applicants to a recruitment portal | Documents go to a third party | mid",
+        "ANOMALY: Sends applicants to a recruitment portal | Documents go to a third party",
         "CODE: DOCUMENTS_VIA_THIRD_PARTY",
         "END ANOMALIES",
     )
@@ -79,14 +79,13 @@ def test_an_unknown_code_becomes_other_and_keeps_the_label():
     what makes the escape valve usable without a second free-text field.
     """
     anomaly = _wire(
-        "ANOMALY: Asks for a refundable seminar fee | Fee returned on attendance | high",
+        "ANOMALY: Asks for a refundable seminar fee | Fee returned on attendance",
         "CODE: FEE_MANDATROY",
         "END ANOMALIES",
     )[0]
 
     assert anomaly.code == "OTHER"
     assert anomaly.flag == "Asks for a refundable seminar fee"
-    assert anomaly.severity == "high"
 
 
 def test_the_parser_keeps_the_raw_code_so_a_typo_stays_greppable():
@@ -95,7 +94,7 @@ def test_the_parser_keeps_the_raw_code_so_a_typo_stays_greppable():
     the number it is supposed to make visible.
     """
     result = _parse(
-        "ANOMALY: Asks for a fee | A fee | high",
+        "ANOMALY: Asks for a fee | A fee",
         "CODE: FEE_MANDATROY",
         "END ANOMALIES",
     )
@@ -108,7 +107,7 @@ def test_an_anomaly_with_no_code_line_still_parses():
     — or from a model that ignored the line — is not lost.
     """
     result = _parse(
-        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee | high",
+        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee",
         "END ANOMALIES",
     )
 
@@ -273,12 +272,12 @@ def test_a_prose_code_line_does_not_become_the_previous_anomalys_code():
 
     Without the gate a `CODE:` line in a job summary does not merely get
     dropped — it reaches the handler and overwrites the code of whatever
-    anomaly was parsed before it. The finding keeps its severity and its label
-    and is silently relabelled, which is worse than losing a line because the
-    result still looks correct.
+    anomaly was parsed before it. The finding keeps its label and is silently
+    relabelled, which is worse than losing a line because the result still
+    looks correct.
     """
     result = _parse(
-        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee | high",
+        "ANOMALY: Asks applicants to pay a processing fee | The post asks for a fee",
         "CODE: FEE_MANDATORY",
         "END ANOMALIES",
         "EMPLOYER NAME: Acme",
@@ -290,7 +289,6 @@ def test_a_prose_code_line_does_not_become_the_previous_anomalys_code():
 
     anomaly = _anomalies(result["anomalies"])[0]
     assert anomaly.code == "FEE_MANDATORY"
-    assert anomaly.severity == "high"
 
 
 # --- the schema ----------------------------------------------------------
@@ -301,7 +299,6 @@ def test_the_anomaly_schema_carries_code_and_quote():
         {
             "flag": "Asks applicants to pay a processing fee",
             "reasoning": "The post asks for a fee before starting work",
-            "severity": "high",
             "code": "FEE_MANDATORY",
             "quote": "pay a 500 peso processing fee",
         }
@@ -317,7 +314,7 @@ def test_an_anomaly_stored_before_this_change_still_constructs():
     rendering, which is the whole reason both default to empty rather than
     being required.
     """
-    anomaly = Anomaly(flag="Asks for a fee", reasoning="A fee", severity="high")
+    anomaly = Anomaly(flag="Asks for a fee", reasoning="A fee")
 
     assert anomaly.code == ""
     assert anomaly.quote == ""
@@ -329,7 +326,7 @@ def test_the_code_is_normalised_on_the_way_onto_the_schema():
     leave the value unchecked for any caller that builds a dict itself.
     """
     anomaly = _anomalies([
-        {"flag": "Asks for a fee", "reasoning": "A fee", "severity": "high", "code": "NOT_A_CODE"},
+        {"flag": "Asks for a fee", "reasoning": "A fee", "code": "NOT_A_CODE"},
     ])[0]
 
     assert anomaly.code == "OTHER"

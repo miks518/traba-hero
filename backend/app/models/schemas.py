@@ -107,7 +107,6 @@ class VerifyAnomaly(BaseModel):
 
     flag: str = Field(..., max_length=MAX_VERIFY_ANOMALY_TEXT)
     reasoning: str = Field(default="", max_length=MAX_VERIFY_ANOMALY_TEXT)
-    severity: str = Field(default="", max_length=50)
     query_ref: str = Field(default="", max_length=MAX_VERIFY_QUERY_CHARS)
     # The taxonomy ID the scan emitted, and the posting span that decided the
     # finding. Both are forwarded so the verify prompt can put the finding and
@@ -157,15 +156,21 @@ class Anomaly(BaseModel):
 
     Named for what it is — a divergence from expectation — rather than what it
     is taken to mean. "Red flag" was a conclusion delivered as a category label,
-    so a low-severity observation about formatting was announced with the same
-    force as a request for an advance fee. An anomaly asserts only that the
-    posting contains something unusual; what that means is the reader's to draw.
-    The severity field still carries the weight, unchanged.
+    so a formatting note was announced with the same force as a request for an
+    advance fee. An anomaly asserts only that the posting contains something
+    unusual; what that means is the reader's to draw.
+
+    There is no severity field. The scan's own high/mid/low ladder used to ride
+    on this object, and nothing downstream decided anything by it: the verify
+    assessment is the request-class × establishment grid in `assessment.py`,
+    the panel's card states come from the evidence, and the over-cap selection
+    ranks by the taxonomy `code`. A model asked to price a judgement nothing
+    reads as a price is the shape `docs/decisions/scan-severity-removal.md`
+    records.
     """
 
     flag: str
     reasoning: str
-    severity: str
     # The search this finding relates to, when one was issued for it. Carried so
     # the scoring stage can tell "confirms something already counted" from
     # "reveals something new" — without it the double-count returns silently.

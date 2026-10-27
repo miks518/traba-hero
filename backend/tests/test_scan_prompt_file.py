@@ -175,9 +175,8 @@ def test_prompt_does_not_instruct_a_missing_name_anomaly():
 
     Previously this asserted on two exact strings ("company name not stated",
     "anomaly: company name") and so missed a softer instruction elsewhere in
-    the prompt that used different wording. It is a change detector that only
-    caught the phrasing it was written against, so it now checks the severity
-    list, which is where an instruction like this hides.
+    the prompt that used different wording, so it now checks the whole body of
+    both copies.
 
     Both spellings are checked because the parser still accepts the pre-rename
     `RED FLAG:` line, so a prompt that reintroduced either would produce a
@@ -241,70 +240,47 @@ class TestTaskForEarningIsReportable:
                 f"{label} must say that work followed by payment is not itself an anomaly"
             )
 
-    def test_mid_severity_has_this_example(self):
-        """A pattern with no severity example has nowhere to land.
 
-        `mid` carried a single example, so a model reaching for anything else
-        fell back to `low` — which scores 4.
-        """
-        for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
-            mid = _severity_line(body, "mid")
-            assert mid, f"{label}: no mid severity line"
-            assert "task" in mid.lower(), f"{label}: mid does not cover a paid-task offer"
+def test_the_prompt_asks_for_no_severity():
+    """Severity is gone from the scan's output, and its absence is pinned.
 
+    The ANOMALY line used to end in `| <severity>` and carry a high/mid/low
+    ladder. Nothing downstream decided anything by it: the verify assessment is
+    the request-class × establishment grid (`assessment.py`), the panel's card
+    states come from the evidence, and the over-cap selection now ranks by the
+    taxonomy the finding carries. A model asked to price a judgement nothing
+    reads as a price is the exact "model prices a category" shape the redesign
+    removed — see `docs/decisions/scan-severity-removal.md`.
 
-def _severity_line(body: str, severity: str) -> str:
-    """The text of one severity's line, or '' if absent."""
-    for ln in body.splitlines():
-        stripped = ln.strip().lstrip("-*").strip()
-        if stripped.lower().startswith(f"{severity}:"):
-            return stripped
-    return ""
-
-
-def test_severity_list_never_offers_a_missing_name_as_an_example():
-    """The severity list is where this instruction hid.
-
-    "low: something like a missing employer name or a vague job description"
-    sat in the shipped prompt while a later bullet banned exactly that. A model
-    reading the severity examples took it as a sanctioned anomaly, emitted it at
-    low severity, and the posting scored 4 for an input we simply never had.
-
-    Only the part after each severity's colon is checked, because naming the
-    phrase in order to forbid it is the opposite of instructing it. The low
-    line may say "a missing employer name is NOT a low-severity anomaly"; what it
-    must not do is offer one as an example of a low-severity finding.
+    Asserted on both copies, because either one alone reintroduces it, and on
+    the whole word rather than a phrase: the ladder's words could come back in
+    a different dressing ("priority", "weight") and only an absence check on
+    the concept's name catches the drift at the source.
     """
     for body, label in ((text, "SYSTEM_PROMPT.md"), (rules, "prompts.py")):
-        block = _severity_block(body)
-        assert block, f"{label} must have a Severity means: block"
+        assert "severity" not in body.lower(), (
+            f"{label} still asks the model for severity; the scan output has no "
+            "severity slot and no downstream consumer"
+        )
 
-        for line in block.splitlines():
-            _, sep, example = line.partition(":")
-            if not sep:
-                continue
-            # Prohibitions are allowed; examples are not.
-            lowered = example.lower()
-            if any(
-                marker in lowered
-                for marker in ("not a", "never", "do not", "don't", "is not")
-            ):
-                continue
-            for phrase in (
-                "missing employer name",
-                "missing company name",
-                "no employer name",
-                "no company name",
-                "employer not stated",
-                "company not stated",
-                "unnamed employer",
-                "unclear employer",
-                "vague job description",
-            ):
-                assert phrase not in lowered, (
-                    f"{label} offers '{phrase}' as a severity example; a missing "
-                    f"employer is a missing input, not a low-severity finding"
-                )
+
+def test_the_anomaly_line_has_two_slots():
+    """`ANOMALY: <label> | <reasoning>` in both format blocks.
+
+    The parser splits on the pipe and takes two parts. A third slot would be
+    parsed as part of the reasoning at best, silently, so the shape is pinned
+    rather than assumed.
+    """
+    for body, expected in (
+        (text, "anomaly: <label> | <reasoning>"),
+        (SCAN_FORMAT_BLOCK, "anomaly: label | reasoning"),
+    ):
+        assert expected in body.lower(), (
+            f"{expected!r} missing: the ANOMALY line must be label | reasoning, nothing more"
+        )
+        assert "label | reasoning |" not in body.lower(), (
+            "a prompt copy still carries a third slot on the ANOMALY line"
+        )
 
 
 def test_prompt_still_asks_for_the_employer_field():
@@ -452,9 +428,6 @@ GUARDRAILS = (
     # one that was missing it.
     ("ordinary things are never findings", "no combination of these that makes one of them a finding"),
     ("messenger applications are ordinary", "messenger-based application"),
-    ("the ladder is not stretched to fit", "do not stretch the severity ladder"),
-    ("mid means paid tasks, not a vague feeling", "paid tasks, orders, or referrals"),
-    ("low is rarely correct", "rarely correct"),
     ("actionability bar", "do something differently after reading"),
     # Added 2026-10-14. The model kept flagging a Gmail address after
     # "on their own" was added as a prohibition, because "on their own" is a

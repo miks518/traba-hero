@@ -30,7 +30,7 @@ NO_ONLINE_ACCESS = (
 # prompt and the user-message skeleton below are built from it; they used to be
 # separate copies and could drift.
 SCAN_FORMAT_BLOCK = """VALID: true
-ANOMALY: label | reasoning | severity
+ANOMALY: label | reasoning
 CODE: one code from the ANOMALY CODES list
 QUOTE: the exact words from the posting that show this
 FEE_REASON: the reason the posting gives for a fee, or omit
@@ -68,7 +68,7 @@ SCAN_FIELD_RULES = """Field rules:
   * Never output a flag about a scam pattern unless the posting actually contains that pattern's element. An advance-fee pattern exists only where the posting asks the applicant for money. A money-mule pattern exists only where the posting asks the applicant to receive, pass on, or bank money. A task-for-earning pattern exists only where the posting asks the reader to complete discrete tasks, orders, or referrals in order to be paid, rather than describing a role with duties â€” for example an instruction to do a task and then earn a reward, or an amount stated per order, per signup, or per referral. If the posting contains none of these, name no pattern.
   * Work followed by payment is the ordinary order and is not a flag by itself; most jobs are paid that way. What separates a task-for-earning offer is the unit of work â€” a task or an earning event rather than a role. If the posting describes a role and what the person in it does, this pattern does not apply.
   * If the posting has no anomalies, output no ANOMALY lines at all â€” go straight to END ANOMALIES. This is the expected outcome for most postings and is not a failure.
-  * After an ANOMALY line, a QUERY_REF line may name the posting detail the search under SEARCH QUERIES checks. Omit it for a low-severity anomaly.
+  * After an ANOMALY line, a QUERY_REF line may name the posting detail the search under SEARCH QUERIES checks. Omit it when there is nothing specific to check.
   * Never invent a flag, and never output a placeholder or default flag. Every flag must point to text actually present in the posting.
   * After each ANOMALY line write a CODE line naming the entry below that this finding belongs to, and a QUOTE line holding the exact words from the posting that show it. The QUOTE must be copied verbatim and no longer than one sentence, and must contain only what the posting itself says: never your own judgment in it, no "likely", no "suspicious", no "scam", and no advice to the reader. If you cannot find exact supporting words, omit the QUOTE line rather than paraphrasing. A paraphrase presented as a quotation is a fabricated quote, which is worse than no quote at all.
   * Choose the code by what the posting asks the reader to give up: money, identity documents, or their labour. The codes are labels, not a checklist and not a gate. If a posting contains something a reader would act on that none of them names, report it with OTHER and describe it in your label instead of staying silent. Staying silent because no code fits loses the finding entirely, which is worse than an imprecise label.
@@ -86,18 +86,13 @@ SCAN_FIELD_RULES = """Field rules:
     - OTHER: anything real that the entries above do not cover. Your label already carries the description, so OTHER plus a clear label is a complete finding.
   * OTHER is only for a finding whose shape is not in the list. It is not for a benefit, an event, a hiring condition, a preference, or anything else a reader would not act on differently - report nothing instead.
   * A code must name a demand the posting makes. Do not choose a code for a detail the posting merely has.
-  * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. severity: low, mid, or high. An "anomaly" is a description, so the label must not name a conclusion â€” write "Asks applicants to pay a processing fee", never "Scam fee request".
-  * Severity means:
-    - high: the posting asks the applicant for money, goods, or a deposit, or contains a concrete instruction matching a known scam mechanic.
-    - mid: the posting offers paid tasks, orders, or referrals in order to be paid, rather than describing a role with duties.
-    - low: rarely correct. If you are weighing a low, weigh reporting nothing instead.
-  * Do not stretch the severity ladder to fit an observation. If a finding does not match a definition above, it is not an anomaly.
+  * label: 3-6 words, naming what the posting does. reasoning: ONE sentence, max 15 words, stating the observable fact. An "anomaly" is a description, so the label must not name a conclusion â€” write "Asks applicants to pay a processing fee", never "Scam fee request".
   * Before reporting anything, ask: would a job seeker do something differently after reading this? If the answer is no, report nothing. A posting you have no specific concern about is the expected outcome and is not a failure.
   * Do not flag any of these: a free email domain (Gmail, Yahoo), a missing office address, a generic job title, "no experience needed", informal or Messenger-based application, or the absence of a formal application process. These are ordinary in Philippine job postings, including ones written on Facebook groups, and reporting them buries the findings that matter. There is no combination of these that makes one of them a finding: a posting that is wrong in some other way is still not made suspicious by its author having a Gmail address.
   * A generic or personal email is not an anomaly.
   * If the posting states no salary, do not flag salary. Only flag a salary amount that is stated and does not fit the role.
   * If the posting does not name an employer in its text, check whether a company logo, wordmark, letterhead, or sender name is visible in the image. If one is, treat that as the employer name. Not naming an employer is common in the Philippines and is weak evidence on its own; do not describe it as a scam, and do not output an anomaly for it â€” a missing name is a missing input, and the panel asks the reader for it separately.
-  * Payment requests: state the request and nothing else. Example â€” ANOMALY: Asks applicants to pay a processing fee | The posting asks applicants to pay a fee before starting work | high. Never add any claim about the employer.
+  * Payment requests: state the request and nothing else. Example â€” ANOMALY: Asks applicants to pay a processing fee | The posting asks applicants to pay a fee before starting work. Never add any claim about the employer.
 - ATTRIBUTES:
   * Report only details the posting actually states. If it names no location, omit the LOCATION line entirely rather than writing "none" or "Not stated".
   * CONTACT_METHOD holds every channel it directs applicants to, and gets one line each: the channel's type, then a vertical bar, then the value exactly as printed. An email address is `email`, a short link is `form`, a mobile number is `phone`. Write a line for every channel, even when they look inconsistent with each other - a posting that offers the employer's own address and a free-mail address side by side is the case this slot exists for, and dropping one of the two lines hides it. Do not join them into one line.

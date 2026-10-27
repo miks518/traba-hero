@@ -200,7 +200,6 @@ async def test_the_verify_result_event_carries_the_assessments():
                 "anomalies": [{
                     "flag": "Asks applicants to pay a processing fee",
                     "reasoning": "The post asks for money before work.",
-                    "severity": "high",
                 }],
             })
 

@@ -294,8 +294,6 @@ def _parse_json(raw: str) -> dict | list | None:
     return None
 
 
-_SEVERITIES = {"low", "mid", "medium", "high", "moderate", "major", "minor", "critical", "severe", "info"}
-
 # Alternation order is load-bearing twice over. Regex alternation takes the first
 # alternative that lets the whole pattern match, and `\s` does not match the
 # underscore these labels are written with, so `COMPANY` before `COMPANY NAME`
@@ -402,33 +400,6 @@ _REPEATABLE_ATTRIBUTE_KEYS = frozenset({"CONTACT_METHOD"})
 # `Record<string, string>`, and the verify prompt quotes the value back as one
 # line under `- CONTACT_METHOD:`. A list would need changing in all three.
 _ATTRIBUTE_JOIN = "; "
-
-_HIGH_SEVERITY_KEYWORDS = {
-    "upfront fee", "processing fee", "training fee", "registration fee",
-    "assessment fee", "medical fee", "uniform fee", "payment required",
-    "money collection", "will deduct from salary", "refundable deposit",
-    "admin fee", "processing charge", "advance payment", "cash bond",
-    "security deposit", "pay to apply", "pay before", "fee required",
-    "requires payment", "must pay", "pay first", "initial fee",
-}
-
-
-def _infer_severity(label: str, reasoning: str) -> str:
-    """Infer severity from flag content when LLM omits the severity field."""
-    text = f"{label} {reasoning}".lower()
-    for kw in _HIGH_SEVERITY_KEYWORDS:
-        if kw in text:
-            return "high"
-    return "mid"
-
-
-def _normalize_severity(sev: str) -> str:
-    s = (sev or "").strip().lower()
-    if s in {"low", "minor", "info"}:
-        return "low"
-    if s in {"high", "critical", "severe", "major"}:
-        return "high"
-    return "mid"
 
 
 def _parse_custom(raw: str) -> dict | None:
@@ -602,21 +573,10 @@ def _parse_custom(raw: str) -> dict | None:
             ):
                 continue
 
-            reasoning = parts[1] if len(parts) >= 3 else ""
-            severity = parts[2] if len(parts) >= 3 else ""
-            if len(parts) == 2:
-                if parts[1].lower() in _SEVERITIES:
-                    severity = parts[1]
-                else:
-                    reasoning = parts[1]
-            if severity:
-                final_severity = _normalize_severity(severity)
-            else:
-                final_severity = _infer_severity(flag_title, reasoning)
+            reasoning = parts[1] if len(parts) >= 2 else ""
             last_anomaly = {
                 "flag": flag_title,
                 "reasoning": reasoning,
-                "severity": final_severity,
                 "query_ref": "",
                 "code": "",
                 "quote": "",
