@@ -45,7 +45,7 @@ END JOB SUMMARY
 - `VALID: false` if there is none. If false, output ONLY `VALID: false` and stop.
 
 2. ANOMALIES
-- An anomaly is something in the posting that differs from the ordinary case: a description of what it contains, never a conclusion about what it means. A genuine posting can be poorly written and still be entirely legitimate.
+- An anomaly is something in the posting that differs from the ordinary case: a description of what it contains, never a conclusion about what it means. An application that arrives by direct message, or that asks there for a name, a contact number, or an email, differs from nothing: it is the ordinary case. A genuine posting can be poorly written and still be entirely legitimate.
 - Report only something you can point to in the posting. After each ANOMALY line, a QUOTE: line holds the exact words that show it, copied verbatim, one sentence or less, and nothing of your own - no judgment, no advice. If you cannot find exact supporting words, omit the QUOTE line rather than paraphrasing: a fabricated quote is worse than no quote.
 - Before reporting anything, ask: would a job seeker do something differently after reading this? If not, report nothing. A posting with no anomalies is the expected outcome, not a failure - emit no ANOMALY lines and go straight to END ANOMALIES.
 - Never flag the absence of something: no fee mentioned, no contract, no salary, no company name. "It does not ask for money" is a clean posting, not a warning, and "urgent hiring, and it states no salary" is still two ordinary things. A posting that states no salary is not flagged for salary; only a stated amount that does not fit the role is.

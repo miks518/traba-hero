@@ -442,6 +442,7 @@ GUARDRAILS = (
     # covered that framing. The closure states the ordinary case positively.
     ("a dm asking for contact details is the application", "the contact details are the application"),
     ("the channel formality is not the concern", "never by the formality of the channel"),
+    ("the ordinary case is in the anomaly definition", "differs from nothing: it is the ordinary case"),
     # Added 2026-10-16. A live scan spent both model-authored queries chasing
     # business registration, which `build_queries` already covers with
     # "<company> company or employer" — two of three credits buying a second copy
