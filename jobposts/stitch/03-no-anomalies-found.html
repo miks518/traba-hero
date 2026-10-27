@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Trabahero - Job Verification Report</title>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Hanken Grotesk, Inter, JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700;800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Configuration with Design System tokens -->
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface": "#faf9ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f1f3ff",
+            "surface-container": "#eaedfc",
+            "surface-container-high": "#e4e8f7",
+            "surface-container-highest": "#dfe2f1",
+            "on-surface": "#171b26",
+            "on-surface-variant": "#434652",
+            "outline": "#747783",
+            "outline-variant": "#c3c6d3",
+            "assessment-verified": "#1b6d39",
+            "chip-verified-bg": "#e8f5e9",
+            "chip-verified-text": "#1b6d39",
+            "code-pill-bg": "#f3f4f5",
+            "code-pill-text": "#5b606d",
+          },
+          fontFamily: {
+            headline: ['"Hanken Grotesk"', 'sans-serif'],
+            sans: ['Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+<!-- BEGIN: Custom DESIGN.md tactile Elevation & Buttons -->
+<style>
+    body {
+      background-color: #f1f3f8;
+      font-family: 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Zero-blur depth system: Static containers NEVER have press states or translation */
+    .tactile-card {
+      border: 1px solid #d8dbe5;
+      box-shadow: 0 4px 0 0 rgba(0, 0, 0, 0.12), inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+      cursor: default;
+    }
+
+    .tactile-card-assessment {
+      border: 1px solid #14532d;
+      box-shadow: 0 4px 0 0 #0d381e, inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+    }
+
+    /* Tactile button specification adhering exactly to DESIGN.md */
+    .tactile-btn-accent {
+      --tactile-base: #5b4a18;
+      background: linear-gradient(180deg, color-mix(in srgb, var(--tactile-base), white 20%) 0%, var(--tactile-base) 45%, color-mix(in srgb, var(--tactile-base), black 25%) 100%);
+      border: 1px solid color-mix(in srgb, var(--tactile-base), white 20%);
+      box-shadow: 0 6px 0 0 color-mix(in srgb, var(--tactile-base), black 55%), inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+      transition: all 0.1s ease;
+      border-radius: 4px;
+      font-weight: 700;
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      user-select: none;
+    }
+
+    .tactile-btn-accent:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 0 color-mix(in srgb, var(--tactile-base), black 55%);
+    }
+
+    /* Secondary / outline tactile button with matching zero-blur hard shadow & translation */
+    .tactile-btn-secondary {
+      --tactile-base: #f7f5ee;
+      background: linear-gradient(180deg, #ffffff 0%, #faf8f3 45%, #f1eee4 100%);
+      border: 1px solid #c2b79b;
+      box-shadow: 0 6px 0 0 #8f8263, inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+      transition: all 0.1s ease;
+      border-radius: 4px;
+      font-weight: 700;
+      color: #5b4a18;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      user-select: none;
+    }
+
+    .tactile-btn-secondary:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 0 #8f8263;
+    }
+  </style>
+<!-- END: Custom DESIGN.md tactile Elevation & Buttons -->
+</head>
+<body class="flex justify-center min-h-screen text-on-surface">
+<!-- BEGIN: Main Mobile Container -->
+<div class="w-full max-w-[420px] bg-[#faf9ff] min-h-screen flex flex-col pb-12 select-none border-x border-[#dfe2f1]">
+<!-- BEGIN: TopNavigation -->
+<header class="flex items-center justify-between px-5 py-4 border-b border-[#e2e5f0] bg-white sticky top-0 z-30">
+<!-- Brand Logo & Name -->
+<div class="flex items-center gap-2">
+<svg class="w-6 h-6 text-[#1d4ed8]" fill="currentColor" viewbox="0 0 24 24">
+<path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"></path>
+</svg>
+<span class="font-headline font-bold text-xl tracking-tight text-[#171b26]">Trabahero</span>
+</div>
+<!-- Action Icons (History & Settings) -->
+<div class="flex items-center gap-4 text-[#434652]">
+<!-- History counter-clockwise clock -->
+<button aria-label="Scan history" class="p-1 hover:text-black transition-colors">
+<svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<!-- Settings Gear -->
+<button aria-label="Settings" class="p-1 hover:text-black transition-colors">
+<svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+</div>
+</header>
+<!-- END: TopNavigation -->
+<main class="flex-1 px-4 pt-5 pb-8 space-y-6">
+<!-- BEGIN: HeaderMetadata -->
+<section class="space-y-1" data-purpose="job-header">
+<p class="text-[11px] font-semibold tracking-wider text-[#5b606d] uppercase">
+          SCANNED SAT 17 OCT · 8:48 PM
+        </p>
+<h1 class="text-2xl font-headline font-bold text-[#171b26] tracking-tight leading-tight">
+          Junior Accountant
+        </h1>
+<p class="text-[13px] leading-snug text-[#434652]">
+          Santos &amp; Villanueva CPAs · posted 3 days ago on the company careers page
+        </p>
+</section>
+<!-- END: HeaderMetadata -->
+<!-- BEGIN: AssessmentBanner -->
+<section class="bg-[#1b6d39] text-white p-5 rounded-xl tactile-card-assessment space-y-2" data-purpose="assessment-banner">
+<div class="flex items-center gap-2">
+<!-- Circle check icon -->
+<svg class="w-5 h-5 text-white stroke-[2.5]" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"></circle>
+<path d="M8.5 12.5l2.5 2.5 5-5" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[11px] font-bold tracking-widest uppercase opacity-95">ASSESSMENT</span>
+</div>
+<h2 class="text-xl font-headline font-bold tracking-tight text-white pt-0.5">
+          No anomalies found
+        </h2>
+<p class="text-[13px] leading-snug text-emerald-50 opacity-95 font-normal">
+          In the 13 checks we completed, nothing unusual turned up. One check could not run.
+        </p>
+</section>
+<!-- END: AssessmentBanner -->
+<!-- BEGIN: GoodHabitsSection -->
+<section class="space-y-2" data-purpose="good-habits">
+<h3 class="font-headline font-bold text-[17px] text-[#171b26]">
+          Good habits while you apply
+        </h3>
+<div class="bg-white rounded-xl tactile-card p-4 space-y-3.5">
+<!-- Habit Item 1 -->
+<div class="flex items-start gap-3">
+<div class="mt-0.5 w-[18px] h-[18px] rounded-[3px] border-2 border-[#1b6d39] flex-shrink-0 flex items-center justify-center bg-white"></div>
+<p class="text-[13px] leading-snug text-[#171b26]">
+<span class="font-bold text-[#171b26]">Keep all contact on the company email</span> you see on their website.
+            </p>
+</div>
+<!-- Habit Item 2 -->
+<div class="flex items-start gap-3">
+<div class="mt-0.5 w-[18px] h-[18px] rounded-[3px] border-2 border-[#1b6d39] flex-shrink-0 flex items-center justify-center bg-white"></div>
+<p class="text-[13px] leading-snug text-[#171b26]">
+<span class="font-bold text-[#171b26]">Share ID and bank details</span> only after a signed offer.
+            </p>
+</div>
+<!-- Habit Item 3 -->
+<div class="flex items-start gap-3">
+<div class="mt-0.5 w-[18px] h-[18px] rounded-[3px] border-2 border-[#1b6d39] flex-shrink-0 flex items-center justify-center bg-white"></div>
+<p class="text-[13px] leading-snug text-[#171b26]">
+<span class="font-bold text-[#171b26]">Scan again if anything changes,</span> such as a new contact asking for money.
+            </p>
+</div>
+</div>
+</section>
+<!-- END: GoodHabitsSection -->
+<!-- BEGIN: WorthKnowingSection -->
+<section class="space-y-2" data-purpose="worth-knowing">
+<div class="flex items-center justify-between">
+<h3 class="font-headline font-bold text-[17px] text-[#171b26]">
+            Worth knowing
+          </h3>
+<span class="text-xs text-[#5b606d] font-medium">1 note</span>
+</div>
+<div class="bg-white rounded-xl tactile-card p-4 space-y-2.5">
+<!-- Card Header Tags -->
+<div class="flex items-center justify-between">
+<span class="px-2.5 py-0.5 rounded-full bg-[#f3f4f5] text-[#434652] text-xs font-semibold">
+              Note
+            </span>
+<span class="text-[11px] font-mono font-medium tracking-wide text-[#5b606d]">
+              SALARY_NOT_STATED
+            </span>
+</div>
+<!-- Card Content -->
+<div class="space-y-1">
+<h4 class="font-headline font-bold text-[15px] text-[#171b26]">
+              The post does not state a salary
+            </h4>
+<p class="text-[13px] leading-relaxed text-[#434652]">
+              This is common for legitimate posts too. Ask about the pay range early in the process.
+            </p>
+</div>
+</div>
+</section>
+<!-- END: WorthKnowingSection -->
+<!-- BEGIN: WhatWeCheckedSection -->
+<section class="space-y-2" data-purpose="what-we-checked">
+<div class="flex items-center justify-between">
+<h3 class="font-headline font-bold text-[17px] text-[#171b26]">
+            What we checked
+          </h3>
+<span class="text-xs text-[#5b606d] font-medium">13 of 14 done</span>
+</div>
+<!-- Card Container - Notice: No segmented indicator dashes/bars -->
+<div class="bg-white rounded-xl tactile-card p-4 space-y-3.5">
+<!-- Category 1: Verified (Opens directly with Verified badge and subtle horizontal divider) -->
+<div class="space-y-3">
+<div class="flex items-center gap-2 pb-2 border-b border-[#edf0f7]">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#e8f5e9] text-[#1b6d39] rounded-full text-xs font-semibold">
+<svg class="w-3.5 h-3.5 text-[#1b6d39] stroke-[2.5]" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span>Verified</span>
+</div>
+</div>
+<!-- List of 5 verified checks -->
+<div class="space-y-2.5 pl-0.5">
+<div class="flex items-center gap-2.5">
+<svg class="w-4 h-4 text-[#1b6d39] flex-shrink-0" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<circle class="fill-[#e8f5e9]" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"></circle>
+<path d="M8 12l2.5 2.5 5-5" stroke="#1b6d39" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"></path>
+</svg>
+<span class="text-[13px] text-[#171b26] font-normal">Company website exists and is 14 years old</span>
+</div>
+<div class="flex items-center gap-2.5">
+<svg class="w-4 h-4 text-[#1b6d39] flex-shrink-0" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<circle class="fill-[#e8f5e9]" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"></circle>
+<path d="M8 12l2.5 2.5 5-5" stroke="#1b6d39" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"></path>
+</svg>
+<span class="text-[13px] text-[#171b26] font-normal">Same job is listed on the official careers page</span>
+</div>
+<div class="flex items-center gap-2.5">
+<svg class="w-4 h-4 text-[#1b6d39] flex-shrink-0" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<circle class="fill-[#e8f5e9]" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"></circle>
+<path d="M8 12l2.5 2.5 5-5" stroke="#1b6d39" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"></path>
+</svg>
+<span class="text-[13px] text-[#171b26] font-normal">Business registry record found</span>
+</div>
+<div class="flex items-center gap-2.5">
+<svg class="w-4 h-4 text-[#1b6d39] flex-shrink-0" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<circle class="fill-[#e8f5e9]" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"></circle>
+<path d="M8 12l2.5 2.5 5-5" stroke="#1b6d39" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"></path>
+</svg>
+<span class="text-[13px] text-[#171b26] font-normal">Recruiter email uses the company domain</span>
+</div>
+<div class="flex items-center gap-2.5">
+<svg class="w-4 h-4 text-[#1b6d39] flex-shrink-0" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<circle class="fill-[#e8f5e9]" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"></circle>
+<path d="M8 12l2.5 2.5 5-5" stroke="#1b6d39" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"></path>
+</svg>
+<span class="text-[13px] text-[#171b26] font-normal">No request for money or personal documents</span>
+</div>
+</div>
+</div>
+<!-- Category 2: Could not verify -->
+<div class="pt-3 space-y-2 border-t border-[#edf0f7]">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#f3f4f5] text-[#434652] rounded-full text-xs font-semibold">
+<svg class="w-3.5 h-3.5 text-[#5b606d]" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<circle cx="12" cy="12" r="9" stroke-width="2"></circle>
+<path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+<span>Could not verify</span>
+</div>
+<!-- Item -->
+<div class="flex items-start gap-2.5 pl-0.5 pt-1">
+<svg class="w-4 h-4 text-[#9aa0a6] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<circle cx="12" cy="12" r="9" stroke-width="2"></circle>
+<path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+<div>
+<p class="text-[13px] text-[#171b26] leading-none">Recruiter profile matches the employer</p>
+<p class="text-xs text-[#5b606d] mt-1">The profile page needs a sign-in to view.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: WhatWeCheckedSection -->
+<!-- BEGIN: AccordionSection -->
+<section data-purpose="details-sources">
+<div class="w-full bg-white tactile-card rounded-xl px-4 py-3.5 flex items-center justify-between">
+<span class="font-headline font-bold text-[14px] text-[#171b26]">Full details and sources</span>
+<svg class="w-4 h-4 text-[#434652]" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</section>
+<!-- END: AccordionSection -->
+<!-- BEGIN: FeedbackSection -->
+<section class="space-y-3 pt-1" data-purpose="accuracy-feedback">
+<h3 class="font-headline font-bold text-[16px] text-[#171b26]">
+          Was this accurate?
+        </h3>
+<!-- Dual Feedback Buttons with tactile depth -->
+<div class="grid grid-cols-2 gap-3">
+<!-- Yes, accurate (Tactile Accent Button with DESIGN.md gradient & hard shadow) -->
+<button class="tactile-btn-accent py-2.5 px-3">
+<svg class="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[13.5px]">Yes, accurate</span>
+</button>
+<!-- No, it was wrong (Tactile Secondary Button with matching hard shadow & active translation) -->
+<button class="tactile-btn-secondary py-2.5 px-3">
+<svg class="w-4 h-4 stroke-[2.2]" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018c.163 0 .326.02.485.06L17 4m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[13.5px]">No, it was wrong</span>
+</button>
+</div>
+<!-- Report Link -->
+<div class="pt-1">
+<button class="inline-flex items-center gap-2 text-[#434652] hover:text-[#171b26] text-[13px] font-medium py-1 transition-colors">
+<svg class="w-4 h-4 text-[#434652]" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span>Report this post</span>
+</button>
+</div>
+</section>
+<!-- END: FeedbackSection -->
+<!-- BEGIN: FooterLegal -->
+<footer class="pt-4 text-left space-y-1" data-purpose="disclaimer-info">
+<p class="text-[11.5px] leading-relaxed text-[#5b606d]">
+          This is a risk assessment, not proof of fraud or legitimacy. A scan can miss a convincing fake.
+        </p>
+<p class="text-[11.5px] text-[#5b606d]">
+          Ruleset 2026.10.2 · Scan 5d03b7
+        </p>
+</footer>
+<!-- END: FooterLegal -->
+</main>
+</div>
+<!-- END: Main Mobile Container -->
+</body></html>

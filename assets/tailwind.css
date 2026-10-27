@@ -838,6 +838,29 @@
     filter: drop-shadow(0px 1px 0px rgba(0, 0, 0, 0.2));
   }
 
+  /* ── Assessment text colors ─────────────────────────────────────────
+     These are the ink colors for assessment tones. They are separate from
+     the chip/container colors because text on a fill needs different contrast
+     than the fill itself. These use the assessment ink tokens that are
+     guaranteed to clear WCAG AA on their respective fills. */
+  .text-assessment-verified {
+    color: var(--color-assessment-verified-on);
+  }
+  .text-assessment-caution {
+    color: var(--color-assessment-caution-on);
+  }
+  .text-assessment-critical {
+    color: var(--color-assessment-critical-on);
+  }
+  .text-assessment-unknown {
+    color: var(--color-assessment-unknown-on);
+  }
+
+  /* Error text color (matches the error ink) */
+  .text-error {
+    color: var(--color-on-error);
+  }
+
   /* ── Text size scaling ───────────────────────────────────────────── */
   .text-size-default {
     font-size: 0.875rem;
