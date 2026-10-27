@@ -102,6 +102,14 @@
   --color-assessment-critical-container: #b20806;
   --color-assessment-critical-on: #ffffff;
 
+  /* Icon colours: the saturated tone in both themes. An icon is a glyph, not
+     text on a tinted fill, so it takes the bright value even in light mode —
+     `#7c5800` is the right ink for text on a pale amber fill and reads as
+     brown standing alone. */
+  --color-icon-verified: #1b6d39;
+  --color-icon-caution: #feb700;
+  --color-icon-critical: #b20806;
+
   /* No assessment. A posting that named no employer was never assessed, so this is
      deliberately neutral rather than amber: amber already means caution, and
      reusing it here would dress an absent measurement as a finding. */
@@ -200,6 +208,11 @@
   --color-assessment-critical: #ffb4ab;
   --color-assessment-critical-container: #93000a;
   --color-assessment-critical-on: #ffdad6;
+
+  /* Icon colours, dark: the bright tones are already the base here. */
+  --color-icon-verified: #4ade80;
+  --color-icon-caution: #ffba22;
+  --color-icon-critical: #ffb4ab;
 
   --color-assessment-unknown: #909094;
   --color-assessment-unknown-container: #2a313d;
@@ -836,29 +849,6 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
     filter: drop-shadow(0px 1px 0px rgba(0, 0, 0, 0.2));
-  }
-
-  /* ── Assessment text colors ─────────────────────────────────────────
-     These are the ink colors for assessment tones. They are separate from
-     the chip/container colors because text on a fill needs different contrast
-     than the fill itself. These use the assessment ink tokens that are
-     guaranteed to clear WCAG AA on their respective fills. */
-  .text-assessment-verified {
-    color: var(--color-assessment-verified-on);
-  }
-  .text-assessment-caution {
-    color: var(--color-assessment-caution-on);
-  }
-  .text-assessment-critical {
-    color: var(--color-assessment-critical-on);
-  }
-  .text-assessment-unknown {
-    color: var(--color-assessment-unknown-on);
-  }
-
-  /* Error text color (matches the error ink) */
-  .text-error {
-    color: var(--color-on-error);
   }
 
   /* ── Text size scaling ───────────────────────────────────────────── */

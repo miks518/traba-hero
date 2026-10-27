@@ -57,7 +57,7 @@ export default {
         'error-container':           'var(--color-error-container)',
         'on-error-container':        'var(--color-on-error-container)',
 
-        // ── Verdict tones ──────────────────────────────────────────────
+        // ── Assessment tones ────────────────────────────────────────────
         // Three tones for four levels. `low` and `moderate` share the caution
         // fill and are told apart by the authored headline, because a fourth
         // colour would imply a distinction the evidence does not make.
@@ -65,18 +65,28 @@ export default {
         // Each tone is a FILL plus the INK that clears AA on it. The ink is
         // separate from `on-surface` because that flips to light in the dark
         // theme, which would put light text on a mid-tone fill.
-        'verdict-verified':          'var(--color-verdict-verified)',
-        'verdict-verified-container':'var(--color-verdict-verified-container)',
-        'verdict-verified-on':       'var(--color-verdict-verified-on)',
-        'verdict-caution':           'var(--color-verdict-caution)',
-        'verdict-caution-container': 'var(--color-verdict-caution-container)',
-        'verdict-caution-on':        'var(--color-verdict-caution-on)',
-        'verdict-critical':          'var(--color-verdict-critical)',
-        'verdict-critical-container':'var(--color-verdict-critical-container)',
-        'verdict-critical-on':       'var(--color-verdict-critical-on)',
-        'verdict-unknown':           'var(--color-verdict-unknown)',
-        'verdict-unknown-container': 'var(--color-verdict-unknown-container)',
-        'verdict-unknown-on':        'var(--color-verdict-unknown-on)',
+        'assessment-verified':           'var(--color-assessment-verified)',
+        'assessment-verified-container': 'var(--color-assessment-verified-container)',
+        'assessment-verified-on':        'var(--color-assessment-verified-on)',
+        'assessment-caution':            'var(--color-assessment-caution)',
+        'assessment-caution-container':  'var(--color-assessment-caution-container)',
+        'assessment-caution-on':         'var(--color-assessment-caution-on)',
+        'assessment-critical':           'var(--color-assessment-critical)',
+        'assessment-critical-container': 'var(--color-assessment-critical-container)',
+        'assessment-critical-on':        'var(--color-assessment-critical-on)',
+        'assessment-unknown':            'var(--color-assessment-unknown)',
+        'assessment-unknown-container':  'var(--color-assessment-unknown-container)',
+        'assessment-unknown-on':         'var(--color-assessment-unknown-on)',
+
+        // ── Icon colours ────────────────────────────────────────────────
+        // Icons need the saturated tone in BOTH themes. The assessment tokens
+        // swap roles between themes — light uses the dark ink for text on a
+        // pale fill, dark uses the bright fill tone for text on a dark panel —
+        // so an icon coloured `text-assessment-caution` reads brown in light
+        // mode. These tokens hold the saturated value per theme instead.
+        'icon-verified':             'var(--color-icon-verified)',
+        'icon-caution':              'var(--color-icon-caution)',
+        'icon-critical':             'var(--color-icon-critical)',
 
         // ── Status chips ───────────────────────────────────────────────
         // Pale fill, saturated text. A chip labels content beside it rather than
