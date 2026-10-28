@@ -93,7 +93,7 @@ export const NO_ASSESSMENT: AssessmentCopy = {
  * not a reassurance.
  */
 export const VERIFYING: AssessmentCopy = {
-  headline: 'Checking this company',
+  headline: 'Checking this job post',
   tone: 'unknown',
 };
 

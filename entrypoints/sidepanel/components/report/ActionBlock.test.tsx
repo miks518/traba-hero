@@ -26,14 +26,31 @@ afterEach(cleanup);
 function block(props: {
   assessment?: Assessment | null;
   recommendation?: string;
+  checking?: boolean;
 }): string {
   const { container } = render(
     React.createElement(ActionBlock, {
       assessment: props.assessment ?? null,
       recommendation: props.recommendation,
+      checking: props.checking,
     }),
   );
   return container.querySelector('[data-role="action-block"]')?.textContent ?? '';
+}
+
+function rendered(props: {
+  assessment?: Assessment | null;
+  recommendation?: string;
+  checking?: boolean;
+}): Element | null {
+  const { container } = render(
+    React.createElement(ActionBlock, {
+      assessment: props.assessment ?? null,
+      recommendation: props.recommendation,
+      checking: props.checking,
+    }),
+  );
+  return container.querySelector('[data-role="action-block"]');
 }
 
 describe('the action block prefers the verify recommendation', () => {
@@ -82,5 +99,31 @@ describe('the action block prefers the verify recommendation', () => {
 
     expect(text).toContain('Confirm the employer independently before submitting personal details.');
     expect(text).not.toContain('No assessment on this one.');
+  });
+});
+
+
+describe('the action block while the check is in flight', () => {
+  it('renders nothing while the employer check is running', () => {
+    // The actions table is keyed to an assessment, and while the check is
+    // in flight there is none — the post has not been assessed yet. The
+    // unknown copy ("No assessment on this one") asserts a completed
+    // measurement that found nothing, while the banner above says a check
+    // is still running. Hidden, not hollowed.
+    expect(rendered({ checking: true, assessment: null, recommendation: 'x' })).toBeNull();
+  });
+
+  it('renders nothing while checking even with an assessment on screen', () => {
+    // The posting-stage assessment exists from the scan, but the banner
+    // above is in its checking state — an action under it would read as an
+    // instruction issued before the assessment it follows from exists.
+    expect(rendered({ checking: true, assessment: 'yellow', recommendation: 'x' })).toBeNull();
+  });
+
+  it('returns once the check has settled, even when it found nothing', () => {
+    // A failed or empty check is a completed measurement: the honest
+    // unknown copy is correct again once the state stops moving.
+    const text = block({ checking: false, assessment: null });
+    expect(text).toContain('No assessment on this one');
   });
 });

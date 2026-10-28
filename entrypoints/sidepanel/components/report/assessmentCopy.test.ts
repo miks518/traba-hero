@@ -89,7 +89,7 @@ describe('the states with no assessment behind them', () => {
   it('asserts nothing while the employer lookup is running', () => {
     // The intermediate state is not the assessment. The copy says only what is
     // true, which is that a check is in flight.
-    expect(VERIFYING.headline).toBe('Checking this company');
+    expect(VERIFYING.headline).toBe('Checking this job post');
     expect(VERIFYING.headline).not.toContain('Contradicted');
   });
 });

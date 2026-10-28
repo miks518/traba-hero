@@ -159,7 +159,7 @@ describe('the one-line assessment reason', () => {
     );
     expect(document.querySelector('[data-role="assessment-reason"]')).toBeNull();
     expect(document.querySelector('[data-role="assessment-headline"]')?.textContent).toBe(
-      'Checking this company',
+      'Checking this job post',
     );
   });
 });

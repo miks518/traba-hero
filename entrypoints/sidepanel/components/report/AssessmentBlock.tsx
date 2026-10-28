@@ -97,7 +97,7 @@ export function AssessmentBlock({ assessment, verifying, reason }: AssessmentBlo
       {/*
         Suppressed while verifying, and that is not belt-and-braces — it is the
         rule the banner's own wording depends on. The headline reads "Checking this
-        company", so a reason underneath it reads as an answer delivered while the
+        job post", so a reason underneath it reads as an answer delivered while the
         check is still in flight. Today the reason only exists once verification
         has answered, so this cannot be reached; it is here because the two are
         separate facts about separate moments and nothing should be able to put

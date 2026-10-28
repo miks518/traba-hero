@@ -29,10 +29,24 @@ export interface ActionBlockProps {
    * is keyed to the assessment family alone and cannot refer to this posting.
    */
   whatToCheck?: string;
+  /**
+   * The employer check or offer pass is still running.
+   *
+   * **The block hides, and that is the honest rendering.** The actions table is
+   * keyed to an assessment, and while the check is in flight there is none —
+   * the post has not been assessed yet. Rendering the unknown copy ("No
+   * assessment on this one") here asserts a completed measurement that found
+   * nothing, while the banner above says a check is still running.
+   */
+  checking?: boolean;
 }
 
 export function ActionBlock(props: ActionBlockProps) {
-  const { assessment, codes, recommendation, whatToCheck } = props;
+  const { assessment, codes, recommendation, whatToCheck, checking } = props;
+  // Hidden while the check is in flight: the banner above owns that moment
+  // ("Checking this job post"), and an action under it would be an instruction
+  // issued before the assessment it follows from exists.
+  if (checking) return null;
   const actions = actionsFor(assessment);
   const chips = shareChipsFor(codes);
 

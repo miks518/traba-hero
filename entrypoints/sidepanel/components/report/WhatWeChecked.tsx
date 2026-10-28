@@ -73,7 +73,7 @@ function headingFor(state: {
   partial: boolean;
   error: boolean;
 }): string {
-  if (state.loading && !state.hasItems) return 'Checking this company';
+  if (state.loading && !state.hasItems) return 'Checking this job post';
   if (state.error) return 'Verification could not be completed';
   if (state.unreadable) return 'The search could not run';
   if (state.hasItems) return 'What we checked';

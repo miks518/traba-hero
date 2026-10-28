@@ -137,6 +137,12 @@ export function ReportPanel({
         assessment={assessment}
         recommendation={result.verificationResult?.recommendation}
         whatToCheck={result.offerAnalysis?.whatToCheck}
+        // The live in-flight flags, not the caller's sticky `verifying`: after
+        // a failed lookup the honest "not assessed" copy is correct, but while
+        // the check is running the post has not been assessed yet, and an
+        // action block under a "Checking this job post" banner would issue
+        // instructions before the assessment they follow from exists.
+        checking={Boolean(result.verificationLoading || result.offerAnalysisLoading)}
       />
 
       {/*
