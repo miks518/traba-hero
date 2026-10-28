@@ -139,7 +139,11 @@ export function ScanActions({
       {/* Hidden once a scan is running: the request already went out, so
           flipping the setting mid-flight would promise something it cannot
           deliver. It returns when the controls do. */}
-      {!disabled && advancedScanToggle(advancedScan, onAdvancedScanChange, disabled)}
+      {/* Pre-scan only. Once a scan has run, the flag was already sent - a
+          toggle sitting beside a finished result would imply it still applies
+          to what is on screen. It returns when the session resets to a fresh
+          capture (screenshots cleared, reset, new selection). */}
+      {!afterScan && !disabled && advancedScanToggle(advancedScan, onAdvancedScanChange, disabled)}
     </div>
   );
 }

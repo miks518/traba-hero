@@ -153,13 +153,17 @@ describe('the Advanced-scan toggle', () => {
     expect(text).toMatch(/few minutes/i);
   });
 
-  it('is hidden while a scan is running', () => {
-    // Once the request has gone out, flipping the setting would promise
-    // something it cannot deliver — the thinking flag was already sent. The
-    // toggle disappears with the controls and returns when they do.
-    const { container } = render(
-      React.createElement(ScanActions, { advancedScan: false, onAdvancedScanChange: vi.fn(), disabled: true })
-    );
-    expect(row(container)).toBeNull();
+  it('shows in the pre-scan state, and only there', () => {
+    // The toggle belongs to the decision point: before a scan runs. Once a
+    // result is on screen the flag was already sent, and mid-scan it cannot
+    // apply — both states hide it. It returns when the session resets.
+    const pre = render(React.createElement(ScanActions, { advancedScan: false, onAdvancedScanChange: vi.fn() }));
+    expect(row(pre.container)).toBeTruthy();
+
+    const running = render(React.createElement(ScanActions, { advancedScan: false, onAdvancedScanChange: vi.fn(), disabled: true }));
+    expect(row(running.container)).toBeNull();
+
+    const done = render(React.createElement(ScanActions, { advancedScan: false, onAdvancedScanChange: vi.fn(), afterScan: true }));
+    expect(row(done.container)).toBeNull();
   });
 });
