@@ -65,6 +65,15 @@ export type IconName =
   // was never checked and the icon never rendered; registering it makes the
   // future chips row actually draw its icon.
   | 'do_not_disturb_on'
+  // CompanyDetails rows. The channel types come from the scan's CONTACT_METHOD
+  // lines; an untyped channel falls back to `contact_page`, so a posting that
+  // names a channel the table above has no icon for still gets a row rather
+  // than being silently dropped.
+  | 'location_on'
+  | 'call'
+  | 'link'
+  | 'language'
+  | 'contact_page'
 
 export interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
   name: IconName;
