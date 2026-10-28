@@ -586,6 +586,7 @@ export async function verifyJobStream(
   onProgress: (progress: ScanProgress) => void,
   onSearch: (query: string, round: number) => void,
   timeoutMs = 120000,
+  thinking = false,
 ): Promise<VerifyStreamResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -598,7 +599,7 @@ export async function verifyJobStream(
     const res = await fetch(`${API_BASE}/api/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
-      body: JSON.stringify(context),
+      body: JSON.stringify({ ...context, thinking }),
       signal: controller.signal,
     });
 

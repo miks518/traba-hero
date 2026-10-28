@@ -859,6 +859,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             messages,
             response_format=runtime.get_verify_response_format(),
             endpoint="verify",
+            thinking=req.thinking,
         )
         log.info("[verify] Raw AI response (%d chars): %s", len(final_text), final_text[:1000])
         yield runtime.get_sse()({"type": "progress", "percent": 85, "stage": "Analyzing results"})

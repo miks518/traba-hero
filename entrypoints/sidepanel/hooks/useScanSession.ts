@@ -226,7 +226,9 @@ export function useScanSession({
       return false;
     }
   });
+  const advancedScanRef = useRef(advancedScan);
   const setAdvancedScan = useCallback((value: boolean) => {
+    advancedScanRef.current = value;
     setAdvancedScanState(value);
     try {
       localStorage.setItem('trabahero.advancedScan', value ? 'true' : 'false');
@@ -286,7 +288,7 @@ export function useScanSession({
         (p) => setProgress(p),
         anomalies,
         90000,
-        advancedScan,
+        advancedScanRef.current,
       );
 
       if (result.data) {
@@ -358,6 +360,8 @@ export function useScanSession({
           controller.signal,
           (p) => setProgress(p),
           (query) => setCurrentSearchQuery(query),
+          120000,
+          advancedScanRef.current,
         );
 
         if (verifyResult.result) {
@@ -509,7 +513,7 @@ export function useScanSession({
           onScanProgressChange?.(p);
         },
         240000,
-        advancedScan,
+        advancedScanRef.current,
       );
 
       if (result.timedOut) {

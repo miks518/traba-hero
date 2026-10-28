@@ -136,7 +136,10 @@ export function ScanActions({
         )}
       </div>
 
-      {advancedScanToggle(advancedScan, onAdvancedScanChange, disabled)}
+      {/* Hidden once a scan is running: the request already went out, so
+          flipping the setting mid-flight would promise something it cannot
+          deliver. It returns when the controls do. */}
+      {!disabled && advancedScanToggle(advancedScan, onAdvancedScanChange, disabled)}
     </div>
   );
 }

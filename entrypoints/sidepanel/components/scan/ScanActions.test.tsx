@@ -153,10 +153,13 @@ describe('the Advanced-scan toggle', () => {
     expect(text).toMatch(/few minutes/i);
   });
 
-  it('renders disabled when the scan controls are disabled', () => {
+  it('is hidden while a scan is running', () => {
+    // Once the request has gone out, flipping the setting would promise
+    // something it cannot deliver — the thinking flag was already sent. The
+    // toggle disappears with the controls and returns when they do.
     const { container } = render(
       React.createElement(ScanActions, { advancedScan: false, onAdvancedScanChange: vi.fn(), disabled: true })
     );
-    expect(switchButton(container)?.disabled).toBe(true);
+    expect(row(container)).toBeNull();
   });
 });

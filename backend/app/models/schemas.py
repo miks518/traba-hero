@@ -315,6 +315,11 @@ class VerifyRequest(BaseModel):
     company_name: str = Field(default="", max_length=MAX_VERIFY_COMPANY_NAME)
     job_summary: str = Field(default="", max_length=MAX_VERIFY_JOB_SUMMARY)
     anomalies: list[VerifyAnomaly] = Field(default=[], max_length=MAX_VERIFY_ANOMALIES)
+    # The Advanced-scan toggle, forwarded from the scan that produced these
+    # findings. The whole initiated pipeline follows the button: a scan started
+    # with thinking off runs its verification with thinking off too, whatever
+    # AI_REASONING_ENABLED says.
+    thinking: bool = False
     # What the scan read off the posting, in the poster's own words. Two uses,
     # and the same constraint binds both: an absent key means the posting said
     # nothing, which is a missing input and never earns a query or a check.

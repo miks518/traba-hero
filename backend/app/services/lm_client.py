@@ -210,6 +210,16 @@ async def _create_completion(**kwargs):
     attempted: set[str] = set()
     while True:
         extra_body = _request_extra_body(structured, thinking)
+        # The per-request thinking override is the kind of thing that silently
+        # fails (a stale backend ignoring the field reads exactly like a
+        # provider ignoring the flag), so what was actually sent is logged
+        # whenever the override is in play.
+        if thinking is not None:
+            log.info(
+                "[lm] thinking override=%s -> reasoning body: %s",
+                thinking,
+                extra_body.get("reasoning") or "omitted",
+            )
         try:
             return await _get_client().chat.completions.create(extra_body=extra_body or None, **kwargs)
         except Exception as e:  # noqa: BLE001
