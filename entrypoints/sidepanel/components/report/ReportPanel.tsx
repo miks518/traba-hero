@@ -5,6 +5,7 @@ import { ActionBlock } from './ActionBlock';
 import { AnomalyCards } from './AnomalyCards';
 import { WhatWeChecked } from './WhatWeChecked';
 import { FullDetails } from './FullDetails';
+import { CompanyDetails } from './CompanyDetails';
 import { ReportFooter } from './ReportFooter';
 import { VERIFYING, assessmentFor } from './assessmentCopy';
 import { CompanyNameNeeded, InvalidContentError, OfferAnalysisCard } from '../scan';
@@ -206,6 +207,16 @@ export function ReportPanel({
         data-group="context"
         ref={flip.register('context')}
       >
+        {/*
+          The posting's stated ground for the checks above and below. It mounts
+          unconditionally here because it gates itself: no employer named, or a
+          name with no stated detail behind it, and it renders nothing. First in
+          the context group so `WhatWeChecked`/`FullDetails` keep their
+          adjacency — a label above matches its sentence below — and it drops
+          below the findings on elevate with the rest of this group.
+        */}
+        <CompanyDetails result={result} />
+
         {needsCompanyName ? (
           <CompanyNameNeeded />
         ) : (

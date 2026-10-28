@@ -62,6 +62,7 @@ it deliberates over. Raise it only if dense small print starts scanning badly.
 | `AssessmentBlock.tsx` | 3 | Tone container + **authored** headline. Replaces `RiskGauge` |
 | `ActionBlock.tsx` | 4 | Two authored instruction lines. The share chips and report control are absent |
 | `AnomalyCards.tsx` | 5 | One card per finding: code pill, quote well, and the evidence assessment strip. **Checking / Stale / Contradicted / Unconfirmed** — see below |
+| `CompanyDetails.tsx` | context | The posting's stated employer details behind a disclosure. **Absent, not empty** — renders only when the employer is named and at least one stated detail exists |
 | `WhatWeChecked.tsx` | 7 | **Asserts checks ran.** Heading derived from state — see below. **Labels only** |
 | `FullDetails.tsx` | 8 | **Shows what retrieval returned,** including each check's `explanation`. Split from §7 for the reason below |
 | `ReportFooter.tsx` | 10 | Disclaimer, ruleset version. No scan id — no field carries one |

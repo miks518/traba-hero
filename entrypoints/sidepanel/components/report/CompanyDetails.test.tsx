@@ -2,7 +2,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { CompanyDetails, parseContactMethods, claimedTypeOption } from './CompanyDetails';
-import type { ScanResult } from '../../types';
+import { ReportPanel } from './ReportPanel';
+import type { ScanResult, VerificationResult } from '../../types';
 
 /**
  * The scan's ATTRIBUTES block and the SEC lookup reached the client and were
@@ -182,5 +183,41 @@ describe('claimedTypeOption', () => {
   it('returns nothing for a blank or absent value', () => {
     expect(claimedTypeOption(undefined)).toBe('');
     expect(claimedTypeOption('   ')).toBe('');
+  });
+});
+
+describe('in the report panel', () => {
+  function panel(over: Partial<ScanResult> = {}) {
+    const r = result({
+      // FullDetails gates itself off without anything to disclose, so an empty
+      // verification result would leave the context group with no `full-details`
+      // child and the ordering assertion below would compare against -1. A
+      // report is the cheapest thing that makes both siblings render.
+      verificationResult: { items: [], report: 'The search returned two results.', recommendation: '' } as VerificationResult,
+      ...over,
+    });
+    return (
+      <ReportPanel
+        result={r}
+        verifying={false}
+        verificationError={false}
+        currentQuery=""
+        needsCompanyName={!r.companyName}
+        elevate={false}
+      />
+    );
+  }
+
+  it('renders in the context group, before the checks', () => {
+    const { container } = render(panel());
+    const context = container.querySelector('[data-group="context"]');
+    expect(context?.querySelector('[data-role="company-details-toggle"]')).not.toBeNull();
+    const children = Array.from(context?.children ?? []).map((c) => c.getAttribute('data-role'));
+    expect(children.indexOf('company-details')).toBeLessThan(children.indexOf('full-details'));
+  });
+
+  it('renders nothing when the posting named no employer', () => {
+    const { container } = render(panel({ companyName: null }));
+    expect(container.querySelector('[data-role="company-details"]')).toBeNull();
   });
 });
