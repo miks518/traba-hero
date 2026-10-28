@@ -11,6 +11,13 @@ _client: AsyncOpenAI | None = None
 # Request parameters the routed provider has rejected, so they are dropped for
 # the rest of the process instead of costing a failed request every time.
 _unsupported_params: set[str] = set()
+
+# Models that already accepted `reasoning.enabled: false`, answered with
+# nothing, and produced content once thinking was forced back on. Later
+# requests for these models skip the doomed attempt and send thinking enabled
+# straight away. Keyed by model id: the capability is the model's, not the
+# process's, so it is per-model where `_unsupported_params` is global.
+_thinking_required_models: set[str] = set()
 _sent_config_logged = False
 
 
@@ -73,6 +80,20 @@ def _reasoning_params(thinking: bool | None = None) -> dict:
     if settings.ai_reasoning_effort:
         reasoning["effort"] = settings.ai_reasoning_effort
     return {"reasoning": reasoning} if reasoning else {}
+
+
+def _reasoning_disabled(thinking: bool | None) -> bool:
+    """True when a request built with this `thinking` value would go out with
+    the model's thinking explicitly turned off.
+
+    False when thinking is on, left at the provider default, or already known
+    to be dropped (`_unsupported_params`): in those cases a thinking-on retry
+    would send the same body and could not change the outcome.
+    """
+    if "reasoning" in _unsupported_params:
+        return False
+    reasoning = (_reasoning_params(thinking) or {}).get("reasoning") or {}
+    return reasoning.get("enabled") is False
 
 
 def _structured_output_body(schema: dict, name: str) -> dict:
@@ -199,6 +220,17 @@ async def _create_completion(**kwargs):
     """
     structured = kwargs.pop("_structured", None)
     thinking = kwargs.pop("_thinking", None)
+    # A model already known to fail with thinking disabled starts at thinking
+    # on, so no later request re-pays for the discovery. Logged, because it
+    # overrides the deployment's own `AI_REASONING_ENABLED=false` for this
+    # model and must never do that silently.
+    model_id = kwargs.get("model", "")
+    if model_id in _thinking_required_models and _reasoning_disabled(thinking):
+        log.info(
+            "[lm] model=%s previously failed a thinking-off request; sending thinking enabled directly",
+            model_id,
+        )
+        thinking = True
     # A parameter already found unsupported is not sent again: a second request
     # must not re-pay for the same discovery. `_request_extra_body` does this for
     # reasoning and structured because they travel inside it; these travel as
@@ -748,6 +780,25 @@ def _parse_match_custom(raw: str) -> list[dict] | None:
     return matches if matched_any and matches else None
 
 
+def _empty_detail(completion, model: str) -> str:
+    """Best-effort explanation of a completion that carried no content."""
+    extra = getattr(completion.choices[0].message, "model_extra", None) or {}
+    counts = {}
+    for field in ("reasoning", "reasoning_content"):
+        value = extra.get(field)
+        counts[field] = len(value) if isinstance(value, str) else (1 if value else 0)
+    mirrored = (
+        isinstance(extra.get("reasoning"), str)
+        and isinstance(extra.get("reasoning_content"), str)
+        and extra.get("reasoning") == extra.get("reasoning_content")
+    )
+    reasoning_chars = sum(counts.values()) - (min(counts.values()) if mirrored else 0)
+    detail = f"the model returned no content for model={model}"
+    if reasoning_chars:
+        detail += f" (~{reasoning_chars} chars of reasoning-only output; {counts}{', mirrored so counted once' if mirrored else ''})"
+    return detail
+
+
 async def chat(
     messages: list,
     max_tokens: int | None = None,
@@ -761,34 +812,40 @@ async def chat(
     eff_temp = temperature if temperature is not None else settings.ai_temperature
     eff_max_tokens = max_tokens if max_tokens is not None else settings.resolve_max_tokens(endpoint)
     eff_top_p = top_p if top_p is not None else settings.ai_top_p
-
-    completion = await _create_completion(
+    common = dict(
         model=model,
         messages=messages,
         temperature=eff_temp,
         top_p=eff_top_p,
         max_tokens=eff_max_tokens,
         _structured=response_format,
-        _thinking=thinking,
     )
+
+    completion = await _create_completion(**common, _thinking=thinking)
     content = (completion.choices[0].message.content or "").strip()
+    if not content and _reasoning_disabled(thinking) and model not in _thinking_required_models:
+        # Some models accept `enabled: false` and answer with nothing: the
+        # deliberation consumed the whole budget, or the model cannot run with
+        # its thinking off at all. The request went out with thinking disabled,
+        # so the one thing left to try is the opposite. A model already in
+        # `_thinking_required_models` had its thinking forced on upstream, so a
+        # retry here would send the identical request twice.
+        log.warning(
+            "[lm] %s — request went out with thinking disabled; retrying once with thinking enabled",
+            _empty_detail(completion, model),
+        )
+        completion = await _create_completion(**common, _thinking=True)
+        content = (completion.choices[0].message.content or "").strip()
+        if content:
+            _thinking_required_models.add(model)
+            log.info(
+                "[lm] thinking-on retry produced content for model=%s; later requests will start there",
+                model,
+            )
     if not content:
         # A reasoning model can spend the whole budget thinking and return
         # nothing, on the non-streaming path just as much as the streaming one.
-        extra = getattr(completion.choices[0].message, "model_extra", None) or {}
-        counts = {}
-        for field in ("reasoning", "reasoning_content"):
-            value = extra.get(field)
-            counts[field] = len(value) if isinstance(value, str) else (1 if value else 0)
-        mirrored = (
-            isinstance(extra.get("reasoning"), str)
-            and isinstance(extra.get("reasoning_content"), str)
-            and extra.get("reasoning") == extra.get("reasoning_content")
-        )
-        reasoning_chars = sum(counts.values()) - (min(counts.values()) if mirrored else 0)
-        detail = f"the model returned no content for model={model}"
-        if reasoning_chars:
-            detail += f" (~{reasoning_chars} chars of reasoning-only output; {counts}{', mirrored so counted once' if mirrored else ''})"
+        detail = _empty_detail(completion, model)
         log.error("[lm] %s", detail)
         raise EmptyModelResponse(detail)
     return content
@@ -970,13 +1027,10 @@ async def chat_stream(
     return "".join(pieces).strip()
 
 
-async def chat_stream_pieces(
-    messages: list,
-    max_tokens: int | None = None,
-    temperature: float | None = None,
-    top_p: float | None = None,
-    endpoint: str = "",
-    thinking: bool | None = None,
+async def _drain_stream(
+    stream,
+    model: str,
+    eff_max_tokens: int | None,
 ):
     """Async generator yielding each content delta from the AI provider as it arrives.
 
@@ -986,22 +1040,11 @@ async def chat_stream_pieces(
     successful 200 response, so a request that was accepted can still end with no
     content at all. Skipping those frames silently turns that into an empty
     string, which the callers then report as an unreadable response.
+
+    Raises `EmptyModelResponse` only when the stream ended with no content at
+    all - always before a single piece was yielded, which is what makes the
+    thinking-on fallback in `chat_stream_pieces` invisible to its caller.
     """
-    model = settings.resolve_model(endpoint) or "local-model"
-    eff_temp = temperature if temperature is not None else settings.ai_temperature
-    eff_max_tokens = max_tokens if max_tokens is not None else settings.resolve_max_tokens(endpoint)
-    eff_top_p = top_p if top_p is not None else settings.ai_top_p
-
-    stream = await _create_completion(
-        model=model,
-        messages=messages,
-        temperature=eff_temp,
-        top_p=eff_top_p,
-        max_tokens=eff_max_tokens,
-        stream=True,
-        _thinking=thinking,
-    )
-
     notes: list[str] = []
     finish_reason = None
     reasoning_by_field = {"reasoning": 0, "reasoning_content": 0}
@@ -1080,3 +1123,54 @@ async def chat_stream_pieces(
             detail,
         )
         raise EmptyModelResponse(detail)
+
+
+async def chat_stream_pieces(
+    messages: list,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    endpoint: str = "",
+    thinking: bool | None = None,
+):
+    """Async generator yielding each content delta from the AI provider as it arrives.
+
+    A request that went out with thinking disabled and streamed no content is
+    retried once with thinking enabled — the same contract `chat()` applies to
+    the non-streaming path. The error only ever fires before a piece was
+    yielded, so the retry is invisible to the caller beyond the extra wait.
+    """
+    model = settings.resolve_model(endpoint) or "local-model"
+    eff_temp = temperature if temperature is not None else settings.ai_temperature
+    eff_max_tokens = max_tokens if max_tokens is not None else settings.resolve_max_tokens(endpoint)
+    eff_top_p = top_p if top_p is not None else settings.ai_top_p
+    common = dict(
+        model=model,
+        messages=messages,
+        temperature=eff_temp,
+        top_p=eff_top_p,
+        max_tokens=eff_max_tokens,
+    )
+
+    try:
+        stream = await _create_completion(**common, stream=True, _thinking=thinking)
+        async for piece in _drain_stream(stream, model, eff_max_tokens):
+            yield piece
+        return
+    except EmptyModelResponse as e:
+        # A model already remembered needed no doomed attempt, and a request
+        # that never disabled thinking has nothing to fall back to.
+        if model in _thinking_required_models or not _reasoning_disabled(thinking):
+            raise
+        log.warning(
+            "[lm] %s — request went out with thinking disabled; retrying once with thinking enabled", e
+        )
+
+    stream = await _create_completion(**common, stream=True, _thinking=True)
+    async for piece in _drain_stream(stream, model, eff_max_tokens):
+        yield piece
+    _thinking_required_models.add(model)
+    log.info(
+        "[lm] thinking-on retry produced content for model=%s; later requests will start there",
+        model,
+    )

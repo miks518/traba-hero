@@ -292,6 +292,11 @@ it, since nothing else in the repo executes that file.
 because a mid-stream provider error frame (rate limits included) arrives inside a
 successful 200 and is otherwise indistinguishable from an empty answer.
 
+A request that went out with thinking disabled and came back with nothing is retried once
+with thinking enabled, in both `chat` and `chat_stream_pieces`; a retry that produces
+content memorizes the model in `_thinking_required_models` so later requests skip the
+doomed attempt. See `docs/decisions/reasoning-models.md`.
+
 `_create_completion` sends OpenRouter's `reasoning` parameter and falls back once if the
 provider rejects it — see `docs/decisions/reasoning-models.md` and
 `docs/decisions/parser-resilience.md`.

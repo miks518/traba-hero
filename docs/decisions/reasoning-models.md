@@ -40,6 +40,30 @@ response while still paying for it.
 
 ---
 
+## A model that cannot run with thinking off is retried with thinking on
+
+A provider can accept `enabled: false` and still fail the request: some reasoning models
+deliberate and answer with nothing, which surfaces as `EmptyModelResponse` — the user
+sees "The AI service returned no content" for every scan with such a model.
+
+When a request that went out with thinking disabled comes back empty, `chat` and
+`chat_stream_pieces` retry it **once** with `enabled: true`. The retry is invisible on
+the streaming path because `EmptyModelResponse` only ever fires before a content delta
+was yielded, so the caller sees a longer wait, never duplicated output.
+
+**A retry that produces content memorizes the model** in `_thinking_required_models`
+(keyed by model id, process lifetime): later requests skip the doomed attempt and send
+thinking enabled directly. This overrides a deployment's `AI_REASONING_ENABLED=false`
+for that model — logged at info, never silent. A model that fails both ways is **not**
+memorized: the memory records evidence that thinking-on works, nothing more.
+
+The retry never fires when thinking was not disabled — an Advanced-scan request
+(`thinking=true`) is reported, not redone — or when `reasoning` is already in
+`_unsupported_params`, because then no reasoning body can be sent at all and the retry
+would be the identical request twice.
+
+---
+
 ## Rules
 
 - **Keep `AI_MAX_TOKENS` above the reasoning budget.** Lowering it guarantees the failure
@@ -48,6 +72,10 @@ response while still paying for it.
   `_create_completion` retries once without it, logs
   `[lm] Provider rejected the reasoning parameter`, and stops sending it for the rest of
   the process.
+- **A thinking-off request that answers with nothing is retried once with thinking on.**
+  A success memorizes the model for the process; grep
+  `[lm] thinking-on retry produced content` and
+  `[lm] previously failed a thinking-off request` to see the fallback working.
 - **The one-time `[lm] Generation config in use:` line records the config actually in
   force** — grep for it when a failure happens.
 - **Some providers mirror the same text into both `reasoning` and `reasoning_content`.**
