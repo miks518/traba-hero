@@ -1,6 +1,6 @@
 import React from 'react';
 import { Icon, type IconName } from '../common';
-import { assessmentFor, NO_ASSESSMENT, VERIFYING, type AssessmentTone } from './assessmentCopy';
+import { assessmentFor, NO_ASSESSMENT, VERIFYING, INTERRUPTED, type AssessmentTone } from './assessmentCopy';
 import type { Assessment } from '../../types';
 
 export interface AssessmentBlockProps {
@@ -17,6 +17,18 @@ export interface AssessmentBlockProps {
   assessment: Assessment | null;
   /** The employer lookup is still running. Suppresses the assessment entirely. */
   verifying?: boolean;
+  /**
+   * The run could not complete.
+   *
+   * Kept apart from `verifying` on purpose: a failed lookup once arrived as a
+   * sticky `verifying`, so a run that died mid-verification kept reading
+   * "Checking this job post" with its spinner forever — above the same panel's
+   * sentence that the result could not be read. Interrupted wins over a
+   * settled reading too: a banner reading "Nothing found against it" after the
+   * check never finished would be an ordinary request cleared by an absent
+   * record, and the scan-stage assessment on screen is exactly that.
+   */
+  interrupted?: boolean;
   /**
    * The one-line reason.
    *
@@ -63,15 +75,21 @@ const TONE_ICON: Record<AssessmentTone, IconName> = {
  * reason — so the reader is told what to do, and the panel never has to defend a
  * figure it cannot reproduce.
  */
-export function AssessmentBlock({ assessment, verifying, reason }: AssessmentBlockProps) {
-  const copy = verifying ? VERIFYING : assessment ? assessmentFor(assessment) : NO_ASSESSMENT;
+export function AssessmentBlock({ assessment, verifying, interrupted, reason }: AssessmentBlockProps) {
+  const copy = interrupted
+    ? INTERRUPTED
+    : verifying
+      ? VERIFYING
+      : assessment
+        ? assessmentFor(assessment)
+        : NO_ASSESSMENT;
   const toneClass = TONE_CLASS[copy.tone];
 
   return (
     <section className={`${toneClass} p-4`} data-role="assessment-block" data-tone={copy.tone}>
       <div className="flex items-center gap-2">
         <Icon
-          name={verifying ? 'search' : TONE_ICON[copy.tone]}
+          name={interrupted ? 'cloud_off' : verifying ? 'search' : TONE_ICON[copy.tone]}
           filled={!verifying}
           className="text-lg leading-none"
           aria-hidden

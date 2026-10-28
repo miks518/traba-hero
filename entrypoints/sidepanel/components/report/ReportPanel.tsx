@@ -15,6 +15,16 @@ export interface ReportPanelProps {
   result: ScanResult;
   /** The employer lookup is still running. */
   verifying: boolean;
+  /**
+   * The run could not complete.
+   *
+   * Deliberately not part of `verifying`: the caller's failed-lookup flag once
+   * arrived folded in here, so a run that died mid-verification kept the
+   * "Checking this job post" banner and its spinner up over the same panel's
+   * sentence that the result could not be read. In flight and interrupted are
+   * two states this panel names separately.
+   */
+  interrupted?: boolean;
   verificationError: boolean;
   currentQuery: string;
   /**
@@ -94,6 +104,7 @@ export interface ReportPanelProps {
 export function ReportPanel({
   result,
   verifying,
+  interrupted,
   verificationError,
   currentQuery,
   assessmentReason,
@@ -131,7 +142,7 @@ export function ReportPanel({
     <article className="flex flex-col gap-stack-md" data-role="report-panel">
       <JobMeta timestamp={timestamp} title={title} employer={result.companyName} />
 
-      <AssessmentBlock assessment={assessment} verifying={verifying} reason={assessmentReason} />
+      <AssessmentBlock assessment={assessment} verifying={verifying} interrupted={interrupted} reason={assessmentReason} />
 
       <ActionBlock
         assessment={assessment}

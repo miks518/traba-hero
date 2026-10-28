@@ -268,7 +268,12 @@ export function ScamScanView({
       {showReport && (
         <ReportPanel
           result={scanResult}
-          verifying={Boolean(scanResult.verificationLoading) || Boolean(scanResult.offerAnalysisLoading) || session.verificationFailed}
+            verifying={Boolean(scanResult.verificationLoading) || Boolean(scanResult.offerAnalysisLoading)}
+          // Not folded into `verifying`: `verificationFailed` outlasts the run, and
+          // folding it back left a run that died mid-verification saying
+          // "Checking this job post" with its spinner forever. Interrupted is
+          // its own banner state; the in-flight prop is only true in flight.
+          interrupted={session.verificationFailed}
           verificationError={Boolean(scanResult.verificationError)}
           currentQuery={session.currentSearchQuery}
           // The reason arrives with the verification result and is held on the

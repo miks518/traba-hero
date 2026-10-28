@@ -98,6 +98,26 @@ export const VERIFYING: AssessmentCopy = {
 };
 
 /**
+ * What the banner says when the run could not complete.
+ *
+ * **Distinct from `VERIFYING` on purpose.** The sticky session flag folded a
+ * failed lookup into the in-flight prop, so a run that died mid-verification
+ * kept saying "Checking this job post" with its "In progress" ping forever —
+ * above the same panel's honest sentence that the result could not be read.
+ * The two states are now two words.
+ *
+ * The tone is `unknown` for the same reason `VERIFYING`'s is: no assessment was
+ * settled, so the banner must not borrow one. The sentence asserts only what is
+ * true — the run stopped — and names the one action available: run it again.
+ * It is authored here, like every banner string, so it cannot drift between
+ * runs and asserts nothing about the employer.
+ */
+export const INTERRUPTED: AssessmentCopy = {
+  headline: 'Scan has been interrupted, please try again',
+  tone: 'unknown',
+};
+
+/**
  * The previous procedure's words, for scans recorded before the change. They
  * map onto the colour whose grid cell they would have been, so an old history
  * renders the right copy instead of crashing on a key the table no longer has.
