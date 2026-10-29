@@ -1,8 +1,14 @@
 {
   "name": "trabahero",
-  "description": "Scan a job posting for scam signals, then check the employer behind it actually exists. For Filipino job seekers.",
+  "description": "Scan a job post for scam signals, check the employer exists, and match your skills to it. For Filipino job seekers.",
   "private": true,
   "version": "0.5.0",
+  "author": "miks518",
+  "homepage": "https://github.com/miks518/traba-hero",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/miks518/traba-hero.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "wxt",

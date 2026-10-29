@@ -9,7 +9,10 @@ export default defineConfig({
     // for five minor releases once, so `manifestVersion.test.ts` reads both
     // files and fails if they disagree again.
     description:
-      'Scan a job posting for scam signals, then check the employer behind it actually exists. For Filipino job seekers.',
+      'Scan a job post for scam signals, check the employer exists, and match your skills to it. For Filipino job seekers.',
+    // The repository is the only home this project has — no domain, so the
+    // listing's homepage is where the source and the setup docs already live.
+    homepage_url: 'https://github.com/miks518/traba-hero',
     version: '0.5.0',
     // Pins the extension ID to hdmdhiojgdoomcjfhbkidbhkifmokkop.
     //
