@@ -26,6 +26,14 @@ ROUTING_404_BODY = (
     "'endpoint_count': 1}], 'failed_routing_step': 'Filter by Parameters'}}}"
 )
 
+# The real body from an NVIDIA NIM deployment (integrate.api.nvidia.com): its
+# validator refuses the OpenRouter-only `provider` routing parameter outright,
+# naming it in backticks — a phrasing none of the earlier hints matched.
+NVIDIA_PROVIDER_400_BODY = (
+    "Error code: 400 - {'message': 'Validation: Unsupported parameter(s): "
+    "`provider`', 'type': 'Bad Request', 'code': 400}"
+)
+
 
 class FakeAPIError(Exception):
     """Stands in for the OpenAI SDK's provider exceptions.
@@ -117,6 +125,18 @@ class TestRecognisingARejection:
         exc = FakeAPIError(429, "Rate limit exceeded")
 
         assert lm_client._rejected_param(exc, set()) is None
+
+    def test_nvidias_400_naming_provider_in_backticks_is_recognised(self):
+        """NVIDIA NIM refuses the OpenRouter-only routing parameter outright.
+
+        Its validator phrases the rejection as "Unsupported parameter(s):
+        `provider`", which none of the provider hints matched, so the 400
+        propagated and /api/verify failed on every model that deployment
+        offers — while /api/scan, which sends no `provider`, kept working.
+        """
+        exc = FakeAPIError(400, NVIDIA_PROVIDER_400_BODY)
+
+        assert lm_client._rejected_param(exc, set()) == "provider"
 
 
 class TestSamplingParameters:
@@ -301,3 +321,63 @@ class TestTheRetryActuallyRetries:
 
         # structured, then reasoning, then give up.
         assert len(captured) == 3
+
+    @pytest.mark.asyncio
+    async def test_nvidias_provider_rejection_retries_with_the_schema_intact(self, monkeypatch):
+        """NVIDIA names one parameter; only that one may be dropped.
+
+        Its 400 rejects `provider` while accepting `response_format`, so
+        stripping the schema too would degrade /api/verify to prose parsing
+        for a provider that never complained about it. The routing-404 case
+        above is different: there the schema is what makes the request
+        unroutable, so both go together.
+        """
+        captured = []
+        _fake_client(monkeypatch, [FakeAPIError(400, NVIDIA_PROVIDER_400_BODY)], captured)
+
+        result = await lm_client._create_completion(
+            model="meta/llama-3.1-8b-instruct",
+            messages=[],
+            _structured={
+                "response_format": {"type": "json_schema"},
+                "provider": {"require_parameters": True},
+            },
+        )
+
+        assert result == "ok"
+        assert "provider" in captured[0]
+        assert "provider" not in captured[1], "the retry sent the rejected parameter again"
+        assert "response_format" in captured[1], "the schema was dropped though nothing rejected it"
+
+    @pytest.mark.asyncio
+    async def test_a_dropped_provider_parameter_is_not_sent_again(self, monkeypatch):
+        """A second verification must not re-pay for the same rejection.
+
+        `/api/verify` makes several AI calls per scan; each one builds a
+        structured body carrying `provider`, so the drop has to hold for the
+        rest of the process, not just the retry."""
+        captured = []
+        _fake_client(monkeypatch, [FakeAPIError(400, NVIDIA_PROVIDER_400_BODY)], captured)
+
+        await lm_client._create_completion(
+            model="m",
+            messages=[],
+            _structured={
+                "response_format": {"type": "json_schema"},
+                "provider": {"require_parameters": True},
+            },
+        )
+        await lm_client._create_completion(
+            model="m",
+            messages=[],
+            _structured={
+                "response_format": {"type": "json_schema"},
+                "provider": {"require_parameters": True},
+            },
+        )
+
+        # First call: one rejection, one successful retry. Second call: no
+        # failures left, and no `provider` in the request it sent.
+        assert len(captured) == 3
+        assert "provider" not in captured[1]
+        assert "provider" not in captured[2], "a later request paid for the same rejection again"

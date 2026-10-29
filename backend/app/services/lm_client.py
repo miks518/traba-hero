@@ -199,7 +199,13 @@ def _rejected_param(exc: Exception, attempted: set[str]) -> str | None:
         return "structured"
     if "reasoning" in text:
         return "reasoning"
-    if any(h in text for h in ("provider is unsupported", "provider not supported", "property 'provider'", 'property "provider"')):
+    # "unsupported parameter" sits here deliberately, not in the structured or
+    # reasoning branches above: NVIDIA NIM phrases a rejection as
+    # "Unsupported parameter(s): `provider`", and by the time text reaches this
+    # branch any sampling, structured-output or reasoning parameter it named has
+    # already been claimed by the checks above — so an unclaimed one can only be
+    # the `provider` routing parameter, which travels in the same body.
+    if any(h in text for h in ("provider is unsupported", "provider not supported", "property 'provider'", 'property "provider"', "unsupported parameter")):
         return "provider"
     return None
 

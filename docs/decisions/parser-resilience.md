@@ -85,11 +85,21 @@ already been dropped, `_ROUTING_FALLBACK_ORDER` trying `structured` first (it tr
 with `provider.require_parameters`, the flag that makes routing strict) and `reasoning`
 last.
 
+**A 400 names the parameter, but providers disagree on the phrasing.** NVIDIA NIM has
+no `provider` routing parameter at all and refuses the request with `Unsupported
+parameter(s): `provider`` — a phrasing none of the earlier hints matched, so the 400
+propagated and verify failed on every model there while scan, which sends no
+`provider`, kept working. The generic `unsupported parameter` hint therefore lives in
+the *provider* branch, the last one checked: by the time text reaches it, any sampling,
+structured-output or reasoning parameter the message named has already been claimed by
+an earlier check, so an unclaimed one can only be `provider`.
+
 `verification_parser` then reads the plain-text response, so a model without structured
 output degrades rather than fails.
 
 `test_lm_param_fallback.py` uses the real error body from a failing deployment, and covers
-the 404, the genuine-404, the 429, and the give-up path.
+the 404, the NVIDIA 400, the genuine-404, the 429, the give-up path, and that a named
+`provider` rejection drops only `provider` and leaves the schema intact.
 
 ---
 
