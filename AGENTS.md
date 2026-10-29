@@ -34,6 +34,7 @@ Detail lives in `docs/`. Each fact is stated in exactly one place.
 | `docs/decisions/scan-channel-enumeration.md` | What the scan writes: repeatable `CONTACT_METHOD`, `CLAIMED_TYPE`, the separator contract with the planner |
 | `docs/decisions/channel-match-severity.md` | Channel Match facts, the free-email / government / lookalike / combination rules, the strong-channel floor |
 | `docs/decisions/security-boundaries.md` | Removed auth, rate-limit identity, CORS, body ceiling, citation binding |
+| `docs/decisions/resume-input-paths.md` | The two resume input paths, why the manual profile persists and the upload does not, the consent gate, the log trim |
 | `docs/decisions/parser-resilience.md` | `_SECTION_RE` ordering, attribute gating, deleted sections, the 404 param fallback |
 | `docs/decisions/anomaly-terminology.md` | **The rename decision record.** Legacy parser paths are deliberate — do not "clean them up" |
 | `docs/decisions/design-system.md` | Hard shadows, the container/button split, `--tactile-base`, undeclared opacity variants |

@@ -346,7 +346,8 @@ extracted content out of the server logs.
 
 The backend's caps shape the form's output: 100 items per list, 200 characters per item.
 The caps are applied when the profile is built, because the backend rejects an over-cap
-list with a 422 rather than truncating it.
+list with a 422 rather than truncating it. The why behind the persistence asymmetry, the
+consent gate's scope, and the log trim: `docs/decisions/resume-input-paths.md`.
 
 ### Verification flow
 
