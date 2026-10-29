@@ -49,13 +49,16 @@ async def _match_event_stream(messages: list, max_tokens: int | None = None, end
 
     try:
         message_content = "".join(pieces).strip()
-        log.info("[%s] Raw model output (tokens=%d, chars=%d): %s", endpoint, token_count, len(message_content), message_content[:500])
+        # Counts only, for the same reason as resume_flow: the answer is a
+        # reading of the reader's resume, and logging it would keep a copy on
+        # disk the consent notice says does not exist.
+        log.info("[%s] Model output received (tokens=%d, chars=%d)", endpoint, token_count, len(message_content))
 
         yield runtime.get_sse()({"type": "progress", "percent": 95, "stage": "Parsing result"})
 
         result = runtime.get_parse_match()(message_content) if message_content else None
         if not isinstance(result, list):
-            log.error("[%s] Parse failed after %d tokens. Raw: %s", endpoint, token_count, message_content[:500])
+            log.error("[%s] Parse failed after %d tokens (chars=%d). Raw output is not logged: it is written from the reader's resume.", endpoint, token_count, len(message_content))
             result = runtime.get_parse_json()(message_content) if message_content else None
             if isinstance(result, dict):
                 result = [result]
