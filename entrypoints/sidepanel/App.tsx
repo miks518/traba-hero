@@ -4,6 +4,12 @@ import { ScamScanView } from './views/ScamScanView';
 import { ResumeMatchView } from './views/ResumeMatchView';
 import { useBackendHealth } from './hooks/useBackendHealth';
 import { migrateScannedJobs, updateScannedJob, capScannedJobs } from './lib/scanHistory';
+import {
+  MANUAL_PROFILE_KEY,
+  sanitizeManualProfile,
+  saveManualProfile,
+  clearManualProfile,
+} from './lib/skillsProfile';
 import type { ScanProgress } from './lib/api';
 import type { ViewId, ScannedJob, ResumeData, ScanResult } from './types';
 import type { TextSize } from './components/shell/TopAppBar';
@@ -57,7 +63,7 @@ export default function App() {
   useEffect(() => {
     try {
       // @ts-ignore - storage API available in extension context
-      chrome.storage.local.get(['theme', 'textSize', 'scannedJobs'], (result) => {
+      chrome.storage.local.get(['theme', 'textSize', 'scannedJobs', MANUAL_PROFILE_KEY], (result) => {
         const storedTheme = result.theme as string | undefined;
         if (storedTheme === 'light' || storedTheme === 'dark') {
           setTheme(storedTheme);
@@ -74,6 +80,14 @@ export default function App() {
         const storedJobs = capScannedJobs(migrateScannedJobs(result.scannedJobs));
         if (storedJobs.length > 0) {
           setScannedJobs(storedJobs);
+        }
+        // A typed profile was saved deliberately and in full, so it comes back
+        // with the panel. Sanitised on the way in: storage holds `unknown`, and
+        // a malformed object must not crash the panel or present itself as a
+        // profile this form never built.
+        const storedProfile = sanitizeManualProfile(result[MANUAL_PROFILE_KEY]);
+        if (storedProfile) {
+          setResumeData(storedProfile);
         }
       });
     } catch {}
@@ -130,6 +144,15 @@ export default function App() {
 
   const handleResumeData = useCallback((data: ResumeData) => {
     setResumeData(data);
+    // A typed profile is persisted so it survives the panel closing — it is
+    // exactly what the user chose to keep, on their own device. An extracted
+    // resume keeps the session-only behaviour the panel has always had, and
+    // replaces any saved manual profile it supersedes.
+    if (data.source === 'manual') {
+      saveManualProfile(data);
+    } else {
+      clearManualProfile();
+    }
   }, []);
 
   const handleClearJobs = useCallback(() => {
@@ -142,6 +165,7 @@ export default function App() {
 
   const handleClearResume = useCallback(() => {
     setResumeData(null);
+    clearManualProfile();
   }, []);
 
   return (

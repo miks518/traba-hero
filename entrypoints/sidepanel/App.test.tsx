@@ -12,6 +12,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 import type { ScannedJob } from './types';
+import { MANUAL_PROFILE_KEY } from './lib/skillsProfile';
 
 afterEach(cleanup);
 
@@ -46,9 +47,42 @@ vi.mock('./views/ScamScanView', () => ({
 
 vi.mock('./views/ResumeMatchView', () => ({
   ResumeMatchView: (props: Record<string, any>) => (
-    <div data-role="match-view" data-visible={String(props.isOnline)}>
+    <div
+      data-role="match-view"
+      data-visible={String(props.isOnline)}
+      data-resume={props.resumeData ? JSON.stringify(props.resumeData) : ''}
+    >
       <button data-role="open-job" onClick={() => props.onOpenJob?.(storedJob)}>
         open
+      </button>
+      <button
+        data-role="save-manual"
+        onClick={() =>
+          props.onResumeData?.({
+            skills: ['Excel'],
+            experience_years: 2,
+            job_titles: [],
+            industries: [],
+            summary: '',
+            source: 'manual',
+          })
+        }
+      >
+        save-manual
+      </button>
+      <button
+        data-role="save-resume"
+        onClick={() =>
+          props.onResumeData?.({
+            skills: ['Python'],
+            experience_years: 3,
+            job_titles: [],
+            industries: [],
+            summary: '',
+          })
+        }
+      >
+        save-resume
       </button>
     </div>
   ),
@@ -150,5 +184,79 @@ describe('opening a scan from the Match tab', () => {
     });
 
     expect(screen.queryByText('Saved from job history')).toBeNull();
+  });
+});
+
+describe('the manual skills profile', () => {
+  /**
+   * A typed profile survives the panel closing; an extracted resume keeps the
+   * session-only behaviour the panel has always had. `App` owns that split,
+   * and no component test can see it — each one only ever saw its own side.
+   */
+  const savedProfile = {
+    skills: ['Excel'],
+    experience_years: 2,
+    job_titles: [],
+    industries: [],
+    summary: '',
+    source: 'manual',
+  };
+
+  function mockStorage(overrides: Record<string, unknown> = {}) {
+    const storage = {
+      get: vi.fn((_keys: unknown, cb: (r: Record<string, unknown>) => void) =>
+        cb({ ...overrides }),
+      ),
+      set: vi.fn(),
+      remove: vi.fn(),
+    };
+    (globalThis as unknown as { chrome: unknown }).chrome = { storage: { local: storage } };
+    return storage;
+  }
+
+  it('loads a saved manual profile into the Match view on open', async () => {
+    mockStorage({ manualProfile: savedProfile });
+    const { default: App } = await import('./App');
+    render(React.createElement(App));
+
+    await switchToMatch();
+
+    const el = document.querySelector('[data-role="match-view"]')!;
+    expect(JSON.parse(el.getAttribute('data-resume')!)).toEqual(savedProfile);
+  });
+
+  it('persists a manually saved profile', async () => {
+    const storage = mockStorage();
+    const { default: App } = await import('./App');
+    render(React.createElement(App));
+
+    await switchToMatch();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'save-manual' }));
+    });
+
+    expect(storage.set).toHaveBeenCalledWith({
+      manualProfile: expect.objectContaining({ source: 'manual' }),
+    });
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('replaces a saved manual profile when a resume is uploaded', async () => {
+    const storage = mockStorage();
+    const { default: App } = await import('./App');
+    render(React.createElement(App));
+
+    await switchToMatch();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'save-resume' }));
+    });
+
+    expect(storage.remove).toHaveBeenCalledWith('manualProfile');
+    // The scannedJobs effect writes on every mount; only a manual-profile
+    // write would be wrong here.
+    const manualWrites = storage.set.mock.calls.filter(
+      ([payload]) => MANUAL_PROFILE_KEY in (payload as Record<string, unknown>),
+    );
+    expect(manualWrites).toHaveLength(0);
   });
 });

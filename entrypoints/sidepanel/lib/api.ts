@@ -301,9 +301,20 @@ export async function matchResumeToJobs(
   jobs: ScannedJob[]
 ): Promise<{ matches: { job_id: string; score: number; label: string; skill_gaps: string[]; matched_skills: string[]; reasoning: string; experience_fit: string; industry_fit: string; recommended_actions: string[] }[] }> {
   return request('POST', '/api/match-resume', {
-    resume,
+    resume: toWireResume(resume),
     jobs: jobs.map(j => ({ id: j.id, title: j.title, summary: j.summary })),
   }, 300000);
+}
+
+/**
+ * The resume fields the backend's schema knows, and nothing else.
+ *
+ * `source` marks where a profile came from and lives only in the panel; the
+ * backend never asked, so an unknown key is not shipped to it.
+ */
+function toWireResume(resume: ResumeData): ResumeData {
+  const { source: _source, ...wire } = resume;
+  return wire;
 }
 
 export interface MatchStreamResult {
@@ -330,7 +341,7 @@ export async function matchResumeToJobsStream(
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({
-        resume,
+        resume: toWireResume(resume),
         jobs: jobs.map(j => ({ id: j.id, title: j.title, summary: j.summary })),
       }),
       signal: controller.signal,

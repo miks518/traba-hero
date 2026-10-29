@@ -323,6 +323,23 @@ final `result` event.
 job adverts. Chat messages, forwarded paragraphs, and recruitment pitches are in scope;
 `VALID: false` means the content offers no work or income at all.
 
+### Resume input paths
+
+The Match tab takes a profile two ways, and both build the same `ResumeData`:
+
+- **Upload.** The file is analysed by `/api/analyze-resume`. The extracted profile lives
+  in panel state only — it is not persisted, and closing the panel drops it.
+- **Manual form (`SkillsProfileForm`).** Typed skills, soft-skill checkboxes, previous
+  roles and an experience band, built by `lib/skillsProfile` with no network call and no
+  AI. Saving persists it to `chrome.storage.local` under `manualProfile`, sanitised on
+  load; removing the profile or uploading a resume deletes the key. A manual profile
+  carries `source: 'manual'`, which `lib/api` strips from the match request — the backend
+  schema has no such field.
+
+The backend's caps shape the form's output: 100 items per list, 200 characters per item.
+The caps are applied when the profile is built, because the backend rejects an over-cap
+list with a 422 rather than truncating it.
+
 ### Verification flow
 
 After a successful scan, the backend adds `verification_context` to the scan response

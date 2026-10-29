@@ -6,4 +6,5 @@ export { ApplyButton } from './ApplyButton';
 export { MatchFooter } from './MatchFooter';
 export { ResumeUploader } from './ResumeUploader';
 export { ResumePreview } from './ResumePreview';
+export { SkillsProfileForm } from './SkillsProfileForm';
 export { JobMatchList } from './JobMatchList';

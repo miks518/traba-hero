@@ -714,6 +714,12 @@
     border-color: color-mix(in srgb, var(--color-secondary) 50%, transparent);
   }
 
+  /* Focus variant for the manual-profile form inputs, same rule as the hover
+     variant above: the base class does not satisfy the state selector. */
+  .focus\:border-secondary\/50:focus {
+    border-color: color-mix(in srgb, var(--color-secondary) 50%, transparent);
+  }
+
   .hover\:border-error\/50:hover {
     border-color: color-mix(in srgb, var(--color-error) 50%, transparent);
   }

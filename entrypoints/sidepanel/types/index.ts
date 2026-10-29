@@ -350,6 +350,12 @@ export interface ResumeData {
   job_titles: string[];
   industries: string[];
   summary: string;
+  /**
+   * Present when the profile was typed into the manual form rather than
+   * extracted from a file. Frontend-only: the match request strips it, and the
+   * backend schema has no such field.
+   */
+  source?: 'manual';
 }
 
 export interface JobMatchItem {

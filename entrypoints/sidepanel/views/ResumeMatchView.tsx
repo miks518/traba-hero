@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { ResumePreview, JobMatchList, ResumeUploader } from '../components/match';
+import { ResumePreview, JobMatchList, ResumeUploader, SkillsProfileForm } from '../components/match';
 import { AnomalyCard } from '../components/scan';
 import { ConfirmDialog, Icon, ToastContainer, useToastManager } from '../components/common';
 import { analyzeResumeStream, matchResumeToJobsStream } from '../lib/api';
@@ -189,6 +189,7 @@ export function ResumeMatchView({
     fileName: string;
   } | null>(null);
   const [filterCategory, setFilterCategory] = useState<JobFilterCategory>('all');
+  const [showSkillsForm, setShowSkillsForm] = useState(false);
   const [resumeProgress, setResumeProgress] = useState<ScanProgress | null>(null);
   const [matchProgress, setMatchProgress] = useState<ScanProgress | null>(null);
   const abortRef = React.useRef<AbortController | null>(null);
@@ -266,6 +267,20 @@ export function ResumeMatchView({
     setShowUploadConfirm(false);
     setPendingResumeFile(null);
   }, []);
+
+  /**
+   * A typed profile arrives fully built and needs no network call — saving it
+   * is a local act, which is the point of the path. The match button appears
+   * with the profile, so the reader's next step is on the same screen.
+   */
+  const handleManualProfileSave = useCallback(
+    (data: ResumeData) => {
+      setShowSkillsForm(false);
+      onResumeData(data);
+      showToast('Profile saved. Match it against your scanned jobs below.', 'success');
+    },
+    [onResumeData, showToast],
+  );
 
   const handleRunMatch = useCallback(async () => {
     if (!resumeData || matchableJobs.length === 0) return;
@@ -368,6 +383,18 @@ export function ResumeMatchView({
               <span>Analyzing… {resumeProgress?.percent ?? 0}%</span>
             </div>
           )}
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setShowSkillsForm((v) => !v)}
+              aria-expanded={showSkillsForm}
+              className="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-secondary hover:border-secondary/50 transition-colors text-label-md flex items-center justify-center gap-1.5"
+            >
+              <Icon name={showSkillsForm ? 'keyboard_arrow_down' : 'edit'} className="text-sm" />
+              {showSkillsForm ? 'Hide manual entry' : 'Or enter your skills manually'}
+            </button>
+            {showSkillsForm && <SkillsProfileForm onSave={handleManualProfileSave} />}
+          </div>
         </div>
       )}
 

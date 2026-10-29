@@ -12,12 +12,12 @@ export function ResumePreview({ data, onRemove }: ResumePreviewProps) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <span className="font-label-md text-on-surface-variant uppercase tracking-wider text-[11px]">
-          Resume Summary
+          {data.source === 'manual' ? 'Manual Profile' : 'Resume Summary'}
         </span>
         <div className="flex gap-2">
           <button
             onClick={onRemove}
-            title="Remove resume"
+            title={data.source === 'manual' ? 'Remove profile' : 'Remove resume'}
             className="p-1 rounded-lg text-error hover:bg-error/10 transition-colors"
           >
             <Icon name="delete" className="text-[18px]" />
