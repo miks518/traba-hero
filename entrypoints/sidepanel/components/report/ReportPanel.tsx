@@ -143,7 +143,19 @@ export function ReportPanel({
     <article className="flex flex-col gap-stack-md" data-role="report-panel">
       <JobMeta timestamp={timestamp} title={title} employer={result.companyName} />
 
-      <AssessmentBlock assessment={assessment} verifying={verifying} interrupted={interrupted} reason={assessmentReason} />
+      {/*
+        The one pinned slot. The reader scrolls the findings and the checks
+        while the assessment — the instruction they are supposed to act on —
+        stays in view. The wrapper, not the banner, carries the sticky: the
+        banner is a tone-filled component and the wrapper owns its position in
+        the report. The page-background fill is invisible at rest and masks the
+        banner's rounded corners once content slides beneath the pinned card.
+        z-20 sits below the action bar (z-30) and the overlays, above the
+        report cards.
+      */}
+      <div className="sticky top-0 z-20 bg-background p-1" data-role="assessment-pinned">
+        <AssessmentBlock assessment={assessment} verifying={verifying} interrupted={interrupted} reason={assessmentReason} />
+      </div>
 
       <ActionBlock
         assessment={assessment}
