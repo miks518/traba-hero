@@ -336,6 +336,14 @@ The Match tab takes a profile two ways, and both build the same `ResumeData`:
   carries `source: 'manual'`, which `lib/api` strips from the match request — the backend
   schema has no such field.
 
+**The upload is gated on consent** (`ConsentModal`, `lib/privacyConsent`): the first pick
+opens an RA 10173 notice — what is read, where it travels, what is kept, the right to
+decline — before the network call, and accepting is stored as `hasConsentedPrivacy` in
+`chrome.storage.local`. Only a stored `true` is consent; unreadable storage reads as "ask
+again". Later uploads go straight to the plain file confirmation. The notice's retention
+sentence is held by `backend/tests/test_resume_content_not_logged.py`, which keeps
+extracted content out of the server logs.
+
 The backend's caps shape the form's output: 100 items per list, 200 characters per item.
 The caps are applied when the profile is built, because the backend rejects an over-cap
 list with a 422 rather than truncating it.

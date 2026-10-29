@@ -57,13 +57,14 @@
 
 ## Phase 2: Data Privacy & Philippine Compliance (DPA)
 
-### [ ] Task 2.1: Data Privacy Consent Modal
+### [x] Task 2.1: Data Privacy Consent Modal
 - **Objective:** Comply with National Privacy Commission (NPC) rules for handling personal resume details.
 - **Frontend Changes (`entrypoints/sidepanel/`):**
   - Add a `ConsentModal.tsx` component that triggers before a user uploads a resume for the first time.
   - Explain explicitly that resume text will be processed in-memory by AI models and not stored permanently.
   - Persist user consent status (`hasConsentedPrivacy`) in `chrome.storage.local`.
 - **Verification:** Clear storage, launch extension, and confirm resume upload is blocked until consent is accepted.
+- **Implemented:** `ConsentModal.tsx` opens before the first upload and before the network call, with RA 10173 wording in four named parts: what is read (the whole document), where it goes (Trabahero server → third-party AI provider), what is kept (processed in memory, no database copy, profile lives only while the panel is open), and the rights (voluntary, decline and enter skills manually instead, withdraw, complain to the NPC). Accepting records `hasConsentedPrivacy` via `lib/privacyConsent.ts` and proceeds; only a stored `true` counts as consent — a missing key, `false`, unreadable storage, or a hand-edited value all read as "ask again". Declining discards the picked file. Later uploads skip the notice and keep the plain file confirmation. The retention sentence is made true rather than aspirational: the resume and match flows no longer log the model's raw output (`backend/tests/test_resume_content_not_logged.py`), and the backend holds nothing (`docs/decisions/security-boundaries.md`). `ResumeMatchView.consent.test.tsx` gates the flow end to end; the offline suites and `npm run compile` pass.
 
 ---
 

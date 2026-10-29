@@ -7,4 +7,5 @@ export { MatchFooter } from './MatchFooter';
 export { ResumeUploader } from './ResumeUploader';
 export { ResumePreview } from './ResumePreview';
 export { SkillsProfileForm } from './SkillsProfileForm';
+export { ConsentModal } from './ConsentModal';
 export { JobMatchList } from './JobMatchList';

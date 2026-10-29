@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { ResumePreview, JobMatchList, ResumeUploader, SkillsProfileForm } from '../components/match';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { ResumePreview, JobMatchList, ResumeUploader, SkillsProfileForm, ConsentModal } from '../components/match';
 import { AnomalyCard } from '../components/scan';
 import { ConfirmDialog, Icon, ToastContainer, useToastManager } from '../components/common';
 import { analyzeResumeStream, matchResumeToJobsStream } from '../lib/api';
+import { getPrivacyConsent, setPrivacyConsent } from '../lib/privacyConsent';
 import type { ScanProgress } from '../lib/api';
 import { formatTimestamp } from '../lib/format';
 import { MAX_SCAN_HISTORY } from '../lib/scanHistory';
@@ -190,10 +191,28 @@ export function ResumeMatchView({
   } | null>(null);
   const [filterCategory, setFilterCategory] = useState<JobFilterCategory>('all');
   const [showSkillsForm, setShowSkillsForm] = useState(false);
+  const [hasConsented, setHasConsented] = useState(false);
+  const [showConsent, setShowConsent] = useState(false);
   const [resumeProgress, setResumeProgress] = useState<ScanProgress | null>(null);
   const [matchProgress, setMatchProgress] = useState<ScanProgress | null>(null);
   const abortRef = React.useRef<AbortController | null>(null);
   const { toasts, showToast, removeToast } = useToastManager();
+
+  /**
+   * The stored consent decision, read once on mount.
+   *
+   * A reader whose storage cannot be read has, as far as we know, not agreed —
+   * they are asked, which is the safe direction for a consent gate.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    getPrivacyConsent().then((consented) => {
+      if (!cancelled) setHasConsented(consented);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const matchableJobs = useMemo(() => scannedJobs.filter(isMatchableJob), [scannedJobs]);
   const excludedJobs = useMemo(() => scannedJobs.filter(isExcludedJob), [scannedJobs]);
@@ -254,8 +273,28 @@ export function ResumeMatchView({
       return;
     }
     setPendingResumeFile({ base64, fileType, fileName });
-    setShowUploadConfirm(true);
-  }, [isOnline, showToast]);
+    // The notice comes before the network call, not after it. A reader who has
+    // agreed once goes straight to the plain file confirmation.
+    if (hasConsented) {
+      setShowUploadConfirm(true);
+    } else {
+      setShowConsent(true);
+    }
+  }, [isOnline, showToast, hasConsented]);
+
+  const handleConsentAccepted = useCallback(() => {
+    setShowConsent(false);
+    setHasConsented(true);
+    setPrivacyConsent(true);
+    if (pendingResumeFile) {
+      processResumeFile(pendingResumeFile.base64, pendingResumeFile.fileType, pendingResumeFile.fileName);
+    }
+  }, [pendingResumeFile, processResumeFile]);
+
+  const handleConsentDeclined = useCallback(() => {
+    setShowConsent(false);
+    setPendingResumeFile(null);
+  }, []);
 
   const handleConfirmUpload = useCallback(() => {
     if (!pendingResumeFile) return;
@@ -716,6 +755,13 @@ export function ResumeMatchView({
         variant="primary"
         onConfirm={handleConfirmUpload}
         onCancel={handleCancelUpload}
+      />
+
+      <ConsentModal
+        open={showConsent}
+        fileName={pendingResumeFile?.fileName || 'your resume'}
+        onAccept={handleConsentAccepted}
+        onDecline={handleConsentDeclined}
       />
     </div>
   );
