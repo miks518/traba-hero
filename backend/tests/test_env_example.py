@@ -93,3 +93,22 @@ class TestTheExampleDocumentsEveryKnob:
         ]
 
         assert not missing, f"undocumented in .env.example: {missing}"
+
+
+class TestTheExampleSurvivesTheOperatorsEditor:
+    def test_the_example_is_pure_ascii(self):
+        """The file is copied and edited outside UTF-8-aware tools.
+
+        Read on a Windows codepage, every non-ASCII byte turns into mojibake:
+        the box-drawing section separators shipped as `??????` on the operator's
+        screen. A mangled separator costs only readability, but the same rot in
+        a value line would be a config that does not parse. Asserting on the raw
+        bytes, not the decoded text, also catches the file having been *saved*
+        as cp1252 - which would corrupt it for every UTF-8 reader in turn.
+        """
+        data = EXAMPLE.read_bytes()
+
+        offenders = sorted({b for b in data if b > 127})
+        assert not offenders, (
+            f"non-ASCII bytes in .env.example: {[hex(b) for b in offenders]}"
+        )
