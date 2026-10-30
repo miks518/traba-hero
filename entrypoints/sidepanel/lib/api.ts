@@ -26,12 +26,17 @@ export async function pingHealth(externalSignal?: AbortSignal): Promise<boolean>
   }
 
   try {
-    const res = await fetch(`${getApiBase()}/health`, {
+    // Reachability is "the backend answered at all", not "the answer was 2xx".
+    // A 429 or 5xx proves the server parsed the request and responded - showing
+    // the offline banner for that would tell users behind a shared NAT the
+    // server is down precisely when it is up and refusing them. Offline means
+    // no answer: network failure, DNS, timeout, or abort.
+    await fetch(`${getApiBase()}/health`, {
       method: 'GET',
       headers: {},
       signal: controller.signal,
     });
-    return res.ok;
+    return true;
   } catch {
     return false;
   } finally {

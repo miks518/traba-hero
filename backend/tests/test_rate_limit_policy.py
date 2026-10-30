@@ -10,14 +10,14 @@ These tests do not assert a number against a literal — that passes when the
 number and the literal are both wrong together. They assert the *relationships*
 the numbers have to keep:
 
-- a limit must stay above what the extension genuinely needs (`/health`)
 - a more expensive endpoint must not be allowed more of it than a cheaper one
+- `/health` carries no per-identity limit at all, because its load scales with
+  the number of installed panels while the identity is the shared public IP
 
-The `/health` one is the sharpest. The extension polls it every four seconds
-while the panel is open, so 15 probes a minute is a floor, not a preference.
-"Tightening" it looks like a security improvement and silently breaks the
-offline banner for every user, which is why it is read out of the frontend
-rather than restated here.
+The old `/health` rule — "a limit must stay above what the extension genuinely
+needs" — modeled one panel. In the field the identity is a carrier-grade NAT
+address shared by every user behind it, and three concurrent users tripped the
+30/minute bucket. See `test_health_carries_no_per_identity_rate_limit`.
 """
 
 import re
@@ -103,25 +103,29 @@ def test_matching_is_not_allowed_more_than_a_plain_scan():
     assert match <= scan
 
 
-def test_the_health_limit_clears_the_extension_polling_rate():
-    """15 probes a minute is a floor set by the client, not a preference.
+def test_health_carries_no_per_identity_rate_limit():
+    """/health must not sit behind a per-identity limit, at any number.
 
-    The panel polls `/health` every `POLL_INTERVAL_MS` while visible, and
-    `useBackendHealth` flips the offline banner after two consecutive failures.
-    A limit below the poll rate does not stop an attacker and does break every
-    legitimate user, so it is pinned to the frontend's own number.
+    The 2026-10-30 deployment incident: every panel polls /health every
+    POLL_INTERVAL_MS, and the limit is keyed by public IP. Users behind one
+    carrier-grade NAT share that IP, so three concurrent users sent the same
+    30/minute bucket over its edge and every one of them saw `slowapi:
+    ratelimit 30 per 1 minute exceeded` — while railway.json names this exact
+    route as the platform healthcheck, so a 429 here is also a deploy-failure
+    signal for a healthy service. No per-identity number survives this: the
+    endpoint's load scales with user count and the identity does not. The
+    endpoint is an O(1) static response with no I/O — none of the resources
+    the limiter exists to protect (AI spend, Tavily credits, event loop under
+    model work) are touched by it. A flood of it is an edge/infra concern,
+    not an application one.
     """
-    hook = Path(__file__).resolve().parents[2] / (
-        "entrypoints/sidepanel/hooks/useBackendHealth.ts"
-    )
-    match = re.search(
-        r"const POLL_INTERVAL_MS\s*=\s*(\d+)", hook.read_text(encoding="utf-8")
-    )
-    assert match, "POLL_INTERVAL_MS not found in useBackendHealth.ts"
+    source = Path(health_router.__file__).read_text(encoding="utf-8")
+    route = re.search(r'@router\.get\("/health"\)', source)
+    assert route, "/health is not routed at all"
 
-    per_minute = 60_000 / int(match.group(1))
-
-    assert _health_limit() >= per_minute, (
-        f"/health allows {_health_limit()}/minute but the panel polls every "
-        f"{match.group(1)}ms ({per_minute}/minute)"
+    assert not re.search(r"@limiter\.limit\(", source[route.end():]), (
+        "/health carries a per-identity rate limit. Its load scales with the "
+        "number of installed panels while the identity is the shared public "
+        "IP, so any number trips for enough concurrent users behind one NAT "
+        "- and railway.json uses this route as the platform healthcheck."
     )
