@@ -1,3 +1,4 @@
+import logging
 import re
 
 from datetime import datetime, timedelta, timezone
@@ -6,9 +7,43 @@ from app.models.schemas import Anomaly, ScanResponse
 from app.services.anomaly_codes import clean_quote, normalise_code
 from app.services.scanner.request_class import classify_request, facts_from_scan
 from app.services.search import is_valid_company_name
+
+log = logging.getLogger("trabahero")
 # `risk_calculator` was retired 2026-10-17 and is deliberately not imported
 # here. Leaving the import in with a `noqa` would be the half-wired state this
 # project cares about most: reachable, working, and looking deliberate.
+
+
+# Labels that name silence rather than something the posting contains.
+# The prompt forbids flagging an absence (`prompts.py` — "Never flag the
+# absence of something", "If the posting states no salary, do not flag
+# salary"), but that rule was prompt-only, and a live scan reported
+# "Pay Information not provided, the posting states no pay amount or
+# period" with no code line. There is nothing a reader would do
+# differently after reading it, and the empty code rode `_class_for`'s
+# catch-all into `unclassified`, which the grid prices yellow — the
+# hallucination charged a clean posting a Caution verdict.
+#
+# The list is matched against the *label* only. A reasoning that
+# paraphrases absence ("the link's destination is not shown") belongs to
+# a real finding; the label is the elevator statement, so it is the one
+# field whose absence-shape is decisive. The list is deliberately narrow
+# — a wrongful drop is invisible to the reader, so precision beats
+# recall — and each drop is logged, so a model drift to a phrasing this
+# list misses shows up in the requests the panel still receives.
+_ABSENCE_PHRASES = (
+    "not provided", "not stated", "not mentioned", "not specified",
+    "not included", "not shown", "not given", "not disclosed",
+    "does not state", "does not mention", "doesn't state",
+    "doesn't mention", "no mention", "silent on",
+    "no pay amount", "no salary", "no fee", "no work schedule",
+    "absence of", "omits", "omitted", "lacks",
+)
+
+
+def _is_absence_shaped(label: str) -> bool:
+    lowered = label.lower()
+    return any(phrase in lowered for phrase in _ABSENCE_PHRASES)
 
 
 def _anomalies(flags: list) -> list[Anomaly]:
@@ -22,6 +57,12 @@ def _anomalies(flags: list) -> list[Anomaly]:
             continue
         name = str(f.get("flag") or "").strip()
         if not name:
+            continue
+        if _is_absence_shaped(name):
+            log.warning(
+                "[scan] Absence guardrail dropped a finding: %r (reasoning=%r)",
+                name, str(f.get("reasoning") or "")[:120],
+            )
             continue
         reasoning = str(f.get("reasoning") or "").strip()
         out.append(Anomaly(

@@ -37,6 +37,7 @@ Detail lives in `docs/`. Each fact is stated in exactly one place.
 | `docs/decisions/resume-input-paths.md` | The two resume input paths, why the manual profile persists and the upload does not, the consent gate, the log trim |
 | `docs/decisions/parser-resilience.md` | `_SECTION_RE` ordering, attribute gating, deleted sections, the 404 param fallback |
 | `docs/decisions/anomaly-terminology.md` | **The rename decision record.** Legacy parser paths are deliberate — do not "clean them up" |
+| `docs/decisions/absence-guardrail.md` | The absence guardrail: a finding whose label names silence ("Pay Information not provided") is dropped at `scan_result._anomalies`, before it can ride the empty-code catch-all into a yellow |
 | `docs/decisions/design-system.md` | Hard shadows, the container/button split, `--tactile-base`, undeclared opacity variants |
 | `docs/decisions/reasoning-models.md` | The token-budget failure and the three ways out |
 | `docs/decisions/report-panel-redesign.md` | What the new report UI settles, and the slots with no possible source |
