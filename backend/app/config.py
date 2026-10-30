@@ -51,7 +51,12 @@ class Settings(BaseSettings):
     send_system_prompt: bool = True
     ai_max_concurrent: int = 2
     ai_max_queue_depth: int = 10
-    ai_acquire_timeout: float = 10.0
+    # Must stay >= ai_call_timeout: a queued scan waits for an active call to
+    # finish before it can start, so a shorter acquire timeout makes the queue
+    # decorative — every waiter gives up before the slot it wants can free
+    # (field incident 2026-10-30: four concurrent scans, two "Scan
+    # Interrupted"). The client's own scan budget (240s) still bounds the total.
+    ai_acquire_timeout: float = 120.0
     ai_call_timeout: float = 120.0
 
     # ── Web search provider ──────────────────────────────────────────────────

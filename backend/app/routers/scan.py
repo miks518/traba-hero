@@ -147,7 +147,19 @@ async def scan(req: ScanRequest, request: Request):
     ]
 
     async def _limited_stream():
-        await ai_limiter.acquire()
+        # The acquire happens inside the generator, after the 200 and SSE
+        # headers are already sent — so a 503 here cannot change the status
+        # code. Raise it bare and Starlette surfaces an ASGI error the client
+        # sees as a truncated stream ("Scan Interrupted"). Degrade to an
+        # in-stream error event instead, the same shape scan_flow uses for
+        # provider failures, so the reader gets the reason. The verify and
+        # offer flows already degrade through their own catch-alls.
+        try:
+            await ai_limiter.acquire()
+        except HTTPException as e:
+            log.warning("Scan refused at the AI limiter: %s", e.detail)
+            yield runtime.get_sse()({"type": "error", "error": e.detail})
+            return
         stream = None
         try:
             stream = _scan_event_stream(messages, original_text="", endpoint="scan-image", thinking=req.thinking)
@@ -178,7 +190,19 @@ async def scan_text(req: ScanTextRequest, request: Request):
     ]
 
     async def _limited_stream():
-        await ai_limiter.acquire()
+        # The acquire happens inside the generator, after the 200 and SSE
+        # headers are already sent — so a 503 here cannot change the status
+        # code. Raise it bare and Starlette surfaces an ASGI error the client
+        # sees as a truncated stream ("Scan Interrupted"). Degrade to an
+        # in-stream error event instead, the same shape scan_flow uses for
+        # provider failures, so the reader gets the reason. The verify and
+        # offer flows already degrade through their own catch-alls.
+        try:
+            await ai_limiter.acquire()
+        except HTTPException as e:
+            log.warning("Scan refused at the AI limiter: %s", e.detail)
+            yield runtime.get_sse()({"type": "error", "error": e.detail})
+            return
         stream = None
         try:
             stream = _scan_event_stream(messages, company_data=None, original_text=req.text, endpoint="scan-text", thinking=req.thinking)
@@ -212,7 +236,19 @@ async def analyze_resume_endpoint(req: ResumeAnalysisRequest, request: Request):
     ]
 
     async def _limited_stream():
-        await ai_limiter.acquire()
+        # The acquire happens inside the generator, after the 200 and SSE
+        # headers are already sent — so a 503 here cannot change the status
+        # code. Raise it bare and Starlette surfaces an ASGI error the client
+        # sees as a truncated stream ("Scan Interrupted"). Degrade to an
+        # in-stream error event instead, the same shape scan_flow uses for
+        # provider failures, so the reader gets the reason. The verify and
+        # offer flows already degrade through their own catch-alls.
+        try:
+            await ai_limiter.acquire()
+        except HTTPException as e:
+            log.warning("Scan refused at the AI limiter: %s", e.detail)
+            yield runtime.get_sse()({"type": "error", "error": e.detail})
+            return
         stream = None
         try:
             stream = _resume_event_stream(messages, endpoint="analyze-resume")
@@ -249,7 +285,19 @@ async def match_resume_endpoint(req: MatchRequest, request: Request):
     ]
 
     async def _limited_stream():
-        await ai_limiter.acquire()
+        # The acquire happens inside the generator, after the 200 and SSE
+        # headers are already sent — so a 503 here cannot change the status
+        # code. Raise it bare and Starlette surfaces an ASGI error the client
+        # sees as a truncated stream ("Scan Interrupted"). Degrade to an
+        # in-stream error event instead, the same shape scan_flow uses for
+        # provider failures, so the reader gets the reason. The verify and
+        # offer flows already degrade through their own catch-alls.
+        try:
+            await ai_limiter.acquire()
+        except HTTPException as e:
+            log.warning("Scan refused at the AI limiter: %s", e.detail)
+            yield runtime.get_sse()({"type": "error", "error": e.detail})
+            return
         stream = None
         try:
             stream = _match_event_stream(messages, endpoint="match-resume")
