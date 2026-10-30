@@ -971,7 +971,6 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                 items,
                 anomaly_assessments,
                 request_class=request_class,
-                has_results=bool(retrieved_urls),
             )
             # There is no number any more. The key stays on the wire until the
             # next task removes it, and `None` says "not scored" rather than 0.

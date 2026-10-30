@@ -86,6 +86,7 @@ def establishment_from_record(items: list) -> Establishment:
     if any(
         getattr(item, "label", "") == "Company Existence"
         and getattr(item, "status", "") == "confirmed"
+        and getattr(item, "source_url", "")
         for item in items or []
     ):
         return Establishment(

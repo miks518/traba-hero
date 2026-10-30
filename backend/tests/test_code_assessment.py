@@ -1,4 +1,4 @@
-"""The assessment is a decision procedure over two axes, and it carries no number.
+﻿"""The assessment is a decision procedure over two axes, and it carries no number.
 
 The score was a sum of weights over categories. Nothing about "37" describes a
 posting, and the panelist who asks where the number came from has no answer that
@@ -65,7 +65,7 @@ class TestTheGrid:
         [
             ("ordinary", "confirmed", "green"),
             ("ordinary", "supported", "green"),
-            ("ordinary", "unknown", "green"),
+            ("ordinary", "unknown", "yellow"),
             ("ordinary", "contradicted", "red"),
             ("unclassified", "confirmed", "yellow"),
             ("unclassified", "supported", "yellow"),
@@ -87,7 +87,7 @@ class TestTheGrid:
         TestTheZeroRetrievalFloor: found-but-hedged companies stay green, and
         only a lookup that found nothing floors the assessment to yellow.
         """
-        assert _decide("ordinary", "unknown") == "green"
+        assert _decide("ordinary", "unknown") == "yellow"
 
     def test_a_prohibited_request_at_an_unknown_employer_is_yellow(self):
         """The request is one the rules prohibit, and nobody has established who
@@ -137,82 +137,60 @@ class TestOnlyAContradictionStops:
         a named employer with no results is the retrieval floor's job, not the
         grid cell's.
         """
-        assert _decide("ordinary", "unknown") == "green"
+        assert _decide("ordinary", "unknown") == "yellow"
         assert _decide("unclassified", "unknown") == "yellow"
 
 
-class TestTheZeroRetrievalFloor:
-    """A posting that writes a company name and the lookup found nothing is a
-    caution. Field reports: an AI-generated company read green with every check
-    "could not verify" (2026-10-31), and a found company whose checks hedged
-    read green only because the grid granted the benefit of the doubt. The
-    floor keys the caution on the retrieval fact - the lookup found nothing -
-    not on the establishment state, so found-but-hedged companies stay green.
-
-    A floor, not a ceiling: red stands, and a yellow the grid already chose is
-    not demoted. Verify endpoint only - the offer path and the scan never
-    carried it, and the no-employer path has no name to be cautious about.
+class TestTheUnestablishedEmployerCaution:
+    """A posting that writes a company name and the checks could not verify it
+    is a caution. Field reports: an AI-generated company read green with every
+    check "could not verify" (2026-10-31), and a found company whose checks
+    hedged read green only because the grid granted the benefit of the doubt
+    (2026-11-02). The caution keys on the establishment state - the model's
+    word about the check card - while the hallucination guard sits one layer
+    down: a "confirmed" existence with no bound source is the model's bare
+    word, not a record, and establishes nothing.
     """
 
-    def test_green_floors_to_yellow_when_the_lookup_found_nothing(self):
-        assessment, breakdown = code_assessment(
-            [],
-            [],
-            request_class="ordinary",
-            establishment=Establishment("supported"),
-            has_results=False,
+    def test_an_ordinary_request_at_an_unknown_employer_is_yellow(self):
+        assert _decide("ordinary", "unknown") == "yellow"
+        _assessment, breakdown = code_assessment(
+            [], [], request_class="ordinary", establishment=Establishment("unknown")
         )
+        assert breakdown["rule"] == "ordinary_at_unestablished_employer"
 
-        assert assessment == "yellow"
-        assert breakdown["rule"] == "no_results_found"
-        assert breakdown["establishment"]["state"] == "supported"
-
-    def test_green_holds_when_the_lookup_found_something(self):
-        assessment, breakdown = code_assessment(
-            [],
-            [],
-            request_class="ordinary",
-            establishment=Establishment("supported"),
-            has_results=True,
-        )
-
-        assert assessment == "green"
-        assert breakdown["rule"] == "ordinary_request"
-
-    def test_red_is_not_demoted_by_the_floor(self):
+    def test_red_is_not_reached_by_the_caution(self):
         assessment, breakdown = code_assessment(
             [],
             [],
             request_class="ordinary",
             establishment=Establishment("contradicted"),
-            has_results=False,
         )
 
         assert assessment == "red"
         assert breakdown["rule"] == "establishment_contradicted"
 
-    def test_the_grid_s_own_yellow_is_unchanged_under_the_floor(self):
+    def test_the_grid_s_own_yellow_is_unchanged(self):
         assessment, breakdown = code_assessment(
             [],
             [],
             request_class="prohibited",
             establishment=Establishment("unknown"),
-            has_results=False,
         )
 
         assert assessment == "yellow"
         assert breakdown["rule"] == "prohibited_at_unestablished_employer"
 
-    def test_the_floor_defaults_to_results_present(self):
-        """Existing callers that do not pass `has_results` - the scan side, the
-        offer path, the no-employer verify path - keep their assessments
-        unchanged."""
-        assert _decide("ordinary", "unknown") == "green"
-        assessment, _ = code_assessment(
-            [], [], request_class="ordinary", establishment=Establishment("supported")
+    def test_a_supported_establishment_stays_green(self):
+        assessment, breakdown = code_assessment(
+            [],
+            [],
+            request_class="ordinary",
+            establishment=Establishment("supported"),
         )
 
         assert assessment == "green"
+        assert breakdown["rule"] == "ordinary_request"
 
     def test_every_path_to_red_needs_the_contradiction(self):
         """Asserted as a property over the whole grid, not as three examples:
@@ -286,11 +264,32 @@ class TestTheProvisionalEstablishment:
 
     def test_a_green_company_existence_supports_the_employer(self):
         item = VerificationItem(
-            label="Company Existence", status="confirmed", explanation="A real firm."
+            label="Company Existence",
+            status="confirmed",
+            explanation="A real firm.",
+            source_url="https://bhive.ph/1000ccph",
         )
         _assessment, breakdown = code_assessment([], [item], request_class="prohibited")
 
         assert breakdown["establishment"]["state"] == "supported"
+
+    def test_a_confirmed_existence_without_a_bound_source_establishes_nothing(self):
+        """A "confirmed" with no source behind it is the model's bare word. On
+        an empty lookup the binding strips the URL, so a hallucinated
+        confirmation arrives exactly like this - and the model's word alone
+        must not establish the employer. Field report 2026-10-31: the
+        fictional-company scan read green through this gap.
+        """
+        item = VerificationItem(
+            label="Company Existence",
+            status="confirmed",
+            explanation="A real firm.",
+            source_url="",
+        )
+        _assessment, breakdown = code_assessment([], [item], request_class="ordinary")
+
+        assert breakdown["establishment"]["state"] == "unknown"
+        assert _decide("ordinary", "unknown") == "yellow"
 
     def test_a_red_reputation_is_not_a_contradiction(self):
         """A result contradicting a claim about how the employer behaves says

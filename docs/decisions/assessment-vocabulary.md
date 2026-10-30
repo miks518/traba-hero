@@ -170,3 +170,60 @@ coffee shop with two confirmed checks, flagged for "an address it does not
 print", rode the absence-guardrail phrase gap into `unclassified`). The
 absence-phrase fix and the catch-all pricing are separate decisions.
 
+
+---
+
+## 2026-11-03 â€” the establishment-keyed caution, with the bound-source guard
+
+Supersedes both earlier attempts recorded above. Three designs have now met
+the same field report (an AI-generated posting â€” a fictional employer,
+nothing online â€” must read Caution, while a real employer whose Company
+Existence check confirms must read green):
+
+1. **2026-10-28, the word fix.** "Proceed" became "Nothing found against it"
+   and the `(ordinary, unknown)` cell stayed green. The fictional posting
+   still read green â€” the word claimed only that nothing was found, which
+   was technically true and practically reassuring.
+2. **2026-11-02, the establishment-keyed rule.** The cell moved to yellow.
+   The field regression: *every* posting whose Company Existence check did
+   not land exactly `confirmed` read Caution â€” because the verify prompt
+   makes `yellow` the default ("the results do not settle it") and the
+   establishment derivation honoured only exactly `confirmed`. A confirmed
+   existence on a real employer read Caution only through a different door
+   (an `OTHER`-coded finding pricing `unclassified`) â€” recorded below as an
+   open issue, not this rule.
+3. **2026-11-02/03, the retrieval-keyed floor.** `code_assessment` took
+   `has_results` (the retrieved set non-empty) and floored green to yellow.
+   Failed in the field within a day: keenable returns *some* results for
+   almost any query, so "the lookup found something" is nearly always true
+   and never distinguished a fictional employer from a real one. The
+   fictional posting read green again. Reverted.
+
+The rule that ships:
+
+- The `(ordinary, unknown)` cell is **yellow**, rule
+  `ordinary_at_unestablished_employer` â€” the establishment-keyed rule from
+  design 2, restored.
+- **The hallucination guard moves to its right layer.** The 2026-11-02 rule
+  had one genuine catch: a model *claiming* a confirmed existence on an
+  empty result set read green through the derivation. That is now guarded
+  in `establishment_from_record`: a Company Existence check counts as
+  `supported` only when it is `confirmed` **and carries a bound
+  `source_url`**. A "confirmed" with no bound result is the model's bare
+  word â€” the binding strips an unbacked URL â€” and the model's word alone
+  does not establish the employer. A real confirmation always carries its
+  source (the prompt requires citing on green, and binding keeps retrieved
+  citations).
+
+Consumers: no copy changes (keyed by colour; the yellow family already
+says the right thing). The matcher keeps feeding on green only: an
+unestablished employer leaves the matchable pool.
+
+Known open issue, unchanged: a posting with a recognised finding the
+classifier cannot subclassify (an `OTHER`/empty code â€” field report: a
+sex-limited-hiring observation on a real coffee shop, and an "address it
+does not print" absence phrasing that slipped the guardrail's list) still
+prices `unclassified` yellow in every state. The taxonomy/coverage decision
+remains open; it is the actual driver of the "everything is Caution"
+impression and is not addressed by any of the three designs above.
+
