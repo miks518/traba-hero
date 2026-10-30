@@ -1,6 +1,5 @@
 import type { AnomalyAssessment, ApiScanResponse, ResumeData, ScannedJob, VerificationResult } from '../types';
-
-const API_BASE = import.meta.env.WXT_API_BASE;
+import { getApiBase } from './apiBase';
 
 export interface ScanProgress {
   percent: number;
@@ -27,7 +26,7 @@ export async function pingHealth(externalSignal?: AbortSignal): Promise<boolean>
   }
 
   try {
-    const res = await fetch(`${API_BASE}/health`, {
+    const res = await fetch(`${getApiBase()}/health`, {
       method: 'GET',
       headers: {},
       signal: controller.signal,
@@ -55,7 +54,7 @@ async function request<T>(
   }
 
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${getApiBase()}${path}`, {
       method,
       headers: { ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
@@ -141,7 +140,7 @@ export async function scanScreenshotStream(
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/scan`, {
+    const res = await fetch(`${getApiBase()}/api/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({ images_base64: imagesBase64, thinking }),
@@ -181,7 +180,7 @@ export async function scanTextStream(
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/scan-text`, {
+    const res = await fetch(`${getApiBase()}/api/scan-text`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({ text, thinking }),
@@ -230,7 +229,7 @@ export async function analyzeResumeStream(
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/analyze-resume`, {
+    const res = await fetch(`${getApiBase()}/api/analyze-resume`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({ file_base64: fileBase64, file_type: fileType }),
@@ -326,7 +325,7 @@ export async function matchResumeToJobsStream(
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/match-resume`, {
+    const res = await fetch(`${getApiBase()}/api/match-resume`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({
@@ -433,7 +432,7 @@ export async function analyzeOfferStream(
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/analyze-offer`, {
+    const res = await fetch(`${getApiBase()}/api/analyze-offer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({ text, company_name: companyName, anomalies, thinking }),
@@ -596,7 +595,7 @@ export async function verifyJobStream(
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/verify`, {
+    const res = await fetch(`${getApiBase()}/api/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',  },
       body: JSON.stringify({ ...context, thinking }),

@@ -78,7 +78,16 @@ describe('the pinned extension ID', () => {
       return;
     }
     const compiled = JSON.parse(readFileSync(COMPILED, 'utf-8'));
-    expect(idForKey(compiled.key)).toBe(EXPECTED_ID);
+    // Chrome Web Store builds deliberately omit the manifest `key` (the Store
+    // generates its own and rejects a supplied one). The build in `.output/` is
+    // exactly that build, so the key being absent is the expected state. When a
+    // key IS present — a dev or self-distributed build — it must still derive
+    // the pinned ID, or the backend allowlist would silently stop matching.
+    if (compiled.key) {
+      expect(idForKey(compiled.key)).toBe(EXPECTED_ID);
+    } else {
+      expect(compiled.key).toBeUndefined();
+    }
   });
 
   it('is the origin the backend is told to allow', () => {
