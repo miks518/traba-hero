@@ -83,6 +83,24 @@ All five agent/fetch candidates were rejected as not-current-vulnerabilities: `r
 
 HEAD moved **12 commits** past the audited ref during the run (`+1548/−24`): a DPA privacy-consent gate on resume upload (99b0294, with a new consent surface — `ConsentModal`, `privacyConsent.ts`, `SkillsProfileForm`), a privacy-policy URL link (`Footer.tsx:29`, build-env sourced — a fourth URL-relevant site), assessment-banner pinning, `lm_client.py`/`match_flow.py` changes, and a resume-content log trim. Spot-checks verified the findings above survive at HEAD (resume decode byte-identical; debug surface mapping intact), **but none of the new surface was audited.** A follow-up scoped pass for `233a26a..HEAD` is warranted, prioritising the consent gate and the Footer URL against the href finding.
 
+## Follow-up pass, same day — the drift commits audited (run-2)
+
+The follow-up recommended above ran the same day (`quick` scoped profile, `233a26a..bf6a0f5`, source-only; artifacts in `run-2\` beside this run's). **The drift commits are clean except one new confirmed finding:**
+
+| Severity | Fingerprint | Finding |
+|---|---|---|
+| LOW | `ext/consent-notice-withdrawal-no-mechanism` | The consent notice asserts a DPA withdrawal right that no code path implements |
+
+The first-upload notice tells the reader they "may withdraw consent at any time" under RA 10173 (`ConsentModal.tsx:60-62`) — but the consent API is get/set only, the sole production write is `true`, the key is never removed, and no withdraw control, options page, or listener exists anywhere in the four entrypoints. This violates the notice's own rule ("the notice must not outrun the code", `ConsentModal.tsx:20-24`; `docs/decisions/resume-input-paths.md:79-80`), and `CRITICAL.md:67` shows the wording was written into the implementation record while only decline was implemented. The fix is either branch: implement `clearPrivacyConsent()` plus a Withdraw control (a stored false already re-arms the notice fail-closed) **or** reword the sentence to what is true — code first, per the repo's rule.
+
+Everything else in the drift held up: the consent gate is fail-closed with no bypass surface (drag-drop, popup, restore, and keyboard paths all route through it); the manual-profile persistence asymmetry matches its decision record; the resume/match log trim is real and guarded by a marker-based test; the Footer privacy URL is build-env-sourced (developer-controlled, empty by default) and was folded into the run-1 href scheme-allowlist fix scope rather than minted as a separate finding; the `lm_client` change is one bounded error-classification hint. The sibling flows' logging of caller-derived content (scan/offer/verify) is documented-deliberate deferral to `CRITICAL.md` Task 2.2 — recorded as hardening with a complete enumeration, and the zero-retention deployment audit it needs is seeded as out-of-scope (retention/readers are deployment-observable only).
+
+Run-2 artifacts — `run-metadata.json`, `architecture.md`, `coverage-ledger.json`, `findings.json`, `REPORT.md`:
+
+```
+C:\Users\Guest2\security-audit-skill\traba-hero\run-2\
+```
+
 ## Artifacts
 
 Full run output — `run-metadata.json`, `architecture.md`, `coverage-ledger.json`, `findings.json`, `REPORT.md`, `FINDINGS-DETAIL.md`, `NEEDS-VALIDATION.md`:
