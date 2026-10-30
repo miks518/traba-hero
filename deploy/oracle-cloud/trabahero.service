@@ -1,0 +1,24 @@
+[Unit]
+Description=Trabahero backend (FastAPI/uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=trabahero
+Group=trabahero
+WorkingDirectory=/opt/trabahero/backend
+# Secrets live here; chmod 600, owned by trabahero.
+EnvironmentFile=/opt/trabahero/backend/.env
+# Bind to loopback only — Caddy is the only thing that reaches it, and it
+# terminates TLS. Never expose 8010 to the internet directly.
+ExecStart=/opt/trabahero/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8010
+Restart=on-failure
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+# Caddyfile — reverse proxy with automatic HTTPS.
+#
+# Replace the hostname below with either:
+#   - your own domain:            api.example.com
+#   - a free sslip.io subdomain:  203.0.113.10.sslip.io   (resolves to that IP)
+#
+# Caddy fetches and renews a Let's Encrypt certificate automatically. That
+# requires ports 80 and 443 open in BOTH the OCI Security List and the
+# instance firewall.
+
+203.0.113.10.sslip.io {
+	encode gzip
+	reverse_proxy 127.0.0.1:8010
+}
