@@ -49,7 +49,11 @@ class Settings(BaseSettings):
     ai_reasoning_max_tokens: int = 0
     ai_reasoning_effort: str = ""
     send_system_prompt: bool = True
-    ai_max_concurrent: int = 2
+    # Provider: kilo.ai free tier, 200 requests/hour (keenable search: 10/s, no
+    # hourly cap). 5 slots covers a five-user burst; the 200/hour budget is the
+    # real ceiling and is NOT moved by this knob. Queue 10 + acquire timeout
+    # below absorb overflow (pinned by tests/test_ai_limiter_stream_busy.py).
+    ai_max_concurrent: int = 5
     ai_max_queue_depth: int = 10
     # Must stay >= ai_call_timeout: a queued scan waits for an active call to
     # finish before it can start, so a shorter acquire timeout makes the queue
