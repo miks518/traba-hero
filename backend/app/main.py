@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import sys
 
 import uvicorn
 from fastapi import FastAPI
@@ -13,7 +14,21 @@ from app.exceptions import AppError, app_error_handler
 from app.rate_limit import limiter
 from app.config import settings
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+# Split by severity, because Railway colours by the stream a line arrived on
+# before it reads anything in the text. Its normalisation (docs.railway.app,
+# Guides > Logs) sends stderr to level.error and stdout to level.info, and the
+# in-line level is only honoured in forms its parser recognises — uvicorn's own
+# `INFO: ...` prefix matches, but our `... [INFO] trabahero: ...` after a
+# timestamp does not. With basicConfig's default (one StreamHandler, whose
+# documented fallback stream is stderr) every app log went to stderr and was
+# coloured red, so an ordinary scan looked identical to a real failure in the
+# dashboard. INFO and below now leave by stdout and arrive blue; WARNING and
+# above leave by stderr and arrive red — which is the colour a warning deserves.
+_stdout = logging.StreamHandler(sys.stdout)
+_stdout.addFilter(lambda r: r.levelno < logging.WARNING)
+_stderr = logging.StreamHandler(sys.stderr)
+_stderr.setLevel(logging.WARNING)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", handlers=[_stdout, _stderr])
 log = logging.getLogger("trabahero")
 
 app = FastAPI(title="Trabahero Backend")
