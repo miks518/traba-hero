@@ -1,0 +1,292 @@
+# Tracking Plan: Trabahero
+#
+# Target state designed 2026-10-31.
+# Built on the greenfield audit (.telemetry/current-state.yaml) and the product
+# model (.telemetry/product.md).
+#
+# Destination: FIRST-PARTY BACKEND ONLY. No third-party analytics SDK exists and
+# none may be introduced without a consent-notice change that happens before the
+# code does (RA 10173 posture; test_resume_content_not_logged.py is the precedent
+# that promises are enforced, not decorative).
+#
+# Naming: object.action snake_case — greenfield default decision, made by the
+# design phase, not the user (nothing exists to preserve).
+
+meta:
+  product: "Trabahero"
+  version: "1.0.0"
+  created: 2026-10-31
+  updated: 2026-10-31
+  owner: "miks518"
+  implementation: custom   # first-party; event ingestion on the backend, aggregates operator-side
+  destinations: [first_party_backend]
+  pii_policy: none          # strictly anonymous — no user/device/install IDs of any kind (user decision 2026-10-31)
+  internal_user_policy: none # no roles exist; backend tests are offline and mocked, so no test pollution reaches ingestion
+
+# -----------------------------------------
+# Entities
+# -----------------------------------------
+# There are none, deliberately. The product has no auth, no accounts, no user
+# concept. There is no id_property: events carry no identity and are never
+# attributed to anyone. Every event is anonymous product-level data in one
+# bucket. If a future design wants funnel or retention math, that is a decision
+# record about pseudonymous IDs — not a quiet addition here.
+
+entities: {}
+groups: []   # no group hierarchy — B2C, single-player. The B2B two-entity model does not apply.
+
+# -----------------------------------------
+# Events
+# -----------------------------------------
+# Eight events. Properties are counts, shapes, closed-set codes and durations
+# only — never free text, never posting quotes, never URLs, never employer
+# names, never images. Every enum is an existing wire vocabulary, not a new one.
+#
+# emitted_by records who can truthfully observe the moment:
+#   backend — derived from a request the backend already processes; no new
+#             client->server traffic exists for it
+#   client  — observable only in the extension (chrome.storage state the
+#             backend schema deliberately does not carry)
+
+events:
+
+  # -- Core Value: the scan -> assessment flow --
+
+  - name: scan.started
+    category: core_value
+    emitted_by: backend
+    description: A scan request arrives at /api/scan or /api/scan-text
+    properties:
+      - name: input_type
+        type: string
+        enum: [screenshot, text]
+        required: true
+        description: "The wire path that served it; scan-text has no caller today — that enum value existing is what makes its usage visible"
+      - name: image_count
+        type: integer
+        required: false
+    expected_frequency: medium
+
+  - name: scan.completed
+    category: core_value
+    emitted_by: backend
+    description: A scan produced a posting-stage result (including VALID: false)
+    properties:
+      - name: is_valid_job
+        type: boolean
+        required: true
+        description: "False means the content offered no work or income at all — a real signal about what people feed the scanner"
+      - name: anomaly_count
+        type: integer
+        required: true
+      - name: anomaly_codes
+        type: array
+        enum: [FEE_MANDATORY, FEE_CONDITIONAL, PURCHASE_REQUIRED, DEPOSIT_REQUIRED, PAYMENT_FORWARDING, APPLICATION_DOCUMENTS, ACCOUNT_CREDENTIALS, DOCUMENTS_VIA_THIRD_PARTY, IMPERSONATES_AUTHORITY, TASK_FOR_EARNING, OTHER]
+        required: true
+        description: "Per-scan code bag from the closed set in backend/app/services/anomaly_codes.py. Empty list is valid. The OTHER frequency is the taxonomy drift signal the set exists to produce."
+      - name: has_company_name
+        type: boolean
+        required: true
+        description: "Whether verification_context was added. A missing employer is a missing input — counting it is counting inputs, not findings."
+      - name: duration_ms
+        type: integer
+        required: true
+    expected_frequency: medium
+
+  - name: scan.failed
+    category: core_value
+    emitted_by: backend   # except backend_offline / request_aborted, which only the client can observe and may emit
+    description: A scan did not produce a result
+    properties:
+      - name: failure_class
+        type: string
+        enum: [ai_limiter_refused, empty_model_response, provider_error, parse_failure, validation_rejected, network_error, backend_offline, request_aborted, unknown]
+        required: true
+        description: "Closed set — names failure shapes, never messages or content. EmptyModelResponse maps to empty_model_response; the thinking-retry resolution is visible in outcome, not here."
+    expected_frequency: low
+
+  - name: assessment.completed
+    category: core_value
+    emitted_by: backend
+    description: The employer-verification path produced its code-owned assessment
+    properties:
+      - name: assessment
+        type: string
+        enum: [nothing_found_against, caution, contradicted, not_assessed]
+        required: true
+        description: "The three-colour grid words from docs/decisions/assessment-vocabulary.md. The wire's own vocabulary; no new ladder is invented here."
+      - name: parse_mode
+        type: string
+        enum: [structured, labeled_fallback]
+        required: true
+        description: "The fallback returns no assessments and leaves every card amber — its frequency is degradation being visible."
+      - name: finding_count
+        type: integer
+        required: true
+      - name: refuted_count
+        type: integer
+        required: true
+        description: Findings a retrieved source contradicted
+      - name: stale_count
+        type: integer
+        required: true
+        description: Findings a retrieved source accounted for
+      - name: unconfirmed_count
+        type: integer
+        required: true
+        description: Findings the lookup ran and did not settle
+      - name: channel_match_code
+        type: string
+        enum: [free_email, government, lookalike, free_email_with_findings, unconfirmed, unconfirmed_with_findings, no_data, none]
+        required: true
+        description: "The code-owned rule that fired (VerificationItem.escalation). This is what lawfully makes a Channel Match card red; carrying it is carrying the rule's output, never a conclusion about an employer."
+      - name: duration_ms
+        type: integer
+        required: true
+    expected_frequency: medium
+
+  - name: offer.completed
+    category: core_value
+    emitted_by: backend
+    description: The post-only offer path (/api/analyze-offer) returned
+    properties:
+      - name: assessment
+        type: string
+        enum: [nothing_found_against, caution, contradicted, not_assessed]
+        required: true
+        description: "This path's level is the model's own reading — the one live contradiction in AGENTS.md. The event carries what the wire carries and prices nothing itself."
+      - name: finding_count
+        type: integer
+        required: true
+      - name: duration_ms
+        type: integer
+        required: true
+    expected_frequency: low
+
+  # -- Supporting: resume match --
+
+  - name: match.completed
+    category: core_value
+    emitted_by: client
+    description: The reader runs a match against their profile
+    properties:
+      - name: profile_source
+        type: string
+        enum: [manual, uploaded]
+        required: true
+        description: "Frontend-only knowledge, by design — the backend schema has no source field and must not gain one for analytics. The client strips source:'manual' from the wire; the event does not."
+      - name: verified_job_count
+        type: integer
+        required: true
+        description: Jobs in the verified collection the match ran against
+      - name: match_count
+        type: integer
+        required: true
+      - name: duration_ms
+        type: integer
+        required: true
+    expected_frequency: low
+
+  # -- Configuration: the consent gate --
+
+  - name: upload.consent_granted
+    category: configuration
+    emitted_by: client
+    description: The RA 10173 consent notice is accepted (first or repeat)
+    properties:
+      - name: is_first_consent
+        type: boolean
+        required: true
+      - name: was_declined_previously
+        type: boolean
+        required: false
+        description: "Seen at ask time when storage holds an explicit false — the decline rate of the upload path, observable without recording when or how often."
+    expected_frequency: low
+
+  # -- Lifecycle: reachability --
+
+  - name: connectivity.changed
+    category: lifecycle
+    emitted_by: client
+    description: The panel's online state flips after 2+ consecutive failed health probes or a recovery
+    properties:
+      - name: is_online
+        type: boolean
+        required: true
+      - name: consecutive_failures
+        type: integer
+        required: true
+        description: The failed-probe streak that flipped it — flaps vs outages are distinguishable
+    expected_frequency: low
+
+# -----------------------------------------
+# Snapshot metrics (operatore-side aggregates)
+# -----------------------------------------
+# No entities exist, so there are no entity traits and no scheduled trait sync.
+# What replaces them: server-side aggregate counters materialised daily from the
+# event stream, aggregated before anything is ever read. Snapshot-sync in a
+# first-party design means "an aggregate exists", not "a trait was updated".
+#
+# A deliberate non-event worth recording: provider token/credit usage is an
+# operational necessity (shared key, spending ceiling) and is already logged
+# content-free by resume_flow/match_flow. Those counts stay in existing logs —
+# they are cost accounting, not product analytics, and do not join this plan.
+
+snapshot_metrics:
+  cadence: daily
+  metrics:
+    - metric: scans_started_total
+      source: "COUNT of scan.started events"
+    - metric: scans_failed_by_class_total
+      source: "COUNT of scan.failed grouped by failure_class"
+    - metric: assessment_distribution
+      source: "COUNT of assessment.completed grouped by assessment"
+    - metric: parse_fallback_rate
+      source: "COUNT assessment.completed where parse_mode = labeled_fallback, over parse_mode total"
+    - metric: anomaly_code_distribution
+      source: "SUM over scan.completed of anomaly_codes bag, grouped by code"
+    - metric: other_code_rate
+      source: "OTHER count over all anomaly codes counted"
+    - metric: missing_employer_rate
+      source: "COUNT scan.completed where has_company_name = false, over scans total"
+    - metric: consent_retry_rate
+      source: "COUNT upload.consent_granted where is_first_consent = false, over total"
+
+# -----------------------------------------
+# Deliberately absent
+# -----------------------------------------
+# - "Was this accurate?" verdict feedback — the event shape is obvious
+#   (verdict_accuracy.*) but a destination is not: collecting reader judgements
+#   means a copy of an employer-name-attached opinion exists server-side, which
+#   is the exact libel-guardrail shape the report panel redesign avoided. If it
+#   is ever decided, the decision record comes first, the consent text second,
+#   the event third. Until then the panel keeps the slot absent — a dead control
+#   reads as a working feature.
+# - Billing events — probed: there is no billing code in the codebase and no
+#   monetization. The probe found nothing because there is nothing.
+# - Page/navigation events — no pages exist to view; feature-engagement events
+#   (the ones above) carry the adoption signal at a fraction of the volume.
+# - Settings events (theme, text size) — high-volume noise for near-zero signal.
+# - History events — count is derivable from scan.completed minus trimming;
+#   storing live history churn would be redundant tracking.
+
+implementation_notes:
+  - "Every property is required or explicitly optional; a missing required
+    property is a tracking bug, same discipline as a missing source."
+  - "Closed enums only. If a value cannot be written as an enum member, it is
+    content — it goes into `unknown`/`OTHER` and nowhere else. No free-text
+    property exists in this plan and none may be added."
+  - "No IDs, no timestamps readable by the client, no user attribution. Server
+    arrival time at the ingest endpoint is the only ordering signal."
+  - "Backend-derived events must not change what a request response carries on
+    the wire; they count from server-side state, after the response is sent."
+  - "The client's own events (match.completed, upload.consent_granted,
+    connectivity.changed, offline scan failures) fire-and-forget; a telemetry
+    failure must never change the UX — no retry queue, no persistence, no
+    reflecting offline analytics state in the offline banner."
+  - "Ingestion endpoint terms of engagement: rate-limit it harder than the AI
+    endpoints, cap its body at a few KB, never log a request body — the body is
+    the event, and only event-shaped data may enter it."
+  - "The B2B two-entity model, identify()/group() vocabulary, and any B2C
+    identity pattern are out of scope permanently at this product's current
+    privacy posture."
