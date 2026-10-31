@@ -14,7 +14,7 @@
 
 meta:
   product: "Trabahero"
-  version: "1.0.0"
+  version: "1.1.0"
   created: 2026-10-31
   updated: 2026-10-31
   owner: "miks518"
@@ -22,6 +22,41 @@ meta:
   destinations: [first_party_backend]
   pii_policy: none          # strictly anonymous — no user/device/install IDs of any kind (user decision 2026-10-31)
   internal_user_policy: none # no roles exist; backend tests are offline and mocked, so no test pollution reaches ingestion
+
+# -----------------------------------------
+# Distinct-event counting (the user-count decision)
+# -----------------------------------------
+# Decision made with the user 2026-10-31: user counts come from a DAILY-SALTED
+# HASH computed at the ingest endpoint — SHA256(day + server_secret_salt +
+# connection peer, truncated). It is a counting key, not an identity:
+#
+#   - computed server-side only; nothing is added to any event, no client change
+#   - never an event property, never logged, never reaches the client
+#   - the salt is secret and rotates daily, so values are unlinkable across days
+#     by construction — no longitudinal tracking is possible, ever
+#   - counting itself uses per-day HyperLogLog sketches (a few KB each) so NO
+#     per-key record is retained at all; sketches only ever union
+#   - DAU = distinct keys with >=1 event that day; WAU/MAU = union of day
+#     sketches over the window, at HyperLogLog's standard error
+#   - "returning today" = today's sketch intersects the prior N days' sketches
+#     (bounded window — only what the sketch memory retained)
+#
+# Known bias, accepted up front: peers behind one address (dorm, office,
+# household) collapse to one count per day. Erring under towards privacy is the
+# direction this product errs everywhere else.
+#
+# Implementation consequence, recorded now: this processes peer data; when the
+# ingest endpoint lands, it gets its own decision record under docs/decisions/
+# and a sentence in the RA 10173 notice — notice first, wiring second, the same
+# order test_resume_content_not_logged.py enforces everywhere else.
+
+count_key:
+  mechanism: daily_salted_hash
+  hash: "truncated SHA256(day + server_secret_salt + connection peer)"
+  storage: per-day_hyperloglog_sketches_only   # no per-key record, ever
+  computed_by: backend_at_ingest
+  appears_on_wire: false
+  decision_date: 2026-10-31
 
 # -----------------------------------------
 # Entities
@@ -235,6 +270,14 @@ events:
 snapshot_metrics:
   cadence: daily
   metrics:
+    - metric: daily_active_users
+      source: "Popcount of the day's count-key HyperLogLog sketch union; no per-key record"
+    - metric: weekly_active_users
+      source: "Union of the trailing 7 days' sketches, when implemented"
+    - metric: monthly_active_users
+      source: "Union of the trailing 30 days' sketches, when implemented"
+    - metric: returning_ratio
+      source: "Share of the day's keys that also appear in the trailing-window sketches, window-bounded only"
     - metric: scans_started_total
       source: "COUNT of scan.started events"
     - metric: scans_failed_by_class_total

@@ -41,8 +41,14 @@ Nothing exists to reshape.
 
 ## Snapshot metrics to start materialising (all operator-side aggregates)
 
+The count-key decision of 2026-10-31 (daily-salted hash + per-day
+HyperLogLog sketches) adds the user-count family the product otherwise cannot
+answer — with no per-key record ever existing and no event growing an ID.
+
 | Metric | Source | Why first |
 |---|---|---|
+| `daily_active_users` / `weekly_active_users` / `monthly_active_users` | count-key sketch unions | The request that triggered the decision: real user counts, identity-free |
+| `returning_ratio` | sketch intersection, window-bounded | The only "how many came back" the unlinkability design permits |
 | `assessment_distribution` | assessment.completed | The product's core outcome over time |
 | `anomaly_code_distribution` + `other_code_rate` | scan.completed | Taxonomy drift — the `OTHER` spike is the documented early-warning signal |
 | `parse_fallback_rate` | assessment.completed | Structured-output degradation visibility |
@@ -58,10 +64,19 @@ Nothing exists to reshape.
    opinions, the exact shape the libel guardrail exists against. Deferred with
    a name (`verdict_feedback.*`), a preconditions list (decision record →
    consent text → event), and no marker in the plan above deciding it.
-2. **Any identity** — pseudonymous install IDs would unlock funnel/retention
-   math. Excluded by the user decision of 2026-10-31, recorded in the plan's
-   `meta.pii_policy: none`. Changing it means reopening that decision, not
-   editing this YAML.
+
+And the two it has made since:
+
+1. **User counting** (decision 2026-10-31): daily-salted server-side hash at
+   ingest, distinct-counted through per-day HyperLogLog sketches only. Adds no
+   event, no client change, no wire field — see `count_key:` in
+   `tracking-plan.yaml`. Committing the ingest endpoint writes its decision
+   record and RA 10173 notice sentence first.
+2. **Any identity** — remains excluded even with the count key: the hash is
+   unlinkable by construction and never retains a per-key record, so it buys
+   DAU counts without ever becoming a pseudonymous ID to track. The earlier
+   strictly-anonymous decision stands; the count key lives outside events,
+   not inside them.
 
 ## Cost note
 
