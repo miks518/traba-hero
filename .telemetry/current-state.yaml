@@ -1,0 +1,32 @@
+# Current State: greenfield (no tracking detected)
+# Scanned: 2026-10-31
+# SDK: none
+
+events: []
+identity:
+  identify_calls: []
+  group_calls: []
+patterns:
+  naming_style: n/a
+  centralized: n/a
+
+notes:
+  - "Greenfield — no analytics SDK and no tracking calls exist in the extension
+    (TypeScript/WXT) or the backend (FastAPI). dependencies carry React only;
+    requirements.txt carries no analytics/telemetry library."
+  - "What exists instead is diagnostic logging on the backend, under the
+    'trabahero' logger. It is not event tracking — it goes to operator logs, not
+    a destination — but several signals it already emits are the natural
+    inventory of what the system can say about itself:"
+  - "scan flow: image count per scan (routers/scan.py), AI-limiter refusals"
+  - "search flow: per-query result counts and latency, excluded domains, unusable
+    scope warnings (services/search.py)"
+  - "resume/match flows: token and character counts only; content logging is
+    enforced out by backend/tests/test_resume_content_not_logged.py"
+  - "parse fallbacks: JSON/labeled-format fallback lines (services/lm_client.py)"
+  - "empty model responses and thinking-disabled retries (lm_client.py)"
+  - "usage counters resident only on the client: scan history capped at 20 in
+    chrome.storage.local; consent flag; theme; text size"
+  - "No identity of any kind: no auth, no user/device/install IDs. Rate-limit
+    identity is the transient socket peer (docs/decisions/security-boundaries.md)
+    and is diagnostics-only."
