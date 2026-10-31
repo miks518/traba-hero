@@ -77,6 +77,14 @@ And the two it has made since:
    DAU counts without ever becoming a pseudonymous ID to track. The earlier
    strictly-anonymous decision stands; the count key lives outside events,
    not inside them.
+3. **Storage** (decision 2026-11-01): SQLite on a Railway volume
+   (`TELEM_DB_PATH`), one writer, no application reads. Two tables —
+   `daily_metrics` and `daily_sketch` — with the sketch table pruned to a
+   30-day rolling window. The backend's "holds nothing" boundary is restated,
+   not removed: **counts survive; keys and event bodies don't.** A missing
+   volume degrades to in-process counters at startup with one log line, so an
+   analytics outage can never ride the scan path. Postgres was rejected as a
+   whole server for a one-file job.
 
 ## Cost note
 

@@ -14,9 +14,9 @@
 
 meta:
   product: "Trabahero"
-  version: "1.1.0"
+  version: "1.2.0"
   created: 2026-10-31
-  updated: 2026-10-31
+  updated: 2026-11-01
   owner: "miks518"
   implementation: custom   # first-party; event ingestion on the backend, aggregates operator-side
   destinations: [first_party_backend]
@@ -57,6 +57,49 @@ count_key:
   computed_by: backend_at_ingest
   appears_on_wire: false
   decision_date: 2026-10-31
+
+# -----------------------------------------
+# Storage (where the data physically lives)
+# -----------------------------------------
+# Decision made with the user 2026-11-01: a SQLite file on a Railway volume.
+# The backend is live on Railway and has no database; keeping it that way for
+# the product itself was a deliberate boundary (docs/decisions/security-boundaries.md:
+# "the backend holds nothing"). Telemetry does not undo that claim — it makes it
+# more precise: **the backend keeps counts, never content, retained 30 days.**
+#
+# The workload is the exact shape SQLite exists for: one writer (the backend
+# process), no application reads (nothing in the panel ever queries analytics),
+# data small enough to fit comfortably under a megabyte (daily counter rows
+# plus a handful of few-KB sketches). Postgres was considered and rejected as a
+# whole server for a job one file does.
+#
+# What is NEVER stored, restated as row rules:
+#   - event bodies as such — they update the day's counters and then vanish
+#   - the count key / any per-identity record — keys die inside the sketch
+#   - any free text — the plan has no free-text property to store
+#
+# Deploy shape: Railway volume mounted at a fixed path; the file location
+# arrives as ONE backend env var (TELEM_DB_PATH) instead of a service. A
+# missing/unwritable volume must degrade to in-process counters ONLY at
+# startup with one log line — an analytics outage never rides the scan path.
+
+storage:
+  engine: sqlite_single_file
+  home: railway_volume          # env var TELEM_DB_PATH; volume mounted by deploy config
+  writer: one                    # the backend process; no second writer exists
+  app_reads: none                # nothing in the product reads analytics
+  tables:
+    - name: daily_metrics
+      rows: "(date, metric, value) — the snapshot_metrics list, one row per metric per day"
+    - name: daily_sketch
+      rows: "(date, sketch_blob) — per-day HyperLogLog arrays; pruned to a 30-day rolling window"
+  retention_days: 30             # the pruner deletes anything older, on every day rollover
+  never_stored:
+    - event bodies
+    - the count key or any per-identity record
+    - any free text
+  degraded_mode: in_process_counters   # volume unwritable at startup: one log line, product unaffected
+  decision_date: 2026-11-01
 
 # -----------------------------------------
 # Entities
