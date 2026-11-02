@@ -232,7 +232,7 @@ Listed, **not resolved** — each needs a decision or a check against live code.
 6. **`escalation` reaches the wire and nothing reads it.** `VerificationItem.escalation`
    carries the code-owned Channel Match rule that fired (`free_email`, `government`,
    `lookalike`, `free_email_with_findings`, `unconfirmed`, `unconfirmed_with_findings`,
-   `no_data`), and the frontend's `VerificationItem` type does not declare it. It is
+   `unconfirmed_no_results`, `no_data`), and the frontend's `VerificationItem` type does not declare it. It is
    backend-only for now, which is fine, but the day the panel explains *why* a Channel
    Match card is red, this is the field it should read. It must be shown as what the
    rule decided, never as a conclusion about the employer.

@@ -217,7 +217,7 @@ def _read_channel_item(payload: dict, allowed_urls: frozenset[str]):
     facts = with_official_only_if_retrieved(facts, retrieved)
     if not has_channel_content(facts):
         return None
-    assessment = assess_channel_match(facts)
+    assessment = assess_channel_match(facts, has_results=bool(permitted))
     return VerificationItem(
         label="Channel Match",
         status=assessment.status,

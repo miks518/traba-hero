@@ -161,13 +161,21 @@ def has_channel_content(facts: ChannelFacts | None) -> bool:
     )
 
 
-def assess_channel_match(facts: ChannelFacts) -> ChannelAssessment:
+def assess_channel_match(facts: ChannelFacts, *, has_results: bool = True) -> ChannelAssessment:
     """Assign the Channel Match status from the facts alone.
 
     Nothing about what the posting asks for is read here. The combination rule
     — a channel the employer does not control, plus a request the rules
     prohibit — needs the request class, which the flow holds and this stage
     does not. `apply_channel_rules` finishes the decision for that reason.
+
+    `has_results` says whether the lookup returned anything at all. With no
+    results an unconfirmed channel was not unchecked, it was uncheckable:
+    "the results do not show that channel" is vacuous when there are no
+    results, and absence of a result is never red. The escalation is marked
+    `unconfirmed_no_results` so the with-findings combination cannot fire on
+    silence; the caution rides the grid instead
+    (`prohibited_at_unestablished_employer`).
     """
     printed = facts.printed_channels
     official = facts.official_channels
@@ -234,12 +242,20 @@ def assess_channel_match(facts: ChannelFacts) -> ChannelAssessment:
             and not any(_matches_domain(domain, o) for o in official_domains if o)
         )
         if unmatched:
+            if has_results:
+                return ChannelAssessment(
+                    status="unknown",
+                    explanation=_unconfirmed_explanation(
+                        facts, unmatched[0], official_domains
+                    ),
+                    escalation="unconfirmed",
+                )
             return ChannelAssessment(
                 status="unknown",
-                explanation=_unconfirmed_explanation(
-                    facts, unmatched[0], official_domains
+                explanation=_unconfirmed_no_results_explanation(
+                    facts, unmatched[0]
                 ),
-                escalation="unconfirmed",
+                escalation="unconfirmed_no_results",
             )
         # All domain channels match. A second, non-domain channel that does not
         # match is still unknown, so it is not green.
@@ -249,10 +265,16 @@ def assess_channel_match(facts: ChannelFacts) -> ChannelAssessment:
                 explanation=_match_explanation(facts, official_domains),
                 escalation="match",
             )
+        if has_results:
+            return ChannelAssessment(
+                status="unknown",
+                explanation=_unconfirmed_explanation(facts, "", official_domains),
+                escalation="unconfirmed",
+            )
         return ChannelAssessment(
             status="unknown",
-            explanation=_unconfirmed_explanation(facts, "", official_domains),
-            escalation="unconfirmed",
+            explanation=_unconfirmed_no_results_explanation(facts, ""),
+            escalation="unconfirmed_no_results",
         )
 
     # No domains at all: a phone number, a messaging handle, or a meeting place.
@@ -322,6 +344,12 @@ def apply_channel_rules(
         return items
 
     if channel.escalation in ("free_email", "unconfirmed"):
+        # `unconfirmed_no_results` is deliberately not here: with an empty
+        # retrieved set the channel was not unchecked, it was uncheckable, and
+        # absence of a result is never red. The prohibited ask rides the grid
+        # (prohibited_at_unestablished_employer). `free_email` stays
+        # combinable - the address is on the face of the posting and needs no
+        # retrieval to read.
         if request_class == "prohibited":
             channel.status = "contradicted"
             channel.escalation = f"{channel.escalation}_with_findings"
@@ -596,6 +624,21 @@ def _unconfirmed_explanation(
             f"{official} for this employer, not that channel."
         )
     return f"The posting gives {printed} as a contact, and the results do not show that channel for this employer."
+
+
+def _unconfirmed_no_results_explanation(facts: ChannelFacts, channel: str) -> str:
+    """The zero-results variant of the unconfirmed card.
+
+    "The results do not show that channel" is vacuous when the lookup found
+    nothing: there are no results to show anything. The sentence states what
+    actually happened - the lookup came back empty, so there was nothing to
+    check the channel against.
+    """
+    printed = _quote(channel) if channel else _join(facts.printed_channels)
+    return (
+        f"The posting gives {printed} as a contact. The lookup found no results "
+        "for this employer, so the channel was not verified."
+    )
 
 
 def _match_explanation(

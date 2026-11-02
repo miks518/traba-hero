@@ -413,6 +413,87 @@ async def test_fake_ched_stays_critical_and_the_chred_domain_is_red():
 
 
 @pytest.mark.asyncio
+async def test_a_fictional_employer_with_zero_results_is_not_a_contradiction():
+    """The 2026-10-31 field incident, pinned end to end.
+
+    An AI-generated posting - a fictional employer, so the lookup returns zero
+    results - with a domain email channel and a fee demand. Before the fix the
+    Channel Match card read "Contradicted" on the empty result set ("the
+    results do not show that channel" is vacuous when there are no results)
+    while Company Existence on the same scan said "Could not verify" from the
+    same silence. The honest outcome: both cards unverified, and the caution
+    carried by the grid (a prohibited ask at an unestablished employer).
+    """
+    payload = {
+        "checks": [
+            {
+                "category": "Company Existence",
+                "status": "yellow",
+                "finding": "The results do not mention this category.",
+                "source_title": "",
+                "source_url": "",
+            },
+        ],
+        "evidence": [],
+        "report": "The results do not name this employer.",
+        "recommendation": "Verify the company through an official channel.",
+        "assessment_reason": "The posting asks for a fee before any contract.",
+        "anomaly_assessments": [],
+        "channel_match": {
+            "printed_channels": ["careers@creativesinc.ph"],
+            "official_channels": [],
+            "government_claim": False,
+            "finding": "The posting gives careers@creativesinc.ph as the contact.",
+            "source_title": "",
+            "source_url": "",
+        },
+    }
+    request = {
+        "company_name": "Creatives Inc.",
+        "job_summary": "Hiring graphic artists. Send your resume and a P300 "
+        "registration fee to careers@creativesinc.ph.",
+        "attributes": {
+            "CONTACT_METHOD": "Email careers@creativesinc.ph",
+            "FEE_RECIPIENT": "individual recruiter",
+        },
+        "anomalies": [
+            {
+                "flag": "Registration fee before interview",
+                "reasoning": "The poster asks for P300 to process the application.",
+                "code": "FEE_MANDATORY",
+            }
+        ],
+    }
+
+    with (
+        patch(
+            "app.routers.scan.search",
+            return_value=SearchOutcome(results=[], ok=True),
+        ),
+        patch("app.routers.scan.chat", return_value=json.dumps(payload)),
+    ):
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post("/api/verify", json=request)
+    data = _result(resp)
+
+    items = _items_by_label(data)
+    channel = items["Channel Match"]
+    existence = items["Company Existence"]
+
+    # Both cards read the same silence the same way.
+    assert channel["status"] == "unknown"
+    assert channel["escalation"] == "unconfirmed_no_results"
+    assert "no results" in channel["explanation"].lower()
+    assert existence["status"] == "unknown"
+
+    # The caution comes from the grid: a prohibited ask at an employer the
+    # lookup could not establish. Not from a contradiction - there is none.
+    assert data["assessment"] == "yellow"
+    assert data["assessmentBreakdown"]["rule"] == "prohibited_at_unestablished_employer"
+    assert _headline_for(data["assessment"]) == "Caution"
+
+
+@pytest.mark.asyncio
 async def test_a_posting_with_two_channels_tests_both():
     """The CHED shape, offline: the employer's own address beside a free-mail one.
 

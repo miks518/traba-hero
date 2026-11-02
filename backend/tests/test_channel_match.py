@@ -420,6 +420,71 @@ class TestTheCardRules:
         assert applied[0].escalation == "free_email_with_findings"
         assert "prohibit" in applied[0].explanation.lower()
 
+    def test_an_unconfirmed_channel_with_no_results_stays_unverified(self):
+        """Zero retrieved results: "the results do not show that channel" is
+        vacuous - there are no results. The channel was not unchecked, it was
+        uncheckable. Field report 2026-10-31: an AI-generated company with a
+        domain email returned a red "Contradicted" Channel Match on an empty
+        result set, while Company Existence on the same scan said "Could not
+        verify" from the same silence.
+        """
+        result = assess_channel_match(
+            ChannelFacts(printed_channels=("careers@creativesinc.ph",)),
+            has_results=False,
+        )
+
+        assert result.status == "unknown"
+        assert result.escalation == "unconfirmed_no_results"
+        assert "no results" in result.explanation.lower()
+
+    def test_the_with_findings_combination_does_not_fire_on_zero_results(self):
+        """Rule 4's unconfirmed variant needs a retrieved record for the
+        channel to be unconfirmed against. The record's own rule: absence of a
+        result is never red. The prohibited ask rides the grid instead
+        (prohibited_at_unestablished_employer).
+        """
+        assessment = assess_channel_match(
+            ChannelFacts(printed_channels=("careers@creativesinc.ph",)),
+            has_results=False,
+        )
+        item = VerificationItem(
+            label="Channel Match",
+            status=assessment.status,
+            explanation=assessment.explanation,
+            escalation=assessment.escalation,
+        )
+
+        applied = apply_channel_rules([item], "prohibited", {"Channel Match"})
+
+        assert applied[0].status == "unknown"
+        assert applied[0].escalation == "unconfirmed_no_results"
+        assert "rules prohibit" not in applied[0].explanation.lower()
+
+    def test_the_unconfirmed_combination_still_fires_with_a_retrieved_record(self):
+        """The carve-out is for the empty result set only. With a retrieved
+        record the channel genuinely was not on it, and a prohibited ask makes
+        the combination the scam shape the category exists for.
+        """
+        assessment = assess_channel_match(
+            ChannelFacts(
+                printed_channels=("recruiter.example/apply",),
+                official_channels=("knollridges.com.ph",),
+            )
+        )
+        assert assessment.escalation == "unconfirmed"
+
+        item = VerificationItem(
+            label="Channel Match",
+            status=assessment.status,
+            explanation=assessment.explanation,
+            escalation=assessment.escalation,
+        )
+
+        applied = apply_channel_rules([item], "prohibited", {"Channel Match"})
+
+        assert applied[0].status == "contradicted"
+        assert applied[0].escalation == "unconfirmed_with_findings"
+
     def test_an_unclassified_request_does_not_upgrade_a_free_email(self):
         """A question is not a charge. A fee with no stated recipient leaves the
         class unclassified, and the card stays a note."""

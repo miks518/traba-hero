@@ -199,3 +199,49 @@ calling `code_assessment` or if the schema starts asking for a level again.
   not a contradiction by itself.
 - **It does not let a single weak finding reach the most serious headline.** The
   floor stops at 51; 76 still requires the combined score.
+
+---
+
+## 2026-11-02 â€” the combination needs a retrieved record
+
+Field report 2026-10-31: an AI-generated posting â€” a fictional employer, so the
+lookup returned **zero results** â€” with a domain email channel
+(`careers@creativesinc.ph`) and a fee demand. The unconfirmed channel plus the
+prohibited request class fired rule 4's combination, and the card read
+**"Contradicted"** with the explanation "the results do not show that channel
+for this employer" â€” vacuous when there are no results. Company Existence on
+the same scan said "Could not verify" from the same silence: one empty result
+set, two different status words.
+
+This record's own rule ("The official side needs a retrieved source") already
+states the principle: **absence of a result is never red.** Rule 4 was written
+for the Fake CHED and Knollridges contexts, where the lookup produced a record
+and the channel genuinely was not on it. The empty-set case is different: the
+channel was not unchecked, it was uncheckable.
+
+The carve-out:
+
+- `assess_channel_match` takes `has_results`. With zero results the
+  unconfirmed branch returns status `unknown` (the card reads "Could not
+  verify"), escalation `unconfirmed_no_results`, and an explanation that states
+  what happened: "The lookup found no results for this employer, so the
+  channel was not verified."
+- `apply_channel_rules` does not combine `unconfirmed_no_results` with a
+  prohibited request. The prohibited ask rides the grid instead:
+  `(prohibited, unknown)` is yellow via `prohibited_at_unestablished_employer`,
+  which is the same caution the assessment vocabulary record moved
+  `(ordinary, unknown)` to on this date.
+- **`free_email_with_findings` stays combinable without retrieval.** A
+  free-provider address is on the face of the posting and needs no result to
+  read; the borrowed-name-plus-payment pattern does not depend on what the
+  search returned.
+- The strong escalations are unchanged: `government` is source-independent by
+  the 2026-10-15 carve-out; `lookalike` requires the retrieved official
+  domain, which an empty result set never supplies.
+
+Pinned by `tests/test_channel_match.py` (the assess-level carve-out and the
+apply-level non-combination) and
+`tests/test_channel_match_regressions.py::test_a_fictional_employer_with_zero_results_is_not_a_contradiction`
+(the field incident end to end: both cards "Could not verify", assessment
+yellow via `prohibited_at_unestablished_employer`, headline "Caution").
+
