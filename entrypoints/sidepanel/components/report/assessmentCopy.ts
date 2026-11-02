@@ -26,10 +26,10 @@ import type { Assessment } from '../../types';
  * Three tones for three assessments.
  *
  * `red` gets the critical tone. `yellow` gets the caution tone — it is
- * uncertainty, from either grid rule. `green` gets the verified tone, which is
- * a statement about the search's outcome and never a clearance: the employer
- * may still be unestablished. `unknown` gets the unknown tone (grey) for
- * missing employer / in-flight.
+ * uncertainty, from any of the grid's yellow rules. `green` gets the verified
+ * tone: since 2026-11-02 green means the record established the employer
+ * (supported or confirmed) — an unestablished employer is yellow, not green.
+ * `unknown` gets the unknown tone (grey) for missing employer / in-flight.
  */
 export type AssessmentTone = 'critical' | 'caution' | 'verified' | 'unknown';
 

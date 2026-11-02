@@ -65,7 +65,7 @@ class TestTheGrid:
         [
             ("ordinary", "confirmed", "green"),
             ("ordinary", "supported", "green"),
-            ("ordinary", "unknown", "green"),
+            ("ordinary", "unknown", "yellow"),
             ("ordinary", "contradicted", "red"),
             ("unclassified", "confirmed", "yellow"),
             ("unclassified", "supported", "yellow"),
@@ -80,11 +80,19 @@ class TestTheGrid:
     def test_the_cell(self, request_class, state, expected):
         assert _decide(request_class, state) == expected
 
-    def test_an_ordinary_request_at_an_unknown_employer_is_green(self):
-        """The posting asks for nothing the rules prohibit, and the record shows
-        nothing either way. There is no finding to report and no limit to state.
+    def test_an_ordinary_request_at_an_unknown_employer_is_yellow(self):
+        """The posting names an employer and the lookup could not establish
+        that this employer exists. Company existence is the heavy evidence:
+        silence about it is a caution, not a clean bill. Field report
+        2026-10-31 - an AI-generated company returned green with every check
+        "could not verify", and "Nothing found against it" on a lookup that
+        found nothing at all read as reassurance.
         """
-        assert _decide("ordinary", "unknown") == "green"
+        assert _decide("ordinary", "unknown") == "yellow"
+        _assessment, breakdown = code_assessment(
+            [], [], request_class="ordinary", establishment=Establishment("unknown")
+        )
+        assert breakdown["rule"] == "ordinary_at_unestablished_employer"
 
     def test_a_prohibited_request_at_an_unknown_employer_is_yellow(self):
         """The request is one the rules prohibit, and nobody has established who
@@ -129,10 +137,12 @@ class TestOnlyAContradictionStops:
             assert breakdown["establishment"]["state"] == "contradicted"
 
     def test_unknown_never_rises_above_yellow_on_its_own(self):
-        """Absence is never red. A record that establishes nothing leaves the
-        ordinary posting green and the unclassified one yellow.
+        """Absence is never red. A record that establishes nothing leaves
+        every request class yellow - and since 2026-11-02 that includes the
+        ordinary one, because company existence is the heavy evidence the
+        record failed to supply.
         """
-        assert _decide("ordinary", "unknown") == "green"
+        assert _decide("ordinary", "unknown") == "yellow"
         assert _decide("unclassified", "unknown") == "yellow"
 
     def test_every_path_to_red_needs_the_contradiction(self):

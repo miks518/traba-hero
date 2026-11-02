@@ -88,3 +88,42 @@ still caught cell by cell in `test_code_assessment.py`.
   not — one red check does not make the assessment red; only
   `establishment_contradicted` does. The chip and the check rows are visually
   separate for exactly this reason.
+
+## 2026-11-02 — the unknown column is yellow
+
+This record fixed the *word* on 2026-10-28 ("Proceed" → "Nothing found against
+it") and deliberately kept the `(ordinary, unknown)` cell green. Its own
+reasoning flagged the lie-shape: "Proceed" on the unknown case told the reader
+the posting is safe when the honest answer was "nothing we found says
+otherwise". The rename made the sentence true — but the field test of
+2026-10-31 showed the *colour* still overclaims comfort: an AI-generated
+posting (fictional employer, nothing online) returned green with every check
+"Could not verify", and "Nothing found against it" on a lookup that found
+nothing at all still reads as reassurance.
+
+Company existence is the heavy evidence. A posting that names an employer the
+lookup could not establish is itself the caution, so the cell moves:
+
+- `(ordinary, unknown)` is now **yellow**, rule `ordinary_at_unestablished_employer`
+  (parallel to `prohibited_at_unestablished_employer`). The whole `unknown`
+  column is yellow: **the record cannot clear the posting by being silent.**
+- Green now requires the record to have established something — `supported`
+  (an independent result names the employer) or `confirmed` (the channel
+  matched). "Nothing found against it" is therefore only ever said about a
+  lookup that found the employer.
+- The Knollridges regression is unchanged: a real firm whose Company Existence
+  check confirms is `supported`, and stays green.
+
+Consumers, per the rules above:
+
+- **The matcher feeds on green only** — a posting whose employer could not be
+  established leaves the matchable pool. That is consistent with the recorded
+  principle ("yellow is uncertainty ... not a posting the matcher may use").
+- **Elevation does not lead for the new rule.** `shouldElevateEvidence` leads
+  for `prohibited_at_unestablished_employer` because there is a prohibited ask
+  to lead with; at `(ordinary, unknown)` the checks are silent, so there is no
+  evidence to elevate — the chip and the statement carry the caution.
+- The statement and options needed no change: the generic yellow branch already
+  renders "The posting asks for nothing the rules prohibited. Nothing in the
+  record establishes who is behind the posting.", and the yellow options are
+  the two verification moves.

@@ -19,18 +19,22 @@ The grid is three colours deep:
 
 | request class      | confirmed | supported | unknown | contradicted |
 |--------------------|-----------|-----------|---------|--------------|
-| ordinary           | green     | green     | green   | **red**      |
+| ordinary           | green     | green     | yellow  | **red**      |
 | cannot be classified | yellow  | yellow    | yellow  | **red**      |
 | prohibited         | yellow    | yellow    | yellow  | **red**      |
 
 `contradicted` is the only path to `red`. That is the strongest output this
 system can produce, and the only one that needs evidence the posting cannot
-supply about itself. `unknown` never rises above `yellow` on its own, because
-absence is not a finding. A prohibited request at a confirmed employer softens
-into the same `yellow`: the reader can go and see the request on the employer's
-own site. What separates the two yellows is the *rule* in the breakdown, which
-the panel renders under the chip — the colour says "uncertain", the rule says
-why.
+supply about itself. The whole `unknown` column is yellow, because the record
+cannot clear the posting by being silent: company existence is the heavy
+evidence, and a named employer the lookup could not establish is itself the
+caution (field report 2026-10-31 - an AI-generated company read green with
+every check "could not verify"). Absence still never rises to `red` on its
+own: `contradicted` is the only state that stops. A prohibited request at a
+confirmed employer softens into the same `yellow`: the reader can go and see
+the request on the employer's own site. What separates the yellows is the
+*rule* in the breakdown, which the panel renders under the chip — the colour
+says "uncertain", the rule says why.
 
 The breakdown is the record of how the assessment was reached, and it carries no
 number. `docs/decisions/scoring-model.md` records why the scale was abandoned.
@@ -82,6 +86,15 @@ def _decide(request_class: str, state: str) -> tuple[str, str]:
         if state == "confirmed":
             return "yellow", "prohibited_at_confirmed_employer"
         return "yellow", "prohibited_at_unestablished_employer"
+
+    if state == "unknown":
+        # Company existence is the heavy evidence. A posting that names an
+        # employer the lookup could not establish is a caution, not a clean
+        # bill - the record cannot clear the posting by being silent. (Field
+        # report 2026-10-31: an AI-generated company returned green with every
+        # check "could not verify".) Only this cell is affected; unclassified
+        # and prohibited requests keep their own rules below.
+        return "yellow", "ordinary_at_unestablished_employer"
 
     return ("yellow" if request_class == "unclassified" else "green"), _REQUEST_RULES[request_class]
 
