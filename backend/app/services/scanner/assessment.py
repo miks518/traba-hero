@@ -19,22 +19,31 @@ The grid is three colours deep:
 
 | request class      | confirmed | supported | unknown | contradicted |
 |--------------------|-----------|-----------|---------|--------------|
-| ordinary           | green     | green     | yellow  | **red**      |
+| ordinary           | green     | green     | green   | **red**      |
 | cannot be classified | yellow  | yellow    | yellow  | **red**      |
 | prohibited         | yellow    | yellow    | yellow  | **red**      |
 
 `contradicted` is the only path to `red`. That is the strongest output this
 system can produce, and the only one that needs evidence the posting cannot
-supply about itself. The whole `unknown` column is yellow, because the record
-cannot clear the posting by being silent: company existence is the heavy
-evidence, and a named employer the lookup could not establish is itself the
-caution (field report 2026-10-31 - an AI-generated company read green with
-every check "could not verify"). Absence still never rises to `red` on its
-own: `contradicted` is the only state that stops. A prohibited request at a
-confirmed employer softens into the same `yellow`: the reader can go and see
-the request on the employer's own site. What separates the yellows is the
-*rule* in the breakdown, which the panel renders under the chip — the colour
-says "uncertain", the rule says why.
+supply about itself. `unknown` never rises above `yellow` on its own, because
+absence is not a finding. A prohibited request at a confirmed employer
+softens into the same `yellow`: the reader can go and see the request on the
+employer's own site. What separates the two yellows is the *rule* in the
+breakdown, which the panel renders under the chip — the colour says
+"uncertain", the rule says why.
+
+One input sits beside the grid rather than inside it: **the retrieval floor.**
+The verify endpoint passes `has_results` — whether the lookup returned
+anything at all. A posting that writes a company name and the lookup found
+nothing is the fictional-employer signal, and a model-claimed existence with
+no retrieved source behind it is not a clearance, so a `green` from an empty
+lookup floors to `yellow` (rule `no_results_found`). The floor is keyed on
+the retrieval fact rather than the establishment state on purpose: a found
+company whose checks hedged (the model reports `yellow` for Company
+Existence by default) must stay green — keying the caution on `unknown`
+establishment made every such posting a Caution (field regression
+2026-11-02). Red stands under the floor; a yellow the grid chose is not
+demoted.
 
 The breakdown is the record of how the assessment was reached, and it carries no
 number. `docs/decisions/scoring-model.md` records why the scale was abandoned.
@@ -87,15 +96,6 @@ def _decide(request_class: str, state: str) -> tuple[str, str]:
             return "yellow", "prohibited_at_confirmed_employer"
         return "yellow", "prohibited_at_unestablished_employer"
 
-    if state == "unknown":
-        # Company existence is the heavy evidence. A posting that names an
-        # employer the lookup could not establish is a caution, not a clean
-        # bill - the record cannot clear the posting by being silent. (Field
-        # report 2026-10-31: an AI-generated company returned green with every
-        # check "could not verify".) Only this cell is affected; unclassified
-        # and prohibited requests keep their own rules below.
-        return "yellow", "ordinary_at_unestablished_employer"
-
     return ("yellow" if request_class == "unclassified" else "green"), _REQUEST_RULES[request_class]
 
 
@@ -123,6 +123,7 @@ def code_assessment(
     *,
     request_class: str = "ordinary",
     establishment: Establishment | None = None,
+    has_results: bool = True,
 ) -> tuple[str, dict]:
     """Decide the assessment from the request class and the establishment.
 
@@ -135,10 +136,21 @@ def code_assessment(
     before computing it. They are counted here because the breakdown is a record
     of what the decision was made from, and a reader is entitled to know how many
     findings stood.
+
+    `has_results` says whether the verify lookup returned anything at all. A
+    `green` from an empty lookup floors to `yellow` (`no_results_found`): a
+    posting that writes a company name and found nothing is the
+    fictional-employer signal, and a model-claimed existence with no retrieved
+    source behind it is not a clearance. Red and the grid's own yellows stand.
+    Verify endpoint only - the scan emits no assessment and the offer path has
+    no employer to be cautious about.
     """
     normalised = _normalise_request_class(request_class)
     state = establishment or establishment_from_record(items)
     assessment, rule = _decide(normalised, state.state)
+
+    if assessment == "green" and not has_results:
+        assessment, rule = "yellow", "no_results_found"
 
     stale_excluded = sum(
         1

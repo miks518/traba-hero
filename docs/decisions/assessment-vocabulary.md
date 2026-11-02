@@ -127,3 +127,46 @@ Consumers, per the rules above:
   renders "The posting asks for nothing the rules prohibited. Nothing in the
   record establishes who is behind the posting.", and the yellow options are
   the two verification moves.
+
+---
+
+## 2026-11-03 â€” the caution is keyed on retrieval, not establishment
+
+Supersedes the 2026-11-02 addendum above. That addendum moved
+`(ordinary, unknown)` to yellow keyed on the establishment state, and the
+field regression was immediate: **every** posting whose Company Existence
+check did not land exactly `confirmed` read Caution â€” including real
+employers with two confirmed checks, because the verify prompt makes
+`yellow` the default for Company Existence ("the results do not settle itâ€¦
+This is the default") and the establishment derivation honours only exactly
+`confirmed`. The establishment-keyed rule priced the model's hedging as
+evidence of a fictional employer.
+
+The rule is now keyed on the retrieval fact instead:
+
+- The verify endpoint passes `has_results` (the retrieved result set is
+  non-empty) into `code_assessment`. A `green` from an empty lookup floors to
+  **yellow**, rule `no_results_found`. Red stands; a yellow the grid chose is
+  not demoted.
+- The `(ordinary, unknown)` cell returns to **green**: a found company whose
+  checks hedged keeps the benefit of the doubt, because the lookup found
+  something and nothing contradicts it.
+- The 2026-10-31 field report stays fixed by the floor: a fictional employer
+  with zero results floors green to yellow â€” and the floor also catches the
+  worse variant, a model *claiming* a confirmed existence on an empty result
+  set, which the establishment-keyed rule would have missed.
+
+Consumers: no copy changes â€” the chip words are keyed by colour and the
+yellow family already says the right thing. The matcher keeps feeding on
+green only: a posting whose lookup found nothing leaves the matchable pool,
+which is the same decision the 2026-11-02 addendum recorded for the
+establishment-keyed rule.
+
+Known open issue, recorded so it is not mistaken for this rule: a posting
+with a *recognised finding the classifier cannot subclassify* (an
+`OTHER`/empty code, or a fee with no stated recipient) still prices
+`unclassified` yellow in every state â€” field report 2026-10-31 (a real
+coffee shop with two confirmed checks, flagged for "an address it does not
+print", rode the absence-guardrail phrase gap into `unclassified`). The
+absence-phrase fix and the catch-all pricing are separate decisions.
+
