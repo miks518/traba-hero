@@ -105,7 +105,53 @@ def _codes_of(anomalies: list) -> frozenset[str]:
     return frozenset(codes)
 
 
-def _decide(request_class: str, state: str, codes: frozenset[str] = frozenset()) -> tuple[str, str]:
+def _contradicted_label(items: list) -> str:
+    """The label of the first category check a retrieved source contradicted.
+
+    Reputation is excluded, and that exclusion is the whole reason this is a
+    function rather than an `any()`. A Reputation `red` means the results contain
+    a complaint about how an employer behaves, and that is *not* the posting
+    being contradicted — `docs/decisions/assessment-vocabulary.md` and
+    `establishment.py` both record it. A bad review must never make a posting
+    read "Something is not right"; Reputation is capped at yellow by the rules
+    that produce it.
+
+    Only a check carrying a `source_url` counts, though `_bind_to_retrieved` has
+    already stripped any URL that was not retrieved — a contradiction with no
+    source behind it is not one.
+    """
+    for item in items or []:
+        if getattr(item, "label", "").strip().lower() == "reputation":
+            continue
+        if getattr(item, "status", "") != "contradicted":
+            continue
+        if not getattr(item, "source_url", ""):
+            continue
+        return getattr(item, "label", "")
+    return ""
+
+
+def _contradicting_source(assessments: list) -> bool:
+    """Whether any posting finding was contradicted by a retrieved source.
+
+    `_read_anomaly_assessments` demotes a `red` with no bound URL to `yellow`, so
+    a `red` reaching here already carries its evidence.
+    """
+    for assessment in assessments or []:
+        status = getattr(assessment, "status", "")
+        if status == "red" and getattr(assessment, "source_url", ""):
+            return True
+    return False
+
+
+def _decide(
+    request_class: str,
+    state: str,
+    codes: frozenset[str] = frozenset(),
+    *,
+    contradicted_finding: bool = False,
+    contradicted_check: str = "",
+) -> tuple[str, str]:
     """Return `(assessment, rule)` for one cell of the grid.
 
     `rule` is the name of the rule that produced the assessment, so a reader — or a
@@ -117,9 +163,25 @@ def _decide(request_class: str, state: str, codes: frozenset[str] = frozenset())
     of the cell, not a patch applied afterwards, so every caller decides the same
     way — that patch lived in the offer path alone and the verify path read the
     same finding as Caution.
+
+    **A contradiction anywhere in the record is red.** Before this, a posting
+    could show three anomaly cards saying "Contradicted" and one contradicted
+    category check, and still read green — field report 2026-11-04, a posting
+    demanding a $150 deposit with a contradicted Similar Offers check. The
+    reader cannot be told "nothing stands out" over a screen that says
+    otherwise, and the panelist's question ("which one did you mean?") has no
+    defensible answer. The two contradiction rules run first, because evidence
+    outranks the request class: a posting whose fee the record refutes is not
+    "ordinary".
     """
     if state == "contradicted":
         return "red", "establishment_contradicted"
+
+    if contradicted_check:
+        return "red", "check_contradicted_by_source"
+
+    if contradicted_finding:
+        return "red", "finding_contradicted_by_source"
 
     if request_class == "prohibited":
         if state == "unknown" and _LABOUR_CODES & codes:
@@ -191,7 +253,14 @@ def code_assessment(
     normalised = _normalise_request_class(request_class)
     state = establishment or establishment_from_record(items)
     codes = _codes_of(anomalies)
-    assessment, rule = _decide(normalised, state.state, codes)
+    contradicted_check = _contradicted_label(items)
+    assessment, rule = _decide(
+        normalised,
+        state.state,
+        codes,
+        contradicted_finding=_contradicting_source(assessments),
+        contradicted_check=contradicted_check,
+    )
 
     stale_excluded = sum(
         1
@@ -207,6 +276,9 @@ def code_assessment(
         "record": _record(items),
         "findings": len(anomalies or []),
         "codes": sorted(codes),
+        # Which check the floor rule read, so the panel can say which one it was
+        # rather than "a check somewhere". Empty when no check was contradicted.
+        "contradicted_check": contradicted_check,
         "stale_excluded": stale_excluded,
         "level_source": "code",
     }

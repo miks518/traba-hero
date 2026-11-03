@@ -175,6 +175,61 @@ class TestRedStatements:
         assert "per task, order or referral" in text
         assert "nothing in the record establishes who would pay it" in text.lower()
 
+    def test_a_finding_contradiction_red_does_not_claim_an_impersonation(self):
+        """A source refuted a claim the posting made. That is not, on its own,
+        a claim about who is asking, so the sentence must not say it is.
+        """
+        text = statement(
+            "red",
+            request_class="ordinary",
+            establishment=Establishment("supported"),
+            facts=StatementFacts(),
+            rule="finding_contradicted_by_source",
+        )
+        assert "impersonat" not in text.lower()
+        assert "not from the employer" not in text.lower()
+        assert "a retrieved source states something different" in text.lower()
+
+    def test_a_check_contradiction_red_does_not_claim_an_impersonation(self):
+        text = statement(
+            "red",
+            request_class="ordinary",
+            establishment=Establishment("supported"),
+            facts=StatementFacts(),
+            rule="check_contradicted_by_source",
+        )
+        assert "impersonat" not in text.lower()
+        assert "not from the employer" not in text.lower()
+        assert "a retrieved source contradicts" in text.lower()
+
+    def test_every_red_rule_has_its_own_sentence(self):
+        """One sentence per rule, because each rule is a different fact.
+
+        A shared sentence would have to be vague enough to fit an impersonation,
+        a refuted fee claim and an unestablished task offer at once - and the
+        vague version is the one that gets defended to a panelist.
+        """
+        rules = (
+            "establishment_contradicted",
+            "task_for_earning_at_unestablished_employer",
+            "finding_contradicted_by_source",
+            "check_contradicted_by_source",
+        )
+        texts = {
+            rule: statement(
+                "red",
+                request_class="prohibited",
+                establishment=Establishment("contradicted", reason="r"),
+                facts=StatementFacts(),
+                rule=rule,
+            )
+            for rule in rules
+        }
+        assert len(set(texts.values())) == len(rules), (
+            "two red rules share a sentence:\n"
+            + "\n".join(f"  {r}: {t}" for r, t in texts.items())
+        )
+
     def test_a_task_for_earning_red_has_no_hedges(self):
         hedges = ["likely", "appears", "suggests", "may", "might", "could"]
         text = statement(

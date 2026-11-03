@@ -302,3 +302,76 @@ employer it reads `green`, so "Something is not right" on a card can sit above
 finding; the banner's is about who is asking. Renaming made the collision
 less likely to read as a contradiction, and did not resolve it.
 
+*(Resolved the same day — see the next addendum.)*
+
+---
+
+## 2026-11-04 (second) — a contradiction anywhere is red
+
+**Field report.** A posting — a "Global Logistics Solutions" data-entry ad —
+demanded a mandatory $150 equipment deposit, was listed identically on job
+boards, and scanned as **green**. Three anomaly cards read "Contradicted" and
+the Similar Offers check read "Contradicted", and the banner said "Nothing
+stands out".
+
+The mechanism was two rules, each defensible alone:
+
+1. `establishment_from_record` reads **only** Channel Match
+   (`CONTRADICTING_ESCALATIONS = {government, lookalike}`), because establishment
+   asks *is the poster who they claim to be*. Every other contradicted check was
+   invisible to the grid.
+2. A mandatory deposit whose `FEE_RECIPIENT` the model wrote as `employer`
+   priced `_fee_class` as **ordinary** — "a fee to the employer for a uniform is
+   ordinary practice" — so the request class came back `ordinary` and the cell
+   was green.
+
+### The rule
+
+Two more cells, evaluated **before** the request class, because evidence
+outranks what the posting asked for:
+
+| Condition | Rule |
+|---|---|
+| a category check is `contradicted` **and carries a `source_url`** | `check_contradicted_by_source` → **red** |
+| a posting finding is `red` **and carries a `source_url`** | `finding_contradicted_by_source` → **red** |
+
+**Red, not yellow.** Yellow means *nothing settled this*. A contradiction is
+settled: a retrieved source states something different from the posting. The
+panelist's question — *"you show Contradicted and you say nothing stands out,
+which is it?"* — has no defensible answer, and that is the argument that decided
+this. Consistency with the evidence on screen outranks the finer point that a
+contradicted claim is not a contradicted identity.
+
+**Reputation is capped, and it is the one exclusion.** A Reputation `red` is a
+retrieved complaint about how an employer *behaves*. It is not the posting being
+contradicted, and `establishment.py` already says so. Turning a bad review into
+"something is not right" about a named company is the libel shape the guardrails
+exist for, so Reputation can never be contradicted and can never reach red. The
+category still reports `confirmed` / `could not verify`; a confirmed Reputation
+stays green on its own card, and never on its own promotes the posting.
+
+**Every red rule gets its own sentence.** `task_for_earning_at_unestablished_employer`,
+`finding_contradicted_by_source` and `check_contradicted_by_source` join
+`establishment_contradicted`, which keeps the impersonation wording. A shared
+sentence would have to be vague enough to fit an impersonation, a refuted fee
+claim and an unestablished task offer at once — and the vague version is the one
+that gets defended to a panelist.
+
+### What was given up
+
+**The identity distinction is gone.** Before this, `red` meant *the record
+contradicts who is asking*, and a contradicted claim or a bad review could not
+produce it. Now any contradiction with a source produces red, and the *rule
+name* is what says which. The traded cost: a posting whose fee a source refutes
+reads the same colour as an impersonation. The bought thing: a screen that never
+says "nothing stands out" over evidence that says otherwise.
+
+### Still open
+
+**Fix 1 was not made.** `_fee_class` still returns `ordinary` for
+`FEE_RECIPIENT: employer` without asking whether the quote shows the applicant
+paying. The floor catches the field report because a contradicted check happens
+to be present; a mandatory deposit to a digital wallet with **no** contradicted
+check would still read green. `money_direction.quote_pays_the_applicant` is the
+guard that would close it.
+

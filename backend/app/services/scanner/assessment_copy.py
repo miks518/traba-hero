@@ -147,6 +147,22 @@ def statement(
                 f"The posting {ask}. It offers pay per task, order or referral, "
                 "and nothing in the record establishes who would pay it."
             )
+        elif rule == "finding_contradicted_by_source":
+            # A retrieved source states something different from what the
+            # posting claims. That is evidence, and it names its subject: the
+            # posting's own claim, not the employer's identity.
+            text = (
+                f"The posting {ask}, and a retrieved source states something "
+                "different from what the posting says."
+            )
+        elif rule == "check_contradicted_by_source":
+            # A category check was contradicted. The check is named in the
+            # breakdown, so the sentence does not have to guess which one, and
+            # does not claim the contradiction is about who is asking.
+            text = (
+                f"The posting {ask}, and a retrieved source contradicts what "
+                "the posting states about the employer."
+            )
         else:
             # Red: contradicted employer
             text = f"The posting {ask}. The communication is not from the employer it names. {record} This is a contradicted impersonation."

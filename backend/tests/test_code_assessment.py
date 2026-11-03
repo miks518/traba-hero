@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from app.models.schemas import VerificationItem
+from app.models.schemas import AnomalyAssessment, VerificationItem
 from app.services.scanner.establishment import Establishment
 from app.services.scanner.assessment import ASSESSMENTS, code_assessment
 
@@ -272,6 +272,7 @@ class TestTheBreakdownCarriesNoNumber:
             establishment=Establishment("contradicted"),
         )
 
+
         assert breakdown["record"][0]["label"] == "Channel Match"
         assert breakdown["record"][0]["status"] == "contradicted"
         assert breakdown["record"][0]["escalation"] == "government"
@@ -388,3 +389,99 @@ class TestUnassessedIsNotLow:
 
         assert res.risk_level is None, "a scan has seen no evidence and must claim no level"
         assert res.risk_score is None
+
+
+class TestAContradictionAnywhereIsRed:
+    """Field report 2026-11-04: three contradicted anomaly cards and one
+    contradicted category check, under a green banner.
+
+    The posting demanded a $150 deposit and the Similar Offers check found it
+    listed elsewhere — evidence, on screen, with nothing in the banner
+    acknowledging it. `establishment.py` deliberately reads only Channel Match,
+    so every other contradiction was invisible to the grid. The panelist's
+    question ("you show Contradicted and you say nothing stands out — which is
+    it?") has no defensible answer, which is why the floor is red and not a
+    smaller colour: a contradiction is evidence, and evidence is not
+    uncertainty.
+    """
+
+    def _check(self, label, status="contradicted", url="https://example.ph/post"):
+        return VerificationItem(label=label, status=status, explanation="",
+                                source_title="a source", source_url=url)
+
+    def _finding(self, status="red", url="https://example.ph/post"):
+        return AnomalyAssessment(index=1, status=status, finding="f",
+                                 source_title="a source", source_url=url)
+
+    def _run(self, items, assessments=(), request_class="ordinary", state="supported"):
+        return code_assessment(
+            [], items, list(assessments),
+            request_class=request_class,
+            establishment=Establishment(state),
+        )
+
+    def test_a_contradicted_check_is_red_and_names_itself(self):
+        confirmed = self._check("Company Existence", status="confirmed")
+        assessment, breakdown = self._run([confirmed, self._check("Similar Offers")])
+
+        assert assessment == "red"
+        assert breakdown["rule"] == "check_contradicted_by_source"
+        assert breakdown["contradicted_check"] == "Similar Offers"
+
+    def test_a_contradicted_finding_is_red(self):
+        confirmed = self._check("Company Existence", status="confirmed")
+        assessment, breakdown = self._run([confirmed], [self._finding()])
+
+        assert assessment == "red"
+        assert breakdown["rule"] == "finding_contradicted_by_source"
+
+    def test_the_check_rule_wins_when_both_fire(self):
+        """The named check is more specific than "a finding", so the breakdown
+        says which one the reader can go and look at.
+        """
+        confirmed = self._check("Company Existence", status="confirmed")
+        assessment, breakdown = self._run(
+            [confirmed, self._check("Similar Offers")], [self._finding()]
+        )
+
+        assert assessment == "red"
+        assert breakdown["rule"] == "check_contradicted_by_source"
+
+    def test_reputation_cannot_make_a_posting_red(self):
+        """The cap, and it is a decision rather than an oversight.
+
+        A Reputation `red` is a retrieved complaint about how an employer
+        behaves. It is not the posting being contradicted, and turning a bad
+        review into "something is not right" about a named company is the libel
+        shape the guardrails exist for. Reputation is capped at yellow by the
+        rules that produce it; this test is the cap in the assessment too.
+        """
+        confirmed = self._check("Company Existence", status="confirmed")
+        for status in ("contradicted", "supported", "unknown"):
+            assessment, breakdown = self._run([confirmed, self._check("Reputation", status=status)])
+            assert assessment != "red", f"Reputation {status} made the posting red"
+            assert breakdown["rule"] != "check_contradicted_by_source"
+
+    def test_a_contradiction_with_no_source_does_not_floor(self):
+        """`_bind_to_retrieved` strips an unretrieved URL, and an unbacked
+        contradiction is not one. Absence is never evidence of anything.
+        """
+        confirmed = self._check("Company Existence", status="confirmed")
+        assessment, breakdown = self._run(
+            [confirmed, self._check("Similar Offers", url="")]
+        )
+        assert assessment == "green"
+        assert breakdown["rule"] == "ordinary_request"
+
+    def test_the_floor_outranks_the_request_class(self):
+        """A refuted claim matters more than what the posting asked for, so the
+        rule names the evidence rather than the request.
+        """
+        confirmed = self._check("Company Existence", status="confirmed")
+        assessment, breakdown = self._run(
+            [confirmed, self._check("Location / Branch")],
+            request_class="prohibited",
+            state="confirmed",
+        )
+        assert assessment == "red"
+        assert breakdown["rule"] == "check_contradicted_by_source"
