@@ -46,9 +46,10 @@ END JOB SUMMARY
 
 2. ANOMALIES
 - An anomaly is something in the posting that differs from the ordinary case: a description of what it contains, never a conclusion about what it means. An application that arrives by direct message, or that asks there for a name, a contact number, or an email, differs from nothing: it is the ordinary case. A genuine posting can be poorly written and still be entirely legitimate.
-- Report only something you can point to in the posting. After each ANOMALY line, a QUOTE: line holds the exact words that show it, copied verbatim, one sentence or less, and nothing of your own - no judgment, no advice. If you cannot find exact supporting words, omit the QUOTE line rather than paraphrasing: a fabricated quote is worse than no quote.
+- Report only something you can point to in the posting. Every ANOMALY line must be followed by a QUOTE: line holding the exact words that show it, copied verbatim, one sentence or less, and nothing of your own - no judgment, no advice. Find the quote first. If you cannot find exact supporting words, do not report the anomaly at all: no QUOTE, no ANOMALY. A fabricated quote is worse than no anomaly.
 - Before reporting anything, ask: would a job seeker do something differently after reading this? If not, report nothing. A posting with no anomalies is the expected outcome, not a failure - emit no ANOMALY lines and go straight to END ANOMALIES.
 - Never flag the absence of something: no fee mentioned, no contract, no salary, no company name. "It does not ask for money" is a clean posting, not a warning, and "urgent hiring, and it states no salary" is still two ordinary things. A posting that states no salary is not flagged for salary; only a stated amount that does not fit the role is.
+- Money has two directions. Money paid TO the applicant - salary, wage, allowance, commission, incentive, bonus, a rate per hour, day or month - is PAY, and a number or peso amount of this kind is never a fee. Money paid BY the applicant - told to pay, send, deposit, remit, shoulder or buy - is the only thing the fee, purchase and deposit codes describe. A fee, purchase or deposit anomaly requires a QUOTE in which the posting explicitly tells the applicant to pay or buy something. If the only amounts in the posting are pay offered to the applicant, report no fee, purchase or deposit anomaly.
 - Do not flag any of these: a free email domain (Gmail, Yahoo), a missing office address, a generic job title, "no experience needed", an informal or Messenger-based application, or the absence of a formal application process. These are ordinary in Philippine job postings, and there is no combination of these that makes one of them a finding. A generic or personal email is not an anomaly.
 - An informal application includes one that arrives by direct message asking the applicant to send a name, a contact number, an email address, or a preferred branch or site. The contact details are the application, not a finding, and how the application arrives is the channel, not the concern. Who is behind the posting is decided later, against retrieved evidence - never by the formality of the channel.
 - Never invent an anomaly, and never output a placeholder or default one.
@@ -72,6 +73,10 @@ END ANOMALY CODES
 
 - Choose the code by what the posting asks the reader to give up: money, identity documents, or their labour. A code must name a demand the posting makes, never a detail it merely has.
 - The codes are labels, not a gate: if a posting contains something a reader would act on that none of them names, report it with `OTHER` and describe it in your label instead of staying silent. Staying silent because no code fits loses the finding entirely, which is worse than an imprecise label. `OTHER` is not for a benefit, an event, a hiring condition, or a preference - report nothing instead.
+
+Examples of the money rule:
+- Posting: "Hiring cashier. Salary P18,000-P22,000/month plus P1,500 allowance." Correct: no ANOMALY lines; PAY: P18,000-P22,000 per month. The amounts are pay to the applicant, not a fee.
+- Posting: "Hiring packers. Pay P350 processing fee via GCash before your interview." Correct: an ANOMALY with CODE: FEE_MANDATORY and QUOTE: Pay P350 processing fee via GCash before your interview.
 
 3. ATTRIBUTES
 - Report only details the posting actually states. If it names no location, omit the LOCATION line entirely rather than writing "none" or "Not stated".
