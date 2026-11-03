@@ -40,6 +40,7 @@ Detail lives in `docs/`. Each fact is stated in exactly one place.
 | `docs/decisions/absence-guardrail.md` | The absence guardrail: a finding whose label names silence ("Pay Information not provided") is dropped at `scan_result._anomalies`, before it can ride the empty-code catch-all into a yellow |
 | `docs/decisions/money-direction-guard.md` | The money-direction guard: a fee finding whose quote shows pay rather than a request to pay is dropped at `scan_result._anomalies` and cannot price `prohibited`; the prompt's NO QUOTE, NO ANOMALY rule |
 | `docs/decisions/labour-code-red.md` | The labour-code red: `TASK_FOR_EARNING` at an unestablished employer is red in the grid itself, not a patch in one caller; and the red statement it needs |
+| `docs/decisions/ordinary-channel-guardrail.md` | A Gmail / direct-message / Messenger finding coded `OTHER` is dropped at `scan_result._anomalies`, because the escape code priced a clean posting yellow in every establishment state |
 | `docs/decisions/design-system.md` | Hard shadows, the container/button split, `--tactile-base`, undeclared opacity variants |
 | `docs/decisions/reasoning-models.md` | The token-budget failure and the three ways out |
 | `docs/decisions/report-panel-redesign.md` | What the new report UI settles, and the slots with no possible source |

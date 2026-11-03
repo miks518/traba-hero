@@ -47,6 +47,60 @@ def _is_absence_shaped(label: str) -> bool:
     return any(phrase in lowered for phrase in _ABSENCE_PHRASES)
 
 
+# Labels that describe how the posting says to apply, rather than a demand it
+# makes. The prompt forbids flagging any of these — three separate rules, and a
+# test that keeps the "on their own" carve-out from coming back — and the model
+# flags them anyway.
+#
+# **The damage is done by `OTHER`, not by the finding.** An `OTHER` code reaches
+# `_class_for`'s catch-all, which returns `unclassified`, which the grid prices
+# yellow in every establishment state. So a Gmail address reported under `OTHER`
+# turned a posting with a confirmed employer, a clean reputation and an ordinary
+# ask into Caution, three scans in a row (field report 2026-11-04).
+#
+# The prompt already has an ordinary label for this — `APPLICATION_DOCUMENTS` is
+# priced `ordinary` and is kept whole. What this drop refuses is the *unlabelled*
+# version: a finding whose text names an ordinary contact channel and whose code
+# is the escape valve. A finding coded `DOCUMENTS_VIA_THIRD_PARTY` still goes
+# through, because that code is about where documents are sent, not about the
+# application channel being informal, and `_documents_class` already decides it
+# on the free-provider list.
+#
+# A new code was considered and rejected: `anomaly_codes` only admits a code with
+# a confirmed claim and citation behind it, and the correct answer here is that
+# there is no finding at all, not that there is a differently-named one.
+#
+# Matched on the label AND the reasoning, unlike the absence guardrail, because
+# the model phrases this either way — "Applies via a personal Gmail address" and
+# "Informal application through direct message" are the same finding with the
+# name in either field.
+_ORDINARY_CHANNEL_PHRASES = (
+    "gmail", "yahoo", "outlook", "hotmail",
+    "free email", "personal email", "generic email", "email address",
+    "direct message", "private message", "via messenger", "messenger",
+    "informal application", "informal channel", "informal contact",
+    "chat message", "dm", "social media", "facebook message",
+)
+
+# The channels the prompt says are ordinary on their own. A `red` status is never
+# dropped by this rule: a contradiction carries a source, and evidence outranks a
+# vocabulary label.
+_ESCAPE_CODES = frozenset({"OTHER", ""})
+
+
+def _is_ordinary_channel_flagged(label: str, reasoning: str, code: str) -> bool:
+    """Whether an escape-coded finding is really naming an ordinary channel.
+
+    Deliberately scoped to `OTHER` and the empty code. A correctly-coded finding
+    is the taxonomy working; only the escape valve is a labelling miss, and only
+    a labelling miss is this function's business.
+    """
+    if code not in _ESCAPE_CODES:
+        return False
+    text = f"{label} {reasoning}".lower()
+    return any(phrase in text for phrase in _ORDINARY_CHANNEL_PHRASES)
+
+
 # The codes that claim the posting asks the applicant to part with money. A
 # quote that carries none of these cannot be showing a fee, and the finding is
 # dropped rather than shown without its evidence.
@@ -103,6 +157,14 @@ def _anomalies(flags: list) -> list[Anomaly]:
         # priced as a fee here too, rather than slipping past as OTHER.
         code = normalise_code(f.get("code"))
         quote = clean_quote(f.get("quote"))
+        if _is_ordinary_channel_flagged(name, reasoning, code):
+            log.warning(
+                "[scan] Ordinary-channel guardrail dropped a finding: %r code=%s "
+                "(reasoning=%r) — the prompt says a free email or an informal "
+                "application is not an anomaly",
+                name, code or "<none>", reasoning[:120],
+            )
+            continue
         if _is_invented_fee(code, quote):
             log.warning(
                 "[scan] No-quote guardrail dropped a money finding: %r code=%s "
