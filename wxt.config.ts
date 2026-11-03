@@ -13,7 +13,7 @@ export default defineConfig({
     // The repository is the only home this project has — no domain, so the
     // listing's homepage is where the source and the setup docs already live.
     homepage_url: 'https://github.com/miks518/traba-hero',
-    version: '0.5.0',
+    version: '1.0.0',
     // Pins the extension ID to hdmdhiojgdoomcjfhbkidbhkifmokkop.
     //
     // Without this, Chrome derives an unpacked extension's ID from its absolute

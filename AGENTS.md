@@ -173,6 +173,43 @@ below is the fix for the cause, not for the symptom.
 
 ---
 
+## Versioning
+
+**A change that reaches the user updates the version, in the same commit that changes the
+behaviour.** The version is what the Chrome Web Store and `chrome://extensions` show, and a
+fix that ships under an unchanged version is indistinguishable from no fix at all.
+
+Three files carry it, and `manifestVersion.test.ts` fails if any of them disagree:
+
+| File | What it is |
+|---|---|
+| `wxt.config.ts` — `version:` | the manifest value WXT writes into every build |
+| `package.json` — `version` | the npm package |
+| `Documentation.md` — the `**Version:**` line | the project's own record |
+
+`version:` in `wxt.config.ts` is the source of truth, because it is the one Chrome reads.
+
+| Bump | For | Examples from this repo |
+|---|---|---|
+| **`X.0.0`** | Major — a change to what the product *means* or how it decides. A user could get a different answer to the same question than they did before. | the assessment moving from a score to the grid; a new verification category |
+| **`0.X.0`** | Minor — new behaviour or a new surface, without changing an existing answer. | a new check, a new panel section, a new input path |
+| **`0.0.X`** | Hotfix — a defect fix, a prompt correction, a crash, a wording error. The behaviour was wrong and now is right. | the absence guardrail; the money-direction guard; a chat header read as an employer |
+
+**When a change is two of these, bump to the higher one.** A commit that fixes a defect
+*and* changes the grid is `0.X.0`, not `0.0.X`.
+
+**Deleting a check is a major bump**, even though it removes code: the product now says
+something different about the same posting. Retiring `Official Registration` was one.
+
+**Do not bump speculatively.** The version moves when the behaviour moves, not when a branch
+is opened or a decision is recorded. A docs-only commit does not bump it.
+
+**`Chrome caches the version on load.** After a bump, rebuild *and* press the reload arrow on
+the extension card in `chrome://extensions`; otherwise the old number stays on screen and the
+build looks like it did not take.
+
+---
+
 ## Standing rules
 
 These hold everywhere and are not stylistic preferences.

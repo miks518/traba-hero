@@ -1,7 +1,7 @@
 # Trabahero — Functional & Non-Functional Requirements
 
 **Project:** Trabahero — A Universal Visual Job-Scam Detection System for Filipino Job Seekers
-**Version:** 0.5.0
+**Version:** 1.0.0
 **Last Updated:** 2026-09-29
 
 ---
