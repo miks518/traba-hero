@@ -581,6 +581,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
                     request_class=request_class,
                     establishment=establishment,
                     facts=facts,
+                    rule=breakdown.get("rule", ""),
                 )
             else:
                 risk_level = None
@@ -1038,6 +1039,7 @@ async def verification_event_stream(req: VerifyRequest) -> AsyncIterator[str]:
             request_class=request_class,
             establishment=establishment,
             facts=facts,
+            rule=breakdown.get("rule", ""),
         )
 
         yield runtime.get_sse()({"type": "result", "data": {

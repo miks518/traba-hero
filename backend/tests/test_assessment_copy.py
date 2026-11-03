@@ -148,9 +148,56 @@ class TestRedStatements:
             request_class="prohibited",
             establishment=Establishment("contradicted", reason="The domain is not the agency's."),
             facts=StatementFacts(),
+            rule="establishment_contradicted",
         )
         assert "not from the employer it names" in text
         assert "contradicted" in text.lower() or "impersonat" in text.lower()
+
+    def test_a_task_for_earning_red_does_not_claim_an_impersonation(self):
+        """No employer is named, so nothing can have been impersonated.
+
+        The red template says "The communication is not from the employer it
+        names. This is a contradicted impersonation." That sentence is true for a
+        contradicted channel and false for a DM: the posting names no employer at
+        all, and inventing one so the sentence fits is the exact failure the
+        libel guardrail exists to prevent. The rule name is what distinguishes
+        them, so the rule is what the template reads.
+        """
+        text = statement(
+            "red",
+            request_class="prohibited",
+            establishment=Establishment("unknown"),
+            facts=StatementFacts(),
+            rule="task_for_earning_at_unestablished_employer",
+        )
+        assert "impersonat" not in text.lower()
+        assert "not from the employer" not in text.lower()
+        assert "per task, order or referral" in text
+        assert "nothing in the record establishes who would pay it" in text.lower()
+
+    def test_a_task_for_earning_red_has_no_hedges(self):
+        hedges = ["likely", "appears", "suggests", "may", "might", "could"]
+        text = statement(
+            "red",
+            request_class="prohibited",
+            establishment=Establishment("unknown"),
+            facts=StatementFacts(),
+            rule="task_for_earning_at_unestablished_employer",
+        ).lower()
+        for hedge in hedges:
+            assert hedge not in text, f"task-for-earning red contains hedge: {hedge}"
+
+    def test_a_red_without_a_rule_keeps_the_contradiction_wording(self):
+        """A stored scan and a caller that predates the rule field have none, and
+        the contradiction wording is right for every red they can carry.
+        """
+        text = statement(
+            "red",
+            request_class="prohibited",
+            establishment=Establishment("contradicted", reason="The domain is not the agency's."),
+            facts=StatementFacts(),
+        )
+        assert "not from the employer it names" in text
 
     def test_a_red_statement_has_no_hedges(self):
         hedges = ["likely", "appears", "suggests", "may", "might", "could"]

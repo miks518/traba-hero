@@ -78,23 +78,59 @@ _REQUEST_RULES = {
     "unclassified": "unclassified_request",
 }
 
+# The codes where the reader sells their labour and is paid at the poster's
+# discretion. Not a severity — a fact about the shape of the offer. A referral
+# or a completed task pays only if the poster decides to pay, and the poster can
+# block the reader at any point.
+_LABOUR_CODES = frozenset({"TASK_FOR_EARNING"})
+
 
 def _normalise_request_class(request_class: str) -> str:
     text = str(request_class or "").strip().lower()
     return text if text in _REQUEST_CLASSES else "unclassified"
 
 
-def _decide(request_class: str, state: str) -> tuple[str, str]:
+def _codes_of(anomalies: list) -> frozenset[str]:
+    """The taxonomy codes among the findings, upper-cased.
+
+    Read off an `Anomaly` or a plain dict, because a recorded scan replayed from
+    JSON is the second shape and reaches here through the same call.
+    """
+    codes = set()
+    for anomaly in anomalies or []:
+        code = anomaly.get("code") if isinstance(anomaly, dict) else getattr(anomaly, "code", "")
+        text = str(code or "").strip().upper()
+        if text:
+            codes.add(text)
+    return frozenset(codes)
+
+
+def _decide(request_class: str, state: str, codes: frozenset[str] = frozenset()) -> tuple[str, str]:
     """Return `(assessment, rule)` for one cell of the grid.
 
     `rule` is the name of the rule that produced the assessment, so a reader — or a
     later bug report — can tell "the record contradicted the employer" from "the
     request was prohibited and the record established nothing".
+
+    `codes` is consulted for the one rule that is about the *shape of the work*
+    rather than the request: labour paid at the poster's discretion. It is part
+    of the cell, not a patch applied afterwards, so every caller decides the same
+    way — that patch lived in the offer path alone and the verify path read the
+    same finding as Caution.
     """
     if state == "contradicted":
         return "red", "establishment_contradicted"
 
     if request_class == "prohibited":
+        if state == "unknown" and _LABOUR_CODES & codes:
+            # The reader sells their labour and is paid only if an anonymous
+            # poster chooses to pay. "Caution" understates a posting where
+            # nobody is established as responsible for the payment: there is no
+            # employer to weigh the finding against, and the poster can block
+            # the reader at any point. A *confirmed* or *supported* employer is
+            # yellow — a real company paying per referral or per shift is an
+            # ordinary business model, and the reader can go and look at it.
+            return "red", "task_for_earning_at_unestablished_employer"
         if state == "confirmed":
             return "yellow", "prohibited_at_confirmed_employer"
         return "yellow", "prohibited_at_unestablished_employer"
@@ -142,15 +178,20 @@ def code_assessment(
     it is read from the channel facts in `items` — the provisional mapping in
     `establishment.py`, which Part 4 replaces.
 
-    `anomalies` and `assessments` are not inputs to the decision. The class
-    already encodes what the findings asked for, and the flow drops stale findings
-    before computing it. They are counted here because the breakdown is a record
-    of what the decision was made from, and a reader is entitled to know how many
-    findings stood.
+    `anomalies` is not priced here: the class already encodes what the findings
+    asked for, and the flow drops stale findings before computing it. It is read
+    for the taxonomy *codes* only, because one rule is about the shape of the
+    work rather than the request — see `_decide`. The findings are also counted,
+    because the breakdown is a record of what the decision was made from and a
+    reader is entitled to know how many stood.
+
+    `assessments` is not read by the decision at all; `stale_excluded` records
+    how many the flow had already removed.
     """
     normalised = _normalise_request_class(request_class)
     state = establishment or establishment_from_record(items)
-    assessment, rule = _decide(normalised, state.state)
+    codes = _codes_of(anomalies)
+    assessment, rule = _decide(normalised, state.state, codes)
 
     stale_excluded = sum(
         1
@@ -165,6 +206,7 @@ def code_assessment(
         "rule": rule,
         "record": _record(items),
         "findings": len(anomalies or []),
+        "codes": sorted(codes),
         "stale_excluded": stale_excluded,
         "level_source": "code",
     }

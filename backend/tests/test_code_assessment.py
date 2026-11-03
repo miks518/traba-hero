@@ -45,9 +45,12 @@ def _channel(status: str = "confirmed", escalation: str = "match") -> Verificati
     )
 
 
-def _decide(request_class: str, state: str) -> str:
+def _decide(request_class: str, state: str, anomalies: list = None) -> str:
     assessment, _ = code_assessment(
-        [], [], request_class=request_class, establishment=Establishment(state)
+        anomalies or [],
+        [],
+        request_class=request_class,
+        establishment=Establishment(state),
     )
     return assessment
 
@@ -195,11 +198,47 @@ class TestTheUnestablishedEmployerCaution:
     def test_every_path_to_red_needs_the_contradiction(self):
         """Asserted as a property over the whole grid, not as three examples:
         if any cell without `contradicted` returns red, the guarantee is gone.
+
+        **Two exceptions, both named.** `contradicted` is no longer the only
+        route to red. The other is `task_for_earning_at_unestablished_employer`:
+        labour paid at an anonymous poster's discretion, where nobody is
+        established as responsible. It is red for the same reason this test
+        exists — the posting cannot supply evidence about itself, and there is no
+        employer to weigh the finding against — but it is *not* a contradiction,
+        so it is asserted here as the one named exception rather than by
+        loosening the property.
+
+        Before this, the test iterated `_decide(request_class, state)` with no
+        codes at all, so it could not see the rule that reads them, and it passed
+        while `offer_flow` was already producing that red. A property test that
+        cannot reach the code it guards is not evidence.
         """
+        named_exception = "task_for_earning_at_unestablished_employer"
         states = ("confirmed", "supported", "unknown")
         for request_class in ("ordinary", "unclassified", "prohibited"):
             for state in states:
-                assert _decide(request_class, state) != "red"
+                assessment, breakdown = code_assessment(
+                    [], [], request_class=request_class,
+                    establishment=Establishment(state),
+                )
+                if assessment == "red":
+                    assert breakdown["rule"] == named_exception, (
+                        f"{request_class}/{state} returns red by the unexpected "
+                        f"rule {breakdown['rule']!r}"
+                    )
+                else:
+                    assert breakdown["rule"] != named_exception
+
+    def test_the_named_red_is_reachable_only_by_that_one_rule(self):
+        """The exception above is narrow: it needs the code *and* `unknown`."""
+        labour = [{"code": "TASK_FOR_EARNING", "quote": "follow a store"}]
+        assert _decide("prohibited", "unknown", labour) == "red"
+        # Not at an established employer: paying per referral is a business model.
+        assert _decide("prohibited", "confirmed", labour) == "yellow"
+        assert _decide("prohibited", "supported", labour) == "yellow"
+        # Not for another prohibited code.
+        fee = [{"code": "FEE_MANDATORY", "quote": "pay the fee"}]
+        assert _decide("prohibited", "unknown", fee) == "yellow"
 
 
 class TestTheBreakdownCarriesNoNumber:

@@ -93,10 +93,19 @@ def statement(
     request_class: str,
     establishment: Establishment,
     facts: StatementFacts,
+    rule: str = "",
 ) -> str:
     """Render the panel's one-sentence statement for a assessment.
 
     Two parts: what the posting asks for, and what the record showed.
+
+    `rule` is the grid rule that produced the assessment, from
+    `code_assessment`'s breakdown. It is optional because a stored scan and a
+    caller that predates it have none, and the template then falls back to the
+    contradiction wording — which is right for every red the rule field can
+    distinguish except one. **That one is `task_for_earning_at_unestablished_employer`,
+    and it must not borrow the impersonation sentence: nothing is impersonated
+    when no employer is named.**
     """
     fee = _fee_phrase(facts)
     docs = _documents_phrase(facts)
@@ -128,8 +137,19 @@ def statement(
         else:
             text = f"The posting {ask}. {record}"
     elif assessment == "red":
-        # Red: contradicted employer
-        text = f"The posting {ask}. The communication is not from the employer it names. {record} This is a contradicted impersonation."
+        if rule == "task_for_earning_at_unestablished_employer":
+            # The reader does the task first and is paid only if the poster
+            # chooses to. No employer is established, so there is no one to
+            # weigh the offer against and no one to go and check — the
+            # impersonation sentence would be a false claim about a party the
+            # posting never named.
+            text = (
+                f"The posting {ask}. It offers pay per task, order or referral, "
+                "and nothing in the record establishes who would pay it."
+            )
+        else:
+            # Red: contradicted employer
+            text = f"The posting {ask}. The communication is not from the employer it names. {record} This is a contradicted impersonation."
     else:
         text = f"The posting {ask}. {record}"
 

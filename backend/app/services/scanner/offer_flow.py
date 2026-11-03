@@ -120,18 +120,12 @@ def _read_offer_output(text: str, anomalies: list = None) -> dict | None:
             establishment=establishment,
         )
 
-        # Task-to-earn via a direct message is a concrete scam pattern: the
-        # reader completes work for a stranger and is paid only if the stranger
-        # chooses to pay, and the stranger can block them at any point. The grid
-        # would read this as "yellow" (prohibited + unestablished employer),
-        # but the pattern itself is the strongest signal available to this pass
-        # — there is no employer to look up and no search to contradict it, so
-        # yellow (which says "uncertain") understates it.
-        # Override to "red" when the posting contains TASK_FOR_EARNING.
-        if assessment == "yellow" and "TASK_FOR_EARNING" in codes:
-            assessment = "red"
-            breakdown["assessment"] = "red"
-            breakdown["rule"] = "task_for_earning_at_unestablished_employer"
+        # Task-to-earn is a red here, and the decision is the grid's, not this
+        # caller's: `assessment._decide` reads the finding's code and makes the
+        # same call for the verify path. This function used to patch the return
+        # value afterwards, which left `breakdown["assessment"]` saying red
+        # beside an `establishment` field that explained nothing, and left the
+        # verify path reading the identical finding as Caution.
 
         return {
             "kind": kind or "Offer",
