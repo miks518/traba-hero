@@ -289,6 +289,51 @@ def test_prompt_still_asks_for_the_employer_field():
     assert "not stated" in low
 
 
+def test_a_chat_display_name_is_not_an_employer():
+    """The regression this guardrail exists for.
+
+    Commit `768eda0` restructured `COMPANY NAME:` into an `ATTRIBUTES` key plus a
+    separate `EMPLOYER NAME:` line, and in doing so the file lost the sentence
+    "A name that is not in the content is worse than useless here" while the
+    fallback copy in `prompts.py` kept it. The surviving wording - "if no
+    employer is named anywhere in the text, logo, or letterhead" - reads as an
+    instruction to go looking in three places, and a Telegram top bar (the
+    sender's display name, avatar, and "last seen" line) resolved as one of
+    them. A task-to-earn DM scanned as a screenshot then went to `/api/verify`
+    looking up "Megan May", a real person who is not an employer, and the
+    `TASK_FOR_EARNING` finding read Caution instead of the red the offer path
+    gives it.
+
+    A `GUARDRAILS` entry could not catch it: every entry asserts a phrase is
+    present, and the drift was a phrase *absent from one copy*. This is the
+    employer-field version of `test_the_ordinary_things_rule_carries_no_carve_out`,
+    and it asserts the rule in both copies for the same reason.
+    """
+    for name, source in (("SYSTEM_PROMPT.md", low), ("prompts.py", rules.lower())):
+        assert "display name is not an employer" in source, (
+            f"{name} lost the rule that a chat display name is not an employer; "
+            "a Telegram sender label will be read as one again"
+        )
+        assert "sender label" in source, (
+            f"{name} must name the messenger sender label as an example"
+        )
+
+
+def test_the_employer_field_keeps_its_positive_guard():
+    """`Not stated` is the answer, and the prompt says why.
+
+    `768eda0` dropped "a name that is not in the content is worse than useless
+    here" from `SYSTEM_PROMPT.md` while the fallback kept it. Without that
+    sentence the field reads as one to fill, and the model fills it from
+    whatever is in the image.
+    """
+    for name, source in (("SYSTEM_PROMPT.md", low), ("prompts.py", rules.lower())):
+        assert "worse than useless" in source, (
+            f"{name} lost the employer field's positive guard; with only "
+            '"output Not stated" the field reads as one to fill'
+        )
+
+
 def _severity_block(body: str) -> str:
     """The text under "Severity means:", sub-bullets included.
 
