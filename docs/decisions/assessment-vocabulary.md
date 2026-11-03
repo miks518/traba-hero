@@ -62,10 +62,11 @@ still caught cell by cell in `test_code_assessment.py`.
   with the evidence for `red`, and for `yellow` only when the rule is
   `prohibited_at_unestablished_employer` — the scam shape. An unclassified request
   at a confirmed employer is the same colour and deliberately does not lead.
-- **The matcher feeds on green only.** Yellow is uncertainty — the reader is told
-  to settle the ask before sending anything, so it is not a posting the matcher may
-  use. (Under the old ladder, `note` was matchable and `caution` was not; the merge
-  takes the safe side.)
+- **The matcher feeds on green and yellow.** Superseded 2026-11-04 — see the
+  addendum at the end of this record. This entry originally read "green only",
+  on the reasoning that yellow is uncertainty the reader is told to settle first.
+  That reasoning was sound when yellow was rare; `ordinary_at_unestablished_employer`
+  made it the normal outcome, and the rule starved the matcher.
 - **The task-for-earning override is yellow → red.** A prohibited request with
   `TASK_FOR_EARNING` at an unestablished employer outranks "uncertain" — the rule
   name `task_for_earning_at_unestablished_employer` records it.
@@ -116,9 +117,10 @@ lookup could not establish is itself the caution, so the cell moves:
 
 Consumers, per the rules above:
 
-- **The matcher feeds on green only** — a posting whose employer could not be
-  established leaves the matchable pool. That is consistent with the recorded
-  principle ("yellow is uncertainty ... not a posting the matcher may use").
+- **The matcher fed on green only** at the time — a posting whose employer could
+  not be established left the matchable pool. Superseded 2026-11-04, for the
+  reason this addendum was itself a field regression: a rule that excludes the
+  common case leaves nothing to match. See the addendum at the end.
 - **Elevation does not lead for the new rule.** `shouldElevateEvidence` leads
   for `prohibited_at_unestablished_employer` because there is a prohibited ask
   to lead with; at `(ordinary, unknown)` the checks are silent, so there is no
@@ -157,10 +159,8 @@ The rule is now keyed on the retrieval fact instead:
   set, which the establishment-keyed rule would have missed.
 
 Consumers: no copy changes â€” the chip words are keyed by colour and the
-yellow family already says the right thing. The matcher keeps feeding on
-green only: a posting whose lookup found nothing leaves the matchable pool,
-which is the same decision the 2026-11-02 addendum recorded for the
-establishment-keyed rule.
+yellow family already says the right thing. The matcher fed on green only at
+the time; superseded 2026-11-04 — see the addendum at the end.
 
 Known open issue, recorded so it is not mistaken for this rule: a posting
 with a *recognised finding the classifier cannot subclassify* (an
@@ -216,8 +216,8 @@ The rule that ships:
   citations).
 
 Consumers: no copy changes (keyed by colour; the yellow family already
-says the right thing). The matcher keeps feeding on green only: an
-unestablished employer leaves the matchable pool.
+says the right thing). The matcher fed on green only at the time; superseded
+2026-11-04 — see the addendum at the end.
 
 Known open issue, unchanged: a posting with a recognised finding the
 classifier cannot subclassify (an `OTHER`/empty code â€” field report: a
@@ -226,4 +226,79 @@ does not print" absence phrasing that slipped the guardrail's list) still
 prices `unclassified` yellow in every state. The taxonomy/coverage decision
 remains open; it is the actual driver of the "everything is Caution"
 impression and is not addressed by any of the three designs above.
+
+---
+
+## 2026-11-04 — the matcher includes caution, and the banner stops naming a cause
+
+Two changes, both forced by the grid moving rather than by a defect.
+
+### The matcher feeds on green *and* yellow
+
+**The old rule starved the matcher.** "Green only" was written when yellow was
+the exception. The 2026-11-03 restoration made `ordinary_at_unestablished_employer`
+yellow, and because the verify prompt makes `yellow` the *default* Company
+Existence status, a posting whose existence check lands anywhere but exactly
+`confirmed` is yellow. In the field that is most postings — and the Match tab
+was excluding almost everything it was built to match.
+
+Every addendum above recorded "the matcher feeds on green only", and a rule that
+was right three times became wrong the moment the distribution moved. **A
+consumer rule keyed on a colour inherits the colour's frequency; when the
+frequency changes, the consumer rule is what breaks.**
+
+What replaces it:
+
+- `isMatchableJob` is `green || yellow`, still gated on `isJobPosting`.
+- `isExcludedJob` is `red` alone.
+- A yellow row says **"Included in resume matching. Read the caution before
+  applying."** in the caution tone. Being matched is not a reassurance, and the
+  row has to say both things: this fits your profile, and the posting still
+  carries an open question.
+
+**Red stays excluded.** It is the one state where the record contradicted who is
+asking; matching a reader's resume to it would be recommending they engage.
+
+The old `isMatchableJob` docstring already said yellow should not be withheld —
+it said *"Neither is a reason to withhold the matching; `red` is"* — while the
+body returned `=== 'green'`. The prose and the code had disagreed since the
+function was written, and no test covered the docstring.
+
+### The banner words name the evidence, not a cause
+
+| Token | Was | Now |
+|---|---|---|
+| `green` | "Nothing found against it" | **"Nothing stands out"** |
+| `yellow` | "Caution" | **"Caution"** — unchanged |
+| `red` | "Contradicted" | **"Something is not right"** |
+
+**Green's old word claimed the search came up empty.** Green fires at
+`confirmed` (a comparison matched) and at `supported` (a record named the
+employer and no comparison was made). In the first case the search found plenty.
+The new word claims resemblance to the ordinary case and nothing more.
+
+**Red's old word named one of its two causes.** `red` is reached by a
+contradicted channel *and* by `task_for_earning_at_unestablished_employer`, which
+involves no contradiction at all. "Contradicted" was false for the second, and it
+also collided with the anomaly cards' per-finding status, which is a different
+claim — so a card reading "Contradicted" could sit above a banner reading
+"Nothing found against it". "Something is not right" is true on every path to red
+and does not claim a source.
+
+**"Caution" survives** for the reason the original entry gives: it points the
+"why" question at the posting rather than at the system.
+
+**The rename is the banner only.** `checkPresentation.ts` keeps "Contradicted"
+for a check row, `AnomalyCards` keeps it for a per-finding status, and
+`mapApiResponse.assessmentLabel()` keeps the old words for the history list. The
+three surfaces answer different questions and are deliberately allowed to differ;
+what is not allowed is one word for three claims.
+
+### Still open after this
+
+A contradicted **anomaly** still does not move the assessment: at a confirmed
+employer it reads `green`, so "Something is not right" on a card can sit above
+"Nothing stands out" on the banner. The card's status is a claim about one
+finding; the banner's is about who is asking. Renaming made the collision
+less likely to read as a contradiction, and did not resolve it.
 

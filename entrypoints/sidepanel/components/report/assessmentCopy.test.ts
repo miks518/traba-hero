@@ -9,17 +9,19 @@ import { assessmentFor, actionsFor, NO_ASSESSMENT, VERIFYING } from './assessmen
  * the words, and the reader sees the words. A change to either half that breaks
  * the other is caught here.
  *
- * "Contradicted" is the ace card: it is said only for `red`, and `red` requires
- * a contradiction (the government branch or a lookalike domain). "Nothing found
- * against it" claims only that the search found nothing — never that the
- * posting is safe. "Caution" is the one advisory word, backed by the grid rule
- * in the breakdown.
+ * None of the three headlines may name a cause the grid does not guarantee.
+ * "Something is not right" is true for both of red's causes — a contradicted
+ * claim and a contradicted channel — where the word it replaced, "Contradicted",
+ * named only the second and collided with the anomaly cards' per-finding status.
+ * "Nothing stands out" claims resemblance to the ordinary case, never that the
+ * posting is safe, and never that a search came up empty (green can mean a
+ * search found plenty and the channel matched). "Caution" is the one advisory
+ * word, backed by the grid rule in the breakdown.
  */
 describe('what each assessment tells the reader', () => {
-  it('says exactly "Contradicted" for red, and nothing else', () => {
-    // The one headline that names the fact. It is reserved for `red`,
-    // which requires a contradiction - the government branch or a lookalike.
-    expect(assessmentFor('red').headline).toBe('Contradicted');
+  it('says exactly "Something is not right" for red, and nothing else', () => {
+    // It has to be true for every path to red, not just the channel one.
+    expect(assessmentFor('red').headline).toBe('Something is not right');
   });
 
   it('gives yellow the advisory word', () => {
@@ -30,19 +32,20 @@ describe('what each assessment tells the reader', () => {
   });
 
   it('never claims the posting is safe for green', () => {
-    // Green means ordinary request and nothing found against it — not a clean
-    // bill of health. The headline reports the search's outcome.
-    expect(assessmentFor('green').headline).toBe('Nothing found against it');
+    // Green means an ordinary ask and a record that did not contradict it - not
+    // a clean bill of health. The headline reports resemblance, not clearance.
+    expect(assessmentFor('green').headline).toBe('Nothing stands out');
     expect(assessmentFor('green').headline).not.toContain('Proceed');
     expect(assessmentFor('green').headline).not.toContain('safe');
     expect(assessmentFor('green').headline).not.toContain('Contradicted');
   });
 
-  it('never says contradicted below red', () => {
-    // "Contradicted" is the ace card. Only `red` may carry it.
+  it('never names a contradiction below red', () => {
+    // Red is the only card that says something is wrong.
     for (const assessment of ['green', 'yellow'] as const) {
       const headline = assessmentFor(assessment).headline;
       expect(headline).not.toMatch(/contradicted/i);
+      expect(headline).not.toMatch(/not right/i);
     }
   });
 });

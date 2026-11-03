@@ -43,15 +43,28 @@ export interface AssessmentCopy {
 /**
  * The phrase table. Three assessments, three reviewed strings.
  *
- * The words report the evidence relation, not a verdict: "Contradicted" is the
- * headline for `red` only, and `red` requires a contradiction. "Caution" is the
- * one advisory word, backed by the grid rule in the breakdown. "Nothing found
- * against it" claims only that the search found nothing — never that the
- * posting is safe.
+ * The words report the evidence relation, not a verdict, and none of them
+ * claims more than the grid decided:
+ *
+ * - **"Something is not right"** for `red`. It is true whether the contradiction
+ *   is about a claim or about who is asking, which is why it replaced
+ *   "Contradicted": that word named only one of red's two causes, and the
+ *   anomaly cards use it for a per-finding state that is a different claim.
+ * - **"Caution"** is the middle ground and the one advisory word, backed by the
+ *   grid rule in the breakdown. Every yellow carries a rule that says why.
+ * - **"Nothing stands out"** for `green`. It claims only that this posting
+ *   resembles the ordinary case and the record did not contradict it — never
+ *   that the posting is safe. The previous wording, "Nothing found against it",
+ *   claimed the *search* came up empty, which was false for a green at a
+ *   confirmed employer where the search found plenty and matched the channel.
+ *
+ * **This table is the banner's vocabulary only.** The check rows keep their own
+ * words (`checkPresentation.ts`), and the anomaly cards keep "Contradicted" as
+ * a per-finding status. The three surfaces answer different questions.
  */
 const ASSESSMENT_TABLE: Record<Assessment, AssessmentCopy> = {
   red: {
-    headline: 'Contradicted',
+    headline: 'Something is not right',
     tone: 'critical',
   },
   yellow: {
@@ -59,7 +72,7 @@ const ASSESSMENT_TABLE: Record<Assessment, AssessmentCopy> = {
     tone: 'caution',
   },
   green: {
-    headline: 'Nothing found against it',
+    headline: 'Nothing stands out',
     tone: 'verified',
   },
 };

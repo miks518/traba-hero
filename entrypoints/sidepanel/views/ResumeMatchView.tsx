@@ -77,18 +77,27 @@ function matchBadgeStyle(assessment: string | null | undefined): string {
 /**
  * A posting the reader can act on, so it is the set that gets matched.
  *
- * `green` asks for nothing the rules prohibit. `yellow` is uncertainty — a
- * prohibited or unclassifiable ask the record has not settled, which is why the
- * reader should look before sending anything. Neither is a reason to withhold
- * the matching; `red` is.
+ * `green` asks for nothing the rules prohibit and the record established the
+ * employer. `yellow` is uncertainty — a prohibited or unclassifiable ask the
+ * record has not settled — and it **is** matched, because since 2026-11-03
+ * `ordinary_at_unestablished_employer` makes yellow the ordinary outcome for any
+ * posting whose existence check did not land exactly `confirmed`. Excluding it
+ * left almost nothing to match against, and a reader who has been told to be
+ * careful about a posting is still a reader who wants to see whether their
+ * skills fit it.
+ *
+ * `red` is the only exclusion: the record contradicted who is asking.
  */
 function isMatchableJob(job: ScannedJob): boolean {
-  return job.scanResult.assessment === 'green' && job.scanResult.isJobPosting;
+  return (
+    (job.scanResult.assessment === 'green' || job.scanResult.assessment === 'yellow') &&
+    job.scanResult.isJobPosting
+  );
 }
 
-/** Red: the reader is being told the record contradicted the posting. */
+/** Red: the record contradicted the posting, so it is withheld from matching. */
 function isExcludedJob(job: ScannedJob): boolean {
-  return job.scanResult.assessment === 'yellow' || job.scanResult.assessment === 'red';
+  return job.scanResult.assessment === 'red';
 }
 
 /** Scanned but never assessed by external verification, so it cannot be matched. */
@@ -402,9 +411,8 @@ export function ResumeMatchView({
             <p className="text-label-md font-bold text-error">Postings Excluded From Matching</p>
             <p className="text-body-xs text-on-surface-variant">
               {excludedJobs.length} scanned job{excludedJobs.length !== 1 ? 's' : ''} came back{' '}
-              <span className="font-bold text-on-surface">caution</span> or{' '}
-              <span className="font-bold text-on-surface">do not proceed</span>, so they are
-              not used for resume matching.
+              <span className="font-bold text-on-surface">something is not right</span>, so{' '}
+              {excludedJobs.length !== 1 ? 'they are' : 'it is'} not used for resume matching.
             </p>
           </div>
         </div>
@@ -563,12 +571,16 @@ export function ResumeMatchView({
                       </button>
                     )}
                     {/* Three states, and each says which it is.
-                        `caution` and `stop` are the excluded pair; `clear` and
-                        `note` are matched. The chain used to test buckets that
-                        no longer exist, which is how `high` and `critical` fell
-                        through to "Included in resume matching" — the one branch
-                        that must never be reassuring, taken by the most
-                        dangerous posting. */}
+                        `red` is the only excluded state; `green` and `yellow`
+                        are both matched, and a yellow row says so in the
+                        caution tone rather than the verified one — the reader
+                        is told to settle the ask before acting on it, which is
+                        advice about the posting, not a reason to hide the fit.
+                        The chain used to test buckets that no longer exist,
+                        which is how `high` and `critical` fell through to
+                        "Included in resume matching" — the one branch that must
+                        never be reassuring, taken by the most dangerous
+                        posting. */}
                     {sr.assessment === null ? (
                       <div className="flex items-center gap-2 p-2 rounded-lg bg-surface-container border border-outline-variant/20 text-on-surface-variant text-label-sm">
                         <Icon name="info" className="text-xs shrink-0" />
@@ -578,6 +590,11 @@ export function ResumeMatchView({
                       <div className="flex items-center gap-2 p-2 rounded-lg status-card-critical border text-assessment-critical text-label-sm">
                         <Icon name="shield_person" className="text-xs shrink-0" />
                         <span>Excluded from resume matching.</span>
+                      </div>
+                    ) : sr.assessment === 'yellow' ? (
+                      <div className="flex items-center gap-2 p-2 rounded-lg status-card-caution border text-assessment-caution text-label-sm">
+                        <Icon name="warning" className="text-xs shrink-0" />
+                        <span>Included in resume matching. Read the caution before applying.</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 p-2 rounded-lg status-card-verified border text-assessment-verified text-label-sm">

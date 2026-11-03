@@ -88,18 +88,21 @@ describe('the per-job matching status is correct for every assessment', () => {
     expect(text).not.toMatch(/Included in resume matching/i);
   });
 
-  it('says a yellow job is excluded', async () => {
-    // Yellow is uncertainty: a prohibited or unclassifiable ask the record has
-    // not settled. The reader is told to settle it before anything else, so the
-    // matcher does not feed it a match.
+  it('says a yellow job is included, in the caution tone', async () => {
+    // Yellow is uncertainty, and it is matched. Since 2026-11-03 the
+    // ordinary-at-unestablished-employer rule makes yellow the normal outcome
+    // for a posting whose existence check did not land exactly `confirmed`, so
+    // excluding it left almost nothing to match against. The reader is still
+    // told to read the caution.
     const { container } = renderWith('yellow');
     await act(async () => {
       expandFirstRow();
     });
 
     const text = container.textContent ?? '';
-    expect(text).toMatch(/Excluded from resume matching/i);
-    expect(text).not.toMatch(/Included in resume matching/i);
+    expect(text).toMatch(/Included in resume matching/i);
+    expect(text).toMatch(/Read the caution/i);
+    expect(text).not.toMatch(/Excluded from resume matching/i);
   });
 
   it('says an unassessed job is excluded pending verification', async () => {
@@ -125,7 +128,7 @@ describe('the per-job matching status is correct for every assessment', () => {
 
     const text = container.textContent ?? '';
     expect(text).toMatch(/carried over from the previous procedure/i);
-    expect(text).not.toMatch(/Included in resume matching/i);
+    expect(text).toMatch(/Included in resume matching/i);
   });
 
   it('only a green job is reported as included', async () => {
@@ -168,7 +171,7 @@ describe('assessment badges are distinguishable', () => {
 });
 
 describe('the matching input is the matchable assessments', () => {
-  it('never feeds a red or yellow job to the matcher', async () => {
+  it('never feeds a red job to the matcher, and does feed a yellow one', async () => {
     const matchResumeStream = vi.fn();
     vi.doMock('../lib/api', () => ({
       pingHealth: vi.fn().mockResolvedValue(true),
@@ -187,10 +190,11 @@ describe('the matching input is the matchable assessments', () => {
       } as never)
     );
 
-    // The count on the match button is the set that will be matched, and it is
-    // the one the reader can act on.
+    // The count on the match button is the set that will be matched. Red is
+    // withheld; yellow is matched, because the ordinary-at-unestablished-employer
+    // rule makes it the normal outcome and excluding it starved the matcher.
     await act(async () => {});
-    expect(container.textContent).toMatch(/\(1\)/);
+    expect(container.textContent).toMatch(/\(2\)/);
     expect(container.textContent).not.toMatch(/\(3\)/);
   });
 });

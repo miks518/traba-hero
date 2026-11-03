@@ -132,7 +132,7 @@ describe('the one-line assessment reason', () => {
     );
     const headline = document.querySelector('[data-role="assessment-headline"]');
     const reason = document.querySelector('[data-role="assessment-reason"]');
-    expect(headline?.textContent).toBe('Contradicted');
+    expect(headline?.textContent).toBe('Something is not right');
     expect(reason?.textContent).toContain('pay a fee');
   });
 
