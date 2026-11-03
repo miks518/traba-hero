@@ -84,6 +84,26 @@ _REQUEST_RULES = {
 # block the reader at any point.
 _LABOUR_CODES = frozenset({"TASK_FOR_EARNING"})
 
+# The codes where money leaves the applicant. **A fee is never green.**
+#
+# Not because every fee is a scam — a uniform an employer sells at cost is
+# ordinary practice and stays out of this set's reach below — but because a
+# posting that asks the applicant for money is not a posting where "nothing
+# stands out" is a true sentence. The reader has something to check: who
+# receives it, whether it is refundable, and whether it is required before any
+# contract exists.
+#
+# Field report 2026-11-04: three separate scans of a posting demanding a $150
+# deposit returned green. Every one of them traces to `_fee_class` returning
+# `ordinary` on the word "employer" or "agency" in the recipient — 24 green
+# outcomes across the four codes, all through that one word. The floor here does
+# not depend on how the recipient was classified, which is the point: the
+# recipient is the model's answer about the same span, and a wrong recipient
+# word must not be able to clear a fee demand.
+_FEE_CODES = frozenset({
+    "FEE_MANDATORY", "FEE_CONDITIONAL", "PURCHASE_REQUIRED", "DEPOSIT_REQUIRED",
+})
+
 
 def _normalise_request_class(request_class: str) -> str:
     text = str(request_class or "").strip().lower()
@@ -173,6 +193,12 @@ def _decide(
     defensible answer. The two contradiction rules run first, because evidence
     outranks the request class: a posting whose fee the record refutes is not
     "ordinary".
+
+    **A fee is never green.** The second floor runs after the prohibited branch,
+    so it catches `ordinary` and `unclassified` too: `_fee_class` returns
+    `ordinary` whenever the recipient word is "employer" or "agency", and that
+    one word was clearing 24 fee outcomes to green — including a mandatory $150
+    deposit to a digital wallet.
     """
     if state == "contradicted":
         return "red", "establishment_contradicted"
@@ -205,6 +231,15 @@ def _decide(
         # layer down, in establishment_from_record: a "confirmed" with no
         # bound source is the model's bare word and stays unknown.
         return "yellow", "ordinary_at_unestablished_employer"
+
+    if _FEE_CODES & codes:
+        # An ordinary-or-unclassified request that still asks the applicant for
+        # money. The employer was established, so this is not the scam shape —
+        # it is a fee the reader should read before paying, which is exactly
+        # what "Caution" is for. Red would be wrong here for the reason
+        # `prohibited_at_confirmed_employer` is yellow: a real employer charging
+        # for a uniform is ordinary practice.
+        return "yellow", "fee_at_established_employer"
 
     return ("yellow" if request_class == "unclassified" else "green"), _REQUEST_RULES[request_class]
 

@@ -92,6 +92,20 @@ class TestTheGrid:
         """
         assert _decide("ordinary", "unknown") == "yellow"
 
+    def test_an_ordinary_request_with_a_fee_at_an_unknown_employer_names_the_employer(self):
+        """Precedence at the cell level: a fee finding rides through `_decide`'s
+        arguments, and at an unknown establishment the stronger fact — nobody is
+        established — is what the breakdown names. This is the case the
+        floor-wins mutation would flip.
+        """
+        fee = [{"code": "FEE_MANDATORY", "quote": "Pay a P350 processing fee."}]
+        assessment, breakdown = code_assessment(
+            fee, [], request_class="ordinary",
+            establishment=Establishment("unknown"),
+        )
+        assert assessment == "yellow"
+        assert breakdown["rule"] == "ordinary_at_unestablished_employer"
+
     def test_a_prohibited_request_at_an_unknown_employer_is_yellow(self):
         """The request is one the rules prohibit, and nobody has established who
         is asking. The rule, not the colour, carries that this is the scam
@@ -142,6 +156,126 @@ class TestOnlyAContradictionStops:
         """
         assert _decide("ordinary", "unknown") == "yellow"
         assert _decide("unclassified", "unknown") == "yellow"
+
+
+class TestACommonFeeIsNeverGreen:
+    """Field report 2026-11-04: three scans of a posting demanding a $150
+    deposit returned green. Every one traces to `_fee_class` returning
+    `ordinary` on the word "employer" or "agency" in the recipient — 24 green
+    outcomes across the four fee codes, all through that one word.
+
+    **Not every fee is a scam, and none of them is red on its own.** A real
+    employer charging for a uniform is ordinary practice, which is why
+    `prohibited_at_confirmed_employer` is yellow. But a posting that asks the
+    applicant for money is not one where "nothing stands out" is a true
+    sentence: the reader has something to check — who receives it, whether it
+    is refundable, whether it is required before any contract. The floor is
+    yellow, keyed on the *code*, so it does not depend on how the recipient was
+    classified: the recipient is the model's answer about the same span, and a
+    wrong recipient word must not be able to clear a fee demand.
+    """
+
+    def _fee(self, code="FEE_MANDATORY", quote="Pay a P350 processing fee."):
+        return [{"code": code, "quote": quote}]
+
+    @pytest.mark.parametrize("code", [
+        "FEE_MANDATORY", "FEE_CONDITIONAL", "PURCHASE_REQUIRED", "DEPOSIT_REQUIRED",
+    ])
+    def test_no_fee_code_reads_green_at_an_established_employer(self, code):
+        """The 24 outcomes that were green: fee + `ordinary` class + confirmed
+        or supported employer. Each is now yellow, by the rule that names the
+        fee rather than the establishment.
+        """
+        for state in ("confirmed", "supported"):
+            assessment, breakdown = code_assessment(
+                self._fee(code), [], request_class="ordinary",
+                establishment=Establishment(state),
+            )
+            assert assessment == "yellow", f"{code} at {state} read {assessment}"
+            assert breakdown["rule"] == "fee_at_established_employer"
+
+    def test_the_floor_catches_the_wrong_recipient_word(self):
+        """The field report's exact shape: the model wrote `employer` as the
+        recipient, `_fee_class` priced it `ordinary`, and the posting read
+        green. The floor reads the code, so the recipient word cannot clear it.
+        """
+        from app.services.scanner.request_class import RequestFact, classify_request
+
+        facts = [RequestFact(
+            code="DEPOSIT_REQUIRED",
+            quote="accepted candidates must submit a mandatory $150 Deposit Fee prior to Day 1",
+            fee_recipient="employer",
+        )]
+        cls = classify_request(facts)
+        assert cls == "ordinary", "the recipient word still prices the class"
+
+        assessment, breakdown = code_assessment(
+            facts, [], request_class=cls,
+            establishment=Establishment("supported"),
+        )
+        assert assessment == "yellow"
+        assert breakdown["rule"] == "fee_at_established_employer"
+
+    def test_a_fee_at_an_unknown_employer_keeps_the_existing_rule(self):
+        """The unestablished-employer caution already prices this yellow. The
+        floor must not shadow it with a less specific name: the breakdown says
+        why the posting is a caution, and "nobody established" is the stronger
+        answer.
+        """
+        _assessment, breakdown = code_assessment(
+            self._fee(), [], request_class="prohibited",
+            establishment=Establishment("unknown"),
+        )
+        assert breakdown["rule"] == "prohibited_at_unestablished_employer"
+
+    def test_a_posting_with_no_fee_still_reads_green(self):
+        """The floor is keyed on the code. An ordinary posting with no fee
+        finding keeps its green — the guard must not turn Caution into the
+        default for everything.
+        """
+        assessment, breakdown = code_assessment(
+            [], [], request_class="ordinary", establishment=Establishment("confirmed")
+        )
+        assert assessment == "green"
+        assert breakdown["rule"] == "ordinary_request"
+
+    def test_the_floor_is_keyed_on_the_code_not_the_presence_of_findings(self):
+        """`if codes:` would fire on any finding at all. An `OTHER`-coded
+        finding is unclassified and prices yellow by its own rule; the floor
+        must not claim the fee rule for it, because the breakdown would then
+        name a fee the posting does not ask for.
+        """
+        other = [{"code": "OTHER", "quote": "HIRING! Customer service rep, Makati."}]
+        _assessment, breakdown = code_assessment(
+            other, [], request_class="unclassified",
+            establishment=Establishment("confirmed"),
+        )
+        assert breakdown["rule"] == "unclassified_request"
+
+    def test_the_unestablished_rule_outranks_the_fee_floor(self):
+        """Precedence, pinned: at an unknown establishment the breakdown names
+        the stronger fact — nobody is established — rather than the fee. A
+        reader asking "why caution?" gets the more informative answer.
+        """
+        _assessment, breakdown = code_assessment(
+            self._fee(), [], request_class="prohibited",
+            establishment=Establishment("unknown"),
+        )
+        assert breakdown["rule"] == "prohibited_at_unestablished_employer"
+
+    def test_the_fee_floor_does_not_shadow_the_contradiction_rules(self):
+        """Precedence: a contradicted check is red, and the fee floor must not
+        demote it back to yellow.
+        """
+        item = VerificationItem(label="Similar Offers", status="contradicted",
+                                explanation="", source_title="s",
+                                source_url="https://example.ph")
+        assessment, breakdown = code_assessment(
+            self._fee(), [item], [], request_class="ordinary",
+            establishment=Establishment("supported"),
+        )
+        assert assessment == "red"
+        assert breakdown["rule"] == "check_contradicted_by_source"
 
 
 class TestTheUnestablishedEmployerCaution:

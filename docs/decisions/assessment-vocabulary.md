@@ -375,3 +375,64 @@ to be present; a mandatory deposit to a digital wallet with **no** contradicted
 check would still read green. `money_direction.quote_pays_the_applicant` is the
 guard that would close it.
 
+*(Superseded the same day — see the next addendum, which closes it differently:
+the fee floor makes the recipient word unable to clear a fee demand at all.)*
+
+---
+
+## 2026-11-04 (third) — a fee is never green
+
+**Field report.** Three scans of the same posting, three green assessments, three
+`FEE_MANDATORY` cards on screen.
+
+The contradiction floor did not reach this one: the lookup found nothing, so no
+check was contradicted and no finding was `red`. The green came from the other
+half of the incident — `_fee_class` returns `ordinary` whenever the recipient
+word is "employer" or "agency", and the model had written `employer`. Traced
+exhaustively: **24 green outcomes across the four fee codes**, every one through
+that single word.
+
+### The rule
+
+One more cell, after the prohibited branch and the unestablished rule:
+
+| Condition | Rule |
+|---|---|
+| any `FEE_*` / `PURCHASE_REQUIRED` / `DEPOSIT_REQUIRED` code present, at a `confirmed` or `supported` establishment | `fee_at_established_employer` → **yellow** |
+
+**Yellow, and deliberately not red.** A real employer charging for a uniform is
+ordinary practice — that is why `prohibited_at_confirmed_employer` is yellow,
+and the same logic caps this floor. What a fee demand removes is the claim
+"nothing stands out": the reader has something to check (who receives it,
+whether it is refundable, whether it precedes any contract). That is exactly
+what Caution is for.
+
+**Keyed on the code, not on the request class or the recipient.** The recipient
+is the model's answer about the same span, and a wrong recipient word must not be
+able to clear a fee demand — that is the whole incident. The request class is
+downstream of the recipient, so keying on it would reintroduce the hole. The
+`code` is the taxonomy's own label for "money leaves the applicant".
+
+**Precedence is pinned, and it is informative rather than arbitrary.** At an
+`unknown` establishment the unestablished rule outranks the fee floor, because
+"nobody established as responsible" is the stronger answer to a reader asking
+*why caution*; at a contradicted check the contradiction outranks it, because
+evidence outranks a request class. Both orders have tests, and both mutations
+that would flip them are caught.
+
+### What this does not fix
+
+**The recipient word still prices the request class.** `FEE_RECIPIENT: employer`
+returns `ordinary`, and the floor corrects the *colour* without correcting the
+*class*. The class is on the wire (`request_class`), and the verify path's
+channel-combination rule (`apply_channel_rules`) reads it: a `free_email` plus a
+`prohibited` request becomes a pattern, and an `ordinary` one does not. A fee
+demand mislabelled `ordinary` therefore still loses that combination — a smaller
+consequence than the green banner, but the same root. Closing it means
+`_fee_class` consulting `quote_pays_the_applicant`, which remains open.
+
+**A fee at a confirmed employer with the fee itself unconfirmed stays yellow.**
+This is the 2026-11-04 field report's "Not confirmed" finding, and it is right
+that it is yellow: "the results do not mention the deposit" is absence, and
+absence is never red.
+
