@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.models.schemas import Anomaly, ScanResponse
 from app.services.anomaly_codes import clean_quote, normalise_code
+from app.services.money_direction import amount_is_pay, quote_pays_the_applicant
 from app.services.scanner.request_class import classify_request, facts_from_scan
 from app.services.search import is_valid_company_name
 
@@ -46,6 +47,39 @@ def _is_absence_shaped(label: str) -> bool:
     return any(phrase in lowered for phrase in _ABSENCE_PHRASES)
 
 
+# The codes that claim the posting asks the applicant to part with money. A
+# quote that carries none of these cannot be showing a fee, and the finding is
+# dropped rather than shown without its evidence.
+_MONEY_CODES = frozenset({
+    "FEE_MANDATORY", "FEE_CONDITIONAL", "PURCHASE_REQUIRED", "DEPOSIT_REQUIRED",
+})
+
+
+def _is_invented_fee(code: str, quote: str) -> bool:
+    """Whether a money finding has no quotation showing a payment request.
+
+    "NO QUOTE, NO ANOMALY" is the prompt's rule and this is its enforcement: a
+    money finding the reader would be shown without any of the posting's words
+    behind it is not a finding with a weak quote, it is a finding with nothing.
+    Field test 2026-11-03 — two of six postings whose only number was a salary
+    came back with a fee anomaly.
+
+    **A blank quote is not checked for direction.** There is nothing to read, so
+    there is nothing to contradict: absence is never a contradiction, and this
+    gate must not invent a reading of a span it was not given. The prompt
+    requires the quote; `quote_is_clean` removes a quote that carries the
+    model's judgment; and neither of those is this gate's job to second-guess.
+    Only a *present* quote that shows pay rather than a charge is read as an
+    invented fee.
+    """
+    if code not in _MONEY_CODES:
+        return False
+    text = str(quote or "").strip()
+    if not text:
+        return False
+    return not quote_pays_the_applicant(text)
+
+
 def _anomalies(flags: list) -> list[Anomaly]:
     out: list[Anomaly] = []
     if not isinstance(flags, list):
@@ -65,6 +99,18 @@ def _anomalies(flags: list) -> list[Anomaly]:
             )
             continue
         reasoning = str(f.get("reasoning") or "").strip()
+        # Normalised before the money check so a lowercase `fee_mandatory` is
+        # priced as a fee here too, rather than slipping past as OTHER.
+        code = normalise_code(f.get("code"))
+        quote = clean_quote(f.get("quote"))
+        if _is_invented_fee(code, quote):
+            log.warning(
+                "[scan] No-quote guardrail dropped a money finding: %r code=%s "
+                "quote=%r (reasoning=%r, pay_language=%s)",
+                name, code, quote[:120], reasoning[:120],
+                amount_is_pay(quote),
+            )
+            continue
         out.append(Anomaly(
             flag=name,
             reasoning=reasoning,
@@ -72,8 +118,8 @@ def _anomalies(flags: list) -> list[Anomaly]:
             # Normalised here rather than only in the parser: this is the last
             # gate before the wire, and a caller that builds the dict itself
             # would otherwise put an unchecked value on it.
-            code=normalise_code(f.get("code")),
-            quote=clean_quote(f.get("quote")),
+            code=code,
+            quote=quote,
             # The posting's own words for why it asks for a fee, screened the
             # same way as the quote: it is shown as something the posting said.
             fee_reason=clean_quote(f.get("fee_reason")),

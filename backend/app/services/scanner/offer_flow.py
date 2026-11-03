@@ -6,6 +6,7 @@ from .dependencies import runtime
 from .offer_prompt import NOT_OFFER_KIND
 from .request_class import classify_request, facts_from_scan
 from .assessment import code_assessment
+from .scan_result import _is_invented_fee
 
 log = logging.getLogger("trabahero")
 
@@ -80,8 +81,26 @@ def _read_offer_output(text: str, anomalies: list = None) -> dict | None:
         # The scan's anomalies are the primary input — they carry the codes
         # and quotes the scan detected. The model's codes are a second
         # opinion, merged in so a finding the scan missed still counts.
-        scan_codes = [getattr(a, "code", "") or "" for a in (anomalies or [])]
-        all_codes = list(dict.fromkeys(scan_codes + codes))  # dedupe, scan first
+        #
+        # The money guard runs here for the same reason it runs in
+        # `scan_result`: the scan's list crossed a trust boundary on the way
+        # back in (`VerifyAnomaly` has no recipient or timing fields), and an
+        # invented fee must not reach the grid by either route. A code with no
+        # quote cannot show a payment request, so a fee code from this path's
+        # own model is dropped unless the scan supplied a quotable finding for
+        # it — the second opinion is about which finding exists, not about
+        # what the posting says.
+        scan_facts = facts_from_scan(anomalies or [], {})
+        scan_codes = [
+            fact.code
+            for fact in scan_facts
+            if not _is_invented_fee(fact.code, fact.quote)
+        ]
+        own_codes = [
+            c for c in codes
+            if not _is_invented_fee(c, "")
+        ]
+        all_codes = list(dict.fromkeys(scan_codes + own_codes))  # dedupe, scan first
         # Fee recipient/timing: prefer the scan's attributes, but the offer
         # path doesn't receive attributes, so fee-bearing codes resolve to
         # unclassified — the honest reading when the recipient is unnamed.

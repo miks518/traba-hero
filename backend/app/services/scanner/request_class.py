@@ -28,6 +28,7 @@ import re
 from dataclasses import dataclass
 from typing import Sequence
 
+from app.services.money_direction import quote_pays_the_applicant
 from app.services.scanner.channel_match import _domain_from_channel, _is_free_email
 
 
@@ -123,9 +124,33 @@ def _documents_class(fact: RequestFact) -> str:
     return "prohibited"
 
 
+def _is_invented_fee(fact: RequestFact) -> bool:
+    """A fee code whose quotation shows pay rather than a request to pay.
+
+    The same guard `scan_result` applies to the wire, repeated here because this
+    module is reachable from two other callers that never pass through it: the
+    verify stage receives the scan's findings back over HTTP, and the offer
+    path merges the model's own codes in. An invented fee must not price
+    `prohibited` on any of those routes.
+
+    A fact with no quote is not checked. The classifier's job is to price the
+    fee once someone has established there is one; a missing quotation is a
+    different defect with a different fix, and reading "no quote" as "no
+    payment request" here would turn every unquoted fixture and every stored
+    record into an `ordinary` posting.
+    """
+    if not str(fact.quote or "").strip():
+        return False
+    return fact.code.strip().upper() in _FEE_CODES and not quote_pays_the_applicant(fact.quote)
+
+
 def _class_for(fact: RequestFact) -> str:
     code = str(fact.code or "").strip().upper()
 
+    if code in _FEE_CODES and _is_invented_fee(fact):
+        # The quotation shows pay going to the applicant, so there is no
+        # request for money to price.
+        return "ordinary"
     if code in _PROHIBITED_CODES:
         return "prohibited"
     if code in _FEE_CODES:
