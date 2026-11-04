@@ -1,0 +1,78 @@
+name: Release extension
+
+# Every push to main rebuilds the unpacked Chrome build and replaces the asset at
+#   https://github.com/miks518/traba-hero/releases/latest/download/traba-hero-extension.zip
+# so the download button on https://traba-hero.online always serves current code.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Runs are queued, not cancelled: an interrupted upload could leave the release
+# asset missing or half-written.
+concurrency:
+  group: release-extension
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the self-distributed extension
+        env:
+          # Keeps the manifest key, so the extension ID stays
+          # hdmdhiojgdoomcjfhbkidbhkifmokkop (required by the backend CORS list).
+          WXT_SELF_DISTRIBUTE: 'true'
+          WXT_API_BASE: https://traba-hero-production-b6b9.up.railway.app
+        run: npm run build
+
+      - name: Package the release asset
+        run: python3 scripts/pack_release.py
+
+      - name: Read the version
+        id: version
+        run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the asset to its release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists - replacing the asset"
+          else
+            echo "Creating release $TAG"
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "Traba-Hero $TAG" \
+              --notes "Chrome MV3 build of the Traba-Hero extension." \
+              --latest
+          fi
+          # --clobber keeps the asset name fixed, which is what the /latest/download/
+          # permalink matches on.
+          gh release upload "$TAG" traba-hero-extension.zip --clobber
+
+      - name: Summary
+        env:
+          TAG: v${{ steps.version.outputs.version }}
+        run: |
+          {
+            echo "### Released $TAG"
+            echo
+            echo "- asset: \`traba-hero-extension.zip\` ($(du -h traba-hero-extension.zip | cut -f1))"
+            echo "- permalink: https://github.com/miks518/traba-hero/releases/latest/download/traba-hero-extension.zip"
+          } >> "$GITHUB_STEP_SUMMARY"

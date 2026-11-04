@@ -37,3 +37,6 @@ same category as .wxt/ and .output/. Committing it would make a vendored
 copy of someone else's instructions part of the repository.
 .agents/
 skills-lock.json
+
+# Release asset built by scripts/pack_release.py
+traba-hero-extension.zip
