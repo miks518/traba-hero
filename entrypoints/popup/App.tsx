@@ -60,7 +60,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <TrabaheroLogo size={20} className="text-accent-gradient" />
           <span className="text-headline-sm font-headline font-bold text-accent-gradient">
-            Trabahero
+            Traba-Hero
           </span>
         </div>
         <PopupIcon
@@ -81,7 +81,7 @@ export default function App() {
           className="tactile-btn-accent flex items-center justify-center gap-2 w-full py-3 px-4 rounded-lg text-body-md uppercase tracking-[0.02em] cursor-pointer select-none"
         >
           <PopupIcon name="scan" />
-          Open Trabahero
+          Open Traba-Hero
         </button>
 
         <div className="grid grid-cols-2 gap-3">
@@ -142,7 +142,7 @@ export default function App() {
 
       <footer className="bg-surface-container-lowest border-t border-outline-variant/10 w-full flex items-center justify-center p-3 shrink-0">
         <span className="text-label-sm text-on-surface-variant opacity-60">
-          © 2026 Trabahero
+          © 2026 Traba-Hero
         </span>
       </footer>
     </div>

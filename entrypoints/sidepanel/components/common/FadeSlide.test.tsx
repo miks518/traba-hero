@@ -55,7 +55,7 @@ describe('FadeSlide', () => {
 describe('TopAppBar popups', () => {
   it.each([
     ['Text Size', 'text_fields', 'Text Size'],
-    ['Help', 'help', 'How to Use Trabahero'],
+    ['Help', 'help', 'How to Use Traba-Hero'],
   ])('starts the %s popup entry animation', (_name, iconName, popupTitle) => {
     render(<TopAppBar onTextSizeChange={() => undefined} />);
 

@@ -45,7 +45,7 @@ export function ConsentModal({ open, fileName, onAccept, onDecline }: ConsentMod
             file contains.
           </p>
           <p>
-            <span className="font-bold text-on-surface">Where it goes.</span> To the Trabahero
+            <span className="font-bold text-on-surface">Where it goes.</span> To the Traba-Hero
             server, which extracts the text and sends it to a third-party AI provider to
             identify your skills and experience for job matching.
           </p>

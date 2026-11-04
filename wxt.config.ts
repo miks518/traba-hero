@@ -4,7 +4,7 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: () => ({
-    name: 'Trabahero',
+    name: 'Traba-Hero',
     // Keep in step with the **Version:** line in Documentation.md. These drifted
     // for five minor releases once, so `manifestVersion.test.ts` reads both
     // files and fails if they disagree again.

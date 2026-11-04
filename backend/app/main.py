@@ -31,7 +31,7 @@ _stderr.setLevel(logging.WARNING)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", handlers=[_stdout, _stderr])
 log = logging.getLogger("trabahero")
 
-app = FastAPI(title="Trabahero Backend")
+app = FastAPI(title="Traba-Hero Backend")
 
 # The largest body the field caps in `schemas.py` permit is
 # `MAX_IMAGES_PER_SCAN * MAX_IMAGE_BASE64` — four images of 5,000,000 base64

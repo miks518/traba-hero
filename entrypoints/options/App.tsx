@@ -50,9 +50,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background text-on-surface p-8">
       <div className="max-w-xl mx-auto">
-        <h1 className="text-2xl font-bold text-primary mb-2">Trabahero Settings</h1>
+        <h1 className="text-2xl font-bold text-primary mb-2">Traba-Hero Settings</h1>
         <p className="text-on-surface-variant mb-8 text-sm">
-          Point the extension at a Trabahero backend. Leave blank to use the built-in default.
+          Point the extension at a Traba-Hero backend. Leave blank to use the built-in default.
         </p>
 
         <label className="block text-sm font-semibold mb-2" htmlFor="backendUrl">

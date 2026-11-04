@@ -12,7 +12,7 @@ export const FOOTER_LINKS = [
   { id: 'privacy', label: 'Privacy' },
 ] as const;
 
-export const FOOTER_COPYRIGHT = '\u00A9 2026 Trabahero';
+export const FOOTER_COPYRIGHT = '\u00A9 2026 Traba-Hero';
 
 export const RESCAN_LABEL = 'Re-scan Current Page';
 export const RESCAN_BUSY_LABEL = 'Scanning...';

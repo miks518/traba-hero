@@ -37,9 +37,9 @@ describe('ConsentModal', () => {
     expect(screen.getByText(/everything the file contains/i)).toBeTruthy();
   });
 
-  it('says where it travels: the Trabahero server and a third-party AI provider', () => {
+  it('says where it travels: the Traba-Hero server and a third-party AI provider', () => {
     renderModal();
-    expect(screen.getByText(/Trabahero server/i)).toBeTruthy();
+    expect(screen.getByText(/Traba-Hero server/i)).toBeTruthy();
     expect(screen.getByText(/third-party AI provider/i)).toBeTruthy();
   });
 

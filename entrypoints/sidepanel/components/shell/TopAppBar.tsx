@@ -32,7 +32,7 @@ export interface TopAppBarProps {
 }
 
 export function TopAppBar({
-  brandText = 'Trabahero',
+  brandText = 'Traba-Hero',
   theme = 'dark',
   onToggleTheme,
   textSize = 'default',
@@ -195,7 +195,7 @@ export function TopAppBar({
             className="absolute right-0 top-full mt-2 w-72 p-4 rounded-xl bg-surface-container-high border border-outline-variant/30 shadow-xl z-50 text-body-sm text-on-surface"
           >
             <div className="font-headline-md font-bold mb-2 text-secondary">
-              How to Use Trabahero
+              How to Use Traba-Hero
             </div>
             <ol className="list-decimal list-inside space-y-1.5">
               <li>Click <strong>Pick a Job Post</strong> to select an area on the page</li>

@@ -42,7 +42,7 @@ _HEADERS = {
     # A plain client, no cookies and no credentials. A page that behaves
     # differently for a logged-in browser is not the public record the
     # agent is entitled to quote.
-    "User-Agent": "Mozilla/5.0 (compatible; TrabaheroFetch/1.0; job-posting verification)",
+    "User-Agent": "Mozilla/5.0 (compatible; Traba-HeroFetch/1.0; job-posting verification)",
 }
 
 # The statuses that mean "the content is elsewhere". 305 is deliberately
