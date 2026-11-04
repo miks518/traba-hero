@@ -42,9 +42,11 @@ jobs:
       - name: Package the release asset
         run: python3 scripts/pack_release.py
 
-      - name: Read the version
+      - name: Read the built version
         id: version
-        run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+        # The manifest is what a user sees in chrome://extensions, so it decides
+        # the tag rather than package.json, which nobody's test enforces.
+        run: echo "version=$(node -p 'require("./.output/chrome-mv3/manifest.json").version')" >> "$GITHUB_OUTPUT"
 
       - name: Upload the asset to its release
         env:
