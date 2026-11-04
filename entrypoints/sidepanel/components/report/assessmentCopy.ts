@@ -46,17 +46,12 @@ export interface AssessmentCopy {
  * The words report the evidence relation, not a verdict, and none of them
  * claims more than the grid decided:
  *
- * - **"Something is not right"** for `red`. It is true whether the contradiction
- *   is about a claim or about who is asking, which is why it replaced
- *   "Contradicted": that word named only one of red's two causes, and the
- *   anomaly cards use it for a per-finding state that is a different claim.
+ * - **"Contradicted"** for `red`.
  * - **"Caution"** is the middle ground and the one advisory word, backed by the
  *   grid rule in the breakdown. Every yellow carries a rule that says why.
- * - **"Nothing stands out"** for `green`. It claims only that this posting
+ * - **"Nothing found against it"** for `green`. It claims only that this posting
  *   resembles the ordinary case and the record did not contradict it — never
- *   that the posting is safe. The previous wording, "Nothing found against it",
- *   claimed the *search* came up empty, which was false for a green at a
- *   confirmed employer where the search found plenty and matched the channel.
+ *   that the posting is safe.
  *
  * **This table is the banner's vocabulary only.** The check rows keep their own
  * words (`checkPresentation.ts`), and the anomaly cards keep "Contradicted" as
@@ -64,7 +59,7 @@ export interface AssessmentCopy {
  */
 const ASSESSMENT_TABLE: Record<Assessment, AssessmentCopy> = {
   red: {
-    headline: 'Something is not right',
+    headline: 'Contradicted',
     tone: 'critical',
   },
   yellow: {
@@ -72,7 +67,7 @@ const ASSESSMENT_TABLE: Record<Assessment, AssessmentCopy> = {
     tone: 'caution',
   },
   green: {
-    headline: 'Nothing stands out',
+    headline: 'Nothing found against it',
     tone: 'verified',
   },
 };

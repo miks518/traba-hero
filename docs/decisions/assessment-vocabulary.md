@@ -268,9 +268,9 @@ function was written, and no test covered the docstring.
 
 | Token | Was | Now |
 |---|---|---|
-| `green` | "Nothing found against it" | **"Nothing stands out"** |
+| `green` | "Nothing found against it" | **"Nothing found against it"** — unchanged |
 | `yellow` | "Caution" | **"Caution"** — unchanged |
-| `red` | "Contradicted" | **"Something is not right"** |
+| `red` | "Contradicted" | **"Contradicted"** — unchanged |
 
 **Green's old word claimed the search came up empty.** Green fires at
 `confirmed` (a comparison matched) and at `supported` (a record named the
@@ -294,11 +294,26 @@ for a check row, `AnomalyCards` keeps it for a per-finding status, and
 three surfaces answer different questions and are deliberately allowed to differ;
 what is not allowed is one word for three claims.
 
+---
+
+## 2026-11-04 (fourth) — revert: "Contradicted" and "Nothing found against it"
+
+**Reverted.** After shipping "Something is not right" and "Nothing stands out",
+the team decided to keep the original wording:
+
+- `red` → **"Contradicted"** (back from "Something is not right")
+- `green` → **"Nothing found against it"** (back from "Nothing stands out")
+
+The original concern — that "Contradicted" named only one of red's two causes —
+is accepted as a trade-off: the banner's word is short, matches the anomaly
+cards' per-finding status, and is what the reader already sees. The breakdown
+carries the rule name for anyone who needs to know which path produced red.
+
 ### Still open after this
 
 A contradicted **anomaly** still does not move the assessment: at a confirmed
-employer it reads `green`, so "Something is not right" on a card can sit above
-"Nothing stands out" on the banner. The card's status is a claim about one
+employer it reads `green`, so "Contradicted" on a card can sit above
+"Nothing found against it" on the banner. The card's status is a claim about one
 finding; the banner's is about who is asking. Renaming made the collision
 less likely to read as a contradiction, and did not resolve it.
 

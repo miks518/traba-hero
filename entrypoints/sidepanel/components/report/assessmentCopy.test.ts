@@ -10,18 +10,14 @@ import { assessmentFor, actionsFor, NO_ASSESSMENT, VERIFYING } from './assessmen
  * the other is caught here.
  *
  * None of the three headlines may name a cause the grid does not guarantee.
- * "Something is not right" is true for both of red's causes — a contradicted
- * claim and a contradicted channel — where the word it replaced, "Contradicted",
- * named only the second and collided with the anomaly cards' per-finding status.
- * "Nothing stands out" claims resemblance to the ordinary case, never that the
- * posting is safe, and never that a search came up empty (green can mean a
- * search found plenty and the channel matched). "Caution" is the one advisory
- * word, backed by the grid rule in the breakdown.
+ * "Contradicted" is the red headline. "Caution" is the one advisory word,
+ * backed by the grid rule in the breakdown. "Nothing found against it" claims
+ * resemblance to the ordinary case, never that the posting is safe.
  */
 describe('what each assessment tells the reader', () => {
-  it('says exactly "Something is not right" for red, and nothing else', () => {
+  it('says exactly "Contradicted" for red, and nothing else', () => {
     // It has to be true for every path to red, not just the channel one.
-    expect(assessmentFor('red').headline).toBe('Something is not right');
+    expect(assessmentFor('red').headline).toBe('Contradicted');
   });
 
   it('gives yellow the advisory word', () => {
@@ -34,7 +30,7 @@ describe('what each assessment tells the reader', () => {
   it('never claims the posting is safe for green', () => {
     // Green means an ordinary ask and a record that did not contradict it - not
     // a clean bill of health. The headline reports resemblance, not clearance.
-    expect(assessmentFor('green').headline).toBe('Nothing stands out');
+    expect(assessmentFor('green').headline).toBe('Nothing found against it');
     expect(assessmentFor('green').headline).not.toContain('Proceed');
     expect(assessmentFor('green').headline).not.toContain('safe');
     expect(assessmentFor('green').headline).not.toContain('Contradicted');
