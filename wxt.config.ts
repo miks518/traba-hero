@@ -13,7 +13,7 @@ export default defineConfig({
     // The repository is the only home this project has — no domain, so the
     // listing's homepage is where the source and the setup docs already live.
     homepage_url: 'https://github.com/miks518/traba-hero',
-    version: '1.0.0',
+    version: '1.0.1',
     // Pins the extension ID to hdmdhiojgdoomcjfhbkidbhkifmokkop.
     //
     // Without this, Chrome derives an unpacked extension's ID from its absolute
@@ -31,7 +31,14 @@ export default defineConfig({
     // a listing with this key, the ID is fixed for the life of that listing.
     key:
       'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAraFxzE/9eT6/cBOuDrnkxao6zMXkuWVzN9JWBNgM+tbqSo0h7BCRSMp5lAZaPI/XM8TKTQUn/6/nkn/FPxCVP97vLrV6aBCPJNIznV4Kx2n2w9upRKjSSUQpKzuO82X1caJ58UafUXzlzOBWohQqBfsyBFWBBg+PKW1IIkR+14VLiSg0PODTnOl6nDGPrjRYYVIxy/A7n4eSv8JJkdTPlxFCo0AL+7+T4dCDAPyr9m9C8DmsX6JYfzPpNCOZE0fOgc3JlWiqVYvkkpWrpL6LCXytNNAOg2Ixhd4xM2BEvTg3SCNg1wq7Poh2JwENi6lP3ozV1WIWcsUpxnNkSM/nQQIDAQAB',
-    permissions: ['activeTab', 'storage', 'tabs', 'sidePanel'],
+    // `tabs` is deliberately absent. The Chrome Web Store rejected 0.5.0 for
+    // "requesting but not using" it, and it is genuinely unneeded here: every
+    // `tabs.*` call in the code (query, getZoom, captureVisibleTab, sendMessage)
+    // works without it. Reading a tab's url/title needs `tabs` only when the
+    // extension has no host permission for that URL, and `<all_urls>` below
+    // covers every page the picker can run on. `activeTab` stays because it
+    // grants the temporary page access the side panel uses on an action click.
+    permissions: ['activeTab', 'storage', 'sidePanel'],
     host_permissions: ['<all_urls>', 'http://localhost:8010/*'],
     side_panel: {
       default_path: 'entrypoints/sidepanel/index.html',

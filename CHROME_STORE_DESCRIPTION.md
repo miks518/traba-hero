@@ -1,4 +1,4 @@
-# Chrome Web Store Listing — Trabahero
+# Chrome Web Store Listing — Traba-Hero
 
 ---
 
@@ -9,15 +9,15 @@
 
 ## Detailed Description
 
-**Trabahero protects Filipino job seekers from employment scams.**
+**Traba-Hero protects Filipino job seekers from employment scams.**
 
-Every day, thousands of fake job postings circulate on Facebook, LinkedIn, JobStreet, and messaging apps — asking for upfront fees, personal IDs, or payments to "activate" accounts. Trabahero gives you a safety check before you apply.
+Every day, thousands of fake job postings circulate on Facebook, LinkedIn, JobStreet, and messaging apps — asking for upfront fees, personal IDs, or payments to "activate" accounts. Traba-Hero gives you a safety check before you apply.
 
 ### How It Works
 
 1. **Pick a Job Post** — Click the extension icon, then click any job posting on the page
-2. **AI Scan** — Trabahero analyzes the posting for scam signals (fees, suspicious channels, impersonation, too-good-to-be-true offers)
-3. **Employer Verification** — If the posting names a company, Trabahero searches the web to check: Does this company exist? Is it registered (SEC/DTI)? Does the contact channel match the employer's official domain?
+2. **AI Scan** — Traba-Hero analyzes the posting for scam signals (fees, suspicious channels, impersonation, too-good-to-be-true offers)
+3. **Employer Verification** — If the posting names a company, Traba-Hero searches the web to check: Does this company exist? Is it registered (SEC/DTI)? Does the contact channel match the employer's official domain?
 4. **Clear Assessment** — You get a simple result:
    - 🟢 **Nothing found against it** — No red flags, employer verified
    - 🟡 **Caution** — Some concerns, or employer couldn't be fully verified
@@ -33,9 +33,9 @@ Every day, thousands of fake job postings circulate on Facebook, LinkedIn, JobSt
 - **Philippines-Focused** — Rules based on DOLE Department Order 141-14, RA 10173 (Data Privacy Act), and DMW Advisory 56
 - **Works on Any Site** — Facebook, LinkedIn, JobStreet, Indeed, OLX, Telegram, Viber, WhatsApp, and more
 
-### Why Trabahero?
+### Why Traba-Hero?
 
-> "I almost paid a 500 PHP 'processing fee' for a work-from-home data entry job. Trabahero flagged it as prohibited — the fee went to a personal GCash, not the company. Saved me from a scam." — *Maria, 28, Quezon City*
+> "I almost paid a 500 PHP 'processing fee' for a work-from-home data entry job. Traba-Hero flagged it as prohibited — the fee went to a personal GCash, not the company. Saved me from a scam." — *Maria, 28, Quezon City*
 
 > "The verification showed the company existed but the email was a lookalike domain. The real company's domain was .com.ph, not .com. That detail saved me." — *James, 32, Makati*
 

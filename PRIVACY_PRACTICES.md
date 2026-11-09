@@ -7,7 +7,7 @@ it is not a problem with the package.
 ---
 
 ## Single purpose description
-> Trabahero scans a job posting the user selects and assesses it for job-scam
+> Traba-Hero scans a job posting the user selects and assesses it for job-scam
 > signals, verifies the named employer, and matches the user's resume against
 > scanned postings.
 
@@ -29,10 +29,13 @@ it is not a problem with the package.
 > that region on whatever page it is on. The extension never reads pages the
 > user has not selected.
 
-### host permission use (`http://localhost:8010/*`)
-> Development backend endpoint used while running the project locally. It is not
-> used in the published build. (If you removed it from the manifest, drop this
-> entry — see note at the bottom.)
+### host permission use (`https://traba-hero-production-b6b9.up.railway.app/*`)
+> The extension's own analysis backend. The selected job posting image or text is
+> sent here to be assessed, and the result is streamed back. This is not a
+> third-party site; it is the service the extension exists to call.
+
+(The development manifest uses `http://localhost:8010/*` in this slot;
+`store_prep.py` swaps it for the production origin in the uploaded package.)
 
 ### remote code use
 > No, I am not using remote code.
@@ -51,10 +54,11 @@ it is not a problem with the package.
 > theme, text size, the FAB toggle, and the user's scan history. Nothing is
 > synced or sent anywhere; it stays on the device.
 
-### tabs
-> Reads the active tab's identity and viewport to capture the visible page
-> region the user selected (`tabs.captureVisibleTab`) and to message the content
-> script on that tab. No browsing history is read or stored.
+**`tabs` is not requested.** Version 0.5.0 was rejected for "requesting but not
+using" it, and the rejection was correct: the active tab is located with
+`tabs.query`, screenshotted with `tabs.captureVisibleTab`, and messaged with
+`tabs.sendMessage`, none of which need that permission — the `<all_urls>` host
+permission above already allows all three.
 
 ---
 
@@ -99,19 +103,18 @@ it is not a problem with the package.
 
 ## Note on `localhost` host permission
 
-The manifest currently ships:
+The development manifest ships:
 
 ```json
 "host_permissions": ["<all_urls>", "http://localhost:8010/*"]
 ```
 
-`http://localhost:8010/*` is a development endpoint. For the published build it
-is dead weight and Chrome's reviewer may ask about it. Two options:
+`http://localhost:8010/*` is a development endpoint. For the published build
+`store_prep.py` removes it and requests the production origin instead:
 
-1. **Leave it** and use the localhost justification above.
-2. **Remove it** for the store build and add the production backend origin
-   instead (e.g. `https://traba-hero-production.up.railway.app/*`), which is the
-   host the extension actually calls in production.
+```json
+"host_permissions": ["<all_urls>", "https://traba-hero-production-b6b9.up.railway.app/*"]
+```
 
-Option 2 is the correct one for a store release — the manifest should request
-the origin the published extension really talks to, not localhost.
+The published manifest should request the origin the published extension really
+talks to, not localhost.

@@ -1,7 +1,7 @@
 # Trabahero — Functional & Non-Functional Requirements
 
 **Project:** Trabahero — A Universal Visual Job-Scam Detection System for Filipino Job Seekers
-**Version:** 1.0.0
+**Version:** 1.0.1
 **Last Updated:** 2026-09-29
 
 ---
@@ -881,7 +881,7 @@ as 2 and 5.
 | Requirement | Description |
 |-------------|-------------|
 | Manifest V3 | Extension uses Manifest V3 for enhanced security |
-| Minimal permissions | Only `activeTab`, `storage`, `tabs`, `sidePanel` requested |
+| Minimal permissions | Only `activeTab`, `storage`, `sidePanel` requested. `tabs` was removed in 1.0.1: the Web Store rejected 0.5.0 for requesting it without use, and the tab calls here need only `<all_urls>` |
 | Host permissions | Scoped to `<all_urls>` (required for content script) + backend URL |
 | No secrets in code | API keys stored in `backend/.env`, never committed |
 | Input validation | All API inputs validated via Pydantic models |
