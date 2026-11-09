@@ -31,7 +31,7 @@ Office VI seal and the real `ched.gov.ph` domain, and it asks applicants for a
 mandatory P1,500 application fee, a P800 pre-employment seminar fee, and ID
 submission through `recruitment.ched@outlook.com`, an `outlook.com` address
 presented as the official one. Brave Search, given the same image, produced six
-correct findings in one pass. Trabahero produced a panel that read as a real
+correct findings in one pass. Traba-Hero produced a panel that read as a real
 employer.
 
 Brave's findings split into two kinds, and only one of them is reachable from

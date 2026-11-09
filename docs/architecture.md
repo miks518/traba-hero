@@ -1,6 +1,6 @@
 # Architecture
 
-Trabahero is a job-scam detection browser extension for Filipino job seekers. It uses AI
+Traba-Hero is a job-scam detection browser extension for Filipino job seekers. It uses AI
 (OpenRouter) to analyse job postings for fraud signals.
 
 **Two tiers:**

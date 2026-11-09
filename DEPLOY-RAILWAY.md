@@ -1,4 +1,4 @@
-# Deploying the Trabahero backend to Railway
+# Deploying the Traba-Hero backend to Railway
 
 The Chrome extension talks to this backend over HTTPS. The backend is **not**
 inside the extension package — it is deployed separately, here.

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Trabahero is a job-scam detection Chrome extension for Filipino job seekers, plus a
+Traba-Hero is a job-scam detection Chrome extension for Filipino job seekers, plus a
 FastAPI backend that proxies OpenRouter.
 
 **Extension** (repo root): React 19 + TypeScript + Tailwind, WXT.

@@ -1,4 +1,4 @@
-# Deploying the Trabahero backend on Oracle Cloud Free Tier
+# Deploying the Traba-Hero backend on Oracle Cloud Free Tier
 
 Always-Free, always-on hosting for the FastAPI backend. This is a raw VM
 (IaaS), so unlike Railway there is OS setup — but it costs $0 and never sleeps.

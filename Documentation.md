@@ -1,6 +1,6 @@
-# Trabahero — Functional & Non-Functional Requirements
+# Traba-Hero — Functional & Non-Functional Requirements
 
-**Project:** Trabahero — A Universal Visual Job-Scam Detection System for Filipino Job Seekers
+**Project:** Traba-Hero — A Universal Visual Job-Scam Detection System for Filipino Job Seekers
 **Version:** 1.0.1
 **Last Updated:** 2026-09-29
 
@@ -63,7 +63,7 @@
 
 ## 1. Project Overview
 
-Trabahero is a Chrome browser extension that protects Filipino job seekers from employment scams. It uses AI (via OpenRouter) to analyze job postings for fraud signals, looks the named employer up through a web search to check whether the company exists and is registered, and matches user resumes against scanned job postings.
+Traba-Hero is a Chrome browser extension that protects Filipino job seekers from employment scams. It uses AI (via OpenRouter) to analyze job postings for fraud signals, looks the named employer up through a web search to check whether the company exists and is registered, and matches user resumes against scanned job postings.
 
 **Target Users:** Filipino job seekers browsing online job boards (e.g., JobStreet, Indeed, Facebook Jobs).
 
@@ -104,7 +104,7 @@ Trabahero is a Chrome browser extension that protects Filipino job seekers from 
 
 **Acceptance Criteria:**
 - AC-01: The side panel opens when the user clicks the extension toolbar icon.
-- AC-02: The top app bar displays the Trabahero logo, help button, text size selector, theme toggle, and close button.
+- AC-02: The top app bar displays the Traba-Hero logo, help button, text size selector, theme toggle, and close button.
 - AC-03: The side navigation shows two tabs: "Scan" (security icon) and "Match" (description icon).
 - AC-04: The active tab is visually highlighted with a gradient background (`nav-item-active`).
 - AC-05: The footer displays Legal and Privacy links and copyright text.
@@ -768,7 +768,7 @@ as 2 and 5.
 
 **Acceptance Criteria:**
 - AC-01: The popup is 320px wide.
-- AC-02: It displays the Trabahero branding and "Open Trabahero" CTA button.
+- AC-02: It displays the Traba-Hero branding and "Open Traba-Hero" CTA button.
 - AC-03: Two feature cards describe Scam Scan and Resume Match capabilities.
 - AC-04: A Floating Button toggle switch allows enabling/disabling the FAB.
 - AC-05: The FAB toggle state is persisted to `chrome.storage.local`.
@@ -1341,7 +1341,7 @@ Assesses an offer that names no employer, so there is nothing to look up. One AI
 
 ---
 
-*Document generated from codebase analysis. All requirements reflect the current implemented state of Trabahero v0.5.0.*
+*Document generated from codebase analysis. All requirements reflect the current implemented state of Traba-Hero v1.0.1.*
 
 *Notes on this revision (0.4.0 → 0.5.0): a settled high or critical score now promotes the evidence above the prose and tints the panel chrome (FR-32); the verification recommendation is addressed to a job seeker rather than assigning a registry lookup; the scan prompt's severity list no longer offers a missing employer as an example of a low-severity flag, which had been scoring nameless postings at 4; and a scanned job's stored result is replaced when verification lands, so a history entry no longer disagrees with the panel about the same posting.*
 

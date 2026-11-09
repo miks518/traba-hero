@@ -1,4 +1,4 @@
-# DESIGN.md — Trabahero Design System
+# DESIGN.md — Traba-Hero Design System
 
 ## Brand & Style
 

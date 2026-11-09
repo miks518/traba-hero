@@ -1,6 +1,6 @@
-# Trabahero — Defense Q&A Guide (Actual System)
+# Traba-Hero — Defense Q&A Guide (Actual System)
 
-## What Trabahero ACTUALLY Is
+## What Traba-Hero ACTUALLY Is
 
 A **Chrome browser extension** + **FastAPI backend** + **local LLM (Gemma 4)** that:
 1. Captures screenshots of job postings (text or image-based)
@@ -31,7 +31,7 @@ A **Chrome browser extension** + **FastAPI backend** + **local LLM (Gemma 4)** t
 
 ### Q1: "What problem does this solve?"
 
-**Answer:** Filipino job seekers face online recruitment fraud — 20% of SEEK's fraud cases target Filipinos (2025). Many scam postings on Facebook appear as **image-based graphics/flyers** where the DOM only has metadata like "Photo" — no extractable text. NLP-only tools can't read these. Trabahero captures a screenshot and sends it to an LLM that can **visually read the image**, classify it, and explain why it's a scam.
+**Answer:** Filipino job seekers face online recruitment fraud — 20% of SEEK's fraud cases target Filipinos (2025). Many scam postings on Facebook appear as **image-based graphics/flyers** where the DOM only has metadata like "Photo" — no extractable text. NLP-only tools can't read these. Traba-Hero captures a screenshot and sends it to an LLM that can **visually read the image**, classify it, and explain why it's a scam.
 
 ---
 

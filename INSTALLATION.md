@@ -1,4 +1,4 @@
-# Trabahero — Automated Setup Guide
+# Traba-Hero — Automated Setup Guide
 
 > This document is designed for another agentic AI (or a human) to follow linearly. Each step must succeed before moving to the next.
 
@@ -221,12 +221,12 @@ Expected response:
 2. Enable **Developer mode** (top-right toggle)
 3. Click **Load unpacked**
 4. Select the `./.output/` directory
-5. Pin the Trabahero icon to the toolbar
+5. Pin the Traba-Hero icon to the toolbar
 
 ### 6.3 Run a Scan
 
 1. Navigate to any job posting website
-2. Click the Trabahero toolbar icon → sidepanel opens
+2. Click the Traba-Hero toolbar icon → sidepanel opens
 3. Click **Pick Element** → click on a job posting on the page
 4. Wait for scan results
 

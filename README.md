@@ -1,6 +1,6 @@
-# Trabahero
+# Traba-Hero
 
-Trabahero helps Filipino job seekers spot job scams. The extension sends screenshots and text to a FastAPI backend, which relays them to an AI model through OpenRouter to check postings for fraud signals.
+Traba-Hero helps Filipino job seekers spot job scams. The extension sends screenshots and text to a FastAPI backend, which relays them to an AI model through OpenRouter to check postings for fraud signals.
 
 ## Features
 
