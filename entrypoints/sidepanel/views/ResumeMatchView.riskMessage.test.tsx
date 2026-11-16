@@ -145,13 +145,19 @@ describe('the per-job matching status is correct for every assessment', () => {
 
 describe('assessment badges are distinguishable', () => {
   /**
-   * The row badge carrying a assessment word — not a filter chip, not a control.
+   * The row badge carrying an assessment word — not a filter chip, not a control.
    * Substring, not exact: the icon inside the badge renders its ligature name as
-   * text (`gpp_maybeCaution`), and no other span in the row contains the word.
+   * text (`gpp_maybeCaution`). The badge is therefore the span that carries more
+   * than the word alone; the notice above the list repeats the word as plain
+   * bold text, and that one is not a badge.
    */
   function badgeFor(container: HTMLElement, label: string): HTMLElement | null {
     const spans = Array.from(container.querySelectorAll('span'));
-    return spans.find((s) => s.textContent?.includes(label)) ?? null;
+    return (
+      spans.find(
+        (s) => s.textContent?.includes(label) && s.textContent.trim() !== label,
+      ) ?? null
+    );
   }
 
   /** The three colours must not share identical badges. */

@@ -15,42 +15,39 @@ Every day, thousands of fake job postings circulate on Facebook, LinkedIn, JobSt
 
 ### How It Works
 
-1. **Pick a Job Post** — Click the extension icon, then click any job posting on the page
-2. **AI Scan** — Traba-Hero analyzes the posting for scam signals (fees, suspicious channels, impersonation, too-good-to-be-true offers)
-3. **Employer Verification** — If the posting names a company, Traba-Hero searches the web to check: Does this company exist? Is it registered (SEC/DTI)? Does the contact channel match the employer's official domain?
-4. **Clear Assessment** — You get a simple result:
-   - 🟢 **Nothing found against it** — No red flags, employer verified
-   - 🟡 **Caution** — Some concerns, or employer couldn't be fully verified
-   - 🔴 **Contradicted** — The posting's channel doesn't match the real employer (lookalike domain, free email posing as government, etc.)
-4. **Resume Match** — Upload your resume (PDF, DOCX, TXT, or image) and get compatibility scores against verified jobs
+1. **Pick a job post** — Open the side panel and select the posting you want checked.
+2. **Scan** — Traba-Hero reads the posting you selected and looks for scam signals: upfront fees, payment forwarding, credential requests, task-for-earning schemes, and impersonation.
+3. **Employer check** — If the post names a company, Traba-Hero searches the web for that company's official presence: whether it appears in official sources, and whether the contact channel in the post matches the employer's real domain.
+4. **Plain-language result** — 🟢 **Nothing found against it** · 🟡 **Caution** · 🔴 **Contradicted**
+5. **Resume match** — Upload a resume (PDF, DOCX, TXT, or image) and compare it against postings you have scanned.
 
 ### Key Features
 
-- **Scam Signal Detection** — Identifies upfront fees, payment forwarding, credential harvesting, task-for-earning schemes, and impersonation attempts
-- **Employer Verification** — Cross-references company names against SEC/DTI registrations, official websites, and reputable job boards
-- **Channel Match** — Flags when a posting uses a free email (Gmail, Yahoo), a lookalike domain, or claims to be a government office but uses unofficial channels
-- **Privacy-First** — Your resume and screenshots are processed in-memory only; nothing is stored on our servers
-- **Philippines-Focused** — Rules based on DOLE Department Order 141-14, RA 10173 (Data Privacy Act), and DMW Advisory 56
-- **Works on Any Site** — Facebook, LinkedIn, JobStreet, Indeed, OLX, Telegram, Viber, WhatsApp, and more
+- **Scam signal detection** — upfront fees, payment forwarding, credential harvesting, task-for-earning schemes, impersonation
+- **Employer check with sources** — links to what the search actually returned, so you can read it yourself
+- **Channel match** — flags free email addresses (Gmail, Yahoo), lookalike domains, and government claims made through unofficial channels
+- **Privacy-first** — your resume and screenshots are processed in memory; nothing is stored on our servers
+- **Philippines-focused** — rules based on DOLE Department Order 141-14, RA 10173 (Data Privacy Act), and DMW Advisory 56
+- **Works on any site** — Facebook, LinkedIn, JobStreet, Indeed, OLX, Telegram, Viber, WhatsApp web, and more
 
-### Why Traba-Hero?
+### What It Does Not Do
 
-> "I almost paid a 500 PHP 'processing fee' for a work-from-home data entry job. Traba-Hero flagged it as prohibited — the fee went to a personal GCash, not the company. Saved me from a scam." — *Maria, 28, Quezon City*
-
-> "The verification showed the company existed but the email was a lookalike domain. The real company's domain was .com.ph, not .com. That detail saved me." — *James, 32, Makati*
+It does not contact employers, apply on your behalf, or guarantee that a posting is safe. It shows the evidence it found and lets you decide.
 
 ### Permissions Explained
 
-- **Active Tab** — To capture the job posting you click on
-- **Storage** — To save your scan history and resume locally in your browser
-- **Side Panel** — To show results without leaving the page
-- **Host Permissions** — To send captures to the analysis backend (your data never leaves the request)
+- **Storage** — saves your settings and scan history in your browser
+- **Side Panel** — shows results next to the posting without navigating away
+- **Active Tab** — grants access only when you start a scan from the toolbar
+- **Host Permissions** — lets you select a region on any page and send that capture to the analysis backend
 
 ### Privacy Policy
-[Your Privacy Policy URL here]
+
+https://traba-hero.online/#privacy
 
 ### Support
-Email: [your-support-email] | GitHub: https://github.com/miks518/traba-hero
+
+support@traba-hero.online | GitHub: https://github.com/miks518/traba-hero
 
 ---
 

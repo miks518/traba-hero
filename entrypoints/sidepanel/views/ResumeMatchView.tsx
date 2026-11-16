@@ -411,7 +411,7 @@ export function ResumeMatchView({
             <p className="text-label-md font-bold text-error">Postings Excluded From Matching</p>
             <p className="text-body-xs text-on-surface-variant">
               {excludedJobs.length} scanned job{excludedJobs.length !== 1 ? 's' : ''} came back{' '}
-              <span className="font-bold text-on-surface">something is not right</span>, so{' '}
+              <span className="font-bold text-on-surface">Contradicted</span>, so{' '}
               {excludedJobs.length !== 1 ? 'they are' : 'it is'} not used for resume matching.
             </p>
           </div>
